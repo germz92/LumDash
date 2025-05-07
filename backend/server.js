@@ -224,15 +224,27 @@ app.get('/api/tables/:id/gear', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === "null") {
     return res.status(400).json({ error: "Invalid table ID" });
   }
-  const table = await Table.findById(req.params.id);
-  if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
-    return res.status(403).json({ error: 'Not authorized or not found' });
-  }
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
+      return res.status(403).json({ error: 'Not authorized or not found' });
+    }
 
-  const lists = table.gear?.lists ? Object.fromEntries(table.gear.lists) : {};
-  const checkOutDate = table.gear?.checkOutDate || '';
-  const checkInDate = table.gear?.checkInDate || '';
-  res.json({ lists, checkOutDate, checkInDate });
+    const lists = table.gear?.lists ? Object.fromEntries(table.gear.lists) : {};
+    const checkOutDate = table.gear?.checkOutDate || '';
+    const checkInDate = table.gear?.checkInDate || '';
+    
+    console.log("Sending gear data:", {
+      tableId: req.params.id,
+      checkOutDate, 
+      checkInDate
+    });
+    
+    res.json({ lists, checkOutDate, checkInDate });
+  } catch (err) {
+    console.error('Error retrieving gear data:', err);
+    res.status(500).json({ error: 'Server error while retrieving gear data' });
+  }
 });
 
 // ✅ PUT (save) gear checklist(s)
