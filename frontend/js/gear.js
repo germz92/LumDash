@@ -265,7 +265,9 @@ async function loadGear() {
       checkinDateEl.value = dates.checkInDate;
     }
 
-    // Render lists dropdown and gear
+    // --- Ensure isOwner is set before rendering gear ---
+    await loadEventTitle();
+    // Now render lists dropdown and gear
     populateGearListDropdown();
     renderGear();
 
@@ -758,20 +760,8 @@ function createCategory(name) {
             if (!checkByCategory(unit, name)) {
               return false;
             }
-            
-            // Skip if already checked out to another event
-            if (unit.status === 'checked_out' && 
-                unit.checkedOutEvent && 
-                unit.checkedOutEvent !== eventContext.tableId) {
-              return false;
-            }
-            
-            // Check date availability for items not already checked out to this event
-            if (unit.status !== 'checked_out' || unit.checkedOutEvent !== eventContext.tableId) {
-              return isUnitAvailableForDates(unit, dates.checkOut, dates.checkIn);
-            }
-            
-            return true;
+            // Only show if available for the selected dates
+            return isUnitAvailableForDates(unit, dates.checkOut, dates.checkIn);
           });
         
         openCheckoutModal(name, availableUnits, dates.checkOut, dates.checkIn, list);
@@ -1036,51 +1026,11 @@ async function loadGearInventory() {
   }
 }
 
+// Remove inventory status display
 function renderInventoryStatus() {
+  // No-op: inventory status is no longer shown
   const container = document.getElementById('gearStatusMessage');
-  if (!gearInventory.length) {
-    container.textContent = 'No gear inventory loaded.';
-    return;
-  }
-  
-  // Get selected dates
-  const checkOut = document.getElementById('checkoutDate')?.value;
-  const checkIn = document.getElementById('checkinDate')?.value;
-  
-  // Format date nicely
-  const formatDate = (dateStr) => {
-    if (!dateStr) return 'Unknown';
-    const date = new Date(dateStr);
-    return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
-      month: 'short', 
-      day: 'numeric',
-      timeZone: 'UTC' // Prevent timezone shifts
-    });
-  };
-  
-  container.innerHTML = '<b>Inventory Status:</b><br>' + gearInventory.map(item => {
-    // When dates are selected, use the same function as in the checkout modal
-    // to determine availability
-    const available = isUnitAvailableForDates(item, checkOut, checkIn);
-    
-    let status;
-    if (available) {
-      status = `<span style="color:green">Available</span>`;
-    } else if (item.status === 'checked_out' && item.checkInDate) {
-      // Show when it will be available
-      status = `<span style="color:orange">Available after ${formatDate(item.checkInDate)}</span>`;
-    } else {
-      status = `<span style="color:red">Unavailable</span>`;
-    }
-    
-    // Add more info for checked out items
-    if (item.status === 'checked_out') {
-      status += ` (Checked out ${item.checkedOutEvent === eventContext.tableId ? 'to this event' : 'to another event'})`;
-    }
-    
-    return `${item.label} (${item.category}): ${status}`;
-  }).join('<br>');
+  if (container) container.style.display = 'none';
 }
 
 // Modal logic
@@ -1097,24 +1047,20 @@ function openCheckoutModal(category, availableUnits, checkOut, checkIn, list) {
   
   // Filter out units that are:
   // 1. Already in any list for this event
-  // 2. Checked out to another event
+  // 2. Not available for the selected dates
   const availableUnitsFiltered = availableUnits.filter(unit => {
     // Skip if already in any list
     if (eventContext.isItemInAnyList(unit.label)) {
       return false;
     }
-    
-    // Skip if checked out to another event
-    if (unit.status === 'checked_out' && 
-        unit.checkedOutEvent && 
-        unit.checkedOutEvent !== eventContext.tableId) {
-      return false;
-    }
-    
-    return true;
+    // Only show if available for the selected dates
+    return isUnitAvailableForDates(unit, checkOut, checkIn);
   });
   
   console.log(`Original available units: ${availableUnits.length}, after filtering: ${availableUnitsFiltered.length}`);
+  
+  // Sort the filtered units alphabetically by label
+  availableUnitsFiltered.sort((a, b) => a.label.localeCompare(b.label));
   
   modalTitle.textContent = `Select ${category} Item to Check Out`;
   
@@ -1135,15 +1081,13 @@ function openCheckoutModal(category, availableUnits, checkOut, checkIn, list) {
     modalContent += availableUnitsFiltered
       .map(unit => {
         let statusLabel = '';
-        
-        if (unit.status === 'available') {
+        if (isUnitAvailableForDates(unit, checkOut, checkIn)) {
           statusLabel = '<span style="color: green">Available</span>';
         } else if (unit.status === 'checked_out' && unit.checkedOutEvent === eventContext.tableId) {
           statusLabel = '<span style="color: blue">Already checked out to this event</span>';
         } else {
-          statusLabel = unit.status;
+          statusLabel = '<span style="color: red">Checked Out</span>';
         }
-        
         return `<button class="modal-item-btn" data-id="${unit._id}">${unit.label} (${statusLabel})</button>`;
       })
       .join('');

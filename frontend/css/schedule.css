@@ -583,6 +583,16 @@
     .schedule-page #searchInput {
         font-size: 16px !important;
     }
+
+    /* Make checkboxes bigger on mobile */
+    .schedule-page .done-checkbox {
+        width: 28px !important;
+        height: 28px !important;
+        min-width: 28px !important;
+        min-height: 28px !important;
+        accent-color: #CC0007;
+        margin: 0 8px 0 0;
+    }
 }
 
 .schedule-page input[type="time"] {
