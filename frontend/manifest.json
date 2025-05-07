@@ -34,11 +34,13 @@
   "shortcuts": [
     {
       "name": "Schedule",
+      "short_name": "Schedule",
       "url": "./dashboard.html#schedule",
       "description": "View and manage event schedule"
     },
     {
       "name": "Crew",
+      "short_name": "Crew",
       "url": "./dashboard.html#crew",
       "description": "Manage crew assignments"
     }

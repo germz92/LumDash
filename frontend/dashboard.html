@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Event Dashboard</title>
+  <title>Lumetry Dashboard</title>
   
   <!-- PWA Meta Tags -->
   <link rel="manifest" href="manifest.json">
   <meta name="theme-color" content="#cc0007">
+  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="EventDash">
+  <meta name="apple-mobile-web-app-title" content="LumDash">
   <link rel="apple-touch-icon" href="assets/logo.png">
   <link rel="shortcut icon" type="image/x-icon" href="assets/favicon.png">
   
@@ -122,9 +123,18 @@
   <!-- Service Worker Registration -->
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js')
-        .then(reg => console.log('✅ ServiceWorker registered:', reg.scope))
-        .catch(err => console.warn('❌ ServiceWorker registration failed:', err));
+      // First unregister any existing service workers to clear caches
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (let registration of registrations) {
+          registration.unregister();
+          console.log('Unregistered existing service worker');
+        }
+        
+        // Then register our no-cache service worker
+        navigator.serviceWorker.register('./service-worker.js?v=' + new Date().getTime())
+          .then(reg => console.log('✅ No-cache ServiceWorker registered:', reg.scope))
+          .catch(err => console.warn('❌ ServiceWorker registration failed:', err));
+      });
         
       // Check for online/offline status
       function updateOnlineStatus() {
