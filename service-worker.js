@@ -1,4 +1,4 @@
-const CACHE_NAME = "event-dashboard-cache-v1";
+const CACHE_NAME = "event-dashboard-cache-v2";
 
 // Determine base path for GitHub Pages compatibility
 const location = self.location;
