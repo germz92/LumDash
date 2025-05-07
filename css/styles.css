@@ -1,0 +1,31 @@
+.dashboard-page { font-family: Arial, sans-serif; margin: 0; padding: 0 5%; background: #f4f4f4; min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; }
+.dashboard-page html, .dashboard-page body { max-width: 100%; overflow-x: hidden; }
+.dashboard-page .top-controls { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-top: 20px; }
+.dashboard-page .top-controls .left, .dashboard-page .top-controls .right { display: flex; align-items: center; gap: 10px; }
+.dashboard-page .table-wrapper { overflow-x: auto; width: 100%; }
+.dashboard-page table { border-collapse: collapse; width: 100%; min-width: 950px; margin: 20px 0; table-layout: auto; }
+.dashboard-page table th, .dashboard-page table td { height: 36px; line-height: 1.4; border: 1px solid #ccc; padding: 6px 10px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dashboard-page .toggle-link { color: #a1a1a1; }
+.dashboard-page button { padding: 10px 20px; margin: 10px 5px; background-color: #CC0007; color: white; border: none; border-radius: 4px; cursor: pointer; width: auto; max-width: fit-content; }
+.dashboard-page button:hover { background-color: rgb(170, 3, 8); }
+.dashboard-page input[type="date"], .dashboard-page input[type="text"], .dashboard-page input[type="time"], .dashboard-page input#shareEmail { padding: 8px 10px; margin: 8px 5px; border: 1px solid #ccc; border-radius: 4px; display: inline-block; font-size: 16px; width: auto; max-width: 100%; }
+.dashboard-page table input, .dashboard-page table select { height: 30px; font-size: 16px; padding: 4px 6px; box-sizing: border-box; width: 100%; max-width: 100%; }
+.dashboard-page .dashboard-container { max-width: 100%; width: 100%; padding: 30px; margin: 0 auto; box-sizing: border-box; align-items: center; }
+.dashboard-page .event-links { display: flex; flex-direction: column; gap: 15px; margin-top: 30px; }
+.dashboard-page .event-links a { display: inline-block; padding: 10px 16px; margin: 5px; background-color: #CC0007; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; transition: background 0.2s ease-in-out; width: auto; max-width: 200px; text-align: center; }
+.dashboard-page .event-links a:hover { background-color: #cc0007; }
+.dashboard-page .auth-wrapper { display: flex; justify-content: center; align-items: center; height: 100%; }
+.dashboard-page .auth-card { display: flex; flex-direction: column; gap: 15px; background: #ffffff; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); max-width: 400px; width: 100%; }
+.dashboard-page .auth-card h1 { margin-bottom: 10px; font-size: 28px; text-align: center; }
+.dashboard-page .auth-card h2 { font-size: 18px; margin: 10px 0 0; }
+.dashboard-page .auth-card input { padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; }
+.dashboard-page .auth-card button { padding: 10px; background-color: #CC0007; color: white; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; transition: background 0.2s ease-in-out; }
+.dashboard-page .auth-card button:hover { background-color: rgb(170, 3, 8); }
+.dashboard-page .contacts-container { overflow-x: auto; padding-bottom: 10px; }
+.dashboard-page .contacts-container table { width: 100%; border-collapse: separate; border-spacing: 0 6px; min-width: 600px; }
+.dashboard-page #contactRows .contact-row { display: table-row; }
+.dashboard-page #contactRows .contact-row input { padding: 6px 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; min-width: 120px; width: 100%; box-sizing: border-box; }
+.dashboard-page #contactRows .contact-row td { padding: 4px 8px; background: #f9f9f9; }
+.dashboard-page .action-buttons { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
+@media (max-width: 768px) { .dashboard-page html { width: 100%; overflow-x: hidden; } .dashboard-page body { padding: 5px 8px; } .dashboard-page table { max-width: 100%; font-size: 16px; } .dashboard-page th, .dashboard-page td { padding: 8px; font-size: 16px; } .dashboard-page h2 { font-size: 16px; } .dashboard-page .back-btn { padding: 8px 12px; font-size: 16px; } .dashboard-page button { padding: 5px 8px; font-size: 16px; } .dashboard-page .modal-content { width: 95%; } .dashboard-page select, .dashboard-page input[type="text"] { font-size: 16px; } }
+  

@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Crew Call</title>
+  <link rel="shortcut icon" type="image/x-icon" href="assets/favicon.png">
+  <link rel="stylesheet" href="css/crew.css">
+  <script src="js/api.js"></script>
+  <script src="js/config.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+</head>
+<body class="crew-page">
+  <header>
+    <div class="header-inner">
+      <div class="crew-title">
+        <h1 id="tableTitle">Event Name</h1>
+        <h2>Crew Call</h2>
+      </div>
+      <div class="top-nav-bar">
+        <input id="newDate" type="date" placeholder="Add Date">
+        <button id="addDateBtn" class="add-btn">+ Add Date</button>
+        <div id="crewCount"><strong>Crew Count: 0</strong></div>
+      </div>
+      <div class="filter-sort-bar">
+        <select id="filterDate"></select>
+        <select id="sortDirection">
+          <option value="asc">Oldest First</option>
+          <option value="desc">Newest First</option>
+        </select>
+        <input type="text" id="searchInput" placeholder="Search crew...">
+      </div>
+    </div>
+  </header>
+  <main>
+    <div id="dateSections"></div>
+  </main>
+  <div id="bottomNavPlaceholder"></div>
+  <script src="js/crew.js"></script>
+</body>
+</html>

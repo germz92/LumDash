@@ -1,0 +1,79 @@
+  <div class="container">
+    <h2 id="eventTitle" style="text-align: center; margin-bottom: 20px;"></h2>
+    <h1>General Event Info</h1>
+    <form id="generalForm">
+      <div class="info-section">
+        <div style="grid-column: 1 / -1;">
+          <label for="summary">Event Summary</label>
+          <div id="summary" class="read-only"></div>
+        </div>
+        <div>
+          <label for="location">Location</label>
+          <div id="location" class="read-only"></div>
+        </div>
+        <div>
+          <label for="weather">Weather</label>
+          <div id="weather" class="read-only"></div>
+        </div>
+        <div>
+          <label for="start">Start Date</label>
+          <input type="date" id="start" name="start" placeholder="Select Date">
+        </div>
+        <div>
+          <label for="end">End Date</label>
+          <input type="date" id="end" name="end" placeholder="Select Date">
+        </div>
+        <div>
+          <label for="attendees">Attendee Count</label>
+          <div id="attendees" class="read-only"></div>
+        </div>
+        <div>
+          <label for="budget">Budget</label>
+          <div id="budget" class="read-only"></div>
+        </div>
+      </div>      
+
+      <div class="contacts-container">
+        <h2 style="margin-top: 0;">Point of Contacts</h2>
+        <div class="contacts-scroll-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>Email</th>
+                <th>Role</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="contactRows"></tbody>
+          </table>
+        </div>
+        <button type="button" class="add-row-btn" onclick="addContactRow()">Add Row</button>
+      </div>
+
+      <div class="contacts-container">
+        <h2 style="margin-top: 40px;">Locations</h2>
+        <div class="contacts-scroll-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Address</th>
+                <th>Event</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="locationsRows"></tbody>
+          </table>
+        </div>
+        <button type="button" class="add-row-btn" onclick="addLocationRow()">Add Row</button>
+      </div>      
+
+      <div class="save-button-container">
+        <button type="button" class="add-row-btn" onclick="saveGeneralInfo()">Save</button>
+        <button id="editBtn" type="button" class="add-row-btn" onclick="switchToEdit()" style="display: none;">Edit</button>
+      </div>
+    </form>
+  </div>
+

@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Register</title>
+  <link rel="shortcut icon" type="image/x-icon" href="assets/favicon.png">
+  <link rel="stylesheet" href="css/register.css">
+  <script src="js/api.js"></script>
+  
+</head>
+<body>
+  <div class="auth-wrapper">
+    <div class="auth-card">
+      <img src="assets/logo.png" alt="Logo" class="auth-logo">
+      <h1>Join Us</h1>
+      <h2>Create Account</h2>
+      <input id="regEmail" placeholder="Email" type="email">
+      <input id="regFullName" placeholder="Full Name" type="text"> <!-- 🔥 Changed to Full Name -->
+      <input id="regPassword" placeholder="Password" type="password">
+      <button onclick="register()">Register</button>
+
+      <a href="index.html" class="toggle-link">Already have an account? Login</a>
+    </div>
+  </div>
+
+  <script src="js/register.js"></script>
+</body>
+</html>
