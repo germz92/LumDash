@@ -186,6 +186,13 @@
 .btn-open { background-color: #CC0007; }
 .btn-share { background-color: #a1a1a1; }
 .btn-delete { background-color: #858585; }
+.btn-archive {
+    background-color: #ff9800;
+    color: white;
+}
+.btn-archive:hover {
+    background-color: #e68900;
+}
 
 .btn-open:hover { background-color: #a30006; box-shadow: 0 4px 16px rgba(204,0,7,0.10); }
 .btn-share:hover { background-color: #868585; }
@@ -389,6 +396,40 @@
         font-size: 15px !important;
         border-radius: 8px !important;
         padding: 10px 0 !important;
+    }
+}
+
+@media (min-width: 900px) {
+    .card-container {
+        max-width: 100%;
+        width: 100%;
+        margin: 0 auto;
+        border-radius: 0;
+        padding-left: 0;
+        padding-right: 0;
+        overflow-x: hidden;
+    }
+    .table-cards {
+        flex-wrap: wrap;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 32px;
+        width: 100%;
+        max-width: 100%;
+        overflow-x: hidden;
+        box-sizing: border-box;
+    }
+    .table-card {
+        width: 400px;
+        min-width: 320px;
+        max-width: 400px;
+        flex: 0 1 400px;
+        margin-bottom: 18px;
+        box-sizing: border-box;
+    }
+    .action-buttons {
+        flex-wrap: nowrap;
+        gap: 14px;
     }
 }
 
