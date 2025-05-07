@@ -72,6 +72,8 @@
       max-width: 95vw;
       text-align: center;
       animation: modalPopIn 0.28s cubic-bezier(.4,1.4,.6,1) both;
+      max-height: 80vh;
+      overflow-y: auto;
     }
     @keyframes modalPopIn {
       0% { opacity: 0; transform: scale(0.96) translateY(30px); }
@@ -251,5 +253,18 @@
     /* Make gear container position relative for the view-only badge */
     #gearContainer {
       position: relative;
+    }
+    #modalItemList {
+      max-height: 60vh;
+      overflow-y: auto;
+      margin-bottom: 12px;
+    }
+    @media (max-width: 600px) {
+      .modal-content {
+        max-height: 90vh;
+      }
+      #modalItemList {
+        max-height: 70vh;
+      }
     }
   </style>
