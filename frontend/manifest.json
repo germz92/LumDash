@@ -1,6 +1,6 @@
 {
-  "name": "Events Dashboard",
-  "short_name": "EventDash",
+  "name": "Lumetry Dashboard",
+  "short_name": "LumDash",
   "description": "Comprehensive event management dashboard for photographers and event planners",
   "start_url": "./index.html",
   "scope": ".",
