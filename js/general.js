@@ -25,9 +25,24 @@ function createLinkedTextarea(value, type) {
   textarea.addEventListener('dblclick', () => {
     const val = textarea.value.trim();
     if (!val) return;
-    if (type === 'email') window.location.href = `mailto:${val}`;
-    else if (type === 'phone') window.location.href = `tel:${val}`;
-    else if (type === 'address') window.open(`https://www.google.com/maps/search/?q=${encodeURIComponent(val)}`, '_blank');
+    if (type === 'email') {
+      window.location.href = `mailto:${val}`;
+    }
+    else if (type === 'phone') {
+      window.location.href = `tel:${val}`;
+    }
+    else if (type === 'address') {
+      // Use a more iOS-friendly maps URL format
+      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+      
+      if (isIOS) {
+        // Apple Maps format (iOS)
+        window.location.href = `maps://?q=${encodeURIComponent(val)}`;
+      } else {
+        // Google Maps format (Android, desktop)
+        window.open(`https://www.google.com/maps/search/?q=${encodeURIComponent(val)}`, '_blank');
+      }
+    }
   });
   return textarea;
 }
@@ -36,10 +51,30 @@ function createLinkHTML(value, type) {
   if (!value) return '<div>(empty)</div>';
   value = value.trim();
   let href = '#';
-  if (type === 'email') href = `mailto:${value}`;
-  else if (type === 'phone' || type === 'number') href = `tel:${value}`;
-  else if (type === 'address') href = `https://www.google.com/maps/search/?q=${encodeURIComponent(value)}`;
-  else return `<div>${value}</div>`;
+  
+  if (type === 'email') {
+    href = `mailto:${value}`;
+  } 
+  else if (type === 'phone' || type === 'number') {
+    href = `tel:${value}`;
+  } 
+  else if (type === 'address') {
+    // Use a more iOS-friendly maps URL format
+    // Apple Maps URL scheme for iOS, fallback to Google Maps
+    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+    
+    if (isIOS) {
+      // Apple Maps format (iOS)
+      href = `maps://?q=${encodeURIComponent(value)}`;
+    } else {
+      // Google Maps format (Android, desktop)
+      href = `https://www.google.com/maps/search/?q=${encodeURIComponent(value)}`;
+    }
+  }
+  else {
+    return `<div>${value}</div>`;
+  }
+  
   return `<a href="${href}" target="_blank" style="color: #1976d2; text-decoration: underline;">${value}</a>`;
 }
 
