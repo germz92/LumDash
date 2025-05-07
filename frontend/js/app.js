@@ -157,19 +157,19 @@ function loadPage(page, id) {
         pageFlags[page].forEach(flag => {
           window[flag] = false;
         });
-      }
+  }
 
       // Dynamically load JS if it exists
-      const script = document.createElement('script');
+  const script = document.createElement('script');
       script.src = `js/${page}.js`;
-      script.id = 'page-script';
+  script.id = 'page-script';
       
       // Make sure we handle load errors
       script.onerror = (error) => {
         console.error(`Error loading script for ${page}:`, error);
       };
       
-      script.onload = () => {
+  script.onload = () => {
         console.log('Script loaded for', page, 'calling window.initPage with id:', id || getTableId());
         
         // Small delay to ensure the script has been properly initialized
@@ -180,13 +180,13 @@ function loadPage(page, id) {
             } catch (err) {
               console.error('Error initializing page:', err);
             }
-          } else {
+    } else {
             console.warn('window.initPage is not defined after loading', script.src);
-          }
+    }
         }, 50);
-      };
+  };
       
-      document.body.appendChild(script);
+  document.body.appendChild(script);
     })
     .catch(err => {
       console.error('Error loading page:', err);

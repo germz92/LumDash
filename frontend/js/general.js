@@ -102,12 +102,12 @@ function collectContacts() {
   return [...document.querySelectorAll("#contactRows tr")].map(row => {
     const inputs = row.querySelectorAll("textarea");
     if (inputs.length) {
-      return {
-        name: inputs[0]?.value.trim(),
-        number: inputs[1]?.value.trim(),
-        email: inputs[2]?.value.trim(),
-        role: inputs[3]?.value.trim()
-      };
+    return {
+      name: inputs[0]?.value.trim(),
+      number: inputs[1]?.value.trim(),
+      email: inputs[2]?.value.trim(),
+      role: inputs[3]?.value.trim()
+    };
     } else {
       // Fallback to text content in view mode
       const cells = row.querySelectorAll("td");
@@ -125,11 +125,11 @@ function collectLocations() {
   return [...document.querySelectorAll("#locationsRows tr")].map(row => {
     const inputs = row.querySelectorAll("textarea");
     if (inputs.length) {
-      return {
-        name: inputs[0]?.value.trim(),
-        address: inputs[1]?.value.trim(),
-        event: inputs[2]?.value.trim()
-      };
+    return {
+      name: inputs[0]?.value.trim(),
+      address: inputs[1]?.value.trim(),
+      event: inputs[2]?.value.trim()
+    };
     } else {
       // Fallback to text content in view mode
       const cells = row.querySelectorAll("td");

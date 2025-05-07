@@ -136,35 +136,35 @@ function cleanupCardLogPage() {
 
 window.initPage = async function(id) {
   const tableId = id || localStorage.getItem('eventId');
-  if (!tableId) {
-    alert('Event ID missing.');
-    return;
-  }
-  localStorage.setItem('eventId', tableId);
+    if (!tableId) {
+      alert('Event ID missing.');
+      return;
+    }
+    localStorage.setItem('eventId', tableId);
 
-  // Load event name
-  try {
-    const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
-      headers: { Authorization: localStorage.getItem('token') }
-    });
-    const table = await res.json();
+    // Load event name
+    try {
+      const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
+        headers: { Authorization: localStorage.getItem('token') }
+      });
+      const table = await res.json();
     const eventTitleEl = document.getElementById('eventTitle');
     if (eventTitleEl) eventTitleEl.textContent = table.title || 'Event';
-  } catch (err) {
-    console.error('Failed to load event name:', err);
+    } catch (err) {
+      console.error('Failed to load event name:', err);
     const eventTitleEl = document.getElementById('eventTitle');
     if (eventTitleEl) eventTitleEl.textContent = 'Error loading event';
-  }
+    }
 
   await loadUsers();
   await loadCardLog();
 
-  // Load bottom nav HTML
+    // Load bottom nav HTML
   const navContainer = document.createElement('div');
   navContainer.id = 'bottomNavPlaceholder';
-  const navRes = await fetch('bottom-nav.html');
-  const navHTML = await navRes.text();
-  navContainer.innerHTML = navHTML;
+    const navRes = await fetch('bottom-nav.html');
+    const navHTML = await navRes.text();
+    navContainer.innerHTML = navHTML;
   document.body.appendChild(navContainer);
 
   // Add SPA navigation to nav links
@@ -177,21 +177,21 @@ window.initPage = async function(id) {
     });
   });
 
-  // Inject hrefs with ?id=...
-  const links = [
-    { id: 'navGeneral', file: 'general.html' },
-    { id: 'navCrew', file: 'crew.html' },
-    { id: 'navTravel', file: 'travel-accommodation.html' },
-    { id: 'navGear', file: 'gear.html' },
-    { id: 'navCard', file: 'card-log.html' },
+    // Inject hrefs with ?id=...
+    const links = [
+      { id: 'navGeneral', file: 'general.html' },
+      { id: 'navCrew', file: 'crew.html' },
+      { id: 'navTravel', file: 'travel-accommodation.html' },
+      { id: 'navGear', file: 'gear.html' },
+      { id: 'navCard', file: 'card-log.html' },
     { id: 'navSchedule', file: 'schedule.html' }
-  ];
-  links.forEach(({ id, file }) => {
-    const el = document.getElementById(id);
-    if (el) el.href = `${file}?id=${tableId}`;
-  });
+      ];
+    links.forEach(({ id, file }) => {
+      const el = document.getElementById(id);
+      if (el) el.href = `${file}?id=${tableId}`;
+    });
 
-  if (window.lucide) lucide.createIcons();
+    if (window.lucide) lucide.createIcons();
   
   // Set up event listeners
   setupEventListeners();

@@ -167,7 +167,7 @@ window.initPage = undefined;
       const row = button.closest('tr');
       console.log('row to remove:', row);
       if (row) {
-        row.remove();
+      row.remove();
         console.log('row removed');
       }
     }
@@ -233,8 +233,8 @@ window.initPage = undefined;
       
       try {
         const res = await fetch(`${API_BASE}/api/tables/${tableIdToUse}`, {
-          headers: { Authorization: token }
-        });
+        headers: { Authorization: token }
+      });
 
         if (!res.ok) {
           throw new Error(`Failed to load table: ${res.status}`);
@@ -259,25 +259,25 @@ window.initPage = undefined;
 
       // Bottom Nav
       try {
-        const navContainer = document.getElementById('bottomNavPlaceholder');
+      const navContainer = document.getElementById('bottomNavPlaceholder');
         if (navContainer) {
-          const navRes = await fetch('bottom-nav.html');
-          const navHTML = await navRes.text();
-          navContainer.innerHTML = navHTML;
+      const navRes = await fetch('bottom-nav.html');
+      const navHTML = await navRes.text();
+      navContainer.innerHTML = navHTML;
 
-          const links = [
-            { id: 'navGeneral', file: 'general.html' },
-            { id: 'navCrew', file: 'crew.html' },
-            { id: 'navTravel', file: 'travel-accommodation.html' },
-            { id: 'navGear', file: 'gear.html' },
-            { id: 'navCard', file: 'card-log.html' },
-            { id: 'navSchedule', file: 'schedule.html' }
-          ];
+      const links = [
+        { id: 'navGeneral', file: 'general.html' },
+        { id: 'navCrew', file: 'crew.html' },
+        { id: 'navTravel', file: 'travel-accommodation.html' },
+        { id: 'navGear', file: 'gear.html' },
+        { id: 'navCard', file: 'card-log.html' },
+        { id: 'navSchedule', file: 'schedule.html' }
+      ];
 
-          links.forEach(({ id, file }) => {
-            const el = document.getElementById(id);
+      links.forEach(({ id, file }) => {
+        const el = document.getElementById(id);
             if (el) el.href = `${file}?id=${tableIdToUse}`;
-          });
+      });
         }
       } catch (error) {
         console.error('Error loading navigation:', error);

@@ -4,7 +4,7 @@ const ENVIRONMENTS = {
     API_BASE: 'http://localhost:3000',
   },
   production: {
-    API_BASE: 'https://events-dashboard-backend.onrender.com', // Change this to your Render URL
+    API_BASE: 'https://spa-lumdash-backend.onrender.com', // Updated to the correct Render URL
   }
 };
 

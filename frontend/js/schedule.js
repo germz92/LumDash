@@ -243,12 +243,12 @@ function renderProgramSections() {
             onblur="${isOwner ? `autoSave(this, '${program.date}', ${program.__index}, 'name')` : ''}">
           <div class="right-actions">
             <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; margin-bottom: 0;">
-              <input type="checkbox" class="done-checkbox"
-                style="width: 20px; height: 20px;"
-                ${program.done ? 'checked' : ''}
-                onchange="toggleDone(this, ${program.__index})">
-            </label>
-          </div>
+            <input type="checkbox" class="done-checkbox"
+              style="width: 20px; height: 20px;"
+              ${program.done ? 'checked' : ''}
+              onchange="toggleDone(this, ${program.__index})">
+          </label>
+        </div>
         </div>
         <div style="display: flex; align-items: center; gap: 3px;">
           <input type="time" placeholder="Start Time" style="flex: 1; min-width: 0; text-align: left;"
@@ -283,7 +283,7 @@ function renderProgramSections() {
           </div>
         </div>
         <div class="entry-actions">
-          <button class="show-notes-btn" onclick="toggleNotes(this)">Show Notes</button>
+        <button class="show-notes-btn" onclick="toggleNotes(this)">Show Notes</button>
           ${isOwner ? `<button class="delete-btn" onclick="deleteProgram(this)">🗑️</button>` : ''}
         </div>
         <div class="notes-field" style="display: none;">
