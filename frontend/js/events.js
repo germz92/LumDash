@@ -6,6 +6,7 @@ if (!token && !window.location.pathname.endsWith('index.html')) {
 }
 
 let currentTableId = null;
+let showArchived = false;
 
 function getUserIdFromToken() {
   const token = localStorage.getItem('token');
@@ -72,8 +73,11 @@ async function loadTables() {
   const tables = await res.json();
   const userId = getUserIdFromToken();
 
+  // Filter tables based on archived status
+  const filteredTables = tables.filter(table => !!table.archived === showArchived);
+
   const sortValue = document.getElementById('sortDropdown')?.value || 'newest';
-  tables.sort((a, b) => {
+  filteredTables.sort((a, b) => {
     // Create UTC dates for consistent sorting regardless of timezone
     const parseDateUTC = (dateStr) => {
       if (!dateStr) return new Date(0);
@@ -94,7 +98,7 @@ async function loadTables() {
   const list = document.getElementById('tableList');
   if (list) list.innerHTML = '';
 
-  tables.forEach(table => {
+  filteredTables.forEach(table => {
     const general = table.general || {};
     const client = general.client || 'N/A';
     
@@ -170,6 +174,24 @@ async function loadTables() {
     // Only add Share and Delete buttons for owners
     if (isOwner) {
       actions.appendChild(shareBtn);
+      // Add Archive button before Delete for better grouping
+      const archiveBtn = document.createElement('button');
+      archiveBtn.className = 'btn-archive';
+      archiveBtn.textContent = 'Archive';
+      archiveBtn.onclick = async () => {
+        if (confirm('Are you sure you want to archive this event?')) {
+          await fetch(`${API_BASE}/api/tables/${table._id}/archive`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: token
+            },
+            body: JSON.stringify({ archived: true })
+          });
+          loadTables();
+        }
+      };
+      actions.appendChild(archiveBtn);
       actions.appendChild(deleteBtn);
     }
 
@@ -285,6 +307,17 @@ window.initPage = function(id) {
   // Set up Create Event button
   const createBtn = document.querySelector('.btn-create');
   if (createBtn) createBtn.onclick = showCreateModal;
+
+  // Set up Archived Events toggle button
+  const toggleBtn = document.getElementById('toggleArchivedBtn');
+  if (toggleBtn) {
+    toggleBtn.onclick = () => {
+      showArchived = !showArchived;
+      toggleBtn.textContent = showArchived ? 'Show Active Events' : 'Archived Events';
+      loadTables();
+    };
+    toggleBtn.textContent = showArchived ? 'Show Active Events' : 'Archived Events';
+  }
 
   // Load tables
   loadTables();

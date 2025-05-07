@@ -929,6 +929,24 @@ app.put('/api/tables/:id/rows/:rowId', authenticate, async (req, res) => {
   res.json({ success: true });
 });
 
+// PATCH endpoint to archive/unarchive an event
+debugger;
+app.patch('/api/tables/:id/archive', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === "null") {
+    return res.status(400).json({ error: "Invalid table ID" });
+  }
+  const table = await Table.findById(req.params.id);
+  if (!table || !table.owners.includes(req.user.id)) {
+    return res.status(403).json({ error: 'Not authorized or not found' });
+  }
+  if (typeof req.body.archived !== 'boolean') {
+    return res.status(400).json({ error: 'archived field must be boolean' });
+  }
+  table.archived = req.body.archived;
+  await table.save();
+  res.json({ message: `Event ${req.body.archived ? 'archived' : 'unarchived'}` });
+});
+
 // SERVER
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));

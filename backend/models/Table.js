@@ -121,7 +121,8 @@ const tableSchema = new mongoose.Schema({
   programSchedule: {
     type: [programSchema],
     default: []
-  }
+  },
+  archived: { type: Boolean, default: false }
 }, { timestamps: true });
 
 // Add utility methods for date handling if needed
