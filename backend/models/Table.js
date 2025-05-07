@@ -5,12 +5,22 @@ const itemSchema = new mongoose.Schema({
   checked: Boolean
 }, { _id: false });
 
+// Updated gear category schema to support the new structure
 const gearCategorySchema = new mongoose.Schema({
   Cameras: [itemSchema],
   Lenses: [itemSchema],
   Lighting: [itemSchema],
   Support: [itemSchema],
   Accessories: [itemSchema]
+}, { _id: false });
+
+// New gear list schema with metadata
+const gearListSchema = new mongoose.Schema({
+  meta: {
+    description: String,
+    created: Date
+  },
+  categories: gearCategorySchema
 }, { _id: false });
 
 const programSchema = new mongoose.Schema({
@@ -71,7 +81,7 @@ const tableSchema = new mongoose.Schema({
   gear: {
     lists: {
       type: Map,
-      of: gearCategorySchema,
+      of: gearListSchema, // Updated to use the new schema with metadata
       default: {}
     },
     checkOutDate: String,

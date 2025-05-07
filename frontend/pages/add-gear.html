@@ -426,12 +426,12 @@
       
       const fromDate = normalizeDate(checkFromDate.value);
       const toDate = normalizeDate(checkToDate.value);
+      const now = new Date();
+      now.setUTCHours(0, 0, 0, 0);  // Normalize current date as well
       
       // If item is currently available, check for any conflicts in future reservations
       if (item.status === 'available') {
         const conflictingReservations = [];
-        const now = new Date();
-        now.setUTCHours(0, 0, 0, 0);  // Normalize current date as well
         
         if (item.history && item.history.length > 0) {
           item.history.forEach(entry => {
@@ -443,13 +443,23 @@
             // Skip if the reservation is in the past
             if (entryEnd < now) return;
             
-            // Check for overlap: (startA <= endB) && (endA >= startB)
-            if (fromDate <= entryEnd && toDate >= entryStart) {
-              conflictingReservations.push({
-                from: entryStart,
-                to: entryEnd
-              });
+            // Check if our requested dates are completely before this reservation
+            if (toDate < entryStart) {
+              // No conflict - our dates end before this reservation starts
+              return;
             }
+            
+            // Check if our requested dates are completely after this reservation
+            if (fromDate > entryEnd) {
+              // No conflict - our dates start after this reservation ends
+              return;
+            }
+            
+            // If we get here, there's an overlap
+            conflictingReservations.push({
+              from: entryStart,
+              to: entryEnd
+            });
           });
         }
         
@@ -471,30 +481,43 @@
       } 
       
       // If item is checked out, check if it will be available for the requested dates
-      else if (item.status === 'checked_out' && item.checkInDate) {
-        const checkInDate = normalizeDate(item.checkInDate);
+      else if (item.status === 'checked_out') {
+        // Get current reservation dates
+        const existingCheckOut = normalizeDate(item.checkOutDate);
+        const existingCheckIn = normalizeDate(item.checkInDate);
         
-        // If check-in date is before or on our requested start date, it will be available
-        if (checkInDate <= fromDate) {
+        if (existingCheckOut && existingCheckIn) {
+          // Case 1: Our requested dates end BEFORE the existing checkout starts
+          if (toDate < existingCheckOut) {
+            return {
+              status: 'available',
+              availableDate: null,
+              conflictingReservations: []
+            };
+          }
+          
+          // Case 2: Our requested dates start AFTER the existing checkin ends
+          if (fromDate > existingCheckIn) {
+            return {
+              status: 'future_available',
+              availableDate: existingCheckIn,
+              conflictingReservations: []
+            };
+          }
+          
+          // Otherwise there's a conflict
           return {
-            status: 'future_available',
-            availableDate: checkInDate,
-            conflictingReservations: []
+            status: 'checked_out',
+            availableDate: existingCheckIn,
+            conflictingReservations: [{
+              from: existingCheckOut,
+              to: existingCheckIn
+            }]
           };
         }
-        
-        // Otherwise, there's a conflict
-        return {
-          status: 'checked_out',
-          availableDate: checkInDate,
-          conflictingReservations: [{
-            from: item.checkOutDate ? normalizeDate(item.checkOutDate) : normalizeDate(new Date().toISOString()),
-            to: checkInDate
-          }]
-        };
       }
       
-      // Default: item is checked out with no check-in date
+      // Default: item is checked out with no valid dates
       return {
         status: 'checked_out',
         availableDate: null,

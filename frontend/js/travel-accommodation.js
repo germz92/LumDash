@@ -127,8 +127,9 @@ window.initPage = undefined;
 
     function addRow(tableId) {
       console.log('addRow called for', tableId, 'editMode:', editMode);
-      if (!editMode) {
-        console.log('editMode is false, not adding row');
+      // Don't allow adding rows if not in edit mode or not an owner
+      if (!editMode || !isOwner) {
+        console.log('Cannot add row: editMode is', editMode, 'isOwner is', isOwner);
         return;
       }
       const table = document.getElementById(tableId)?.querySelector("tbody");
@@ -248,8 +249,17 @@ window.initPage = undefined;
         isOwner = Array.isArray(table.owners) && table.owners.map(String).includes(String(userId));
         console.log('isOwner set to:', isOwner, 'userId:', userId, 'table.owners:', table.owners);
         
+        // Hide edit button for non-owners
         const editModeBtn = document.getElementById('editModeBtn');
         if (!isOwner && editModeBtn) editModeBtn.style.display = 'none';
+        
+        // Hide add row buttons for non-owners
+        const addRowButtons = document.querySelectorAll('.add-btn');
+        if (!isOwner && addRowButtons) {
+          addRowButtons.forEach(btn => {
+            btn.style.display = 'none';
+          });
+        }
         
         await loadData();
       } catch (error) {

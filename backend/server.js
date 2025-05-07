@@ -230,6 +230,7 @@ app.get('/api/tables/:id/gear', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized or not found' });
     }
 
+    // Extract gear data
     const lists = table.gear?.lists ? Object.fromEntries(table.gear.lists) : {};
     const checkOutDate = table.gear?.checkOutDate || '';
     const checkInDate = table.gear?.checkInDate || '';
@@ -237,47 +238,52 @@ app.get('/api/tables/:id/gear', authenticate, async (req, res) => {
     console.log("Sending gear data:", {
       tableId: req.params.id,
       checkOutDate, 
-      checkInDate
+      checkInDate,
+      listsCount: Object.keys(lists).length
     });
     
     res.json({ lists, checkOutDate, checkInDate });
   } catch (err) {
-    console.error('Error retrieving gear data:', err);
-    res.status(500).json({ error: 'Server error while retrieving gear data' });
+    console.error('Error getting gear:', err);
+    res.status(500).json({ error: 'Server error' });
   }
 });
 
-// ✅ PUT (save) gear checklist(s)
+// ✅ UPDATE gear checklist
 app.put('/api/tables/:id/gear', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === "null") {
     return res.status(400).json({ error: "Invalid table ID" });
   }
   try {
-    const table = await Table.findById(req.params.id);
-    if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
+    // Find and update in one atomic operation (fixes versioning issues)
+    const result = await Table.findOneAndUpdate(
+      {
+        _id: req.params.id,
+        $or: [
+          { owners: req.user.id },
+          { sharedWith: req.user.id }
+        ]
+      },
+      {
+        $set: {
+          'gear.lists': req.body.lists ? new Map(Object.entries(req.body.lists)) : new Map(),
+          'gear.checkOutDate': req.body.checkOutDate || '',
+          'gear.checkInDate': req.body.checkInDate || ''
+        }
+      },
+      { new: true, runValidators: true }
+    );
+
+    if (!result) {
       return res.status(403).json({ error: 'Not authorized or not found' });
     }
 
-    const { lists, checkOutDate, checkInDate } = req.body;
-
-    if (!lists || typeof lists !== 'object') {
-      return res.status(400).json({ error: 'Invalid format for gear lists' });
-    }
-
-    // ✅ Ensure gear object exists
-    if (!table.gear) {
-      table.gear = { lists: {} };
-    }
-
-    table.gear.lists = lists;
-    if (typeof checkOutDate !== 'undefined') table.gear.checkOutDate = checkOutDate;
-    if (typeof checkInDate !== 'undefined') table.gear.checkInDate = checkInDate;
-    await table.save();
-
-    res.json({ message: 'Gear checklists saved' });
+    console.log("Updated gear for table:", req.params.id);
+    console.log("Lists count:", result.gear?.lists ? result.gear.lists.size : 0);
+    res.status(200).json({ success: true });
   } catch (err) {
-    console.error('Gear save error:', err);
-    res.status(500).json({ error: 'Server error while saving gear' });
+    console.error('Error updating gear:', err);
+    res.status(500).json({ error: 'Server error: ' + err.message });
   }
 });
 

@@ -142,14 +142,14 @@ async function loadTables() {
       window.navigate(page, tableId);
     };
 
+    const isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
+
     const shareBtn = document.createElement('button');
     shareBtn.className = 'btn-share';
     shareBtn.textContent = 'Share';
     shareBtn.onclick = () => {
       openShareModal(table._id);
     };
-
-    const isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
 
     const deleteBtn = document.createElement('button');
     deleteBtn.className = 'btn-delete';
@@ -164,8 +164,14 @@ async function loadTables() {
       }
     };
 
-    actions.append(openBtn, shareBtn);
-    if (isOwner) actions.append(deleteBtn);
+    // Always add Open button
+    actions.appendChild(openBtn);
+    
+    // Only add Share and Delete buttons for owners
+    if (isOwner) {
+      actions.appendChild(shareBtn);
+      actions.appendChild(deleteBtn);
+    }
 
     card.append(header, actions);
     if (list) list.appendChild(card);
@@ -173,16 +179,34 @@ async function loadTables() {
 }
 
 async function openShareModal(tableId) {
-  currentTableId = tableId;
-  const shareModal = document.getElementById('shareModal');
-  if (shareModal) shareModal.style.display = 'flex';
-
   try {
+    // First fetch the table to check ownership
     const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
       headers: { Authorization: token }
     });
+    
+    if (!res.ok) {
+      throw new Error('Failed to fetch table details');
+    }
+    
     const table = await res.json();
+    const userId = getUserIdFromToken();
+    
+    // Check if the current user is an owner
+    const isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
+    
+    // If not owner, show not authorized message and return early
+    if (!isOwner) {
+      alert('Not authorized. Only owners can share events.');
+      return;
+    }
+    
+    // If owner, proceed with opening the share modal
+    currentTableId = tableId;
+    const shareModal = document.getElementById('shareModal');
+    if (shareModal) shareModal.style.display = 'flex';
 
+    // Fetch users for the lists
     const userRes = await fetch(`${API_BASE}/api/users`, {
       headers: { Authorization: token }
     });
@@ -197,9 +221,9 @@ async function openShareModal(tableId) {
 
     if (ownerList) ownerList.innerHTML = owners.map(u => `<li>${u.fullName} (${u.email})</li>`).join('');
     if (sharedList) sharedList.innerHTML = shared.map(u => `<li>${u.fullName} (${u.email})</li>`).join('');
-
   } catch (err) {
-    console.error('Error fetching shared user list:', err);
+    console.error('Error in share modal:', err);
+    alert('Error opening share options. Please try again.');
   }
 }
 
