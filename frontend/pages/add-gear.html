@@ -1,0 +1,835 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Gear Inventory Management</title>
+  <link rel="stylesheet" href="../css/general.css">
+  <style>
+    body { font-family: Arial, sans-serif; background: #f4f4f4; }
+    .container { max-width: 95%; margin: 20px auto; padding: 0 10px; box-sizing: border-box; }
+    .card { background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 2px 12px rgba(0,0,0,0.08); margin-bottom: 24px; box-sizing: border-box; overflow: hidden; }
+    h1, h2 { margin-top: 0; color: #333; }
+    h1 { text-align: center; margin-bottom: 24px; border-bottom: 1px solid #eee; padding-bottom: 12px; font-size: clamp(22px, 5vw, 32px); }
+    h2 { font-size: clamp(18px, 4vw, 24px); }
+    
+    /* Form Styles */
+    .form-row { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; width: 100%; box-sizing: border-box; }
+    .form-group { flex: 1; min-width: 200px; box-sizing: border-box; }
+    label { display: block; margin-bottom: 6px; font-weight: bold; }
+    input, select { 
+      width: 100%; 
+      padding: 12px; 
+      border-radius: 6px; 
+      border: 1.5px solid #ccc; 
+      font-size: 16px; 
+      box-sizing: border-box;
+      max-width: 100%;
+    }
+    button { 
+      padding: 12px 16px; 
+      border-radius: 6px; 
+      font-size: 16px; 
+      cursor: pointer; 
+      border: none; 
+      box-sizing: border-box;
+    }
+    
+    .btn-primary { background: #CC0007; color: #fff; }
+    .btn-primary:hover { background: #a30006; }
+    .btn-secondary { background: #6c757d; color: #fff; }
+    .btn-danger { background: #dc3545; color: #fff; }
+    .btn-warning { background: #ffc107; color: #212529; }
+    
+    /* Table Styles */
+    .table-responsive { overflow-x: auto; -webkit-overflow-scrolling: touch; width: 100%; }
+    .inventory-table { width: 100%; border-collapse: collapse; margin-top: 20px; table-layout: fixed; }
+    .inventory-table th { background: #f8f9fa; text-align: left; padding: 12px; font-weight: bold; word-wrap: break-word; }
+    .inventory-table td { padding: 12px; border-top: 1px solid #dee2e6; word-wrap: break-word; }
+    .inventory-table tr:hover { background: #f8f9fa; }
+    
+    /* Action Buttons */
+    .action-buttons { display: flex; gap: 8px; }
+    .action-btn { padding: 10px; border-radius: 4px; min-width: 60px; }
+    
+    /* Status Indicators */
+    .status-available { color: green; font-weight: bold; }
+    .status-checked-out { color: red; font-weight: bold; }
+    .status-future-available { color: orange; font-weight: bold; }
+    
+    /* Message Display */
+    .msg { padding: 12px; margin: 12px 0; border-radius: 6px; }
+    .msg-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+    .msg-success { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+    
+    /* Modal */
+    .modal { display: none; position: fixed; z-index: 1000; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); }
+    .modal-content { 
+      background: #fff; 
+      margin: 10% auto; 
+      padding: 20px; 
+      width: 90%; 
+      max-width: 500px; 
+      border-radius: 8px; 
+      position: relative;
+      box-sizing: border-box;
+    }
+    .close-btn { position: absolute; right: 20px; top: 20px; font-size: 24px; cursor: pointer; }
+    
+    /* Search and Filter */
+    .filters { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; align-items: flex-start; width: 100%; box-sizing: border-box; }
+    .search-box { flex: 1; min-width: 100%; box-sizing: border-box; }
+    .category-filter { flex: 1; min-width: 48%; box-sizing: border-box; }
+    .status-filter { flex: 1; min-width: 48%; box-sizing: border-box; }
+    .date-filters { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 15px; width: 100%; box-sizing: border-box; }
+    .date-filter { flex: 1; min-width: 100%; box-sizing: border-box; }
+    .date-actions { display: flex; gap: 10px; width: 100%; margin-top: 10px; box-sizing: border-box; }
+    .date-actions button { flex: 1; }
+    
+    /* History tooltip */
+    .reservation-tooltip {
+      position: relative;
+      display: inline-block;
+      margin-left: 5px;
+      cursor: pointer;
+    }
+    .reservation-tooltip .tooltiptext {
+      visibility: hidden;
+      width: 200px;
+      background-color: #555;
+      color: #fff;
+      text-align: left;
+      border-radius: 6px;
+      padding: 10px;
+      position: absolute;
+      z-index: 1;
+      bottom: 125%;
+      left: 50%;
+      transform: translateX(-50%);
+      opacity: 0;
+      transition: opacity 0.3s;
+      box-sizing: border-box;
+    }
+    .reservation-tooltip:hover .tooltiptext {
+      visibility: visible;
+      opacity: 1;
+    }
+    
+    /* Mobile adjustments */
+    @media (max-width: 768px) {
+      .container { 
+        max-width: 100%; 
+        margin: 10px auto;
+        padding: 0 8px;
+      }
+      .card { 
+        padding: 16px; 
+        border-radius: 8px;
+      }
+      .form-row {
+        gap: 10px;
+      }
+      .form-group {
+        min-width: 100%;
+      }
+      input, select {
+        padding: 8px;
+        font-size: 14px;
+      }
+      button {
+        padding: 8px 12px;
+        font-size: 14px;
+      }
+      .inventory-table th,
+      .inventory-table td {
+        padding: 8px 6px;
+        font-size: 14px;
+      }
+      .action-btn {
+        padding: 8px;
+        min-width: 50px;
+        font-size: 14px;
+      }
+      /* Adjust column widths for small screens */
+      .inventory-table th:nth-child(3), /* Serial column */
+      .inventory-table td:nth-child(3) {
+        display: none; /* Hide serial column on mobile */
+      }
+      /* Make status column wider */
+      .inventory-table th:nth-child(4),
+      .inventory-table td:nth-child(4) {
+        min-width: 120px;
+        max-width: 140px;
+      }
+      .reservation-tooltip .tooltiptext {
+        width: 160px;
+        font-size: 13px;
+      }
+      /* Stack the button row in date filters vertically */
+      .date-actions {
+        flex-direction: column;
+      }
+      .date-actions button {
+        width: 100%;
+        margin-bottom: 8px;
+      }
+      /* Adjust date inputs */
+      input[type="date"] {
+        min-width: 0;
+        width: 100%;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="card">
+      <h1>Gear Inventory Management</h1>
+      
+      <div id="messageArea"></div>
+      
+      <!-- Add/Edit Gear Form -->
+      <div id="gearForm" class="card">
+        <h2 id="formTitle">Add New Gear</h2>
+        <form id="addEditGearForm">
+          <input type="hidden" id="gearId" value="">
+          <div class="form-row">
+            <div class="form-group">
+              <label for="label">Label*</label>
+              <input type="text" id="label" name="label" required>
+            </div>
+            <div class="form-group">
+              <label for="category">Category*</label>
+              <select id="category" name="category" required>
+                <option value="">Select Category</option>
+                <option value="Cameras">Cameras</option>
+                <option value="Lenses">Lenses</option>
+                <option value="Lighting">Lighting</option>
+                <option value="Support">Support</option>
+                <option value="Accessories">Accessories</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="serial">Serial Number*</label>
+              <input type="text" id="serial" name="serial" required>
+            </div>
+          </div>
+          <div class="form-row">
+            <div class="form-group">
+              <button type="submit" id="submitBtn" class="btn-primary">Add Gear</button>
+              <button type="button" id="cancelBtn" class="btn-secondary" style="display:none">Cancel</button>
+            </div>
+          </div>
+        </form>
+      </div>
+      
+      <!-- Gear Inventory List -->
+      <div class="card">
+        <h2>Current Inventory</h2>
+        
+        <!-- Date Selection Fields -->
+        <div class="date-filters">
+          <div class="date-filter">
+            <label for="checkFromDate">Check From Date</label>
+            <input type="date" id="checkFromDate" name="checkFromDate">
+          </div>
+          <div class="date-filter">
+            <label for="checkToDate">Check To Date</label>
+            <input type="date" id="checkToDate" name="checkToDate">
+          </div>
+          <div class="date-actions">
+            <button id="checkDatesBtn" class="btn-primary">Check Availability</button>
+            <button id="clearDatesBtn" class="btn-secondary">Clear Dates</button>
+          </div>
+        </div>
+        
+        <div class="filters">
+          <div class="form-group search-box">
+            <label for="searchInput">Search</label>
+            <input type="text" id="searchInput" placeholder="Search by label or serial...">
+          </div>
+          <div class="form-group category-filter">
+            <label for="filterCategory">Filter by Category</label>
+            <select id="filterCategory">
+              <option value="">All Categories</option>
+              <option value="Cameras">Cameras</option>
+              <option value="Lenses">Lenses</option>
+              <option value="Lighting">Lighting</option>
+              <option value="Support">Support</option>
+              <option value="Accessories">Accessories</option>
+            </select>
+          </div>
+          <div class="form-group status-filter">
+            <label for="statusFilter">Status</label>
+            <select id="statusFilter">
+              <option value="">All</option>
+              <option value="available">Available</option>
+              <option value="checked_out">Checked Out</option>
+              <option value="future_available">Future Available</option>
+            </select>
+          </div>
+        </div>
+        
+        <div class="table-responsive">
+          <table class="inventory-table">
+            <thead>
+              <tr>
+                <th>Label</th>
+                <th>Category</th>
+                <th>Serial</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="inventoryTableBody">
+              <!-- Inventory items will be loaded here -->
+              <tr>
+                <td colspan="5" id="loadingMessage">Loading inventory...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Confirmation Modal -->
+  <div id="confirmModal" class="modal">
+    <div class="modal-content">
+      <span class="close-btn" id="closeModalBtn">&times;</span>
+      <h3 id="modalTitle">Confirm Action</h3>
+      <p id="modalMessage">Are you sure you want to proceed?</p>
+      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <button id="cancelModalBtn" class="btn-secondary">Cancel</button>
+        <button id="confirmModalBtn" class="btn-danger">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const API_BASE = window.API_BASE || localStorage.getItem('API_BASE') || '';
+    const token = window.token || localStorage.getItem('token');
+    
+    // DOM Elements
+    const messageArea = document.getElementById('messageArea');
+    const formTitle = document.getElementById('formTitle');
+    const gearForm = document.getElementById('addEditGearForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const cancelBtn = document.getElementById('cancelBtn');
+    const gearIdInput = document.getElementById('gearId');
+    const inventoryTableBody = document.getElementById('inventoryTableBody');
+    const confirmModal = document.getElementById('confirmModal');
+    const closeModalBtn = document.getElementById('closeModalBtn');
+    const cancelModalBtn = document.getElementById('cancelModalBtn');
+    const confirmModalBtn = document.getElementById('confirmModalBtn');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalMessage = document.getElementById('modalMessage');
+    const searchInput = document.getElementById('searchInput');
+    const filterCategory = document.getElementById('filterCategory');
+    const statusFilter = document.getElementById('statusFilter');
+    const checkFromDate = document.getElementById('checkFromDate');
+    const checkToDate = document.getElementById('checkToDate');
+    const checkDatesBtn = document.getElementById('checkDatesBtn');
+    const clearDatesBtn = document.getElementById('clearDatesBtn');
+    
+    // State
+    let inventory = [];
+    let currentAction = null;
+    let itemToDelete = null;
+    
+    // Set default dates
+    const today = new Date();
+    const nextWeek = new Date(today);
+    nextWeek.setDate(today.getDate() + 7);
+    
+    checkFromDate.valueAsDate = today;
+    checkToDate.valueAsDate = nextWeek;
+    
+    // Initialize
+    document.addEventListener('DOMContentLoaded', function() {
+      loadInventory();
+      setupEventListeners();
+    });
+    
+    // Event Listeners
+    function setupEventListeners() {
+      // Form submission
+      gearForm.addEventListener('submit', handleFormSubmit);
+      
+      // Cancel button
+      cancelBtn.addEventListener('click', resetForm);
+      
+      // Modal buttons
+      closeModalBtn.addEventListener('click', closeModal);
+      cancelModalBtn.addEventListener('click', closeModal);
+      confirmModalBtn.addEventListener('click', handleConfirmAction);
+      
+      // Search and filters
+      searchInput.addEventListener('input', filterInventory);
+      filterCategory.addEventListener('change', filterInventory);
+      statusFilter.addEventListener('change', filterInventory);
+      
+      // Date checking
+      checkDatesBtn.addEventListener('click', function() {
+        // Add debug info for date handling
+        console.log("Date Selection: ", {
+          fromRaw: checkFromDate.value,
+          toRaw: checkToDate.value,
+          fromNormalized: new Date(checkFromDate.value),
+          toNormalized: new Date(checkToDate.value),
+          fromFormatted: formatDate(checkFromDate.value),
+          toFormatted: formatDate(checkToDate.value)
+        });
+        renderInventory();
+      });
+      clearDatesBtn.addEventListener('click', function() {
+        checkFromDate.value = '';
+        checkToDate.value = '';
+        renderInventory();
+      });
+    }
+    
+    // Load Inventory Data
+    async function loadInventory() {
+      try {
+        const res = await fetch(`${API_BASE}/api/gear-inventory`, {
+          headers: { Authorization: token }
+        });
+        
+        if (!res.ok) throw new Error(`Status ${res.status}`);
+        
+        inventory = await res.json();
+        renderInventory();
+      } catch (err) {
+        showMessage(`Error loading inventory: ${err.message}`, 'error');
+      }
+    }
+    
+    // Calculate availability status based on dates
+    function getAvailabilityStatus(item) {
+      // If no dates are selected, just return current status
+      if (!checkFromDate.value || !checkToDate.value) {
+        return {
+          status: item.status,
+          availableDate: item.checkInDate ? new Date(item.checkInDate) : null,
+          conflictingReservations: []
+        };
+      }
+      
+      // Normalize dates to remove time component for accurate date comparison
+      // Start date at 00:00:00 of the selected day
+      const normalizeDate = (dateStr) => {
+        const date = new Date(dateStr);
+        date.setUTCHours(0, 0, 0, 0);
+        return date;
+      };
+      
+      const fromDate = normalizeDate(checkFromDate.value);
+      const toDate = normalizeDate(checkToDate.value);
+      
+      // If item is currently available, check for any conflicts in future reservations
+      if (item.status === 'available') {
+        const conflictingReservations = [];
+        const now = new Date();
+        now.setUTCHours(0, 0, 0, 0);  // Normalize current date as well
+        
+        if (item.history && item.history.length > 0) {
+          item.history.forEach(entry => {
+            if (!entry.checkOutDate || !entry.checkInDate) return;
+            
+            const entryStart = normalizeDate(entry.checkOutDate);
+            const entryEnd = normalizeDate(entry.checkInDate);
+            
+            // Skip if the reservation is in the past
+            if (entryEnd < now) return;
+            
+            // Check for overlap: (startA <= endB) && (endA >= startB)
+            if (fromDate <= entryEnd && toDate >= entryStart) {
+              conflictingReservations.push({
+                from: entryStart,
+                to: entryEnd
+              });
+            }
+          });
+        }
+        
+        if (conflictingReservations.length > 0) {
+          // Sort conflicts by start date
+          conflictingReservations.sort((a, b) => a.from - b.from);
+          return {
+            status: 'conflict',
+            availableDate: null,
+            conflictingReservations
+          };
+        }
+        
+        return {
+          status: 'available',
+          availableDate: null,
+          conflictingReservations: []
+        };
+      } 
+      
+      // If item is checked out, check if it will be available for the requested dates
+      else if (item.status === 'checked_out' && item.checkInDate) {
+        const checkInDate = normalizeDate(item.checkInDate);
+        
+        // If check-in date is before or on our requested start date, it will be available
+        if (checkInDate <= fromDate) {
+          return {
+            status: 'future_available',
+            availableDate: checkInDate,
+            conflictingReservations: []
+          };
+        }
+        
+        // Otherwise, there's a conflict
+        return {
+          status: 'checked_out',
+          availableDate: checkInDate,
+          conflictingReservations: [{
+            from: item.checkOutDate ? normalizeDate(item.checkOutDate) : normalizeDate(new Date().toISOString()),
+            to: checkInDate
+          }]
+        };
+      }
+      
+      // Default: item is checked out with no check-in date
+      return {
+        status: 'checked_out',
+        availableDate: null,
+        conflictingReservations: []
+      };
+    }
+    
+    // Filter inventory based on search and filters
+    function filterInventory() {
+      const searchTerm = searchInput.value.toLowerCase();
+      const categoryFilter = filterCategory.value;
+      const statusValue = statusFilter.value;
+      
+      const filtered = inventory.filter(item => {
+        // Calculate availability for this item
+        const availability = getAvailabilityStatus(item);
+        
+        // Match search term
+        const matchesSearch = 
+          item.label.toLowerCase().includes(searchTerm) || 
+          (item.serial && item.serial.toLowerCase().includes(searchTerm));
+        
+        // Match category
+        const matchesCategory = !categoryFilter || item.category === categoryFilter;
+        
+        // Match status
+        let matchesStatus = true;
+        if (statusValue) {
+          if (statusValue === 'available') {
+            matchesStatus = availability.status === 'available';
+          } else if (statusValue === 'checked_out') {
+            matchesStatus = availability.status === 'checked_out';
+          } else if (statusValue === 'future_available') {
+            matchesStatus = availability.status === 'future_available';
+          }
+        }
+        
+        return matchesSearch && matchesCategory && matchesStatus;
+      });
+      
+      renderInventory(filtered);
+    }
+    
+    // Format date to readable string
+    function formatDate(date) {
+      if (!date) return 'Unknown';
+      
+      // Create a date that correctly handles timezone offset
+      const utcDate = new Date(date);
+      
+      // Format date in user's local timezone
+      return utcDate.toLocaleDateString('en-US', { 
+        year: 'numeric', 
+        month: 'short', 
+        day: 'numeric',
+        timeZone: 'UTC' // Use UTC to prevent timezone shifts
+      });
+    }
+    
+    // Render inventory table
+    function renderInventory(items) {
+      if (!items) {
+        items = inventory;
+      }
+      
+      if (items.length === 0) {
+        inventoryTableBody.innerHTML = '<tr><td colspan="5">No items found</td></tr>';
+        return;
+      }
+      
+      // Check if we're on mobile
+      const isMobile = window.innerWidth <= 768;
+      
+      inventoryTableBody.innerHTML = items.map(item => {
+        // Calculate availability status
+        const availability = getAvailabilityStatus(item);
+        
+        // Determine status display
+        let statusClass, statusText;
+        let availableInfo = '';
+        let reservationInfo = '';
+        
+        if (availability.status === 'available') {
+          statusClass = 'status-available';
+          statusText = 'Available';
+        } else if (availability.status === 'future_available') {
+          statusClass = 'status-future-available';
+          statusText = isMobile ? 'Avail. After ' : 'Available After ';
+          statusText += formatDate(availability.availableDate);
+        } else if (availability.status === 'conflict') {
+          statusClass = 'status-checked-out';
+          statusText = isMobile ? 'Unavailable' : 'Unavailable - Conflict';
+          
+          if (availability.conflictingReservations.length > 0) {
+            const conflicts = availability.conflictingReservations.map(c => 
+              `${formatDate(c.from)} to ${formatDate(c.to)}`
+            ).join('<br>');
+            
+            reservationInfo = `
+              <div class="reservation-tooltip">ℹ️
+                <span class="tooltiptext">
+                  <strong>Conflicts:</strong><br>
+                  ${conflicts}
+                </span>
+              </div>
+            `;
+          }
+        } else {
+          statusClass = 'status-checked-out';
+          statusText = 'Checked Out';
+          
+          if (availability.availableDate) {
+            availableInfo = isMobile ? '' : ' (Until ' + formatDate(availability.availableDate) + ')';
+            // If on mobile, put the date in the tooltip instead
+            if (isMobile && availability.availableDate) {
+              reservationInfo = `
+                <div class="reservation-tooltip">ℹ️
+                  <span class="tooltiptext">
+                    <strong>Until:</strong><br>
+                    ${formatDate(availability.availableDate)}
+                  </span>
+                </div>
+              `;
+            }
+          }
+        }
+        
+        return `
+          <tr>
+            <td>${escapeHtml(item.label)}</td>
+            <td>${escapeHtml(item.category)}</td>
+            <td>${escapeHtml(item.serial || '')}</td>
+            <td>
+              <span class="${statusClass}">
+                ${statusText}${availableInfo}
+              </span>
+              ${reservationInfo}
+            </td>
+            <td class="action-buttons">
+              <button class="action-btn btn-warning" onclick="editGear('${item._id}')" 
+                  ${item.status === 'checked_out' ? 'disabled title="Cannot edit checked out gear"' : ''}>
+                ${isMobile ? 'Edit' : 'Edit'}
+              </button>
+              <button class="action-btn btn-danger" onclick="showDeleteConfirmation('${item._id}')"
+                  ${item.status === 'checked_out' ? 'disabled title="Cannot delete checked out gear"' : ''}>
+                ${isMobile ? 'Del' : 'Delete'}
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+    
+    // Form submit handler
+    async function handleFormSubmit(e) {
+      e.preventDefault();
+      
+      // Get values and ensure proper trimming
+      const labelValue = document.getElementById('label').value.trim();
+      const categoryValue = document.getElementById('category').value;
+      const serialValue = document.getElementById('serial').value.trim();
+      
+      // Create form data ensuring empty serials are null
+      const formData = {
+        label: labelValue,
+        category: categoryValue,
+        serial: serialValue.length > 0 ? serialValue : null
+      };
+      
+      if (!formData.label || !formData.category) {
+        showMessage('Label and category are required.', 'error');
+        return;
+      }
+      
+      const isEditing = gearIdInput.value !== '';
+      let url = `${API_BASE}/api/gear-inventory`;
+      let method = 'POST';
+      
+      if (isEditing) {
+        url = `${url}/${gearIdInput.value}`;
+        method = 'PUT';
+      }
+      
+      try {
+        const res = await fetch(url, {
+          method,
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token
+          },
+          body: JSON.stringify(formData)
+        });
+        
+        const data = await res.json();
+        
+        if (!res.ok) {
+          // Handle specific error cases
+          if (res.status === 409) {
+            if (data.error.includes('Duplicate label')) {
+              throw new Error('A gear item with this label already exists.');
+            } else if (data.error.includes('Duplicate serial')) {
+              // Only show this error if the serial was actually provided
+              if (serialValue.length > 0) {
+                throw new Error('This serial number is already assigned to another gear item.');
+              } else {
+                // This shouldn't happen, but if it does, show the more general error
+                throw new Error(data.error || `Error: ${res.status}`);
+              }
+            } else {
+              throw new Error(data.error || `Error: ${res.status}`);
+            }
+          }
+          throw new Error(data.error || `Error: ${res.status}`);
+        }
+        
+        showMessage(isEditing ? 'Gear updated successfully!' : 'Gear added successfully!', 'success');
+        resetForm();
+        await loadInventory();
+      } catch (err) {
+        showMessage(err.message, 'error');
+      }
+    }
+    
+    // Edit gear
+    function editGear(id) {
+      const item = inventory.find(g => g._id === id);
+      if (!item) return;
+      
+      // Fill the form
+      document.getElementById('gearId').value = item._id;
+      document.getElementById('label').value = item.label;
+      document.getElementById('category').value = item.category;
+      document.getElementById('serial').value = item.serial || '';
+      
+      // Update UI
+      formTitle.textContent = 'Edit Gear';
+      submitBtn.textContent = 'Update Gear';
+      cancelBtn.style.display = 'inline-block';
+      
+      // Scroll to form
+      document.getElementById('gearForm').scrollIntoView({ behavior: 'smooth' });
+    }
+    
+    // Delete confirmation
+    function showDeleteConfirmation(id) {
+      const item = inventory.find(g => g._id === id);
+      if (!item) return;
+      
+      itemToDelete = id;
+      modalTitle.textContent = 'Confirm Deletion';
+      modalMessage.textContent = `Are you sure you want to delete "${item.label}"?`;
+      confirmModalBtn.textContent = 'Delete';
+      currentAction = 'delete';
+      
+      openModal();
+    }
+    
+    // Handle confirm action
+    async function handleConfirmAction() {
+      if (currentAction === 'delete' && itemToDelete) {
+        await deleteGear(itemToDelete);
+      }
+      
+      closeModal();
+    }
+    
+    // Delete gear
+    async function deleteGear(id) {
+      try {
+        const res = await fetch(`${API_BASE}/api/gear-inventory/${id}`, {
+          method: 'DELETE',
+          headers: { Authorization: token }
+        });
+        
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || `Error: ${res.status}`);
+        }
+        
+        showMessage('Gear deleted successfully!', 'success');
+        await loadInventory();
+      } catch (err) {
+        showMessage(err.message, 'error');
+      }
+    }
+    
+    // Reset form
+    function resetForm() {
+      gearForm.reset();
+      gearIdInput.value = '';
+      formTitle.textContent = 'Add New Gear';
+      submitBtn.textContent = 'Add Gear';
+      cancelBtn.style.display = 'none';
+    }
+    
+    // Show message
+    function showMessage(text, type = 'error') {
+      messageArea.innerHTML = `<div class="msg msg-${type}">${text}</div>`;
+      
+      // Auto-hide after 5 seconds
+      setTimeout(() => {
+        messageArea.innerHTML = '';
+      }, 5000);
+    }
+    
+    // Modal functions
+    function openModal() {
+      confirmModal.style.display = 'block';
+    }
+    
+    function closeModal() {
+      confirmModal.style.display = 'none';
+      currentAction = null;
+      itemToDelete = null;
+    }
+    
+    // Escape HTML to prevent XSS
+    function escapeHtml(unsafe) {
+      if (!unsafe) return '';
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+    
+    // Expose functions to window
+    window.editGear = editGear;
+    window.showDeleteConfirmation = showDeleteConfirmation;
+    
+    // Add a resize listener to refresh display on window resize
+    window.addEventListener('resize', () => {
+      renderInventory();
+    });
+  </script>
+</body>
+</html> 

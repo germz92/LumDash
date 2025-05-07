@@ -1,0 +1,140 @@
+.gear-page { font-family: 'Segoe UI', 'Roboto', sans-serif; background: linear-gradient(135deg, #f5f7fa 0%, #e9ecf3 100%); color: #333; min-height: 100%; }
+.gear-page h1, .gear-page h2 { text-align: center; font-weight: bold; margin-bottom: 10px; font-size: 22px; letter-spacing: 0.01em; }
+.gear-page .gear-controls { display: flex; justify-content: center; align-items: flex-end; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; }
+.gear-page .top-controls { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+.gear-page .top-controls label { font-weight: 500; margin-right: 4px; font-size: 16px; }
+.gear-page .top-controls button { min-width: 90px; font-size: 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(204,0,7,0.08); }
+.gear-page .back-button { background-color: #cccccc; color: #333; font-size: 16px; padding: 8px 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; margin-bottom: 20px; margin-left: 10px; transition: background 0.2s, box-shadow 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
+.gear-page .back-button:hover { background-color: #b3b3b3; box-shadow: 0 4px 16px rgba(204,0,7,0.10); }
+.gear-page select, .gear-page button { font-size: 16px; padding: 8px 12px; border-radius: 8px; border: 1.5px solid #ccc; outline: none; transition: all 0.2s; }
+.gear-page button { background-color: #cc0007; color: white; font-weight: 600; border: none; cursor: pointer; transition: background 0.2s, box-shadow 0.2s; }
+.gear-page button:hover { background-color: rgb(170, 3, 8); box-shadow: 0 4px 16px rgba(204,0,7,0.10); transform: translateY(-2px) scale(1.03); }
+.gear-page #gearContainer.gear-container { display: flex; flex-wrap: wrap; justify-content: center; gap: 32px; padding: 18px 0; }
+@media (max-width: 900px) { .gear-page .list-group { flex: 1 1 100%; min-width: 0; gap: 6px; justify-content: center; } .gear-page .list-group label, .gear-page .list-group select, .gear-page .list-group button { flex: unset; min-width: 0; width: auto; } }
+
+/* Gear list card styling */
+.category {
+  background: linear-gradient(135deg, #fff 60%, #f5f7fa 100%);
+  border-radius: 18px;
+  padding: 24px 18px;
+  width: 280px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.09);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.2s, box-shadow 0.2s;
+  border: 1.5px solid #e0e0e0;
+}
+
+.category:hover {
+  transform: translateY(-6px) scale(1.01);
+  box-shadow: 0 12px 32px rgba(204,0,7,0.10);
+}
+
+.category h3 {
+  margin: 0 0 18px 0;
+  font-size: 1.12rem;
+  color: #222;
+  border-bottom: 1.5px solid #eee;
+  padding-bottom: 6px;
+  letter-spacing: 0.01em;
+  text-align: center;
+}
+
+/* Item row styling */
+.item {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  gap: 10px;
+  border-radius: 6px;
+  border: 1px solid #f0f0f0;
+  background: #fafbfc;
+  padding: 6px 4px;
+  transition: box-shadow 0.2s, border 0.2s;
+}
+
+.item input[type="text"] {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1.5px solid #ccc;
+  border-radius: 6px;
+  font-size: 16px;
+  transition: border-color 0.2s;
+  background: #fff;
+}
+
+.item input[type="text"]:focus {
+  border-color: #cc0007;
+  box-shadow: 0 2px 8px rgba(204,0,7,0.08);
+}
+
+.item input[type="checkbox"] {
+  width: 20px;
+  height: 20px;
+  accent-color: #cc0007;
+  transition: box-shadow 0.2s;
+}
+
+.item input[type="checkbox"]:hover {
+  box-shadow: 0 0 0 2px #cc0007;
+}
+
+/* "+ Add Item" button (uses same base button style) */
+.add-btn {
+  margin-top: 12px;
+  font-size: 16px;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(204,0,7,0.08);
+  padding: 8px 0;
+}
+
+/* Mobile responsiveness */
+@media (max-width: 900px) {
+  .category {
+    width: 96vw;
+    min-width: 0;
+    padding: 12px 4px;
+  }
+  #gearContainer.gear-container {
+    flex-direction: column;
+    align-items: center;
+    gap: 18px;
+  }
+}
+
+@media (max-width: 600px) {
+  .gear-page h1, .gear-page h2 { font-size: 18px; }
+  .category {
+    width: 96vw;
+    max-width: 360px;
+    padding: 8px 0;
+    box-sizing: border-box;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .item input[type="text"] { font-size: 16px; }
+}
+
+.list-group {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .list-group {
+    flex: 1 1 100%;
+    min-width: 0;
+    gap: 6px;
+    justify-content: center;
+  }
+  .list-group label,
+  .list-group select,
+  .list-group button {
+    flex: unset;
+    min-width: 0;
+    width: auto;
+  }
+}
+  

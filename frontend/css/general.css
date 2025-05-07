@@ -1,0 +1,349 @@
+.general-page {
+  font-family: Arial, sans-serif;
+  background: #f4f4f4;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  min-height: 100%;
+  box-sizing: border-box;
+  font-size: 16px;
+}
+
+.general-page .container {
+  width: 100%;
+  max-width: none;
+  padding: 1.5rem;
+  border-radius: 1rem;
+  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
+  margin: 0 auto;
+  box-sizing: border-box;
+  background: #fff;
+}
+
+.general-page h1, .general-page h2 {
+  text-align: center;
+  margin-bottom: 1.25rem;
+  color: #333;
+  font-weight: bold;
+  letter-spacing: 0.01em;
+}
+
+.general-page h1 { font-size: 1.5rem; }
+.general-page h2 { font-size: 1.25rem; }
+
+/* ====== Info Section ====== */
+.general-page .info-section {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 1.25rem;
+  padding: 1.25rem 0;
+  margin-bottom: 1rem;
+}
+
+.general-page .info-section label {
+  display: block;
+  font-weight: bold;
+  margin-bottom: 0.5rem;
+  letter-spacing: 0.01em;
+}
+
+.general-page .info-section input[type="date"],
+.general-page .info-section input[type="text"],
+.general-page .info-section textarea {
+  width: 100%;
+  font-size: 1rem;
+  padding: 0.5rem 0.75rem;
+  font-family: inherit;
+  box-sizing: border-box;
+  border: 1px solid #ccc;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #333;
+  min-height: 2.25rem;
+  line-height: 1.4;
+  transition: border 0.2s, box-shadow 0.2s;
+}
+
+.general-page .info-section input[type="date"]:focus,
+.general-page .info-section input[type="text"]:focus,
+.general-page .info-section textarea:focus {
+  border: 1.5px solid #cc0007;
+  outline: 2px solid #cc0007;
+  background: #fff;
+}
+
+.general-page .info-section textarea {
+  width: 100%;
+  min-height: 48px;
+  font-size: 1rem;
+  line-height: 1.4;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  box-sizing: border-box;
+  resize: vertical;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ccc;
+  transition: border 0.2s, box-shadow 0.2s;
+}
+
+/* ====== Table Styles ====== */
+.general-page .contacts-container {
+  width: 100%;
+  max-width: none;
+  margin: 1.5rem 0;
+  padding: 1rem;
+  border: 1px solid #ccc;
+  border-radius: 1rem;
+  background: #f0f0f0;
+  box-sizing: border-box;
+  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  overflow-x: auto;
+}
+
+.general-page .contacts-scroll-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.general-page .contacts-container table {
+  width: 100% !important;
+  min-width: 100% !important;
+  table-layout: fixed !important;
+  border-collapse: separate !important;
+  border-spacing: 0 !important;
+  background: #fff;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+  border: 1px solid #e0e0e0;
+}
+
+.general-page .contacts-container th,
+.general-page .contacts-container td {
+  width: auto !important;
+  max-width: none !important;
+  min-width: 0 !important;
+  box-sizing: border-box;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  padding: 28px 22px;
+  font-size: 1.18em;
+}
+
+.general-page .contacts-container th {
+  background: linear-gradient(90deg, #f5f5f5 0%, #e0e0e0 100%);
+  color: #222;
+  font-weight: bold;
+  text-align: left;
+  border-radius: 0.5em 0.5em 0 0;
+  border-bottom: 2.5px solid #e0e0e0;
+  letter-spacing: 0.01em;
+}
+
+.general-page .contacts-container td {
+  background: #f9f9f9;
+  word-break: break-word;
+  white-space: pre-wrap;
+  border-bottom: 1px solid #ececec;
+  transition: background 0.2s;
+}
+
+.general-page .contacts-container tr:nth-child(even) td {
+  background: #fafbfc;
+}
+
+.general-page .contacts-container tr:nth-child(odd) td {
+  background: #fff;
+}
+
+.general-page .contacts-container tr:hover td {
+  background: #f0f4fa !important;
+}
+
+/* Table cell content (view mode) */
+.general-page .contacts-container td > a,
+.general-page .contacts-container td > div,
+.general-page .contacts-container td > span {
+  display: block;
+  margin: 0;
+  padding: 0;
+  font-size: 1rem;
+  line-height: 1.2;
+  min-height: 0;
+  height: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+
+/* Table cell content (edit mode) */
+.general-page .contacts-container td textarea,
+.general-page .contacts-container td input[type="text"] {
+  width: 100%;
+  min-height: 1.1em;
+  font-size: 1rem;
+  line-height: 1.2;
+  padding: 0.15em 0.2em;
+  margin: 0;
+  border-radius: 0.2em;
+  box-sizing: border-box;
+  resize: vertical;
+  overflow-y: hidden;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: #fff;
+  border: 1px solid #ccc;
+}
+
+.general-page .contacts-container td textarea {
+  width: 100%;
+  min-height: 48px;
+  font-size: 1rem;
+  line-height: 1.4;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.5rem;
+  box-sizing: border-box;
+  resize: vertical;
+  overflow-y: auto;
+  background: #fff;
+  border: 1px solid #ccc;
+  transition: border 0.2s, box-shadow 0.2s;
+}
+
+/* ====== Buttons ====== */
+.general-page .add-row-btn, .general-page .save-button-container button, .general-page button {
+  margin-top: 0.7rem;
+  padding: 0.5rem 1rem;
+  background-color: #CC0007;
+  color: white;
+  border: none;
+  border-radius: 0.5rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s, box-shadow 0.2s;
+  box-shadow: 0 1px 4px rgba(204,0,7,0.08);
+  font-size: 1rem;
+}
+
+.general-page .add-row-btn:hover, .general-page .save-button-container button:hover, .general-page button:hover {
+  background: rgb(170, 3, 8);
+}
+
+.general-page .save-button-container {
+  margin-top: 2rem;
+  text-align: center;
+}
+
+/* ====== Responsive: Mobile ====== */
+@media (max-width: 768px) {
+  .general-page .container {
+    padding: 0.7rem;
+    border-radius: 0;
+  }
+  .general-page .info-section {
+    gap: 0.7rem;
+    padding: 0.7rem 0;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+  .general-page .contacts-container {
+    padding: 0.5rem;
+    border-radius: 0;
+  }
+  .general-page .contacts-container th,
+  .general-page .contacts-container td {
+    font-size: 16px;
+    padding: 0.05em 0.1em;
+    line-height: 1.1;
+  }
+  .general-page .contacts-container td textarea,
+  .general-page .contacts-container td input[type="text"] {
+    font-size: 16px;
+    min-height: 1em;
+    padding: 0.05em 0.1em;
+    line-height: 1.1;
+  }
+  .general-page .contacts-container td > a,
+  .general-page .contacts-container td > div,
+  .general-page .contacts-container td > span {
+    font-size: 16px;
+    line-height: 1.1;
+  }
+  .general-page h1, .general-page h2 {
+    font-size: 1.1rem;
+    margin-bottom: 0.7rem;
+  }
+  .general-page .add-row-btn, .general-page .save-button-container button, .general-page button {
+    padding: 0.5rem 0.8rem;
+    font-size: 16px;
+  }
+  .general-page .contacts-container table {
+    min-width: 650px !important;
+  }
+  .general-page input,
+  .general-page textarea,
+  .general-page select,
+  .general-page button {
+    font-size: 16px !important;
+  }
+  .general-page .info-section textarea,
+  .general-page .contacts-container td textarea {
+    min-height: 36px !important;
+    font-size: 15px !important;
+    padding: 0.3rem 0.5rem !important;
+    border-radius: 0.4rem !important;
+  }
+}
+
+/* ====== Misc ====== */
+.general-page .back-btn {
+  background: #CCCCCC;
+  color: #ffffff;
+  padding: 0.5rem 1rem;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 500;
+  border-radius: 0.5rem;
+}
+
+.general-page .back-btn:hover {
+  background: #bfbfbf;
+}
+
+.general-page .contacts-container th:last-child,
+.general-page .contacts-container td:last-child {
+  width: 64px !important;
+  min-width: 48px !important;
+  max-width: 80px !important;
+  text-align: center;
+  padding-left: 4px;
+  padding-right: 4px;
+}
+
+.general-page #eventSummary.read-only {
+  min-height: 80px;
+  background: #f9f9f9;
+  border-radius: 0.5rem;
+  padding: 1rem;
+  font-size: 1.08em;
+  color: #333;
+  margin-bottom: 1rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-wrap: break-word;
+}
+.general-page textarea#eventSummary {
+  min-height: 100px;
+  width: 100%;
+  font-size: 1.08em;
+  padding: 1rem;
+  border-radius: 0.5rem;
+  border: 1.5px solid #ccc;
+  background: #fff;
+  color: #222;
+  margin-bottom: 1rem;
+  resize: vertical;
+  box-sizing: border-box;
+  line-height: 1.5;
+}

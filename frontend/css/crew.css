@@ -1,0 +1,358 @@
+/* Crew Page Modern Styles */
+.crew-page {
+  font-family: 'Segoe UI', sans-serif;
+  background: #f5f7fa;
+  color: #333;
+  min-height: 100%;
+  overflow-x: hidden;
+}
+.crew-page header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: white;
+  z-index: 1000;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+.crew-page .header-inner {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 10px 16px 12px 16px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  align-items: center;
+}
+.crew-page .crew-title {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-direction: column;
+  line-height: 1.2;
+  margin: 0;
+}
+.crew-page .crew-title h1 {
+  font-size: 1.3rem;
+  margin: 0 0 2px 0;
+}
+.crew-page .crew-title h2 {
+  font-size: 1.05rem;
+  margin: 0 0 2px 0;
+  font-weight: 500;
+  color: #555;
+}
+.crew-page .top-nav-bar,
+.crew-page .filter-sort-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  flex-direction: row;
+}
+.crew-page .top-nav-bar input,
+.crew-page .top-nav-bar button,
+.crew-page .filter-sort-bar select,
+.crew-page .filter-sort-bar label {
+  font-size: 15px;
+  max-width: 160px;
+  width: auto;
+  padding: 7px 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+}
+.crew-page .top-nav-bar button,
+.crew-page button {
+  background-color: #CC0007;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: background 0.2s;
+}
+.crew-page .top-nav-bar button:hover,
+.crew-page button:hover {
+  background-color: #a30006;
+}
+.crew-page #crewCount {
+  font-weight: bold;
+  margin-left: 12px;
+}
+.crew-page #dateSections {
+  padding-top: 210px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 24px;
+}
+.crew-page .date-section {
+  width: 100%;
+  max-width: none;
+  margin: 0 auto;
+  border-radius: 16px;
+  padding: 18px 18px 12px 18px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+  background: white;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.crew-page .date-section h2 {
+  font-size: 1.15rem;
+  text-align: left;
+  margin: 0 0 8px 0;
+  font-weight: bold;
+  letter-spacing: 0.01em;
+}
+.crew-page .table-wrapper {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: 10px;
+}
+.crew-page table {
+  width: 100%;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 16px;
+  border-radius: 14px;
+  overflow: hidden;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+  border: 1px solid #e0e0e0;
+  background: #fff;
+  table-layout: auto;
+}
+.crew-page th {
+  background: linear-gradient(90deg, #f5f5f5 0%, #e0e0e0 100%);
+  color: #222;
+  text-align: left;
+  border-bottom: 2.5px solid #e0e0e0;
+  padding: 12px 10px;
+  font-weight: bold;
+}
+.crew-page th:first-child { border-top-left-radius: 10px; }
+.crew-page th:last-child { border-top-right-radius: 10px; }
+.crew-page th, .crew-page td {
+  word-break: break-word;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  text-wrap: auto;
+  min-width: 0;
+  max-width: none;
+}
+.crew-page td:not(.actions-cell) {
+  padding: 4px 10px;
+  line-height: 1.2;
+  vertical-align: middle;
+  height: 32px;
+}
+.crew-page .actions-cell {
+  padding: 2px 6px;
+  vertical-align: middle;
+  height: auto;
+  white-space: nowrap;
+}
+.crew-page tr:nth-child(even) td { background: #fafbfc; }
+.crew-page tr:nth-child(odd) td { background: #fff; }
+.crew-page tr:hover td { background: #f0f4fa !important; }
+.crew-page input, .crew-page select {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  padding: 4px 8px;
+  font-size: 15px;
+  border-radius: 4px;
+  border: 1px solid #ccc;
+  height: 30px;
+}
+.crew-page .add-row-btn-container {
+  text-align: left;
+  margin-top: 10px;
+}
+.crew-page .add-row-btn {
+  margin-left: 0;
+  background: #CC0007;
+  color: #fff;
+  border-radius: 6px;
+  font-weight: bold;
+  padding: 5px 12px;
+  font-size: 14px;
+}
+.crew-page .add-row-btn:hover {
+  background: #a30006;
+}
+.crew-page .icon-buttons {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 4px;
+  flex-direction: row;
+  white-space: nowrap;
+}
+.crew-page .edit-row-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #4a5568 !important;
+  padding: 4px !important;
+  cursor: pointer;
+  font-size: 16px !important;
+}
+.crew-page .delete-row-btn {
+  background: transparent !important;
+  border: none !important;
+  color: #d11a2a !important;
+  padding: 4px !important;
+  cursor: pointer;
+  font-size: 16px !important;
+}
+.crew-page .icon-buttons button {
+  line-height: 1;
+  height: 28px;
+  min-height: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.crew-page .table-wrapper::-webkit-scrollbar { height: 8px; }
+.crew-page .table-wrapper::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
+.crew-page .table-wrapper::-webkit-scrollbar-thumb:hover { background: #aaa; }
+@media (max-width: 900px) {
+  .crew-page .date-section {
+    max-width: 98vw;
+    padding: 8px 2px 8px 2px;
+  }
+  
+  .crew-page .filter-sort-bar select,
+  .crew-page .filter-sort-bar input[type="text"] {
+    min-width: 150px; /* Slightly narrower on smaller screens */
+    font-size: 13px;
+  }
+  
+  .crew-page #dateSections {
+    padding-top: 220px; /* Extra padding for wrapped filter elements */
+  }
+  
+  .crew-page table {
+    min-width: 480px;
+    font-size: 15px;
+  }
+  
+  .crew-page th, .crew-page td {
+    font-size: 15px;
+    padding: 8px 6px;
+  }
+}
+@media (max-width: 600px) {
+  .crew-page .header-inner { 
+    padding: 10px 2px 12px 2px; 
+  }
+  
+  .crew-page .filter-sort-bar {
+    gap: 6px;
+  }
+  
+  .crew-page .filter-sort-bar select,
+  .crew-page .filter-sort-bar input[type="text"] {
+    min-width: 120px; /* Even narrower on mobile */
+    font-size: 13px;
+    flex-basis: calc(50% - 6px); /* Two items per row */
+  }
+  
+  .crew-page #dateSections { 
+    padding-top: 240px; /* Even more padding for stacked filters */
+  }
+  
+  .crew-page .date-section {
+    max-width: 100vw;
+    padding: 4px 0 4px 0;
+  }
+  
+  .crew-page .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  .crew-page table {
+    min-width: 700px;
+    font-size: 16px;
+    width: auto;
+  }
+  
+  .crew-page th, .crew-page td {
+    font-size: 16px !important;
+    padding: 8px 6px;
+    white-space: normal !important;
+  }
+}
+@media (min-width: 901px) {
+  .crew-page td:not(.actions-cell) {
+    height: 32px;
+  }
+  
+  .crew-page input:not([type="checkbox"]), 
+  .crew-page select {
+    height: 28px;
+    margin: 1px 0;
+    font-size: 14px;
+  }
+  
+  .crew-page td:not(.actions-cell) span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-height: 36px;
+    line-height: 18px;
+  }
+}
+.card-log-page td, .card-log-page th {
+  white-space: pre-wrap !important;
+  word-break: break-word !important;
+  overflow-wrap: break-word !important;
+}
+
+/* Add row height control */
+.crew-page tr {
+  height: 36px; /* Set a fixed row height */
+}
+
+/* Modify filter-sort-bar styling */
+.crew-page .filter-sort-bar {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  flex-direction: row;
+  width: 100%;
+  padding: 0 5px;
+  box-sizing: border-box;
+}
+
+/* Adjust select elements in filter-sort-bar */
+.crew-page .filter-sort-bar select {
+  font-size: 14px;
+  min-width: 180px; /* Ensure minimum width */
+  width: auto;
+  padding: 6px 8px 6px 10px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  background: #fff;
+  text-overflow: ellipsis;
+  overflow: hidden;
+  white-space: nowrap;
+  appearance: menulist; /* Use native select appearance */
+  height: 34px; /* Fixed height for consistency */
+}
+
+/* Make sure search input also has proper width */
+.crew-page .filter-sort-bar input[type="text"] {
+  min-width: 180px;
+  flex-grow: 1;
+  max-width: 300px;
+  height: 34px;
+}
+  

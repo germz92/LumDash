@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Event Dashboard</title>
+  
+  <!-- PWA Meta Tags -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#cc0007">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="EventDash">
+  <link rel="apple-touch-icon" href="assets/logo.png">
+  <link rel="shortcut icon" type="image/x-icon" href="assets/favicon.png">
+  
+  <style>
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+    }
+
+    body {
+      font-family: sans-serif;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .bottom-nav {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      height: 70px;
+      background: #fff;
+      border-top: 1px solid #ccc;
+      display: flex;
+      justify-content: space-around;
+      align-items: flex-start;
+      padding-top: 6px;
+      z-index: 1000;
+      padding-bottom: env(safe-area-inset-bottom, 10px);
+    }
+
+    .bottom-nav a {
+      color: #cc0007;
+      text-decoration: none;
+      font-size: 12px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      flex: 1;
+      padding-bottom: 12px;
+    }
+
+    .bottom-nav a:hover {
+      background-color: #f0f0f0;
+    }
+
+    .bottom-nav i {
+      stroke: #CC0007;
+      width: 20px;
+      height: 20px;
+      margin-bottom: 4px;
+    }
+
+    #page-container {
+      flex: 1;
+      padding: 20px;
+      padding-bottom: 90px; /* Space for bottom nav */
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    /* Add offline indicator styles */
+    .offline-indicator {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      background-color: #f44336;
+      color: white;
+      text-align: center;
+      padding: 8px;
+      font-weight: bold;
+      z-index: 9999;
+    }
+    
+    body.offline .offline-indicator {
+      display: block;
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Offline indicator -->
+  <div class="offline-indicator">You are currently offline. Some features may be limited.</div>
+
+  <!-- Page content gets injected here -->
+  <div id="page-container"></div>
+
+  <!-- Bottom nav -->
+  <nav class="bottom-nav" id="bottomNav">
+    <a href="#" id="navHome" data-page="events"><i data-lucide="home"></i><span>Home</span></a>
+    <a href="#" id="navGeneral" data-page="general"><i data-lucide="info"></i><span>General</span></a>
+    <a href="#" id="navCrew" data-page="crew"><i data-lucide="users"></i><span>Crew</span></a>
+    <a href="#" id="navTravel" data-page="travel-accommodation"><i data-lucide="plane"></i><span>Travel</span></a>
+    <a href="#" id="navGear" data-page="gear"><i data-lucide="camera"></i><span>Gear</span></a>
+    <a href="#" id="navCard" data-page="card-log"><i data-lucide="memory-stick"></i><span>Cards</span></a>
+    <a href="#" id="navSchedule" data-page="schedule"><i data-lucide="calendar"></i><span>Schedule</span></a>
+  </nav>
+
+  <!-- Load icons and app logic -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="js/config.js"></script>
+  <script src="js/api.js"></script>
+  <script src="js/app.js"></script>
+  
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./service-worker.js')
+        .then(reg => console.log('✅ ServiceWorker registered:', reg.scope))
+        .catch(err => console.warn('❌ ServiceWorker registration failed:', err));
+        
+      // Check for online/offline status
+      function updateOnlineStatus() {
+        if (navigator.onLine) {
+          document.body.classList.remove('offline');
+        } else {
+          document.body.classList.add('offline');
+        }
+      }
+      
+      window.addEventListener('online', updateOnlineStatus);
+      window.addEventListener('offline', updateOnlineStatus);
+      updateOnlineStatus(); // Initial check
+    }
+  </script>
+</body>
+</html>
