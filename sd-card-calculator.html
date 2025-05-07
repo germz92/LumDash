@@ -274,6 +274,29 @@
         font-size: 0.93em;
       }
     }
+    .clear-btn-container {
+      width: 100%;
+      display: flex;
+      justify-content: center;
+      margin-top: 24px;
+      margin-bottom: 8px;
+    }
+    #clearBtn {
+      background: #ededed;
+      color: #cc0007;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 18px;
+      font-size: 1em;
+      font-weight: 500;
+      cursor: pointer;
+      box-shadow: 0 1px 4px rgba(204,0,7,0.08);
+      transition: background 0.2s, color 0.2s;
+    }
+    #clearBtn:hover {
+      background: #cc0007;
+      color: #fff;
+    }
   </style>
 </head>
 <body>
@@ -287,10 +310,12 @@
           <button type="button" class="arrow-btn" onclick="incrementDays()">&#43;</button>
         </span>
       </label>
-      <button id="clearBtn" onclick="clearTable()" type="button" style="margin-left:8px; background:#ededed; color:#cc0007;">Clear Table</button>
     </div>
     <form id="cameraForm" class="center"></form>
     <div id="results"></div>
+    <div class="clear-btn-container">
+      <button id="clearBtn" onclick="clearTable()" type="button">Clear Table</button>
+    </div>
   </div>
 
   <script>
@@ -382,9 +407,11 @@
     }
 
     function clearTable() {
-      document.getElementById('cameraForm').innerHTML = '';
-      document.getElementById('results').innerHTML = '';
-      document.getElementById('numDays').value = 1;
+      if (window.confirm('Are you sure you want to clear the table and start over?')) {
+        document.getElementById('cameraForm').innerHTML = '';
+        document.getElementById('results').innerHTML = '';
+        document.getElementById('numDays').value = 1;
+      }
     }
   </script>
 </body>
