@@ -123,9 +123,18 @@
   <!-- Service Worker Registration -->
   <script>
     if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('./service-worker.js')
-        .then(reg => console.log('✅ ServiceWorker registered:', reg.scope))
-        .catch(err => console.warn('❌ ServiceWorker registration failed:', err));
+      // First unregister any existing service workers to clear caches
+      navigator.serviceWorker.getRegistrations().then(registrations => {
+        for (let registration of registrations) {
+          registration.unregister();
+          console.log('Unregistered existing service worker');
+        }
+        
+        // Then register our no-cache service worker
+        navigator.serviceWorker.register('./service-worker.js?v=' + new Date().getTime())
+          .then(reg => console.log('✅ No-cache ServiceWorker registered:', reg.scope))
+          .catch(err => console.warn('❌ ServiceWorker registration failed:', err));
+      });
         
       // Check for online/offline status
       function updateOnlineStatus() {

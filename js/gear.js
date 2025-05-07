@@ -46,14 +46,25 @@ async function loadGear() {
     activeList = Object.keys(savedGearLists)[0] || 'Default';
 
     // Set date pickers if present
-    if (data.checkOutDate) document.getElementById('checkoutDate').value = data.checkOutDate;
-    if (data.checkInDate) document.getElementById('checkinDate').value = data.checkInDate;
+    console.log("Check out date from API:", data.checkOutDate);
+    console.log("Check in date from API:", data.checkInDate);
+    
+    const checkoutDateEl = document.getElementById('checkoutDate');
+    const checkinDateEl = document.getElementById('checkinDate');
+    
+    if (checkoutDateEl && data.checkOutDate) {
+      checkoutDateEl.value = data.checkOutDate;
+    }
+    
+    if (checkinDateEl && data.checkInDate) {
+      checkinDateEl.value = data.checkInDate;
+    }
 
     ensureAllCategoriesExist();
     populateGearListDropdown();
     renderGear();
 
-    document.getElementById('eventTitle').textContent = "Loaded Event";
+    loadEventTitle();
   } catch (err) {
     console.error("Error loading gear:", err);
     document.getElementById('gearContainer').innerHTML =
