@@ -3,7 +3,7 @@
   "short_name": "LumDash",
   "description": "Comprehensive event management dashboard for photographers and event planners",
   "start_url": "./index.html",
-  "scope": ".",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#cc0007",
@@ -34,12 +34,12 @@
   "shortcuts": [
     {
       "name": "Schedule",
-      "url": "/dashboard.html#schedule",
+      "url": "./dashboard.html#schedule",
       "description": "View and manage event schedule"
     },
     {
       "name": "Crew",
-      "url": "/dashboard.html#crew",
+      "url": "./dashboard.html#crew",
       "description": "Manage crew assignments"
     }
   ]
