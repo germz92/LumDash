@@ -1,13 +1,11 @@
 {
-  "name": "Events Dashboard",
-  "short_name": "EventDash",
-  "description": "Comprehensive event management dashboard for photographers and event planners",
-  "start_url": "./index.html",
-  "scope": ".",
+  "name": "Lumetry Dashboard",
+  "short_name": "LumDash",
+  "start_url": "/index.html",
   "display": "standalone",
   "background_color": "#ffffff",
-  "theme_color": "#cc0007",
-  "orientation": "any",
+  "theme_color": "#3f51b5",
+  "orientation": "portrait",
   "icons": [
     {
       "src": "assets/favicon.png",
@@ -17,30 +15,7 @@
     {
       "src": "assets/logo.png",
       "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any maskable"
-    }
-  ],
-  "categories": ["productivity", "business", "events"],
-  "screenshots": [
-    {
-      "src": "assets/screenshot1.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "platform": "wide",
-      "label": "Events Dashboard Overview"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Schedule",
-      "url": "/dashboard.html#schedule",
-      "description": "View and manage event schedule"
-    },
-    {
-      "name": "Crew",
-      "url": "/dashboard.html#crew",
-      "description": "Manage crew assignments"
+      "type": "image/png"
     }
   ]
 }
