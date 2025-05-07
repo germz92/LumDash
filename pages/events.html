@@ -1,26 +1,26 @@
-<div class="logo-wrapper">
-  <img src="assets/logo.png" alt="Logo" class="auth-logo">
-</div>
-<div class="card-container">
-  <div class="top-bar">
-    <h2 id="usernameDisplay">Welcome</h2>
+  <div class="logo-wrapper">
+    <img src="assets/logo.png" alt="Logo" class="auth-logo">
+  </div>
+  <div class="card-container">
+    <div class="top-bar">
+      <h2 id="usernameDisplay">Welcome</h2>
     <button class="logout-btn" id="logoutBtn">Logout</button>
-  </div>
-
-  <div class="events-header">
-    <h2>Your Events</h2>
-    <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
-      <button class="btn-create">Create Event</button>
-      <select id="sortDropdown" style="padding: 8px; font-size: 16px;">
-        <option value="newest">Newest First</option>
-        <option value="oldest">Oldest First</option>
-        <option value="title">Title A–Z</option>
-      </select>
     </div>
-  </div>
 
-  <div id="tableList" class="table-cards"></div>
-</div>
+    <div class="events-header">
+      <h2>Your Events</h2>
+      <div style="display: flex; gap: 10px; align-items: center; flex-wrap: wrap;">
+      <button class="btn-create">Create Event</button>
+        <select id="sortDropdown" style="padding: 8px; font-size: 16px;">
+          <option value="newest">Newest First</option>
+          <option value="oldest">Oldest First</option>
+          <option value="title">Title A–Z</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="tableList" class="table-cards"></div>
+  </div>
 
 <!-- Share Modal -->
 <div id="shareModal" class="modal">
@@ -51,16 +51,16 @@
   </div>
 </div>
 
-<!-- Create Modal -->
-<div id="createModal" class="modal">
-  <div class="modal-content">
-    <h3>Create New Event</h3>
-    <input id="newTitle" placeholder="Event Name">
-    <input id="newClient" placeholder="Client Name">
-    <input id="newStart" type="date">
-    <input id="newEnd" type="date">
-    <button onclick="submitCreate()">Create</button>
-    <button onclick="hideCreateModal()">Cancel</button>
+  <!-- Create Modal -->
+  <div id="createModal" class="modal">
+    <div class="modal-content">
+      <h3>Create New Event</h3>
+      <input id="newTitle" placeholder="Event Name">
+      <input id="newClient" placeholder="Client Name">
+      <input id="newStart" type="date">
+      <input id="newEnd" type="date">
+      <button onclick="submitCreate()">Create</button>
+      <button onclick="hideCreateModal()">Cancel</button>
+    </div>
   </div>
-</div>
-<script>console.log('✅ events.html loaded');</script>
+  <script>console.log('✅ events.html loaded');</script>

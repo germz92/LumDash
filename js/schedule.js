@@ -123,12 +123,19 @@ async function loadPrograms(tableId) {
     isOwner = Array.isArray(data.owners) && data.owners.map(String).includes(getUserIdFromToken());
     renderProgramSections();
 
-    // 🔒 Hide date controls for non-owners
+    // 🔒 Hide controls for non-owners
     if (!isOwner) {
+      // Hide date adding controls
       const newDateInput = document.getElementById('newDate');
       const addDateBtn = document.querySelector('button.add-btn');
       if (newDateInput) newDateInput.style.display = 'none';
       if (addDateBtn) addDateBtn.style.display = 'none';
+      
+      // Hide import schedule button and download template link
+      const importBtn = document.getElementById('importBtn');
+      const downloadTemplateBtn = document.getElementById('downloadTemplateBtn');
+      if (importBtn) importBtn.style.display = 'none';
+      if (downloadTemplateBtn) downloadTemplateBtn.style.display = 'none';
     }
   } catch (err) {
     console.error('Failed to load programs:', err);
@@ -575,6 +582,16 @@ function loadSheetJSLibrary() {
 
 // Function to handle the file import
 async function handleFileImport(event) {
+  // Only allow owners to import files
+  if (!isOwner) {
+    alert('Not authorized. Only owners can import schedules.');
+    // Reset the file input
+    if (event.target) {
+      event.target.value = '';
+    }
+    return;
+  }
+  
   const file = event.target.files[0];
   if (!file) return;
 
@@ -849,6 +866,12 @@ function formatTimeValue(timeValue) {
 
 // Function to download a CSV template for importing
 function downloadImportTemplate() {
+  // Only allow owners to download the template
+  if (!isOwner) {
+    alert('Not authorized. Only owners can download import templates.');
+    return;
+  }
+  
   const headers = ['Date', 'Name', 'StartTime', 'EndTime', 'Location', 'Photographer', 'Notes'];
   const csvContent = headers.join(',') + '\n' +
     '2023-06-01,Main Event,09:00,12:00,Grand Hall,John Smith,VIP guests expected\n' +

@@ -119,7 +119,7 @@
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
   <script src="js/app.js"></script>
-  
+
   <!-- Service Worker Registration -->
   <script>
     if ('serviceWorker' in navigator) {
@@ -140,9 +140,9 @@
       function updateOnlineStatus() {
         if (navigator.onLine) {
           document.body.classList.remove('offline');
-        } else {
+      } else {
           document.body.classList.add('offline');
-        }
+      }
       }
       
       window.addEventListener('online', updateOnlineStatus);

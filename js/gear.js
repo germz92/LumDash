@@ -3,15 +3,225 @@ const categories = ["Cameras", "Lenses", "Lighting", "Support", "Accessories"];
 
 const token = window.token || (window.token = localStorage.getItem('token'));
 
-
 const params = new URLSearchParams(window.location.search);
 let tableId = params.get('id');
 
-let savedGearLists = {};
-let activeList = '';
+// ✨ New centralized event context
+const eventContext = {
+  tableId: tableId || localStorage.getItem('eventId'),
+  lists: {},
+  activeList: null,
+  
+  // Initialize context
+  init(id) {
+    this.tableId = id || this.tableId;
+    if (!this.tableId) return false;
+    return true;
+  },
+  
+  // Create a new list with metadata
+  createList(name, description = "") {
+    if (!name || this.lists[name]) return false;
+    
+    this.lists[name] = {
+      meta: {
+        description: description,
+        created: new Date().toISOString()
+      },
+      categories: {}
+    };
+    
+    // Initialize categories
+    for (const category of categories) {
+      this.lists[name].categories[category] = [];
+    }
+    
+    // Set as active if first list
+    if (!this.activeList) {
+      this.activeList = name;
+    }
+    
+    return true;
+  },
+  
+  // Delete a list
+  deleteList(name) {
+    if (!this.lists[name]) return false;
+    
+    // Prevent deleting the only list
+    if (Object.keys(this.lists).length <= 1) return false;
+    
+    // Delete the list
+    delete this.lists[name];
+    
+    // If active list was deleted, switch to another
+    if (this.activeList === name) {
+      this.activeList = Object.keys(this.lists)[0];
+    }
+    
+    return true;
+  },
+  
+  // Switch active list
+  switchList(name) {
+    if (!this.lists[name]) return false;
+    this.activeList = name;
+    return true;
+  },
+  
+  // Get items from the active list
+  getItems(category) {
+    if (!this.activeList || !this.lists[this.activeList]) return [];
+    return this.lists[this.activeList].categories[category] || [];
+  },
+  
+  // Check if an item exists in any list
+  isItemInAnyList(label) {
+    return Object.values(this.lists).some(list => {
+      return Object.values(list.categories).some(categoryItems => 
+        categoryItems.some(item => item.label === label)
+      );
+    });
+  },
+  
+  // Get all items across all lists (flattened)
+  getAllItems() {
+    const allItems = [];
+    Object.values(this.lists).forEach(list => {
+      Object.values(list.categories).forEach(categoryItems => {
+        categoryItems.forEach(item => {
+          allItems.push(item);
+        });
+      });
+    });
+    return allItems;
+  },
+  
+  // Save all lists and date context to server
+  async save(checkOutDate, checkInDate) {
+    try {
+      console.log("Saving gear to:", `${API_BASE}/api/tables/${this.tableId}/gear`);
+      
+      const payload = {
+        lists: this.lists,
+        checkOutDate: checkOutDate || '',
+        checkInDate: checkInDate || ''
+      };
+      
+      console.log("Payload:", JSON.stringify(payload, null, 2));
+      
+      const res = await fetch(`${API_BASE}/api/tables/${this.tableId}/gear`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token
+        },
+        body: JSON.stringify(payload)
+      });
+      
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Status ${res.status}: ${text}`);
+      }
+      
+      console.log("Save successful!");
+      return true;
+    } catch (err) {
+      console.error("Error saving gear:", err.message);
+      return false;
+    }
+  },
+  
+  // Load lists and date context from server
+  async load() {
+    try {
+      const res = await fetch(`${API_BASE}/api/tables/${this.tableId}/gear`, {
+        headers: { Authorization: token }
+      });
+      
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(`Status ${res.status}: ${text}`);
+      }
+      
+      const data = await res.json();
+      
+      // Handle the new format or convert from old format
+      if (data.lists) {
+        // Check if it's in the new format with meta/categories structure
+        const firstList = Object.values(data.lists)[0];
+        if (firstList && firstList.categories) {
+          // New format, use directly
+          this.lists = data.lists;
+        } else {
+          // Old format, convert
+          const convertedLists = {};
+          
+          Object.keys(data.lists).forEach(listName => {
+            convertedLists[listName] = {
+              meta: {
+                description: "",
+                created: new Date().toISOString()
+              },
+              categories: data.lists[listName]
+            };
+          });
+          
+          this.lists = convertedLists;
+        }
+        
+        // Set active list if none
+        if (!this.activeList || !this.lists[this.activeList]) {
+          this.activeList = Object.keys(this.lists)[0] || null;
+        }
+      }
+      
+      // If no lists exist, create a default one
+      if (Object.keys(this.lists).length === 0) {
+        this.createList("Main Kit", "Primary equipment for this event");
+      }
+      
+      return {
+        checkOutDate: data.checkOutDate,
+        checkInDate: data.checkInDate
+      };
+    } catch (err) {
+      console.error("Error loading gear:", err.message);
+      
+      // Create a default list if failed to load
+      if (Object.keys(this.lists).length === 0) {
+        this.createList("Main Kit", "Primary equipment for this event");
+      }
+      
+      return { checkOutDate: '', checkInDate: '' };
+    }
+  },
+  
+  // Update gear data from DOM
+  updateFromDOM() {
+    if (!this.activeList || !this.lists[this.activeList]) return;
+    
+    document.querySelectorAll(".category").forEach(section => {
+      const categoryName = section.querySelector("h3").textContent;
+      
+      if (!categories.includes(categoryName)) return;
+      
+      const items = Array.from(section.querySelectorAll(".item:not([data-new-row='true'])")).map(row => {
+        const text = row.querySelector("input[type='text']").value.trim();
+        const checked = row.querySelector("input[type='checkbox']").checked;
+        return text ? { label: text, checked } : null;
+      }).filter(Boolean);
+      
+      this.lists[this.activeList].categories[categoryName] = items;
+    });
+  }
+};
+
 let saveTimeout;
 let filterSetting = 'all';
 let gearInventory = [];
+let isOwner = false;
+let pendingProceed = false;
 
 console.log("Using API_BASE:", API_BASE);
 
@@ -21,46 +231,41 @@ if (!API_BASE || !token) {
   throw new Error("Missing API_BASE or token");
 }
 
-
 function goBack() {
-  window.location.href = `event.html?id=${tableId}`;
+  window.location.href = `event.html?id=${eventContext.tableId}`;
 }
 
 async function loadGear() {
   console.log("Token:", token);
-  console.log("Table ID:", tableId);
+  console.log("Table ID:", eventContext.tableId);
   console.log("API_BASE:", API_BASE);
 
   try {
-    const res = await fetch(`${API_BASE}/api/tables/${tableId}/gear`, {
-      headers: { Authorization: token }
-    });
-    console.log("Gear Fetch Status:", res.status);
-    const text = await res.text();
-    console.log("Gear Fetch Response:", text);
-
-    if (!res.ok) throw new Error(`Status ${res.status}: ${text}`);
-
-    const data = JSON.parse(text);
-    savedGearLists = JSON.parse(JSON.stringify(data.lists || {})); // clean plain object
-    activeList = Object.keys(savedGearLists)[0] || 'Default';
-
+    // Initialize event context
+    if (!eventContext.init(tableId)) {
+      console.error("Failed to initialize event context - missing tableId");
+      return;
+    }
+    
+    // Load gear data
+    const dates = await eventContext.load();
+    
     // Set date pickers if present
-    console.log("Check out date from API:", data.checkOutDate);
-    console.log("Check in date from API:", data.checkInDate);
+    console.log("Check out date from API:", dates.checkOutDate);
+    console.log("Check in date from API:", dates.checkInDate);
     
     const checkoutDateEl = document.getElementById('checkoutDate');
     const checkinDateEl = document.getElementById('checkinDate');
     
-    if (checkoutDateEl && data.checkOutDate) {
-      checkoutDateEl.value = data.checkOutDate;
+    if (checkoutDateEl && dates.checkOutDate) {
+      checkoutDateEl.value = dates.checkOutDate;
     }
     
-    if (checkinDateEl && data.checkInDate) {
-      checkinDateEl.value = data.checkInDate;
+    if (checkinDateEl && dates.checkInDate) {
+      checkinDateEl.value = dates.checkInDate;
     }
 
-    ensureAllCategoriesExist();
+    // Render lists dropdown and gear
     populateGearListDropdown();
     renderGear();
 
@@ -73,52 +278,61 @@ async function loadGear() {
 }
 
 function deleteGearList() {
-    if (!activeList) return;
+  if (!eventContext.activeList) return;
   
-    if (Object.keys(savedGearLists).length === 1) {
-      alert("You must keep at least one gear list.");
-      return;
-    }
+  if (Object.keys(eventContext.lists).length <= 1) {
+    alert("You must keep at least one gear list.");
+    return;
+  }
   
-    const confirmed = confirm(`Are you sure you want to delete the list "${activeList}"?`);
-    if (!confirmed) return;
+  const confirmed = confirm(`Are you sure you want to delete the list "${eventContext.activeList}"?`);
+  if (!confirmed) return;
   
-    delete savedGearLists[activeList];
-  
-    // Switch to the first remaining list
-    activeList = Object.keys(savedGearLists)[0];
-    ensureAllCategoriesExist();
+  if (eventContext.deleteList(eventContext.activeList)) {
     populateGearListDropdown();
     renderGear();
     triggerAutosave();
   }
-  
+}
 
 async function loadEventTitle() {
-    try {
-      const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
-        headers: { Authorization: token }
-      });
-  
-      if (!res.ok) throw new Error("Failed to fetch table");
-  
-      const table = await res.json();
-      document.getElementById('eventTitle').textContent = table.title || 'Untitled Event';
-    } catch (err) {
-      console.error("Failed to load event title:", err);
-      document.getElementById('eventTitle').textContent = "Untitled Event";
-    }
-  }
-  
+  try {
+    const res = await fetch(`${API_BASE}/api/tables/${eventContext.tableId}`, {
+      headers: { Authorization: token }
+    });
 
-function ensureAllCategoriesExist() {
-  if (!savedGearLists[activeList]) {
-    savedGearLists[activeList] = {};
+    if (!res.ok) throw new Error("Failed to fetch table");
+
+    const table = await res.json();
+    const userId = getUserIdFromToken();
+    isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
+    
+    // Update all UI elements based on permission level
+    updatePermissionBasedUI();
+    
+    document.getElementById('eventTitle').textContent = table.title || 'Untitled Event';
+  } catch (err) {
+    console.error("Failed to load event title:", err);
+    document.getElementById('eventTitle').textContent = "Untitled Event";
   }
-  for (const category of categories) {
-    if (!savedGearLists[activeList][category]) {
-      savedGearLists[activeList][category] = [];
-    }
+}
+
+// Helper function to update list controls visibility
+function updateListControlsVisibility() {
+  const listControls = document.querySelectorAll('.list-controls');
+  listControls.forEach(control => {
+    control.style.display = isOwner ? 'flex' : 'none';
+  });
+}
+
+function getUserIdFromToken() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return null;
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.id;
+  } catch {
+    return null;
   }
 }
 
@@ -126,25 +340,81 @@ function populateGearListDropdown() {
   const select = document.getElementById("gearListSelect");
   select.innerHTML = '';
 
-  for (const listName of Object.keys(savedGearLists)) {
+  // Add list options
+  Object.keys(eventContext.lists).forEach(listName => {
     const option = document.createElement("option");
     option.value = listName;
     option.textContent = listName;
-    if (listName === activeList) option.selected = true;
+    if (listName === eventContext.activeList) option.selected = true;
     select.appendChild(option);
+  });
+
+  // Add rename option - only for owners
+  if (isOwner) {
+    const renameOption = document.createElement("option");
+    renameOption.value = "__rename__";
+    renameOption.textContent = "✏️ Rename Current List";
+    renameOption.style.fontStyle = "italic";
+    renameOption.style.borderTop = "1px solid #ddd";
+    select.appendChild(renameOption);
   }
 
+  // For non-owners, disable the select to prevent changing lists
+  select.disabled = !isOwner && Object.keys(eventContext.lists).length <= 1;
+
   select.onchange = () => {
-    activeList = select.value;
-    ensureAllCategoriesExist();
-    renderGear();
+    if (select.value === "__rename__") {
+      // Reset selection first
+      select.value = eventContext.activeList;
+      
+      // Show rename prompt
+      const newName = prompt("Enter new name for the list:", eventContext.activeList);
+      if (!newName || newName.trim() === "" || newName === eventContext.activeList) {
+        return; // Cancelled or unchanged
+      }
+      
+      // Check if name exists
+      if (eventContext.lists[newName]) {
+        alert("A list with this name already exists.");
+        return;
+      }
+      
+      // Rename list (create new with same content and delete old)
+      eventContext.lists[newName] = JSON.parse(JSON.stringify(eventContext.lists[eventContext.activeList]));
+      eventContext.deleteList(eventContext.activeList);
+      eventContext.activeList = newName;
+      
+      // Update UI
+      populateGearListDropdown();
+      triggerAutosave();
+    } else {
+      // Normal list selection
+      eventContext.switchList(select.value);
+      renderGear();
+    }
   };
+  
+  // Update all permission-based UI elements
+  updatePermissionBasedUI();
 }
 
 function renderGear() {
   const container = document.getElementById("gearContainer");
   container.innerHTML = "";
   categories.forEach(createCategory);
+  
+  // Show active list description if available
+  const listInfo = document.getElementById("listInfo");
+  if (listInfo) {
+    const currentList = eventContext.lists[eventContext.activeList];
+    if (currentList && currentList.meta && currentList.meta.description) {
+      listInfo.innerHTML = `<i>${currentList.meta.description}</i>`;
+      listInfo.style.display = 'block';
+    } else {
+      listInfo.innerHTML = '';
+      listInfo.style.display = 'none';
+    }
+  }
 }
 
 function getSelectedDates() {
@@ -162,11 +432,7 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
   console.log("Requested dates:", { checkOut, checkIn });
   console.log("Unit status:", unit.status);
   console.log("Unit history:", JSON.stringify(unit.history, null, 2));
-  console.log("Current event ID:", tableId);
-  if (unit.status === 'checked_out') {
-    console.log("Unit is checked out to:", unit.checkedOutEvent);
-    console.log("CheckIn date:", unit.checkInDate);
-  }
+  console.log("Current event ID:", eventContext.tableId);
   
   // Normalize dates to midnight for consistent comparison
   const normalizeDate = (dateStr) => {
@@ -177,6 +443,12 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
     return date;
   };
   
+  // Create normalized dates for the requested period
+  const reqStart = normalizeDate(checkOut);
+  const reqEnd = normalizeDate(checkIn);
+  const now = new Date();
+  now.setUTCHours(0, 0, 0, 0);
+  
   // First check status - if already checked out, only consider it available
   // if it's checked out to THIS event
   if (unit.status === 'checked_out') {
@@ -184,40 +456,47 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
     const unitEventId = unit.checkedOutEvent ? unit.checkedOutEvent.toString() : unit.checkedOutEvent;
     
     // If the item is checked out to this event, it's available for use
-    if (unitEventId === tableId) {
+    if (unitEventId === eventContext.tableId) {
       console.log("✅ Available: checked out to this event");
       return true;
     }
     
-    // If it's checked out to another event, check if it will be available by our start date
-    if (unit.checkInDate) {
-      const checkInDate = normalizeDate(unit.checkInDate);
-      const requestedStart = normalizeDate(checkOut);
-      
-      // If it will be checked in before or on our requested start date, it's available
-      if (checkInDate && requestedStart && checkInDate <= requestedStart) {
-        console.log("✅ Will be available: checkInDate <= requestedStart", 
-                   checkInDate.toISOString(), "<=", requestedStart.toISOString());
+    // If it's checked out to another event, we need to check dates
+    // Get current reservation dates
+    const existingCheckOut = normalizeDate(unit.checkOutDate);
+    const existingCheckIn = normalizeDate(unit.checkInDate);
+    
+    if (existingCheckOut && existingCheckIn) {
+      // Case 1: Our requested dates end BEFORE the existing checkout starts
+      if (reqEnd < existingCheckOut) {
+        console.log("✅ Available: requested dates end before existing reservation starts");
+        console.log(`Requested: ${reqStart.toISOString()} to ${reqEnd.toISOString()}`);
+        console.log(`Existing: ${existingCheckOut.toISOString()} to ${existingCheckIn.toISOString()}`);
         return true;
-      } else {
-        console.log("❌ Won't be available in time: checkInDate > requestedStart", 
-                   checkInDate?.toISOString(), ">", requestedStart?.toISOString());
       }
+      
+      // Case 2: Our requested dates start AFTER the existing checkin ends
+      if (reqStart > existingCheckIn) {
+        console.log("✅ Available: requested dates start after existing reservation ends");
+        console.log(`Requested: ${reqStart.toISOString()} to ${reqEnd.toISOString()}`);
+        console.log(`Existing: ${existingCheckOut.toISOString()} to ${existingCheckIn.toISOString()}`);
+        return true;
+      }
+      
+      console.log("❌ Not available: dates overlap with existing reservation");
+      console.log(`Requested: ${reqStart.toISOString()} to ${reqEnd.toISOString()}`);
+      console.log(`Existing: ${existingCheckOut.toISOString()} to ${existingCheckIn.toISOString()}`);
+      return false;
     }
     
-    // Otherwise, it's not available
+    // No valid dates on the current checkout, so it's not available
     console.log("❌ Not available: checked out to another event");
     return false;
   }
   
   // For available items, check history for conflicts
-  // Not considering entries for this event (which have been checked in)
-  const reqStart = normalizeDate(checkOut);
-  const reqEnd = normalizeDate(checkIn);
-  const now = new Date();
-  now.setUTCHours(0, 0, 0, 0);
-  
   console.log("Looking for conflicts in history entries...");
+  
   // Check if there are any conflicting future reservations
   const hasConflict = (unit.history || []).some((entry, index) => {
     console.log(`Examining history entry ${index}:`, entry);
@@ -226,8 +505,8 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
     const entryEventId = entry.event ? entry.event.toString() : null;
     
     // Skip entries for this event - they've been cancelled/checked in
-    if (entryEventId === tableId) {
-      console.log(`Entry ${index}: Skipping - belongs to this event (${entryEventId} === ${tableId})`);
+    if (entryEventId === eventContext.tableId) {
+      console.log(`Entry ${index}: Skipping - belongs to this event (${entryEventId} === ${eventContext.tableId})`);
       return false;
     }
     
@@ -245,22 +524,31 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
       return false;
     }
     
-    // Overlap if: (startA <= endB) && (endA >= startB)
-    const overlap = reqStart <= entryEnd && reqEnd >= entryStart;
-    
-    if (overlap) {
-      console.log(`❌ Entry ${index}: CONFLICT FOUND!`);
-      console.log("Conflict details:", { 
-        reqStart: reqStart.toISOString(),
-        reqEnd: reqEnd.toISOString(),
-        entryStart: entryStart.toISOString(),
-        entryEnd: entryEnd.toISOString()
-      });
-    } else {
-      console.log(`Entry ${index}: No conflict`);
+    // Check if the requested dates are completely before this reservation
+    if (reqEnd < entryStart) {
+      console.log(`Entry ${index}: No conflict - requested dates end before reservation starts`);
+      console.log(`Requested: ${reqStart.toISOString()} to ${reqEnd.toISOString()}`);
+      console.log(`Entry: ${entryStart.toISOString()} to ${entryEnd.toISOString()}`);
+      return false;
     }
     
-    return overlap;
+    // Check if the requested dates are completely after this reservation
+    if (reqStart > entryEnd) {
+      console.log(`Entry ${index}: No conflict - requested dates start after reservation ends`);
+      console.log(`Requested: ${reqStart.toISOString()} to ${reqEnd.toISOString()}`);
+      console.log(`Entry: ${entryStart.toISOString()} to ${entryEnd.toISOString()}`);
+      return false;
+    }
+    
+    // If neither of the above, there is an overlap
+    console.log(`❌ Entry ${index}: CONFLICT FOUND!`);
+    console.log("Conflict details:", { 
+      reqStart: reqStart.toISOString(),
+      reqEnd: reqEnd.toISOString(),
+      entryStart: entryStart.toISOString(),
+      entryEnd: entryEnd.toISOString()
+    });
+    return true;
   });
   
   // No conflicts means it's available
@@ -270,137 +558,314 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
   return !hasConflict;
 }
 
-function createRow(item) {
+function createRow(item, isNewRow = false) {
   const safeLabel = item.label.replace(/"/g, '&quot;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
   const el = document.createElement("div");
   el.className = "item";
-  el.innerHTML = `<input type='checkbox' ${item.checked ? 'checked' : ''}><input type='text' value="${safeLabel}" />`;
-  // Add delete button
-  const deleteBtn = document.createElement('button');
-  deleteBtn.textContent = '🗑';
-  deleteBtn.title = 'Delete item';
-  deleteBtn.style.marginLeft = '8px';
-  deleteBtn.onclick = async () => {
-    // If this item is a reserved inventory item, check it in
-    const reserved = gearInventory.find(g => g.label === item.label && g.checkedOutEvent === tableId);
-    if (reserved && reserved.status === 'checked_out') {
-      try {
-        await fetch(`${API_BASE}/api/gear-inventory/checkin`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: token
-          },
-          body: JSON.stringify({
-            gearId: reserved._id,
-            eventId: tableId,
-            checkOutDate: reserved.checkOutDate,
-            checkInDate: reserved.checkInDate
-          })
-        });
-        await loadGearInventory();
-      } catch (err) {
-        console.error('Failed to check in gear:', err);
+  
+  // Mark new blank rows for special handling
+  if (isNewRow) {
+    el.setAttribute('data-new-row', 'true');
+  }
+  
+  // Create the checkbox and text input
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.checked = item.checked;
+  checkbox.disabled = false; // Allow all users to toggle checkboxes
+  el.appendChild(checkbox);
+  
+  const textInput = document.createElement('input');
+  textInput.type = 'text';
+  textInput.value = safeLabel;
+  textInput.readOnly = !isOwner; // Make read-only for non-owners
+  el.appendChild(textInput);
+  
+  // Set up checkbox change handler for non-owners
+  if (!isOwner) {
+    checkbox.addEventListener('change', () => {
+      // Update the item in memory without saving to server
+      const items = eventContext.getItems(el.closest('.category').querySelector('h3').textContent);
+      const itemIndex = items.findIndex(i => i.label === item.label);
+      
+      if (itemIndex !== -1) {
+        items[itemIndex].checked = checkbox.checked;
       }
-    }
-    el.remove();
-    triggerAutosave();
-  };
-  el.appendChild(deleteBtn);
+    });
+  }
+  
+  // Only add delete button for owners
+  if (isOwner) {
+    // Add delete button
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = '🗑';
+    deleteBtn.title = 'Delete item';
+    deleteBtn.style.marginLeft = '8px';
+    deleteBtn.onclick = async () => {
+      // If this item is a reserved inventory item, check it in
+      const reserved = gearInventory.find(g => g.label === item.label && g.checkedOutEvent === eventContext.tableId);
+      if (reserved && reserved.status === 'checked_out') {
+        try {
+          await fetch(`${API_BASE}/api/gear-inventory/checkin`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: token
+            },
+            body: JSON.stringify({
+              gearId: reserved._id,
+              eventId: eventContext.tableId,
+              checkOutDate: reserved.checkOutDate,
+              checkInDate: reserved.checkInDate
+            })
+          });
+          await loadGearInventory();
+        } catch (err) {
+          console.error('Failed to check in gear:', err);
+        }
+      }
+      
+      // Remove the row from the DOM
+      el.remove();
+      
+      // Trigger save unless it's a new blank row
+      if (!isNewRow) {
+        triggerAutosave();
+      }
+    };
+    
+    el.appendChild(deleteBtn);
+  }
+  
+  // Only set up editing handlers for owners
+  if (isOwner) {
+    // Save changes when input is modified
+    textInput.addEventListener('input', () => {
+      // For new rows, we'll handle saving in the blur event
+      if (!isNewRow) {
+        triggerAutosave();
+      }
+    });
+    
+    // Add Enter key handler for all text inputs
+    textInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        
+        if (isNewRow) {
+          // For new blank rows, first validate the current one
+          textInput.blur(); // This will trigger the blur validation
+          
+          // If validation passed, the data-new-row attribute will be removed
+          if (!el.hasAttribute('data-new-row')) {
+            // Find the parent list and add another blank row
+            const parentList = el.closest('.item-list');
+            if (parentList) {
+              // Find the add button and click it to add another row
+              const category = el.closest('.category');
+              if (category) {
+                const addBtn = category.querySelector('.add-btn');
+                if (addBtn) {
+                  addBtn.click();
+                }
+              }
+            }
+          }
+        } else {
+          // For existing rows, directly add a new row
+          const parentList = el.closest('.item-list');
+          if (parentList) {
+            const category = el.closest('.category');
+            if (category) {
+              const addBtn = category.querySelector('.add-btn');
+              if (addBtn) {
+                addBtn.click();
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Add tab key handling to improve navigation
+    textInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Tab' && !e.shiftKey) {
+        // Find the next row's input to focus on
+        const parentList = el.closest('.item-list');
+        if (!parentList) return;
+        
+        const allRows = Array.from(parentList.querySelectorAll('.item'));
+        const currentIndex = allRows.indexOf(el);
+        
+        // If there's no next row and we're not pressing shift, add a new one
+        if (currentIndex === allRows.length - 1) {
+          // Find the category and add button
+          const category = el.closest('.category');
+          if (category) {
+            e.preventDefault(); // Prevent normal tab behavior
+            const addBtn = category.querySelector('.add-btn');
+            if (addBtn) {
+              addBtn.click();
+            }
+          }
+        }
+      }
+    });
+  }
+  
   return el;
 }
 
 function createCategory(name) {
   const container = document.getElementById("gearContainer");
+  
   const section = document.createElement("div");
   section.className = "category";
-  section.innerHTML = `<h3>${name}</h3><div class="item-list"></div>`;
-  const list = section.querySelector(".item-list");
-
-  const items = savedGearLists[activeList][name] || [];
-
-  items.forEach(item => {
-    if ((filterSetting === "checked" && !item.checked) || (filterSetting === "unchecked" && item.checked)) return;
-    list.appendChild(createRow(item));
-  });
-
-  // Add + Add Item button for manual row addition
-  const addRowBtn = document.createElement("button");
-  addRowBtn.className = "add-btn";
-  addRowBtn.textContent = "+ Add Item";
-  addRowBtn.title = "Add a custom row";
-  addRowBtn.onclick = () => {
-    const newItem = { label: '', checked: false };
-    list.appendChild(createRow(newItem));
-    triggerAutosave();
-  };
-
-  // Add + button for reserving available inventory unit
-  const reserveBtn = document.createElement("button");
-  reserveBtn.className = "add-btn";
-  reserveBtn.textContent = "+ Checkout Item";
-  reserveBtn.title = "Reserve available inventory unit";
-  reserveBtn.style.marginLeft = '8px';
-  reserveBtn.onclick = async () => {
-    const { checkOut, checkIn } = getSelectedDates();
-    // Validate date range first
-    if (!validateDateRange()) {
-      return; // Don't proceed if dates are invalid
-    }
+  
+  const header = document.createElement("h3");
+  header.textContent = name;
+  section.appendChild(header);
+  
+  const list = document.createElement("div");
+  list.className = "item-list";
+  section.appendChild(list);
+  
+  // Get current items or empty array
+  const items = eventContext.getItems(name) || [];
+  
+  // Only show buttons for owners
+  if (isOwner) {
+    // Add inventory button for checkouts
+    const checkoutBtn = document.createElement("button");
+    checkoutBtn.className = "checkout-btn";
+    checkoutBtn.textContent = "📋 Use Inventory";
+    checkoutBtn.title = "Check out from inventory";
     
-    if (!checkOut || !checkIn) {
-      document.getElementById('gearStatusMessage').textContent = 'Please select both check-out and check-in dates before checking out items.';
-      // Highlight the date fields
-      const outField = document.getElementById('checkoutDate');
-      const inField = document.getElementById('checkinDate');
-      if (outField) outField.style.borderColor = 'red';
-      if (inField) inField.style.borderColor = 'red';
-      setTimeout(() => {
-        if (outField) outField.style.borderColor = '';
-        if (inField) inField.style.borderColor = '';
-      }, 2000);
-      return;
+    const dates = getSelectedDates();
+    
+    checkoutBtn.onclick = async () => {
+      try {
+        // Check for dates
+        if (!dates.checkOut || !dates.checkIn) {
+          alert("Please set the check-out and check-in dates first.");
+          return;
+        }
+        
+        // Get available units from inventory
+        const availableUnits = gearInventory
+          .filter(unit => {
+            // Check category match
+            if (!checkByCategory(unit, name)) {
+              return false;
+            }
+            
+            // Skip if already checked out to another event
+            if (unit.status === 'checked_out' && 
+                unit.checkedOutEvent && 
+                unit.checkedOutEvent !== eventContext.tableId) {
+              return false;
+            }
+            
+            // Check date availability for items not already checked out to this event
+            if (unit.status !== 'checked_out' || unit.checkedOutEvent !== eventContext.tableId) {
+              return isUnitAvailableForDates(unit, dates.checkOut, dates.checkIn);
+            }
+            
+            return true;
+          });
+        
+        openCheckoutModal(name, availableUnits, dates.checkOut, dates.checkIn, list);
+      } catch (err) {
+        console.error("Error opening checkout modal:", err);
+      }
+    };
+    
+    // Add + Add Item button for manual row addition
+    const addRowBtn = document.createElement("button");
+    addRowBtn.className = "add-btn";
+    addRowBtn.textContent = "+ Add Item";
+    addRowBtn.title = "Add a custom row";
+    addRowBtn.onclick = () => {
+      // Create a blank row instead of showing a prompt
+      const newItem = { label: "", checked: false };
+      const row = createRow(newItem, true); // Add true parameter to indicate it's a new blank row
+      list.appendChild(row);
+      
+      // Focus on the input field for immediate editing
+      const input = row.querySelector('input[type="text"]');
+      if (input) {
+        input.focus();
+        
+        // Add validation on blur to ensure the field isn't empty
+        input.addEventListener('blur', () => {
+          if (input.value.trim() === '') {
+            // If left empty and user moves away, remove the row
+            row.remove();
+          } else {
+            // Otherwise check for duplicates
+            const existingItems = Array.from(list.querySelectorAll('.item:not([data-new-row="true"]) input[type="text"]'))
+              .map(input => input.value.trim());
+            
+            if (existingItems.includes(input.value.trim())) {
+              alert(`"${input.value.trim()}" is already in this list.`);
+              input.value = '';
+              input.focus();
+            } else {
+              // Valid input, trigger save and remove the new row marker
+              row.removeAttribute('data-new-row');
+              triggerAutosave();
+            }
+          }
+        });
+      }
+    };
+    
+    // Add buttons in button row
+    const buttonRow = document.createElement("div");
+    buttonRow.className = "button-row";
+    
+    buttonRow.appendChild(checkoutBtn);
+    buttonRow.appendChild(addRowBtn);
+    
+    section.appendChild(buttonRow);
+  }
+  
+  // Add items to the list, filtering based on filterSetting
+  items.forEach(item => {
+    if (item && item.label) { // Only add if the item has a label
+      // Apply filter based on user selection
+      if ((filterSetting === "checked" && !item.checked) || 
+          (filterSetting === "unchecked" && item.checked)) {
+        return; // Skip this item if it doesn't match filter
+      }
+      
+      const row = createRow(item);
+      list.appendChild(row);
     }
-    // Show a list of available units for this category and dates
-    const availableUnits = gearInventory.filter(g => g.category === name && isUnitAvailableForDates(g, checkOut, checkIn));
-    if (!availableUnits.length) {
-      document.getElementById('gearStatusMessage').textContent = `No available units in inventory for ${name} for the selected dates.`;
-      return;
-    }
-    // Open modal
-    openCheckoutModal(name, availableUnits, checkOut, checkIn, list);
-  };
-
-  // Wrap both buttons in a flex container
-  const btnRow = document.createElement('div');
-  btnRow.style.display = 'flex';
-  btnRow.style.gap = '10px';
-  btnRow.style.justifyContent = 'center';
-  btnRow.appendChild(addRowBtn);
-  btnRow.appendChild(reserveBtn);
-  section.appendChild(btnRow);
-
+  });
+  
   container.appendChild(section);
+  
+  return section;
 }
 
 function collectGearData() {
   const data = {};
-  for (const category of categories) {
-    data[category] = [];
-  }
-
-  document.querySelectorAll(".category").forEach(section => {
-    const name = section.querySelector("h3").textContent;
-    const items = Array.from(section.querySelectorAll(".item")).map(row => {
-      const text = row.querySelector("input[type='text']").value.trim();
-      const checked = row.querySelector("input[type='checkbox']").checked;
+  categories.forEach(cat => {
+    const categorySection = document.querySelector(`.category h3:contains('${cat}')`).closest('.category');
+    if (!categorySection) {
+      data[cat] = [];
+      return;
+    }
+    
+    const items = Array.from(categorySection.querySelectorAll('.item')).map(row => {
+      const text = row.querySelector('input[type="text"]').value.trim();
+      const checked = row.querySelector('input[type="checkbox"]').checked;
       return text ? { label: text, checked } : null;
     }).filter(Boolean);
-    if (categories.includes(name)) {
-      data[name] = items;
-    }
+    
+    data[cat] = items;
   });
-
   return data;
 }
 
@@ -475,31 +940,19 @@ function checkUnavailableItemsAndWarn() {
 
 async function saveGear() {
   try {
-    savedGearLists[activeList] = collectGearData();
-
+    // Update data from DOM
+    eventContext.updateFromDOM();
+    
     // Get date fields
     const checkOutDate = document.getElementById('checkoutDate')?.value || '';
     const checkInDate = document.getElementById('checkinDate')?.value || '';
-
-    console.log("Saving gear to:", `${API_BASE}/api/tables/${tableId}/gear`);
-    console.log("Token being used:", token);
-    console.log("Payload:", JSON.stringify({ lists: savedGearLists, checkOutDate, checkInDate }, null, 2));
-
-    const res = await fetch(`${API_BASE}/api/tables/${tableId}/gear`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: token
-      },
-      body: JSON.stringify({ lists: savedGearLists, checkOutDate, checkInDate })
-    });
-
-    const responseText = await res.text();
-    if (!res.ok) {
-      throw new Error(`Status ${res.status}: ${responseText}`);
+    
+    // Save to server
+    const success = await eventContext.save(checkOutDate, checkInDate);
+    
+    if (!success) {
+      throw new Error("Save failed");
     }
-
-    console.log("Save successful:", responseText);
   } catch (err) {
     console.error("Error saving gear:", err.message);
     alert("Failed to save checklist. See console for details.");
@@ -547,21 +1000,26 @@ function triggerAutosave() {
 }
 
 function createNewGearList() {
+  // Get name from prompt
   const name = prompt("Enter a name for the new gear list:")?.trim();
-  if (!name || savedGearLists[name]) return;
-
-  savedGearLists[name] = {
-    Cameras: [],
-    Lenses: [],
-    Lighting: [],
-    Support: [],
-    Accessories: []
-  };
-
-  activeList = name;
-  populateGearListDropdown();
-  renderGear();
-  triggerAutosave();
+  if (!name) return;
+  
+  // Check if name already exists
+  if (eventContext.lists[name]) {
+    alert("A list with this name already exists.");
+    return;
+  }
+  
+  // Get optional description
+  const description = prompt("Enter an optional description for this list:")?.trim() || "";
+  
+  // Create the new list
+  if (eventContext.createList(name, description)) {
+    eventContext.switchList(name);
+    populateGearListDropdown();
+    renderGear();
+    triggerAutosave();
+  }
 }
 
 async function loadGearInventory() {
@@ -618,7 +1076,7 @@ function renderInventoryStatus() {
     
     // Add more info for checked out items
     if (item.status === 'checked_out') {
-      status += ` (Checked out ${item.checkedOutEvent === tableId ? 'to this event' : 'to another event'})`;
+      status += ` (Checked out ${item.checkedOutEvent === eventContext.tableId ? 'to this event' : 'to another event'})`;
     }
     
     return `${item.label} (${item.category}): ${status}`;
@@ -630,109 +1088,152 @@ function openCheckoutModal(category, availableUnits, checkOut, checkIn, list) {
   const modal = document.getElementById('checkoutModal');
   const modalList = document.getElementById('modalItemList');
   const modalTitle = document.getElementById('modalTitle');
-  modalTitle.textContent = `Select ${category} to Check Out`;
-  modalList.innerHTML = '';
   
-  // Double-check availability once more right before showing modal
-  const trueAvailableUnits = availableUnits.filter(unit => isUnitAvailableForDates(unit, checkOut, checkIn));
+  // Get all items already in the list
+  const existingItems = Array.from(list.querySelectorAll('.item input[type=\"text\"]'))
+    .map(input => input.value.trim());
   
-  if (trueAvailableUnits.length === 0) {
-    document.getElementById('gearStatusMessage').innerHTML = `
-      <div style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
-        <strong>No available units:</strong> All ${category} items are now reserved for the selected dates.
-        This could be due to another user making a reservation at the same time.
-        <br><br>
-        <a href="repair-gear.html" target="_blank">Click here to run the repair tool</a> if you believe this is an error.
-      </div>`;
-    return;
+  console.log("Existing items in this list:", existingItems);
+  
+  // Filter out units that are:
+  // 1. Already in any list for this event
+  // 2. Checked out to another event
+  const availableUnitsFiltered = availableUnits.filter(unit => {
+    // Skip if already in any list
+    if (eventContext.isItemInAnyList(unit.label)) {
+      return false;
+    }
+    
+    // Skip if checked out to another event
+    if (unit.status === 'checked_out' && 
+        unit.checkedOutEvent && 
+        unit.checkedOutEvent !== eventContext.tableId) {
+      return false;
+    }
+    
+    return true;
+  });
+  
+  console.log(`Original available units: ${availableUnits.length}, after filtering: ${availableUnitsFiltered.length}`);
+  
+  modalTitle.textContent = `Select ${category} Item to Check Out`;
+  
+  let modalContent = '';
+  
+  // Add an explanatory note
+  if (availableUnits.length > availableUnitsFiltered.length) {
+    const filteredOut = availableUnits.length - availableUnitsFiltered.length;
+    modalContent += `<p style="color: #666; font-size: 14px; margin-bottom: 16px;">
+      Note: ${filteredOut} item(s) already in use have been hidden.
+    </p>`;
   }
   
-  trueAvailableUnits.forEach(unit => {
-    const btn = document.createElement('button');
-    btn.className = 'modal-item-btn';
-    btn.textContent = `${unit.label}${unit.serial ? ' (S/N: ' + unit.serial + ')' : ''}`;
-    btn.onclick = async () => {
-      // Reserve the unit via API
+  if (availableUnitsFiltered.length === 0) {
+    modalContent += `<p>No available items found.</p>`;
+    modalList.innerHTML = modalContent;
+  } else {
+    modalContent += availableUnitsFiltered
+      .map(unit => {
+        let statusLabel = '';
+        
+        if (unit.status === 'available') {
+          statusLabel = '<span style="color: green">Available</span>';
+        } else if (unit.status === 'checked_out' && unit.checkedOutEvent === eventContext.tableId) {
+          statusLabel = '<span style="color: blue">Already checked out to this event</span>';
+        } else {
+          statusLabel = unit.status;
+        }
+        
+        return `<button class="modal-item-btn" data-id="${unit._id}">${unit.label} (${statusLabel})</button>`;
+      })
+      .join('');
+    
+    modalList.innerHTML = modalContent;
+  }
+  
+  // Add event listeners for item buttons
+  modalList.querySelectorAll('.modal-item-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      const unitId = btn.dataset.id;
+      const unit = availableUnitsFiltered.find(u => u._id === unitId);
+      
+      if (!unit) return;
+      
       try {
-        btn.disabled = true;
-        btn.textContent = 'Checking out...';
+        console.log(`Checking out: ${unit.label} for event: ${eventContext.tableId}`);
+        console.log(`Dates: ${checkOut} to ${checkIn}`);
+        
+        if (!checkOut || !checkIn) {
+          alert("Please set check-out and check-in dates first");
+          modal.style.display = 'none';
+          return;
+        }
+        
+        // Call the API to check out this item
         const res = await fetch(`${API_BASE}/api/gear-inventory/checkout`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            Authorization: token
+            'Authorization': token
           },
           body: JSON.stringify({
             gearId: unit._id,
-            eventId: tableId,
+            eventId: eventContext.tableId,
             checkOutDate: checkOut,
             checkInDate: checkIn
           })
         });
-        const data = await res.json();
+        
         if (!res.ok) {
-          let msg = data.error || 'Failed to reserve gear.';
-          if (res.status === 409) {
-            msg = "⚠️ This gear is already reserved for the selected dates. Please choose different dates or another item.";
-            // Show repair tool link if conflict detected
-            msg += '<br><br><a href="repair-gear.html" target="_blank">Click here to run the repair tool</a> if you believe this is an error.';
-            
-            document.getElementById('gearStatusMessage').innerHTML = `
-              <div style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
-                ${msg}
-              </div>`;
-          } else {
-            document.getElementById('gearStatusMessage').innerHTML = `
-              <div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
-                ${msg}
-              </div>`;
-          }
-          btn.disabled = false;
-          btn.textContent = `${unit.label}${unit.serial ? ' (S/N: ' + unit.serial + ')' : ''}`;
-          closeCheckoutModal();
-          return;
+          const error = await res.text();
+          throw new Error(error);
         }
         
-        // Track that this was successfully added
-        unit.checkedOutEvent = tableId;
-        unit.status = 'checked_out';
+        // Close the modal
+        modal.style.display = 'none';
         
-        // Add to list
+        // Add to the gear list
         const row = createRow({ label: unit.label, checked: false });
         list.appendChild(row);
         
-        // Close modal
-        closeCheckoutModal();
+        // Track that this was successfully added
+        unit.checkedOutEvent = eventContext.tableId;
+        unit.status = 'checked_out';
         
         // Refresh inventory status & highlights
         await loadGearInventory();
         checkUnavailableItemsAndWarn();
         
-        // Show success message
+        // Save changes to the list and dates
+        triggerAutosave();
+        
         document.getElementById('gearStatusMessage').innerHTML = `
           <div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
             <strong>Success:</strong> ${unit.label} has been checked out for your event.
-          </div>`;
+          </div>
+        `;
+        setTimeout(() => {
+          document.getElementById('gearStatusMessage').innerHTML = '';
+        }, 5000);
         
-        triggerAutosave();
       } catch (err) {
-        console.error('Error checking out gear:', err);
-        btn.disabled = false;
-        btn.textContent = `${unit.label}${unit.serial ? ' (S/N: ' + unit.serial + ')' : ''}`;
+        console.error("Error checking out item:", err);
         document.getElementById('gearStatusMessage').innerHTML = `
           <div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
             <strong>Error:</strong> ${err.message}
-          </div>`;
+          </div>
+        `;
       }
-    };
-    modalList.appendChild(btn);
+    });
   });
   
-  // Update the existing Cancel button's click handler
-  document.getElementById('closeModalBtn').onclick = closeCheckoutModal;
+  // Set up cancel button
+  document.getElementById('closeModalBtn').onclick = () => {
+    modal.style.display = 'none';
+  };
   
+  // Show the modal
   modal.style.display = 'flex';
-  modal.classList.add('show');
 }
 
 function closeCheckoutModal() {
@@ -742,9 +1243,14 @@ function closeCheckoutModal() {
 }
 
 window.addEventListener("DOMContentLoaded", async () => {
+  try {
     await loadGear();
+    
+    // loadEventTitle will update list controls visibility
     await loadEventTitle();
+    
     await loadGearInventory();
+    
     document.getElementById('gearContainer').addEventListener('input', triggerAutosave);
     document.getElementById('gearContainer').addEventListener('change', triggerAutosave);
     document.getElementById("filterCheckbox").addEventListener("change", e => {
@@ -753,27 +1259,39 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
     document.getElementById('checkoutDate').addEventListener('change', triggerAutosave);
     document.getElementById('checkinDate').addEventListener('change', triggerAutosave);
-  });
+  } catch (err) {
+    console.error("Error initializing gear page:", err);
+  }
+});
   
   function initPage(id) {
-    tableId = id || tableId;
-    if (!API_BASE || !token || !tableId) {
-      alert("Missing configuration: API_BASE, token, or tableId is not set.");
-      throw new Error("Missing configuration");
+    try {
+      // Initialize event context
+      if (!eventContext.init(id)) {
+        alert("Missing configuration: tableId is not set.");
+        throw new Error("Missing configuration");
+      }
+  
+      // Load data
+      loadGear();
+      
+      // Just call loadEventTitle directly - it will update list controls visibility
+      loadEventTitle();
+      
+      loadGearInventory();
+  
+      // Set up event listeners
+      document.getElementById('gearContainer').addEventListener('input', triggerAutosave);
+      document.getElementById('gearContainer').addEventListener('change', triggerAutosave);
+      document.getElementById("filterCheckbox").addEventListener("change", e => {
+        filterSetting = e.target.value;
+        renderGear();
+      });
+      document.getElementById('checkoutDate').addEventListener('change', triggerAutosave);
+      document.getElementById('checkinDate').addEventListener('change', triggerAutosave);
+    } catch (err) {
+      console.error("Error initializing gear page:", err);
     }
-  
-    loadGear();
-    loadEventTitle();
-    loadGearInventory();
-  
-    document.getElementById('gearContainer').addEventListener('input', triggerAutosave);
-    document.getElementById('gearContainer').addEventListener('change', triggerAutosave);
-    document.getElementById("filterCheckbox").addEventListener("change", e => {
-      filterSetting = e.target.value;
-      renderGear();
-    });
-    document.getElementById('checkoutDate').addEventListener('change', triggerAutosave);
-    document.getElementById('checkinDate').addEventListener('change', triggerAutosave);
   }
   
   // ✅ Important: make initPage visible to app.js
@@ -784,6 +1302,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   window.deleteGearList = deleteGearList;
   window.createNewGearList = createNewGearList;
   window.saveGear = saveGear;
+  window.saveGearList = saveGearList;
   window.triggerAutosave = triggerAutosave;
 
   // Add listeners to re-render inventory status on date change
@@ -859,6 +1378,116 @@ window.addEventListener("DOMContentLoaded", async () => {
       });
     }
   });
+
+  // Save gear list to server
+  function saveGearList() {
+    saveGear().then(() => {
+      document.getElementById('gearStatusMessage').innerHTML = `
+        <div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+          <strong>Success:</strong> Gear list saved.
+        </div>
+      `;
+      setTimeout(() => {
+        document.getElementById('gearStatusMessage').innerHTML = '';
+      }, 3000);
+    }).catch(err => {
+      document.getElementById('gearStatusMessage').innerHTML = `
+        <div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+          <strong>Error:</strong> Failed to save gear list: ${err.message}
+        </div>
+      `;
+    });
+  }
+
+  // Helper to check if unit belongs to the category
+  function checkByCategory(unit, category) {
+    if (!unit || !unit.category) return false;
+    
+    // Direct category match (exact match)
+    if (unit.category === category) return true;
+    
+    // Handle subcategories based on common rules:
+    
+    // Cameras and related items
+    if (category === "Cameras") {
+      return /camera|body|dslr|mirrorless/i.test(unit.category);
+    }
+    
+    // Lenses and optics
+    if (category === "Lenses") {
+      return /lens|zoom|prime|telephoto|wide|macro/i.test(unit.category);
+    }
+    
+    // Lighting equipment
+    if (category === "Lighting") {
+      return /light|flash|strobe|softbox|umbrella|modifier|diffuser/i.test(unit.category);
+    }
+    
+    // Support equipment
+    if (category === "Support") {
+      return /tripod|monopod|gimbal|stabilizer|rig|stand|mount/i.test(unit.category);
+    }
+    
+    // Accessories (catch-all for remaining items)
+    if (category === "Accessories") {
+      return !/camera|lens|light|tripod|monopod|gimbal/i.test(unit.category);
+    }
+    
+    return false;
+  }
+
+  // Helper function to update permissions-based UI elements
+  function updatePermissionBasedUI() {
+    // Update list controls visibility
+    const listControls = document.querySelectorAll('.list-controls');
+    listControls.forEach(control => {
+      control.style.display = isOwner ? 'flex' : 'none';
+    });
+    
+    // Control editability of date fields
+    const dateFields = ['checkoutDate', 'checkinDate'];
+    dateFields.forEach(id => {
+      const el = document.getElementById(id);
+      if (el) {
+        el.disabled = !isOwner;
+        // Add visual indication for non-owners
+        el.style.opacity = isOwner ? '1' : '0.7';
+        el.title = isOwner ? '' : 'Only owners can change dates';
+      }
+    });
+    
+    // Control visibility of save button
+    const saveBtn = document.querySelector('button[onclick="saveGearList()"]');
+    if (saveBtn) {
+      saveBtn.style.display = isOwner ? 'inline-block' : 'none';
+    }
+    
+    // Make gear container read-only mode for non-owners (but allow checkbox toggling)
+    const gearContainer = document.getElementById('gearContainer');
+    if (gearContainer) {
+      gearContainer.classList.toggle('read-only-mode', !isOwner);
+
+      // For non-owners, make sure checkboxes remain interactive
+      if (!isOwner) {
+        // Remove 'not-allowed' cursor from checkboxes in read-only mode
+        const style = document.createElement('style');
+        style.id = 'checkbox-override-style';
+        style.textContent = `
+          .read-only-mode .item input[type="checkbox"] {
+            cursor: pointer !important;
+          }
+        `;
+        
+        // Remove any existing style first to avoid duplicates
+        const existingStyle = document.getElementById('checkbox-override-style');
+        if (existingStyle) {
+          existingStyle.remove();
+        }
+        
+        document.head.appendChild(style);
+      }
+    }
+  }
 })();
   
   

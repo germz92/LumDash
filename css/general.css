@@ -91,10 +91,10 @@
 .general-page .contacts-container {
   width: 100%;
   max-width: none;
-  margin: 1.5rem 0;
-  padding: 1rem;
+  margin: 1rem 0;
+  padding: 0.75rem;
   border: 1px solid #ccc;
-  border-radius: 1rem;
+  border-radius: 0.75rem;
   background: #f0f0f0;
   box-sizing: border-box;
   box-shadow: 0 2px 12px rgba(0,0,0,0.06);
@@ -109,14 +109,14 @@
 
 .general-page .contacts-container table {
   width: 100% !important;
-  min-width: 100% !important;
+  min-width: 650px !important;
   table-layout: fixed !important;
   border-collapse: separate !important;
   border-spacing: 0 !important;
   background: #fff;
-  border-radius: 14px;
+  border-radius: 10px;
   overflow: hidden;
-  box-shadow: 0 4px 18px rgba(0,0,0,0.08);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.06);
   border: 1px solid #e0e0e0;
 }
 
@@ -128,8 +128,8 @@
   box-sizing: border-box;
   overflow-wrap: break-word;
   word-break: break-word;
-  padding: 28px 22px;
-  font-size: 1.18em;
+  padding: 12px 16px;
+  font-size: 0.95em;
 }
 
 .general-page .contacts-container th {
@@ -169,7 +169,7 @@
   display: block;
   margin: 0;
   padding: 0;
-  font-size: 1rem;
+  font-size: 0.95rem;
   line-height: 1.2;
   min-height: 0;
   height: auto;
@@ -183,7 +183,7 @@
 .general-page .contacts-container td input[type="text"] {
   width: 100%;
   min-height: 1.1em;
-  font-size: 1rem;
+  font-size: 0.95rem;
   line-height: 1.2;
   padding: 0.15em 0.2em;
   margin: 0;
@@ -199,11 +199,11 @@
 
 .general-page .contacts-container td textarea {
   width: 100%;
-  min-height: 48px;
-  font-size: 1rem;
+  min-height: 42px;
+  font-size: 0.95rem;
   line-height: 1.4;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
   box-sizing: border-box;
   resize: vertical;
   overflow-y: auto;
@@ -214,17 +214,17 @@
 
 /* ====== Buttons ====== */
 .general-page .add-row-btn, .general-page .save-button-container button, .general-page button {
-  margin-top: 0.7rem;
-  padding: 0.5rem 1rem;
+  margin-top: 0.5rem;
+  padding: 0.4rem 0.8rem;
   background-color: #CC0007;
   color: white;
   border: none;
-  border-radius: 0.5rem;
+  border-radius: 0.4rem;
   font-weight: bold;
   cursor: pointer;
   transition: background 0.2s, box-shadow 0.2s;
   box-shadow: 0 1px 4px rgba(204,0,7,0.08);
-  font-size: 1rem;
+  font-size: 0.95rem;
 }
 
 .general-page .add-row-btn:hover, .general-page .save-button-container button:hover, .general-page button:hover {
@@ -313,9 +313,9 @@
 
 .general-page .contacts-container th:last-child,
 .general-page .contacts-container td:last-child {
-  width: 64px !important;
-  min-width: 48px !important;
-  max-width: 80px !important;
+  width: 60px !important;
+  min-width: 40px !important;
+  max-width: 60px !important;
   text-align: center;
   padding-left: 4px;
   padding-right: 4px;
@@ -346,4 +346,77 @@
   resize: vertical;
   box-sizing: border-box;
   line-height: 1.5;
+}
+
+/* Add a new media query for desktop specifically */
+@media (min-width: 1024px) {
+  .general-page .info-section {
+    gap: 1rem;
+    margin-bottom: 0.75rem;
+    padding: 0.75rem 0;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+  
+  .general-page .info-section label {
+    margin-bottom: 0.35rem;
+  }
+  
+  .general-page .info-section input[type="date"],
+  .general-page .info-section input[type="text"],
+  .general-page .info-section textarea {
+    min-height: 2rem;
+    padding: 0.35rem 0.5rem;
+  }
+  
+  .general-page .contacts-container {
+    margin: 0.75rem 0;
+  }
+  
+  .general-page .contacts-container table {
+    /* Ensure table uses available space efficiently */
+    min-width: 0 !important;
+  }
+  
+  /* Make the columns more compact by setting widths */
+  .general-page .contacts-container th:nth-child(1),
+  .general-page .contacts-container td:nth-child(1) {
+    width: 20% !important;
+  }
+  
+  .general-page .contacts-container th:nth-child(2),
+  .general-page .contacts-container td:nth-child(2) {
+    width: 30% !important;
+  }
+  
+  .general-page .contacts-container th:nth-child(3),
+  .general-page .contacts-container td:nth-child(3) {
+    width: 25% !important;
+  }
+  
+  .general-page .contacts-container th:nth-child(4),
+  .general-page .contacts-container td:nth-child(4) {
+    width: 20% !important;
+  }
+  
+  /* Further compress spacing in desktop view */
+  .general-page .contacts-container th,
+  .general-page .contacts-container td {
+    padding: 8px 12px;
+  }
+  
+  /* Reduce vertical spacing between tables */
+  .general-page .contacts-container + .contacts-container {
+    margin-top: 1rem;
+  }
+  
+  /* Make headers more compact */
+  .general-page h1 { 
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
+  }
+  
+  .general-page h2 { 
+    font-size: 1.15rem;
+    margin-bottom: 0.75rem;
+  }
 }

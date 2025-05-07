@@ -1,4 +1,3 @@
-
   <h2 id="eventTitle" style="margin-bottom: 2px;"></h2>
   <h1>Gear Checklist</h1>
 
@@ -13,10 +12,12 @@
       <div class="list-group">
         <label for="gearListSelect">Gear List:</label>
         <select id="gearListSelect"></select>
-        <button onclick="createNewGearList()">+ New List</button>
+        <div class="list-controls">
+          <button onclick="createNewGearList()" title="Create a new gear list">+ New List</button>
+          <button onclick="deleteGearList()" style="background-color: #a1a1a1;" title="Delete the current gear list">🗑 Delete</button>
+        </div>
       </div>
       <button onclick="saveGearList()">💾 Save</button>
-      <button onclick="deleteGearList()" style="background-color: #a1a1a1;">🗑 Delete</button>
       <label for="filterCheckbox" style="margin-left:16px;">Filter:</label>
       <select id="filterCheckbox">
         <option value="all">Show All</option>
@@ -24,6 +25,8 @@
         <option value="unchecked">Unchecked Only</option>
       </select>
     </div>
+    <!-- List description element -->
+    <div id="listInfo" style="font-size: 14px; color: #666; margin-top: 4px; display: none;"></div>
   </div>
 
   <div class="gear-container" id="gearContainer"></div>
@@ -123,5 +126,130 @@
       font-size: 18px;
       padding: 0 4px;
       vertical-align: middle;
+    }
+    .list-controls {
+      display: flex;
+      gap: 8px;
+    }
+    .list-group {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .button-row {
+      display: flex;
+      gap: 10px;
+      margin-top: 10px;
+      margin-bottom: 15px;
+      justify-content: center;
+    }
+    .checkout-btn {
+      background-color: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .checkout-btn:hover {
+      background-color: #e0e0e0;
+    }
+    .add-btn {
+      background-color: #f0f0f0;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 6px 12px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+    }
+    .add-btn:hover {
+      background-color: #e0e0e0;
+    }
+    
+    /* Enhanced row styling */
+    .item {
+      display: flex;
+      align-items: center;
+      padding: 5px;
+      margin-bottom: 2px;
+      border-radius: 4px;
+      transition: background-color 0.2s;
+    }
+    
+    .item:hover {
+      background-color: #f9f9f9;
+    }
+    
+    .item[data-new-row="true"] {
+      background-color: #f0f8ff;
+      border-left: 3px solid #007bff;
+    }
+    
+    .item input[type="text"] {
+      flex: 1;
+      padding: 6px 8px;
+      margin: 0 5px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      transition: border-color 0.2s;
+    }
+    
+    .item input[type="text"]:focus {
+      border-color: #007bff;
+      outline: none;
+      box-shadow: 0 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+    
+    .item input[type="checkbox"] {
+      margin-right: 8px;
+      transform: scale(1.2);
+    }
+    
+    /* Read-only mode styling */
+    .read-only-mode .item {
+      opacity: 0.9;
+      background-color: #f9f9f9;
+    }
+    
+    .read-only-mode .item input[type="text"] {
+      border-color: transparent;
+      background-color: transparent;
+      cursor: default;
+    }
+    
+    .read-only-mode .item input[type="text"]:focus {
+      box-shadow: none;
+      outline: none;
+    }
+    
+    .read-only-mode .item input[type="checkbox"] {
+      cursor: pointer;
+    }
+    
+    .read-only-mode .item input[type="checkbox"] {
+      opacity: 1;
+      box-shadow: 0 0 2px rgba(0, 123, 255, 0.25);
+    }
+    
+    /* Visual indicator for read-only mode */
+    .read-only-mode::before {
+      content: "📋 View Only";
+      display: inline-block;
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      padding: 5px 10px;
+      background-color: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 4px;
+      color: #6c757d;
+      font-size: 14px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      z-index: 1;
+    }
+    
+    /* Make gear container position relative for the view-only badge */
+    #gearContainer {
+      position: relative;
     }
   </style>
