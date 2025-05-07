@@ -258,7 +258,7 @@
   .crew-page .filter-sort-bar select,
   .crew-page .filter-sort-bar input[type="text"] {
     min-width: 120px; /* Even narrower on mobile */
-    font-size: 13px;
+    font-size: 16px !important; /* Ensure 16px minimum on mobile */
     flex-basis: calc(50% - 6px); /* Two items per row */
   }
   
@@ -286,6 +286,20 @@
     font-size: 16px !important;
     padding: 8px 6px;
     white-space: normal !important;
+  }
+  
+  /* Ensure all inputs have 16px font size on mobile */
+  .crew-page input,
+  .crew-page select,
+  .crew-page textarea,
+  .crew-page .top-nav-bar input,
+  .crew-page .top-nav-bar button {
+    font-size: 16px !important;
+  }
+  
+  /* Specifically target search inputs */
+  .crew-page #searchInput {
+    font-size: 16px !important;
   }
 }
 @media (min-width: 901px) {

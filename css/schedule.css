@@ -460,7 +460,7 @@
     .schedule-page textarea,
     .schedule-page select,
     .schedule-page button {
-        font-size: 15px !important;
+        font-size: 16px !important;
         width: 100% !important;
         min-width: 0 !important;
         box-sizing: border-box;
@@ -483,6 +483,7 @@
         height: auto !important;
         line-height: 1.3 !important;
         padding: 6px 8px !important;
+        font-size: 16px !important;
     }
 
     .schedule-page .program-entry textarea {
@@ -496,7 +497,7 @@
         line-height: 1.3 !important;
         padding: 6px 8px !important;
         font-family: inherit !important;
-        font-size: inherit !important;
+        font-size: 16px !important;
         border: 1px solid #eee !important;
         border-radius: 4px !important;
         background: #f9f9f9 !important;
@@ -576,6 +577,11 @@
 
     .schedule-page .delete-date-btn {
         margin-left: auto;
+    }
+
+    /* Ensure search input is 16px */
+    .schedule-page #searchInput {
+        font-size: 16px !important;
     }
 }
 
