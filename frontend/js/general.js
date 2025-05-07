@@ -177,8 +177,126 @@ function collectLocations() {
   });
 }
 
+function initPage(id) {
+  if (!id || !window.token) return;
+
+  fetch(`${API_BASE}/api/tables/${id}`, {
+    headers: { Authorization: window.token }
+  })
+    .then(res => res.json())
+    .then(table => {
+      const general = table.general || {};
+      const userId = getUserIdFromToken();
+      isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
+
+      const eventTitleEl = document.getElementById('eventTitle');
+      if (eventTitleEl) eventTitleEl.textContent = table.title;
+
+      ['eventSummary', 'location', 'weather', 'attendees', 'budget'].forEach(field => {
+        const el = document.getElementById(field === 'eventSummary' ? 'summary' : field);
+        if (el) {
+          const div = document.createElement('div');
+          div.id = field === 'eventSummary' ? 'summary' : field;
+          div.dataset.value = general[field === 'eventSummary' ? 'summary' : field] || '';
+          div.className = 'read-only';
+          div.textContent = general[field === 'eventSummary' ? 'summary' : field] || '';
+          el.replaceWith(div);
+        }
+      });
+
+      // Store original date values for non-owners
+      const startDate = general.start?.split('T')[0] || '';
+      const endDate = general.end?.split('T')[0] || '';
+      
+      // Set values for date fields
+      document.getElementById('start').value = startDate;
+      document.getElementById('end').value = endDate;
+      
+      // 🔒 Make date fields readonly for non-owners
+      if (!isOwner) {
+        const startInput = document.getElementById('start');
+        const endInput = document.getElementById('end');
+        
+        // Make inputs readonly
+        startInput.setAttribute('readonly', 'readonly');
+        endInput.setAttribute('readonly', 'readonly');
+        
+        // Add visual indicator
+        startInput.classList.add('read-only-input');
+        endInput.classList.add('read-only-input');
+        
+        // Prevent changes to the date inputs by adding event listeners
+        startInput.addEventListener('change', function(e) {
+          e.preventDefault();
+          this.value = startDate;
+          alert('Not authorized. Only owners can change event dates.');
+          return false;
+        });
+        
+        endInput.addEventListener('change', function(e) {
+          e.preventDefault();
+          this.value = endDate;
+          alert('Not authorized. Only owners can change event dates.');
+          return false;
+        });
+        
+        // Prevent click events on date inputs
+        startInput.addEventListener('mousedown', function(e) {
+          if (!isOwner) {
+            e.preventDefault();
+            alert('Not authorized. Only owners can change event dates.');
+            return false;
+          }
+        });
+        
+        endInput.addEventListener('mousedown', function(e) {
+          if (!isOwner) {
+            e.preventDefault();
+            alert('Not authorized. Only owners can change event dates.');
+            return false;
+          }
+        });
+      }
+
+      const contactRows = document.getElementById('contactRows');
+      contactRows.innerHTML = '';
+      (general.contacts || []).forEach(data => renderContactRow(data, true));
+
+      const locationRows = document.getElementById('locationsRows');
+      locationRows.innerHTML = '';
+      (general.locations || []).forEach(data => renderLocationRow(data, true));
+
+      document.getElementById('editBtn').style.display = isOwner ? 'inline-block' : 'none';
+      document.querySelectorAll('.add-row-btn').forEach(btn => {
+        btn.style.display = isOwner ? 'inline-block' : 'none';
+      });
+      
+      // 🔒 Add a "View Only" indicator for non-owners
+      if (!isOwner) {
+        const viewOnlyIndicator = document.createElement('div');
+        viewOnlyIndicator.textContent = 'View Only';
+        viewOnlyIndicator.className = 'view-only-indicator';
+        viewOnlyIndicator.style.position = 'absolute';
+        viewOnlyIndicator.style.top = '20px';
+        viewOnlyIndicator.style.right = '20px';
+        viewOnlyIndicator.style.backgroundColor = '#f0f0f0';
+        viewOnlyIndicator.style.color = '#666';
+        viewOnlyIndicator.style.padding = '6px 12px';
+        viewOnlyIndicator.style.borderRadius = '4px';
+        viewOnlyIndicator.style.fontSize = '14px';
+        viewOnlyIndicator.style.fontWeight = 'bold';
+        document.querySelector('.container').style.position = 'relative';
+        document.querySelector('.container').appendChild(viewOnlyIndicator);
+      }
+    })
+    .catch(err => console.error('Error loading event:', err));
+}
+
 async function saveGeneralInfo() {
-  if (!isOwner) return alert("You are not allowed to edit this page.");
+  // 🔒 Check if user is owner before proceeding
+  if (!isOwner) {
+    return alert("Not authorized. Only owners can edit event information.");
+  }
 
   const getText = id => {
     const el = document.getElementById(id);
@@ -198,8 +316,6 @@ async function saveGeneralInfo() {
   };
 
   console.log('Saving general data:', generalData);
-  console.log('Summary element:', document.getElementById('summary'));
-  console.log('Summary element value:', getText('summary'));
 
   try {
     const res = await fetch(`${API_BASE}/api/tables/${tableId}/general`, {
@@ -260,52 +376,6 @@ function addContactRow() {
 function addLocationRow() {
   switchToEdit();
   renderLocationRow({}, false);
-}
-
-function initPage(id) {
-  if (!id || !window.token) return;
-
-  fetch(`${API_BASE}/api/tables/${id}`, {
-    headers: { Authorization: window.token }
-  })
-    .then(res => res.json())
-    .then(table => {
-      const general = table.general || {};
-      const userId = getUserIdFromToken();
-      isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
-
-      const eventTitleEl = document.getElementById('eventTitle');
-      if (eventTitleEl) eventTitleEl.textContent = table.title;
-
-      ['eventSummary', 'location', 'weather', 'attendees', 'budget'].forEach(field => {
-        const el = document.getElementById(field === 'eventSummary' ? 'summary' : field);
-        if (el) {
-          const div = document.createElement('div');
-          div.id = field === 'eventSummary' ? 'summary' : field;
-          div.dataset.value = general[field === 'eventSummary' ? 'summary' : field] || '';
-          div.className = 'read-only';
-          div.textContent = general[field === 'eventSummary' ? 'summary' : field] || '';
-          el.replaceWith(div);
-        }
-      });
-
-      document.getElementById('start').value = general.start?.split('T')[0] || '';
-      document.getElementById('end').value = general.end?.split('T')[0] || '';
-
-      const contactRows = document.getElementById('contactRows');
-      contactRows.innerHTML = '';
-      (general.contacts || []).forEach(data => renderContactRow(data, true));
-
-      const locationRows = document.getElementById('locationsRows');
-      locationRows.innerHTML = '';
-      (general.locations || []).forEach(data => renderLocationRow(data, true));
-
-      document.getElementById('editBtn').style.display = isOwner ? 'inline-block' : 'none';
-      document.querySelectorAll('.add-row-btn').forEach(btn => {
-        btn.style.display = isOwner ? 'inline-block' : 'none';
-      });
-    })
-    .catch(err => console.error('Error loading event:', err));
 }
 
 // ✅ Ensure it's globally accessible for SPA router
