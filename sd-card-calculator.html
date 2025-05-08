@@ -383,13 +383,13 @@
         prevExtraCards = extraCards;
       }
 
-      const backupsNeeded = numDays; // one backup card per day
+      const backupsNeeded = numDays * 2; // two backup cards per day
       const totalWithBackups = totalCardsNeeded + backupsNeeded;
 
       results += '</table></div>';
       results += `<div class="summary">
         📦 Total Cards Needed: ${totalCardsNeeded} <br>
-        🔄 Backups Needed (1/day): ${backupsNeeded} <br>
+        🔄 Backups Needed (2/day): ${backupsNeeded} <br>
         <span class="cards-total">🎯 Cards Total: ${totalWithBackups}</span>
       </div>`;
 
