@@ -357,21 +357,30 @@
       const formData = new FormData(document.getElementById('cameraForm'));
       let results = '<div class="table-responsive"><table><tr><th>Day</th><th>Cameras</th><th>SD Cards Needed</th><th>Available for Reuse</th><th>New Cards</th><th>Extra Cards EOD</th></tr>';
 
-      let reuseAvailable = 0;
+      let prevCameras = 0;
+      let prevExtraCards = 0;
       let totalCardsNeeded = 0;
       let numDays = 0;
+      let reuseAvailable = 0;
       for (let [key, value] of formData.entries()) {
         numDays++;
         const day = key.replace('day', '');
         const cameras = parseInt(value);
         const cardsNeeded = cameras * 2;
         totalCardsNeeded += cardsNeeded;
+        // For the first day, reuseAvailable is 0. For subsequent days, it's prevCameras + prevExtraCards
+        if (numDays === 1) {
+          reuseAvailable = 0;
+        } else {
+          reuseAvailable = prevCameras + prevExtraCards;
+        }
         const newCards = Math.max(0, cardsNeeded - reuseAvailable);
         const extraCards = reuseAvailable + newCards - cardsNeeded;
 
         results += `<tr><td>${day}</td><td>${cameras}</td><td>${cardsNeeded}</td><td>${reuseAvailable}</td><td>${newCards}</td><td>${extraCards}</td></tr>`;
 
-        reuseAvailable = cardsNeeded; // assuming reuse for next day
+        prevCameras = cameras;
+        prevExtraCards = extraCards;
       }
 
       const backupsNeeded = numDays; // one backup card per day
