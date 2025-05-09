@@ -1,0 +1,117 @@
+/**
+ * socket.js - Global Socket.IO setup for real-time updates across the SPA
+ */
+
+(function() {
+  // Check if Socket.IO is available
+  if (typeof io === 'undefined') {
+    console.warn('Socket.IO not loaded! Real-time updates will not work.');
+    // Create a dummy socket object with no-op functions to prevent errors
+    window.socket = {
+      on: function() {},
+      emit: function() {},
+      disconnect: function() {},
+      connected: false
+    };
+    return;
+  }
+
+  // Initialize the global socket connection
+  const socket = io();
+  
+  // Store connection status
+  let connected = false;
+  
+  // Connection events
+  socket.on('connect', () => {
+    console.log('🔌 Socket.IO connected');
+    connected = true;
+    
+    // Notify the UI if needed
+    if (window.updateConnectionStatus) {
+      window.updateConnectionStatus(true);
+    }
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('🔌 Socket.IO disconnected');
+    connected = false;
+    
+    // Notify the UI if needed
+    if (window.updateConnectionStatus) {
+      window.updateConnectionStatus(false);
+    }
+  });
+  
+  socket.on('connect_error', (error) => {
+    console.error('Socket.IO connection error:', error);
+    connected = false;
+  });
+  
+  // Export socket to window for global access
+  window.socket = socket;
+  
+  // Helper function to check if socket is connected
+  window.isSocketConnected = function() {
+    return connected;
+  };
+  
+  // Debug: log all received events when in development
+  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
+    const originalOn = socket.on;
+    socket.on = function(eventName, callback) {
+      return originalOn.call(this, eventName, function() {
+        if (!['connect', 'disconnect', 'connect_error'].includes(eventName)) {
+          console.log(`🔔 Socket event received: ${eventName}`);
+        }
+        return callback.apply(this, arguments);
+      });
+    };
+  }
+  
+  // List of known event types for documentation
+  window.SOCKET_EVENTS = {
+    // User events
+    USERS_CHANGED: 'usersChanged',
+    
+    // Schedule events
+    SCHEDULE_CHANGED: 'scheduleChanged',
+    
+    // Gear events
+    GEAR_CHANGED: 'gearChanged',
+    
+    // Crew events
+    CREW_CHANGED: 'crewChanged',
+    
+    // General info events
+    GENERAL_CHANGED: 'generalChanged',
+    
+    // Travel & accommodation events
+    TRAVEL_CHANGED: 'travelChanged',
+    
+    // Card log events
+    CARDS_CHANGED: 'cardsChanged'
+  };
+  
+  // Attach common Socket.IO event listeners that can be used by many pages
+  socket.on(window.SOCKET_EVENTS.SCHEDULE_CHANGED, () => {
+    console.log('Schedule changed! Reloading data...');
+    // Each page script should implement its own handler for this event
+    // if this page is displaying the schedule
+    if (window.loadPrograms && localStorage.getItem('eventId')) {
+      window.loadPrograms(localStorage.getItem('eventId'));
+    }
+  });
+  
+  socket.on(window.SOCKET_EVENTS.USERS_CHANGED, () => {
+    console.log('Users changed! Reloading data...');
+    // Only reload if the current page displays users
+    if (window.loadUsers) {
+      window.loadUsers();
+    }
+  });
+  
+  // The other event handlers can be implemented similarly in the respective page scripts
+  
+  console.log('Socket.IO initialized globally');
+})(); 

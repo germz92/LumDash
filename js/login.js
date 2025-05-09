@@ -1,5 +1,11 @@
 // LOGIN CHECK ON LOAD
+// Show splash by default, hide login form
 document.addEventListener('DOMContentLoaded', async () => {
+  const splash = document.getElementById('splashScreen');
+  const authWrapper = document.getElementById('authWrapper');
+  if (authWrapper) authWrapper.style.display = 'none';
+  if (splash) splash.style.display = 'flex';
+
   const token = localStorage.getItem('token');
 
   // ✅ If token exists, verify it
@@ -19,6 +25,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       localStorage.clear();
     }
   }
+
+  // If not authenticated, hide splash and show login form
+  if (splash) splash.style.display = 'none';
+  if (authWrapper) authWrapper.style.display = '';
 
   // ✅ Allow pressing Enter key to login
   const passwordField = document.getElementById('password');

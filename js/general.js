@@ -5,6 +5,21 @@ const params = new URLSearchParams(window.location.search);
 let tableId = params.get('id') || localStorage.getItem('eventId');
 let isOwner = false;
 
+// Socket.IO real-time updates
+if (window.socket) {
+  // Listen for general info updates
+  window.socket.on('generalChanged', () => {
+    console.log('General info changed, reloading...');
+    initPage(tableId);
+  });
+  
+  // Also listen for general table updates
+  window.socket.on('tableUpdated', () => {
+    console.log('Table updated, reloading general info...');
+    initPage(tableId);
+  });
+}
+
 function getUserIdFromToken() {
   try {
     const token = window.token;

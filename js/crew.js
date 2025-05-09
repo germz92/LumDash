@@ -24,6 +24,21 @@ let cachedRoles = [
 ];
 let isOwner = false;
 
+// Socket.IO real-time updates
+if (window.socket) {
+  // Create a custom event for crew changes
+  window.socket.on('crewChanged', () => {
+    console.log('Crew data changed, reloading...');
+    loadTable();
+  });
+  
+  // Also listen for general table updates as they might affect crew
+  window.socket.on('tableUpdated', () => {
+    console.log('Table updated, reloading crew data...');
+    loadTable();
+  });
+}
+
 function goBack() {
   window.location.href = `event.html?id=${tableId}`;
 }
@@ -99,8 +114,8 @@ async function preloadUsers() {
     headers: { Authorization: token }
   });
   const users = await res.json();
-  users.sort((a, b) => (a.fullName || '').localeCompare(b.fullName || ''));
-  cachedUsers = users.map(u => u.fullName || u.email);
+  users.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+  cachedUsers = users.map(u => u.name || u.email);
 }
 
 function renderTableSection() {

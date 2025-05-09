@@ -15,6 +15,22 @@ let isOwner = false;
 let saveTimeout;
 let eventListenersAttached = false;
 
+// Add Socket.IO real-time updates early in the file, after any variable declarations but before function definitions
+// Socket.IO real-time updates
+if (window.socket) {
+  // Listen for card log updates
+  window.socket.on('cardsChanged', () => {
+    console.log('Card log changed, reloading...');
+    loadCardLog(localStorage.getItem('eventId'));
+  });
+  
+  // Also listen for general table updates
+  window.socket.on('tableUpdated', () => {
+    console.log('Table updated, reloading card log...');
+    loadCardLog(localStorage.getItem('eventId'));
+  });
+}
+
 // Utility and handler functions
 async function saveToMongoDB() {
   const tables = document.querySelectorAll('.day-table');
@@ -202,7 +218,7 @@ async function loadUsers() {
   const res = await fetch(`${API_BASE}/api/users`, { headers: { Authorization: token } });
   if (!res.ok) return console.error('Failed to fetch users');
   const data = await res.json();
-  users = data.map(u => u.fullName?.trim()).filter(Boolean).sort((a, b) => a.localeCompare(b));
+  users = data.map(u => u.name?.trim()).filter(Boolean).sort((a, b) => a.localeCompare(b));
 }
 
 async function loadCardLog() {
@@ -227,10 +243,37 @@ function getUserIdFromToken() {
 }
 
 function getCurrentUserName() {
-  const token = localStorage.getItem('token');
-  if (!token) return '';
-  const payload = JSON.parse(atob(token.split('.')[1]));
-  return payload.fullName || '';
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return '';
+    
+    // Get user data from token
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    
+    // Use the users array to find a match
+    const userId = payload.id;
+    const userJWT = payload.fullName;
+    
+    // If the current user is in the users array, return that name
+    // This ensures we use the same format as in the dropdown
+    if (users.length > 0) {
+      // Find the first user in the array with a matching name
+      for (const user of users) {
+        // Simple fuzzy matching - if the JWT name is a substring of the user name
+        if (user && userJWT && 
+            (user.toLowerCase().includes(userJWT.toLowerCase()) || 
+             userJWT.toLowerCase().includes(user.toLowerCase()))) {
+          return user;
+        }
+      }
+    }
+    
+    // Fall back to JWT token's fullName
+    return userJWT || '';
+  } catch (err) {
+    console.error('Error getting current user name:', err);
+    return '';
+  }
 }
 
 function addDaySection(date, entries = []) {

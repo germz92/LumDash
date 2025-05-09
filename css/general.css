@@ -33,18 +33,39 @@
 
 /* ====== Info Section ====== */
 .general-page .info-section {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 1.25rem;
-  padding: 1.25rem 0;
-  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
 }
 
-.general-page .info-section label {
+.general-page .info-row {
+  display: flex;
+  gap: 24px;
+}
+
+.general-page .info-card {
+  background: #fafbfc;
+  border-radius: 10px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+  padding: 18px 20px 12px 20px;
+  flex: 1;
+  min-width: 180px;
+  margin-bottom: 0;
+  border: 1px solid #e0e0e0;
+}
+
+.general-page .info-card label {
+  font-weight: 600;
+  margin-bottom: 6px;
   display: block;
-  font-weight: bold;
-  margin-bottom: 0.5rem;
-  letter-spacing: 0.01em;
+  color: #222;
+}
+
+.general-page .info-card .read-only,
+.general-page .info-card input[type="date"] {
+  font-size: 1.08em;
+  color: #333;
+  margin-top: 2px;
 }
 
 .general-page .info-section input[type="date"],
@@ -245,7 +266,17 @@
   .general-page .info-section {
     gap: 0.7rem;
     padding: 0.7rem 0;
-    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  }
+  .general-page .info-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .general-page .info-card {
+    min-width: 0;
+    width: 48%;
+    box-sizing: border-box;
+    padding: 14px 10px 10px 10px;
   }
   .general-page .contacts-container {
     padding: 0.5rem;
@@ -455,4 +486,10 @@
     font-size: 1.15rem;
     margin-bottom: 0.75rem;
   }
+}
+
+.general-page .info-section > .info-card {
+  width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
 }

@@ -558,7 +558,7 @@ function handleNavClick(e) {
   e.preventDefault();
   const page = e.currentTarget.getAttribute('data-page');
   window.navigate(page, getTableId());
-}
+  }
 
 // Call cleanupSchedulePage before navigating away
 window.addEventListener('beforeunload', cleanupSchedulePage);
@@ -718,7 +718,7 @@ function processImportedData(data) {
     alert('No valid data found in the file.');
     return;
   }
-  
+
   // Create and show the modal
   showImportModal(newPrograms);
 }
@@ -766,7 +766,7 @@ function showImportModal(newPrograms) {
   modalFooter.style.justifyContent = 'flex-end';
   modalFooter.style.marginTop = '20px';
   modalFooter.style.gap = '10px';
-  
+
   // Create cancel button
   const cancelButton = document.createElement('button');
   cancelButton.textContent = 'Cancel';
@@ -894,7 +894,7 @@ function downloadImportTemplate() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-}
+  }
 
 // Add to exports
 window.downloadImportTemplate = downloadImportTemplate;
@@ -902,5 +902,14 @@ window.handleFileImport = handleFileImport;
 window.processImportedData = processImportedData;
 window.formatTimeValue = formatTimeValue;
 window.showImportModal = showImportModal;
+
+// --- Socket.IO real-time updates ---
+if (typeof io !== 'undefined') {
+  const socket = io();
+  socket.on('scheduleChanged', () => {
+    const tableId = localStorage.getItem('eventId');
+    if (tableId) loadPrograms(tableId);
+});
+}
 
 })();
