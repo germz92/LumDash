@@ -116,24 +116,36 @@
 
   <!-- Load icons and app logic -->
   <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Load config.js first to define API_BASE -->
+  <script src="js/config.js"></script>
+  
   <script>
     // Dynamically load Socket.IO from the correct source based on environment
-    const socketIoSrc = window.location.hostname === 'localhost' 
-      ? 'http://localhost:3000/socket.io/socket.io.js'
-      : 'https://spa-lumdash-backend.onrender.com/socket.io/socket.io.js';
+    // Using API_BASE from config.js which is already loaded
+    const socketIoSrc = API_BASE + '/socket.io/socket.io.js';
     
     const socketScript = document.createElement('script');
     socketScript.src = socketIoSrc;
+    
+    // Wait for Socket.IO to load before loading dependent scripts
     socketScript.onload = function() {
       console.log('Socket.IO client loaded from:', socketIoSrc);
+      
+      // Now load socket.js after Socket.IO is ready
+      const socketJsScript = document.createElement('script');
+      socketJsScript.src = 'js/socket.js';
+      document.head.appendChild(socketJsScript);
     };
+    
     socketScript.onerror = function() {
       console.error('Failed to load Socket.IO client from:', socketIoSrc);
     };
+    
     document.head.appendChild(socketScript);
   </script>
-  <script src="js/socket.js"></script>
-  <script src="js/config.js"></script>
+  
+  <!-- Load other scripts after config.js -->
   <script src="js/api.js"></script>
   <script src="js/app.js"></script>
 
