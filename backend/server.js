@@ -4,9 +4,22 @@ const cors = require('cors');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcrypt');
 const path = require('path');
+const http = require('http');
+const socketIo = require('socket.io');
 require('dotenv').config();
 
 const app = express();
+const server = http.createServer(app);
+const io = socketIo(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH']
+  }
+});
+
+io.on('connection', (socket) => {
+  console.log('Socket.IO: Client connected');
+});
 
 // CORS configuration
 const corsOptions = {
@@ -17,6 +30,16 @@ const corsOptions = {
 };
 app.use(cors(corsOptions));
 app.use(express.json());
+
+// Helper function to notify clients about data changes
+function notifyDataChange(eventType, additionalData = null) {
+  console.log(`📢 Emitting ${eventType} event`);
+  if (additionalData) {
+    io.emit(eventType, additionalData);
+  } else {
+    io.emit(eventType);
+  }
+}
 
 const User = require('./models/User');
 const Table = require('./models/Table');
@@ -48,15 +71,15 @@ function authenticate(req, res, next) {
 
 // AUTH
 app.post('/api/auth/register', async (req, res) => {
-  const { email, password, fullName } = req.body; // 🔥 updated
+  const { email, password, fullName, role } = req.body; // 🔥 updated
 
   const hashed = await bcrypt.hash(password, 10);
-  const user = new User({ email, password: hashed, fullName }); // 🔥 updated
+  const user = new User({ email, password: hashed, fullName, role: role || 'user' }); // 🔥 updated
 
   await user.save();
+  io.emit('usersChanged'); // Notify all clients
   res.json({ message: 'User created' });
 });
-
 
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
@@ -66,8 +89,8 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials' });
   }
 
-  const token = jwt.sign({ id: user._id, fullName: user.fullName }, process.env.JWT_SECRET)  ;
-  res.json({ token, fullName: user.fullName });
+  const token = jwt.sign({ id: user._id, fullName: user.fullName, role: user.role }, process.env.JWT_SECRET);
+  res.json({ token, fullName: user.fullName, role: user.role });
 });
 
 // TABLE ROUTES
@@ -101,7 +124,6 @@ app.post('/api/tables', authenticate, async (req, res) => {
   res.json(table);
 });
 
-
 app.get('/api/tables', authenticate, async (req, res) => {
   const tables = await Table.find({
     $or: [
@@ -111,7 +133,6 @@ app.get('/api/tables', authenticate, async (req, res) => {
   });
   res.json(tables);
 });
-
 
 app.get('/api/tables/:id', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === "null") {
@@ -134,6 +155,8 @@ app.post('/api/tables/:id/rows', authenticate, async (req, res) => {
   }
   table.rows.push(req.body);
   await table.save();
+  
+  io.emit('crewChanged'); // Notify about crew change
   res.json(table);
 });
 
@@ -147,6 +170,9 @@ app.put('/api/tables/:id', authenticate, async (req, res) => {
   }
   table.rows = req.body.rows;
   await table.save();
+  
+  io.emit('crewChanged'); // Notify about crew change
+  io.emit('tableUpdated'); // Also notify about general table update
   res.json({ message: 'Table updated' });
 });
 
@@ -171,10 +197,11 @@ app.put('/api/tables/:id/cardlog', authenticate, async (req, res) => {
     );
     
     if (!result) {
-      return res.status(403).json({ error: 'Not authorized or not found' });
-    }
-    
-    res.json({ message: 'Card log saved' });
+    return res.status(403).json({ error: 'Not authorized or not found' });
+  }
+
+  io.emit('cardsChanged'); // Add Socket.IO notification
+  res.json({ message: 'Card log saved' });
   } catch (err) {
     console.error('Error updating card log:', err);
     res.status(500).json({ error: 'Failed to update card log' });
@@ -214,9 +241,10 @@ app.put('/api/tables/:id/general', authenticate, async (req, res) => {
   console.log('Saving general data to DB:', table.general);
 
   await table.save();
+  
+  io.emit('generalChanged'); // Add Socket.IO notification
   res.json({ message: 'General info updated' });
 });
-
 
 //GEAR
 // ✅ GET gear checklist(s)
@@ -253,7 +281,7 @@ app.get('/api/tables/:id/gear', authenticate, async (req, res) => {
 app.put('/api/tables/:id/gear', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === "null") {
     return res.status(400).json({ error: "Invalid table ID" });
-  }
+    }
   try {
     // Find and update in one atomic operation (fixes versioning issues)
     const result = await Table.findOneAndUpdate(
@@ -280,14 +308,14 @@ app.put('/api/tables/:id/gear', authenticate, async (req, res) => {
 
     console.log("Updated gear for table:", req.params.id);
     console.log("Lists count:", result.gear?.lists ? result.gear.lists.size : 0);
+    
+    io.emit('gearChanged'); // Add Socket.IO notification
     res.status(200).json({ success: true });
   } catch (err) {
     console.error('Error updating gear:', err);
     res.status(500).json({ error: 'Server error: ' + err.message });
   }
 });
-
-
 
 // TRAVEL / ACCOMMODATION
 app.get('/api/tables/:id/travel', authenticate, async (req, res) => {
@@ -315,6 +343,8 @@ app.put('/api/tables/:id/travel', authenticate, async (req, res) => {
   table.travel = req.body.travel || [];
   table.accommodation = req.body.accommodation || [];
   await table.save();
+  
+  io.emit('travelChanged'); // Add Socket.IO notification
   res.json({ message: 'Travel and accommodation saved' });
 });
 
@@ -347,18 +377,55 @@ app.delete('/api/tables/:id/rows/:index', authenticate, async (req, res) => {
 
   table.rows.splice(idx, 1);
   await table.save();
+  
+  io.emit('crewChanged'); // Notify about crew change
   res.json({ message: 'Row deleted' });
 });
 
-// USERS
+// USERS (all authenticated users can view)
 app.get('/api/users', authenticate, async (req, res) => {
-  try {
-    const users = await User.find({}, 'fullName email').sort({ fullName: 1 }); // 🔥 Corrected
-    res.json(users);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).json({ error: 'Failed to fetch users' });
+  const users = await User.find({}, 'fullName email role').sort({ fullName: 1 });
+  res.json(users.map(u => ({
+    _id: u._id,
+    name: u.fullName,
+    email: u.email,
+    role: u.role || 'user'
+  })));
+});
+
+app.put('/api/users/:id', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Not authorized' });
+  const { name, email, role } = req.body;
+  const user = await User.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.fullName = name;
+  user.email = email;
+  if (role) user.role = role;
+  await user.save();
+  io.emit('usersChanged'); // Notify all clients
+  res.json({ message: 'User updated' });
+});
+
+app.delete('/api/users/:id', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Not authorized' });
+  const user = await User.findByIdAndDelete(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  io.emit('usersChanged'); // Notify all clients
+  res.json({ message: 'User deleted' });
+});
+
+app.post('/api/users/:id/reset-password', authenticate, async (req, res) => {
+  if (req.user.role !== 'admin') return res.status(403).json({ error: 'Not authorized' });
+  const { password } = req.body;
+  if (!password || password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
   }
+  const user = await User.findById(req.params.id);
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  user.password = await bcrypt.hash(password, 10);
+  await user.save();
+  io.emit('usersChanged'); // Notify all clients
+  res.json({ message: 'Password reset' });
 });
 
 // PROGRAM SCHEDULE
@@ -393,10 +460,11 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
     );
     
     if (!result) {
-      return res.status(403).json({ error: 'Not authorized or not found' });
-    }
+    return res.status(403).json({ error: 'Not authorized or not found' });
+  }
     
-    res.json({ message: 'Program schedule updated' });
+  io.emit('scheduleChanged'); // Notify all clients of schedule change
+  res.json({ message: 'Program schedule updated' });
   } catch (err) {
     console.error('Error updating program schedule:', err);
     res.status(500).json({ error: 'Failed to update program schedule' });
@@ -406,13 +474,11 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
 // Serve SPA shell and root
 app.use(express.static(path.join(__dirname, '../frontend')));
 
-
 // Serve static frontend assets
 app.use('/pages', express.static(path.join(__dirname, '../frontend/pages')));
 app.use('/js', express.static(path.join(__dirname, '../frontend/js')));
 app.use('/css', express.static(path.join(__dirname, '../frontend/css')));
 app.use('/assets', express.static(path.join(__dirname, '../frontend/assets')));
-
 
 // Serve SPA shell and root
 app.use(express.static(path.join(__dirname, '../frontend')));
@@ -421,7 +487,6 @@ app.use(express.static(path.join(__dirname, '../frontend')));
 app.get('/api/verify-token', authenticate, (req, res) => {
   res.json({ valid: true, user: req.user });
 });
-
 
 // GEAR INVENTORY API
 // List all gear
@@ -830,7 +895,6 @@ app.get('*', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend', 'dashboard.html'));
 });
 
-
 // MAKE OWNER
 app.post('/api/tables/:id/share', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === "null") {
@@ -890,6 +954,8 @@ app.delete('/api/tables/:id/rows-by-id/:rowId', authenticate, async (req, res) =
   }
 
   await table.save();
+  
+  io.emit('crewChanged'); // Notify about crew change
   res.json({ message: 'Row deleted' });
 });
 
@@ -905,6 +971,8 @@ app.put('/api/tables/:id/reorder-rows', authenticate, async (req, res) => {
   // Replace with reordered list
   table.rows = req.body.rows;
   await table.save();
+  
+  io.emit('crewChanged'); // Notify about crew change
   res.json({ message: 'Row order saved' });
 });
 
@@ -926,6 +994,7 @@ app.put('/api/tables/:id/rows/:rowId', authenticate, async (req, res) => {
   table.rows[rowIndex] = { ...table.rows[rowIndex]._doc, ...updatedRow };
   await table.save();
 
+  io.emit('crewChanged'); // Notify about crew change
   res.json({ success: true });
 });
 
@@ -949,4 +1018,4 @@ app.patch('/api/tables/:id/archive', authenticate, async (req, res) => {
 
 // SERVER
 const PORT = process.env.PORT || 3000;
-app.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));
+server.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));

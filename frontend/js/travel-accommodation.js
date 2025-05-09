@@ -295,4 +295,20 @@ window.initPage = undefined;
 
       if (window.lucide) lucide.createIcons();
     };
+
+    // Add Socket.IO real-time updates early in the file
+    // Socket.IO real-time updates
+    if (window.socket) {
+      // Listen for travel updates
+      window.socket.on('travelChanged', () => {
+        console.log('Travel/accommodation data changed, reloading...');
+        loadData();
+      });
+      
+      // Also listen for general table updates
+      window.socket.on('tableUpdated', () => {
+        console.log('Table updated, reloading travel data...');
+        loadData();
+      });
+    }
 })();

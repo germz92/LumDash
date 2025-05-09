@@ -296,6 +296,55 @@ window.initPage = function(id) {
   const usernameDisplayEl = document.getElementById('usernameDisplay');
   if (usernameDisplayEl) usernameDisplayEl.textContent = `Welcome, ${fullName}`;
 
+  // Add Admin Console button if user is admin
+  try {
+    const token = localStorage.getItem('token');
+    if (token) {
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      
+      // Add a utility to check admin role from console
+      window.checkAdminStatus = function() {
+        const token = localStorage.getItem('token');
+        if (!token) return { error: 'No token found' };
+        
+        try {
+          const payload = JSON.parse(atob(token.split('.')[1]));
+          return { 
+            isAdmin: payload.role === 'admin',
+            role: payload.role,
+            fullName: payload.fullName,
+            id: payload.id,
+            tokenExpiry: new Date(payload.exp * 1000).toLocaleString()
+          };
+        } catch (err) {
+          return { error: 'Invalid token', details: err.message };
+        }
+      };
+      
+      if (payload.role === 'admin') {
+        let adminBtn = document.getElementById('adminConsoleBtn');
+        if (!adminBtn) {
+          adminBtn = document.createElement('button');
+          adminBtn.id = 'adminConsoleBtn';
+          adminBtn.className = 'btn-admin';
+          adminBtn.textContent = 'Admin Console';
+          adminBtn.onclick = () => {
+            if (window.navigate) {
+              window.navigate('users');
+            } else {
+              window.location.href = 'users.html';
+            }
+          };
+          // Insert before logout button
+          const logoutBtn = document.getElementById('logoutBtn');
+          if (logoutBtn && logoutBtn.parentNode) {
+            logoutBtn.parentNode.insertBefore(adminBtn, logoutBtn);
+          }
+        }
+      }
+    }
+  } catch (e) { console.error('Error adding admin button:', e); }
+
   // Set up event listeners
   const sortDropdown = document.getElementById('sortDropdown');
   if (sortDropdown) sortDropdown.addEventListener('change', loadTables);

@@ -6,6 +6,21 @@ const token = window.token || (window.token = localStorage.getItem('token'));
 const params = new URLSearchParams(window.location.search);
 let tableId = params.get('id');
 
+// Socket.IO real-time updates
+if (window.socket) {
+  // Listen for gear-specific updates
+  window.socket.on('gearChanged', () => {
+    console.log('Gear data changed, reloading...');
+    loadGear();
+  });
+  
+  // Also listen for general table updates
+  window.socket.on('tableUpdated', () => {
+    console.log('Table updated, reloading gear data...');
+    loadGear();
+  });
+}
+
 // ✨ New centralized event context
 const eventContext = {
   tableId: tableId || localStorage.getItem('eventId'),
@@ -253,7 +268,7 @@ async function loadGear() {
     // Set date pickers if present
     console.log("Check out date from API:", dates.checkOutDate);
     console.log("Check in date from API:", dates.checkInDate);
-    
+
     const checkoutDateEl = document.getElementById('checkoutDate');
     const checkinDateEl = document.getElementById('checkinDate');
     
@@ -283,49 +298,49 @@ function deleteGearList() {
   if (!eventContext.activeList) return;
   
   if (Object.keys(eventContext.lists).length <= 1) {
-    alert("You must keep at least one gear list.");
-    return;
-  }
+      alert("You must keep at least one gear list.");
+      return;
+    }
   
   const confirmed = confirm(`Are you sure you want to delete the list "${eventContext.activeList}"?`);
-  if (!confirmed) return;
+    if (!confirmed) return;
   
   if (eventContext.deleteList(eventContext.activeList)) {
     populateGearListDropdown();
     renderGear();
     triggerAutosave();
   }
-}
+  }
 
 async function loadEventTitle() {
-  try {
+    try {
     const res = await fetch(`${API_BASE}/api/tables/${eventContext.tableId}`, {
-      headers: { Authorization: token }
-    });
-
-    if (!res.ok) throw new Error("Failed to fetch table");
-
-    const table = await res.json();
+        headers: { Authorization: token }
+      });
+  
+      if (!res.ok) throw new Error("Failed to fetch table");
+  
+      const table = await res.json();
     const userId = getUserIdFromToken();
     isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
     
     // Update all UI elements based on permission level
     updatePermissionBasedUI();
     
-    document.getElementById('eventTitle').textContent = table.title || 'Untitled Event';
-  } catch (err) {
-    console.error("Failed to load event title:", err);
-    document.getElementById('eventTitle').textContent = "Untitled Event";
+      document.getElementById('eventTitle').textContent = table.title || 'Untitled Event';
+    } catch (err) {
+      console.error("Failed to load event title:", err);
+      document.getElementById('eventTitle').textContent = "Untitled Event";
+    }
   }
-}
-
+  
 // Helper function to update list controls visibility
 function updateListControlsVisibility() {
   const listControls = document.querySelectorAll('.list-controls');
   listControls.forEach(control => {
     control.style.display = isOwner ? 'flex' : 'none';
   });
-}
+  }
 
 function getUserIdFromToken() {
   try {
@@ -392,7 +407,7 @@ function populateGearListDropdown() {
     } else {
       // Normal list selection
       eventContext.switchList(select.value);
-      renderGear();
+    renderGear();
     }
   };
   
@@ -742,7 +757,7 @@ function createCategory(name) {
     checkoutBtn.className = "checkout-btn";
     checkoutBtn.textContent = "📋 Use Inventory";
     checkoutBtn.title = "Check out from inventory";
-    
+
     const dates = getSelectedDates();
     
     checkoutBtn.onclick = async () => {
@@ -769,7 +784,7 @@ function createCategory(name) {
         console.error("Error opening checkout modal:", err);
       }
     };
-    
+
     // Add + Add Item button for manual row addition
     const addRowBtn = document.createElement("button");
     addRowBtn.className = "add-btn";
@@ -779,7 +794,7 @@ function createCategory(name) {
       // Create a blank row instead of showing a prompt
       const newItem = { label: "", checked: false };
       const row = createRow(newItem, true); // Add true parameter to indicate it's a new blank row
-      list.appendChild(row);
+    list.appendChild(row);
       
       // Focus on the input field for immediate editing
       const input = row.querySelector('input[type="text"]');
@@ -803,7 +818,7 @@ function createCategory(name) {
             } else {
               // Valid input, trigger save and remove the new row marker
               row.removeAttribute('data-new-row');
-              triggerAutosave();
+    triggerAutosave();
             }
           }
         });
@@ -1006,9 +1021,9 @@ function createNewGearList() {
   // Create the new list
   if (eventContext.createList(name, description)) {
     eventContext.switchList(name);
-    populateGearListDropdown();
-    renderGear();
-    triggerAutosave();
+  populateGearListDropdown();
+  renderGear();
+  triggerAutosave();
   }
 }
 
@@ -1206,31 +1221,31 @@ window.addEventListener("DOMContentLoaded", async () => {
   } catch (err) {
     console.error("Error initializing gear page:", err);
   }
-});
+  });
   
   function initPage(id) {
     try {
       // Initialize event context
       if (!eventContext.init(id)) {
         alert("Missing configuration: tableId is not set.");
-        throw new Error("Missing configuration");
-      }
+      throw new Error("Missing configuration");
+    }
   
       // Load data
-      loadGear();
+    loadGear();
       
       // Just call loadEventTitle directly - it will update list controls visibility
-      loadEventTitle();
-      
+    loadEventTitle();
+  
       loadGearInventory();
   
       // Set up event listeners
-      document.getElementById('gearContainer').addEventListener('input', triggerAutosave);
-      document.getElementById('gearContainer').addEventListener('change', triggerAutosave);
-      document.getElementById("filterCheckbox").addEventListener("change", e => {
-        filterSetting = e.target.value;
-        renderGear();
-      });
+    document.getElementById('gearContainer').addEventListener('input', triggerAutosave);
+    document.getElementById('gearContainer').addEventListener('change', triggerAutosave);
+    document.getElementById("filterCheckbox").addEventListener("change", e => {
+      filterSetting = e.target.value;
+      renderGear();
+    });
       document.getElementById('checkoutDate').addEventListener('change', triggerAutosave);
       document.getElementById('checkinDate').addEventListener('change', triggerAutosave);
     } catch (err) {
@@ -1240,7 +1255,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   
   // ✅ Important: make initPage visible to app.js
   window.initPage = initPage;
-
+  
   // Expose functions on window
   window.goBack = goBack;
   window.deleteGearList = deleteGearList;

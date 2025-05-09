@@ -5,7 +5,7 @@ if (!localStorage.getItem('token')) {
 console.log('�� app.js loaded');
 
 const PAGE_CLASSES = [
-  'events-page', 'general-page', 'crew-page', 'travel-page', 'gear-page', 'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page'
+  'events-page', 'general-page', 'crew-page', 'travel-page', 'gear-page', 'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'users-page'
 ];
 
 function setBodyPageClass(page) {
@@ -25,7 +25,7 @@ function getTableId() {
 
 function navigate(page, id) {
   // Only require an ID for pages that need it
-  const needsId = !['events', 'dashboard', 'login', 'register'].includes(page);
+  const needsId = !['events', 'dashboard', 'login', 'register', 'users'].includes(page);
   if (needsId && (!id || id === "null")) {
     alert("No event selected. Please select an event first.");
     return;
@@ -206,6 +206,7 @@ function loadPageCSS(page) {
     case 'gear': cssFile = 'css/gear.css'; break;
     case 'card-log': cssFile = 'css/card-log.css'; break;
     case 'schedule': cssFile = 'css/schedule.css'; break;
+    case 'users': cssFile = 'css/users.css'; break;
   }
   if (cssFile) {
     const link = document.createElement('link');
@@ -258,3 +259,41 @@ window.addEventListener('DOMContentLoaded', () => {
 window.navigate = navigate;
 
 console.log('travel-accommodation.js loaded');
+
+// PullToRefresh.js integration for PWA/mobile
+if (window.PullToRefresh) {
+  PullToRefresh.init({
+    mainElement: 'body',
+    shouldPullToRefresh: function() {
+      // Prevent pull-to-refresh if the user is pulling on a scrollable element
+      const scrollableSelectors = [
+        '.item-list', '.program-container', '.modal-content', '.table-cards', '.gear-container', '.card-log-table', '.schedule-page', '.crew-page', '.travel-page', '.general-page', '.card-container', '.modal', '.modal-content', '.list-group', '.info-section', '.contacts-container', '.contacts-scroll-wrapper', '.program-container', '.program-entry', '.date-section', '.date-header', '.event-header', '.event-details', '.action-buttons', '.table-card', '.table-cards', '.gear-page', '.schedule-page', '.crew-page', '.travel-page', '.general-page', '.dashboard-page', '.card-log-page', '.login-page', '.register-page'
+      ];
+      let el = document.elementFromPoint(window.innerWidth/2, 10);
+      while (el) {
+        if (scrollableSelectors.some(sel => el.matches && el.matches(sel))) {
+          return false;
+        }
+        el = el.parentElement;
+      }
+      // Only allow pull-to-refresh when at the top of the page
+      return window.scrollY === 0;
+    },
+    onRefresh() {
+      console.log('PTR: onRefresh triggered', { currentPage: window.currentPage });
+      // Show spinner (handled by library's custom icon)
+      // Call SPA page refresh logic
+      if (window.currentPage && window.navigate) {
+        const id = (window.getTableId && window.getTableId()) || null;
+        window.navigate(window.currentPage, id);
+      } else {
+        window.location.reload();
+      }
+    },
+    iconArrow: '<div class="ptr-spinner"><div class="loader"></div></div>',
+    iconRefreshing: '<div class="ptr-spinner"><div class="loader"></div></div>',
+    iconSuccess: '<div class="ptr-spinner"><div class="loader"></div></div>',
+    distReload: 60,
+    distThreshold: 60
+  });
+}

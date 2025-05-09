@@ -3,33 +3,39 @@
     <h1>General Event Info</h1>
     <form id="generalForm">
       <div class="info-section">
-        <div style="grid-column: 1 / -1;">
+        <div class="info-card">
           <label for="summary">Event Summary</label>
           <div id="summary" class="read-only"></div>
         </div>
-        <div>
-          <label for="location">Location</label>
-          <div id="location" class="read-only"></div>
+        <div class="info-row">
+          <div class="info-card">
+            <label for="location">Location</label>
+            <div id="location" class="read-only"></div>
+          </div>
+          <div class="info-card">
+            <label for="weather">Weather</label>
+            <div id="weather" class="read-only"></div>
+          </div>
         </div>
-        <div>
-          <label for="weather">Weather</label>
-          <div id="weather" class="read-only"></div>
+        <div class="info-row">
+          <div class="info-card">
+            <label for="start">Start Date</label>
+            <input type="date" id="start" name="start" placeholder="Select Date">
+          </div>
+          <div class="info-card">
+            <label for="end">End Date</label>
+            <input type="date" id="end" name="end" placeholder="Select Date">
+          </div>
         </div>
-        <div>
-          <label for="start">Start Date</label>
-          <input type="date" id="start" name="start" placeholder="Select Date">
-        </div>
-        <div>
-          <label for="end">End Date</label>
-          <input type="date" id="end" name="end" placeholder="Select Date">
-        </div>
-        <div>
-          <label for="attendees">Attendee Count</label>
-          <div id="attendees" class="read-only"></div>
-        </div>
-        <div>
-          <label for="budget">Budget</label>
-          <div id="budget" class="read-only"></div>
+        <div class="info-row">
+          <div class="info-card">
+            <label for="attendees">Attendee Count</label>
+            <div id="attendees" class="read-only"></div>
+          </div>
+          <div class="info-card">
+            <label for="budget">Budget</label>
+            <div id="budget" class="read-only"></div>
+          </div>
         </div>
       </div>      
 

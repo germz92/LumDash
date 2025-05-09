@@ -1,0 +1,56 @@
+<div class="container">
+  <div class="card">
+    <h1>User Management</h1>
+    <div id="messageArea"></div>
+    <div class="table-responsive">
+      <table class="user-table">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Email</th>
+            <th>Role</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody id="userTableBody">
+          <tr><td colspan="4">Loading users...</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+<!-- Edit/Reset Modal -->
+<div id="userModal" class="modal">
+  <div class="modal-content">
+    <span class="close-btn" id="closeModalBtn">&times;</span>
+    <h3 id="modalTitle">Edit User</h3>
+    <form id="userForm">
+      <input type="hidden" id="userId">
+      <div class="form-group">
+        <label for="userName">Name</label>
+        <input type="text" id="userName" required>
+      </div>
+      <div class="form-group">
+        <label for="userEmail">Email</label>
+        <input type="email" id="userEmail" required>
+      </div>
+      <div class="form-group">
+        <label for="userRole">Role</label>
+        <select id="userRole">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="form-group" id="passwordGroup" style="display:none;">
+        <label for="userPassword">New Password</label>
+        <input type="password" id="userPassword" minlength="6">
+      </div>
+      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
+        <button type="button" id="cancelModalBtn" class="btn-delete">Cancel</button>
+        <button type="submit" id="saveUserBtn" class="btn-edit">Save</button>
+      </div>
+    </form>
+    <button id="resetPasswordBtn" class="btn-reset" style="margin-top: 10px;">Reset Password</button>
+  </div>
+</div>
+<script src="../js/users.js"></script> 
