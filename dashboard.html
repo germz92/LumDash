@@ -116,7 +116,22 @@
 
   <!-- Load icons and app logic -->
   <script src="https://unpkg.com/lucide@latest"></script>
-  <script src="/socket.io/socket.io.js"></script>
+  <script>
+    // Dynamically load Socket.IO from the correct source based on environment
+    const socketIoSrc = window.location.hostname === 'localhost' 
+      ? 'http://localhost:3000/socket.io/socket.io.js'
+      : 'https://spa-lumdash-backend.onrender.com/socket.io/socket.io.js';
+    
+    const socketScript = document.createElement('script');
+    socketScript.src = socketIoSrc;
+    socketScript.onload = function() {
+      console.log('Socket.IO client loaded from:', socketIoSrc);
+    };
+    socketScript.onerror = function() {
+      console.error('Failed to load Socket.IO client from:', socketIoSrc);
+    };
+    document.head.appendChild(socketScript);
+  </script>
   <script src="js/socket.js"></script>
   <script src="js/config.js"></script>
   <script src="js/api.js"></script>
