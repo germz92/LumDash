@@ -7,6 +7,7 @@ if (!token && !window.location.pathname.endsWith('index.html')) {
 
 let currentTableId = null;
 let showArchived = false;
+let searchEventsValue = '';
 
 function getUserIdFromToken() {
   const token = localStorage.getItem('token');
@@ -74,7 +75,17 @@ async function loadTables() {
   const userId = getUserIdFromToken();
 
   // Filter tables based on archived status
-  const filteredTables = tables.filter(table => !!table.archived === showArchived);
+  let filteredTables = tables.filter(table => !!table.archived === showArchived);
+
+  // Filter by search box
+  if (searchEventsValue) {
+    const q = searchEventsValue.toLowerCase();
+    filteredTables = filteredTables.filter(table => {
+      const title = (table.title || '').toLowerCase();
+      const client = (table.general?.client || '').toLowerCase();
+      return title.includes(q) || client.includes(q);
+    });
+  }
 
   const sortValue = document.getElementById('sortDropdown')?.value || 'newest';
   filteredTables.sort((a, b) => {
@@ -198,6 +209,224 @@ async function loadTables() {
     card.append(header, actions);
     if (list) list.appendChild(card);
   });
+
+  renderCalendar(filteredTables);
+
+  // Ensure only the correct view is visible
+  const cal = document.getElementById('calendarViewContainer');
+  if (list && cal) {
+    if (cal.style.display === 'block') {
+      list.style.display = 'none';
+      cal.style.display = 'block';
+    } else {
+      list.style.display = 'flex';
+      cal.style.display = 'none';
+    }
+  }
+}
+
+function renderCalendar(events) {
+  const container = document.getElementById('calendarViewContainer');
+  if (!container) return;
+  container.innerHTML = '';
+
+  // Get all event date ranges
+  const eventObjs = events.map(table => {
+    const general = table.general || {};
+    return {
+      id: table._id,
+      title: table.title,
+      start: general.start ? new Date(general.start) : null,
+      end: general.end ? new Date(general.end) : null,
+      color: '#CC0007', // main accent
+    };
+  }).filter(e => e.start && e.end);
+
+  // Find min and max dates
+  let minDate = null, maxDate = null;
+  eventObjs.forEach(e => {
+    if (!minDate || e.start < minDate) minDate = e.start;
+    if (!maxDate || e.end > maxDate) maxDate = e.end;
+  });
+  if (!minDate || !maxDate) {
+    container.innerHTML = '<div style="text-align:center; color:#888;">No events to display in calendar.</div>';
+    return;
+  }
+
+  // Show current month by default
+  let currentMonth = new Date(minDate.getFullYear(), minDate.getMonth(), 1);
+
+  function renderMonth(monthDate) {
+    container.innerHTML = '';
+    const year = monthDate.getFullYear();
+    const month = monthDate.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+    const daysInMonth = lastDay.getDate();
+    const startWeekDay = firstDay.getDay();
+    const gap = 8; // matches grid gap in CSS
+
+    // Header
+    const header = document.createElement('div');
+    header.style.display = 'flex';
+    header.style.justifyContent = 'space-between';
+    header.style.alignItems = 'center';
+    header.style.marginBottom = '18px';
+    header.innerHTML = `
+      <button id="prevMonthBtn" style="background:none;border:none;color:#CC0007;font-size:22px;cursor:pointer;">&#8592;</button>
+      <span style="font-size:1.3em;font-weight:600;color:#CC0007;">${firstDay.toLocaleString('default', { month: 'long', year: 'numeric' })}</span>
+      <button id="nextMonthBtn" style="background:none;border:none;color:#CC0007;font-size:22px;cursor:pointer;">&#8594;</button>
+    `;
+    container.appendChild(header);
+
+    // Days of week
+    const daysRow = document.createElement('div');
+    daysRow.style.display = 'grid';
+    daysRow.style.gridTemplateColumns = 'repeat(7, 1fr)';
+    daysRow.style.gap = '4px';
+    daysRow.style.marginBottom = '6px';
+    ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].forEach(d => {
+      const el = document.createElement('div');
+      el.textContent = d;
+      el.style.textAlign = 'center';
+      el.style.fontWeight = 'bold';
+      el.style.color = '#a1a1a1';
+      daysRow.appendChild(el);
+    });
+    container.appendChild(daysRow);
+
+    // Calendar grid
+    const grid = document.createElement('div');
+    grid.style.display = 'grid';
+    grid.style.gridTemplateColumns = 'repeat(7, 1fr)';
+    grid.style.gap = '8px';
+    grid.style.background = 'linear-gradient(135deg, #fff 60%, #f8fafd 100%)';
+    grid.style.borderRadius = '18px';
+    grid.style.boxShadow = '0 8px 24px rgba(0,0,0,0.09)';
+    grid.style.padding = '18px';
+    grid.style.marginBottom = '18px';
+
+    // Fill blanks for first week
+    for (let i = 0; i < startWeekDay; i++) {
+      const blank = document.createElement('div');
+      grid.appendChild(blank);
+    }
+    // Fill days
+    const dayCells = [];
+    // For stacking: track max stack per week
+    const weekStacks = [];
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(year, month, day);
+      const cell = document.createElement('div');
+      cell.style.minHeight = '60px';
+      cell.style.borderRadius = '10px';
+      cell.style.background = '#fff';
+      cell.style.boxShadow = '0 2px 8px rgba(204,0,7,0.04)';
+      cell.style.padding = '4px 4px 2px 4px';
+      cell.style.position = 'relative';
+      cell.style.display = 'flex';
+      cell.style.flexDirection = 'column';
+      cell.style.alignItems = 'flex-start';
+      cell.style.justifyContent = 'flex-start';
+      cell.style.cursor = 'pointer';
+      cell.style.transition = 'background 0.15s, box-shadow 0.15s';
+      cell.classList.add('calendar-day');
+      // Day number
+      const dayNum = document.createElement('div');
+      dayNum.textContent = day;
+      dayNum.className = 'calendar-day-num';
+      cell.appendChild(dayNum);
+      grid.appendChild(cell);
+      dayCells.push(cell);
+      // For stacking: initialize weekStacks
+      const weekIdx = Math.floor((day + startWeekDay - 1) / 7);
+      if (!weekStacks[weekIdx]) weekStacks[weekIdx] = [];
+      weekStacks[weekIdx][(day + startWeekDay - 1) % 7] = [];
+    }
+    // Multi-day event rendering (after grid is built)
+    eventObjs.forEach(ev => {
+      // Find the first and last day in this month for the event
+      const eventStart = new Date(Math.max(ev.start, firstDay));
+      const eventEnd = new Date(Math.min(ev.end, lastDay));
+      if (eventStart > lastDay || eventEnd < firstDay) return;
+      // Calculate the start and end day index (0-based)
+      let startIdx = eventStart.getDate() - 1;
+      let endIdx = eventEnd.getDate() - 1;
+      // For each week the event spans, render a pill in the first day of that week
+      let idx = startIdx;
+      while (idx <= endIdx) {
+        // Find the week boundary
+        const weekDay = (idx + startWeekDay) % 7;
+        const weekIdx = Math.floor((idx + startWeekDay) / 7);
+        const daysLeftInWeek = 7 - weekDay;
+        const span = Math.min(endIdx - idx + 1, daysLeftInWeek);
+        // Find the max stack index for this week segment
+        let maxStack = 0;
+        for (let d = 0; d < span; d++) {
+          const cellStack = weekStacks[weekIdx][weekDay + d] || [];
+          if (cellStack.length > maxStack) maxStack = cellStack.length;
+        }
+        // Assign this event to the next available stack index for all spanned days
+        for (let d = 0; d < span; d++) {
+          if (!weekStacks[weekIdx][weekDay + d]) weekStacks[weekIdx][weekDay + d] = [];
+          weekStacks[weekIdx][weekDay + d][maxStack] = true;
+        }
+        // Render the pill at the correct stack index
+        const pill = document.createElement('div');
+        pill.textContent = ev.title;
+        pill.className = 'calendar-event-pill';
+        pill.style.background = ev.color;
+        pill.style.color = '#fff';
+        pill.style.position = 'absolute';
+        pill.style.left = '0';
+        pill.style.top = `${28 + maxStack * 28}px`;
+        pill.style.height = '24px';
+        pill.style.display = 'flex';
+        pill.style.alignItems = 'center';
+        pill.style.fontSize = '0.95em';
+        pill.style.fontWeight = '600';
+        pill.style.cursor = 'pointer';
+        pill.style.boxShadow = '0 2px 8px rgba(204,0,7,0.08)';
+        pill.style.zIndex = '2';
+        pill.style.border = '2px solid #fff';
+        pill.style.opacity = '0.96';
+        pill.style.pointerEvents = 'auto';
+        pill.onclick = (e) => {
+          e.stopPropagation();
+          window.navigate('general', ev.id);
+        };
+        // Calculate width: span * 100% + (span-1)*gap, but subtract 8px for the last pill in a week or for the event
+        let pillWidth = `calc(${span * 100}% + ${(span - 1) * gap}px)`;
+        if (idx + span - 1 === endIdx || ((idx + span + startWeekDay - 1) % 7 === 6)) {
+          pillWidth = `calc(${span * 100}% + ${(span - 1) * gap}px - 8px)`;
+        }
+        pill.style.width = pillWidth;
+        pill.style.maxWidth = pillWidth;
+        pill.style.minWidth = pillWidth;
+        // Append pill to the first cell of the span
+        dayCells[idx].appendChild(pill);
+        // Adjust minHeight of all spanned cells to fit stacked pills
+        for (let d = 0; d < span; d++) {
+          const cell = dayCells[idx + d];
+          const minHeight = 60 + (maxStack * 28);
+          if (cell) cell.style.minHeight = `${minHeight}px`;
+        }
+        idx += span;
+      }
+    });
+    container.appendChild(grid);
+
+    // Navigation
+    document.getElementById('prevMonthBtn').onclick = () => {
+      currentMonth = new Date(year, month - 1, 1);
+      renderMonth(currentMonth);
+    };
+    document.getElementById('nextMonthBtn').onclick = () => {
+      currentMonth = new Date(year, month + 1, 1);
+      renderMonth(currentMonth);
+    };
+  }
+  renderMonth(currentMonth);
 }
 
 async function openShareModal(tableId) {
@@ -366,6 +595,41 @@ window.initPage = function(id) {
       loadTables();
     };
     toggleBtn.textContent = showArchived ? 'Show Active Events' : 'Archived Events';
+  }
+
+  // Set up Calendar View button
+  const calendarBtn = document.getElementById('calendarViewBtn');
+  if (calendarBtn) {
+    calendarBtn.onclick = () => {
+      const list = document.getElementById('tableList');
+      const cal = document.getElementById('calendarViewContainer');
+      if (!list || !cal) return;
+      if (cal.style.display === 'none' || cal.style.display === '') {
+        list.style.display = 'none';
+        cal.style.display = 'block';
+        // Use the same filtered tables as in loadTables
+        fetch(`${API_BASE}/api/tables`, { headers: { Authorization: token } })
+          .then(r => r.json())
+          .then(tables => {
+            const showArchived = !!document.getElementById('toggleArchivedBtn')?.classList.contains('active');
+            const filteredTables = tables.filter(table => !!table.archived === showArchived);
+            renderCalendar(filteredTables);
+          });
+      } else {
+        cal.style.display = 'none';
+        list.style.display = 'flex';
+      }
+    };
+  }
+
+  // Attach search box event listener (SPA-safe)
+  const searchInput = document.getElementById('searchEventsInput');
+  if (searchInput && !searchInput._listenerAttached) {
+    searchInput.addEventListener('input', e => {
+      searchEventsValue = e.target.value;
+      loadTables();
+    });
+    searchInput._listenerAttached = true;
   }
 
   // Load tables

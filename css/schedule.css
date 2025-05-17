@@ -154,17 +154,17 @@
 }
 
 .schedule-page .date-header button {
-    background: none;
-    border: none;
+    background: none !important;
+    border: none !important;
     color: #d11a2a;
     font-size: 20px;
     cursor: pointer;
     flex-shrink: 0;
     margin-left: 16px;
     white-space: nowrap;
-    border-radius: 50%;
+    border-radius: 0 !important;
     transition: background 0.2s, color 0.2s;
-    padding: 4px;
+    padding: 2px 4px !important;
 }
 
 .schedule-page .date-header button:hover {

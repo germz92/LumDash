@@ -45,6 +45,38 @@ window.initPage = undefined;
       el.style.height = el.scrollHeight + 'px';
     }
 
+    // Airline URL mapping for major airlines
+    const airlineUrls = {
+      'United': (ref, last) => `https://www.united.com/en/us/checkin/confirmation?confirmationNumber=${encodeURIComponent(ref)}&lastName=${encodeURIComponent(last)}`,
+      'Delta': (ref, last) => `https://www.delta.com/mytrips/validatePNR?confirmationNumber=${encodeURIComponent(ref)}&lastName=${encodeURIComponent(last)}`,
+      'American': (ref, last) => `https://www.aa.com/guest/viewreservation/findReservation?recordLocator=${encodeURIComponent(ref)}&lastName=${encodeURIComponent(last)}`,
+      'Southwest': (ref, first, last) => `https://www.southwest.com/air/manage-reservation/index.html?confirmationNumber=${encodeURIComponent(ref)}&firstName=${encodeURIComponent(first)}&lastName=${encodeURIComponent(last)}`,
+      'Alaska': (ref, last) => `https://www.alaskaair.com/booking/reservation-lookup?confirmationCode=${encodeURIComponent(ref)}&lastName=${encodeURIComponent(last)}`,
+      'JetBlue': (ref, last) => `https://www.jetblue.com/at-the-airport/check-in?confirmationCode=${encodeURIComponent(ref)}&lastName=${encodeURIComponent(last)}`,
+      'Air Canada': (ref, last) => `https://www.aircanada.com/ca/en/aco/home/book/manage-bookings.html#/find?bookingReference=${encodeURIComponent(ref)}&lastName=${encodeURIComponent(last)}`,
+      'British Airways': (ref, last) => `https://www.britishairways.com/travel/yourbooking/public/en_us?bookingReference=${encodeURIComponent(ref)}&lastName=${encodeURIComponent(last)}`
+    };
+
+    function openAirlineSite(airline, ref, name) {
+      if (!airline || !ref || !name) {
+        alert('Missing airline, reference, or name.');
+        return;
+      }
+      // Try to match airline name loosely
+      const key = Object.keys(airlineUrls).find(k => airline.toLowerCase().includes(k.toLowerCase()));
+      if (key) {
+        let firstName = name.trim().split(' ')[0];
+        let lastName = name.trim().split(' ').slice(-1)[0];
+        if (key === 'Southwest') {
+          window.open(airlineUrls[key](ref, firstName, lastName), '_blank');
+        } else {
+          window.open(airlineUrls[key](ref, lastName), '_blank');
+        }
+      } else {
+        alert('This airline is not supported for automatic lookup.');
+      }
+    }
+
     function populateTable(tableId, rows) {
       console.log('populateTable called with editMode:', editMode);
       const table = document.getElementById(tableId)?.querySelector("tbody");
@@ -65,6 +97,21 @@ window.initPage = undefined;
               <td class="text"><span class="readonly-span">${item.ref || ''}</span></td>
               <td class="action"></td>
             `;
+            // Add Open Airline button if airline/ref/name present
+            const airline = item.airline || '';
+            const ref = item.ref || '';
+            const name = item.name || '';
+            if (airline && ref && name) {
+              const btn = document.createElement('button');
+              btn.textContent = 'Open Airline';
+              btn.className = 'open-airline-btn';
+              btn.style = 'margin-left:4px; background:#e0e0e0; color:#333; border:1px solid #bbb; border-radius:6px; padding:4px 10px; font-size:13px; cursor:pointer;';
+              btn.onclick = () => {
+                // Use first and last word in name for Southwest, last word for others
+                openAirlineSite(airline, ref, name);
+              };
+              row.querySelector('.action').appendChild(btn);
+            }
           } else {
             row.innerHTML = `
               <td class="date"><span class="readonly-span">${formatDateReadable(item.checkin)}</span></td>

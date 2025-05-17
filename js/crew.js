@@ -108,14 +108,13 @@ async function loadTable() {
   updateCrewCount();
 }
 
-
 async function preloadUsers() {
   const res = await fetch(`${API_BASE}/api/users`, {
     headers: { Authorization: token }
   });
   const users = await res.json();
   users.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
-  cachedUsers = users.map(u => u.name || u.email);
+  cachedUsers = users;
 }
 
 function renderTableSection() {
@@ -293,9 +292,69 @@ function renderTableSection() {
   if (crewCountEl) {
     crewCountEl.innerHTML = `<strong>Crew Count: ${visibleNames.size}</strong>`;
   }
+
+  // After rendering all sections, add Crew List button for owners
+  if (isOwner) {
+    let crewListBtn = document.getElementById('crewListBtn');
+    if (!crewListBtn) {
+      crewListBtn = document.createElement('button');
+      crewListBtn.id = 'crewListBtn';
+      crewListBtn.textContent = 'Crew List';
+      crewListBtn.style = 'margin: 0 0 0 8px; background: #e0e0e0; color: #333; border: 1px solid #bbb; border-radius: 6px; padding: 8px 18px; font-weight: 400; font-size: 15px; box-shadow: none; cursor: pointer; display: inline-block;';
+      crewListBtn.onclick = showCrewListModal;
+      // Insert into the crewListBtnContainer in the header
+      const btnContainer = document.getElementById('crewListBtnContainer');
+      if (btnContainer) {
+        btnContainer.innerHTML = '';
+        btnContainer.appendChild(crewListBtn);
+      } else {
+        document.body.insertBefore(crewListBtn, document.body.firstChild);
+      }
+    }
+  }
 }
 
-
+function showCrewListModal() {
+  // Gather all unique crew names from tableData.rows
+  const uniqueCrewNames = Array.from(new Set((tableData.rows || []).map(row => row.name).filter(Boolean)));
+  // Map names to emails using cachedUsers
+  const crewArr = uniqueCrewNames.map(name => {
+    const user = cachedUsers.find(u => u.name === name);
+    return { name, email: user ? user.email : null };
+  });
+  if (crewArr.length === 0) {
+    alert('No crew found.');
+    return;
+  }
+  // Modal
+  let modal = document.getElementById('crewListModal');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'crewListModal';
+  modal.style = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(0,0,0,0.4);display:flex;align-items:center;justify-content:center;z-index:9999;';
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:18px;max-width:420px;width:92vw;box-shadow:0 12px 40px rgba(204,0,7,0.13),0 2px 8px rgba(0,0,0,0.08);padding:40px 28px;display:flex;flex-direction:column;gap:18px;align-items:center;">
+      <h3 style='color:#CC0007;margin:0 0 8px 0;'>Crew List</h3>
+      <ul style='list-style:none;padding:0;width:100%;'>
+        ${crewArr.map(({name, email}) => `<li style='margin-bottom:8px;'><strong>${name}</strong>${email ? `<br><a href='mailto:${email}' style='color:#CC0007;text-decoration:underline;'>${email}</a>` : ''}</li>`).join('')}
+      </ul>
+      <button id='emailEveryoneBtn' style='background:#e0e0e0;color:#333;border:1px solid #bbb;border-radius:8px;padding:10px 22px;font-weight:400;font-size:16px;box-shadow:none;cursor:pointer;'>Email Everyone</button>
+      <button id='closeCrewListModalBtn' style='background:#6c757d;color:#fff;border:none;border-radius:8px;padding:10px 22px;font-weight:600;font-size:16px;box-shadow:0 2px 8px rgba(204,0,7,0.08);cursor:pointer;'>Close</button>
+    </div>
+  `;
+  document.body.appendChild(modal);
+  document.getElementById('closeCrewListModalBtn').onclick = () => modal.remove();
+  document.getElementById('emailEveryoneBtn').onclick = () => {
+    const allEmails = crewArr.filter(c => c.email).map(c => c.email).join(',');
+    if (allEmails) {
+      const mailto = `mailto:${allEmails}`;
+      navigator.clipboard.writeText(mailto);
+      window.location.href = mailto;
+    } else {
+      alert('No emails found for crew.');
+    }
+  };
+}
 
 async function saveEditById(rowId) {
   if (!isOwner) return;
@@ -354,8 +413,6 @@ async function saveEditById(rowId) {
   }
 }
 
-
-
 function toggleEditById(rowId) {
   if (!isOwner) return;
 
@@ -369,7 +426,7 @@ function toggleEditById(rowId) {
   tr.querySelector(`#${prefix}-name`).outerHTML = `
     <select id="${prefix}-name">
       <option value="">-- Select Name --</option>
-      ${cachedUsers.map(u => `<option value="${u}" ${u === row.name ? 'selected' : ''}>${u}</option>`).join('')}
+      ${cachedUsers.map(u => `<option value="${u.name}" ${u.name === row.name ? 'selected' : ''}>${u.name}</option>`).join('')}
       <option value="__add_new__">➕ Add new name</option>
     </select>
   `;
@@ -400,13 +457,13 @@ function toggleEditById(rowId) {
     nameSelect.addEventListener('change', () => {
       if (nameSelect.value === '__add_new__') {
         const newName = prompt('Enter new name:');
-        if (newName && !cachedUsers.includes(newName)) {
-          cachedUsers.push(newName);
-          cachedUsers.sort();
+        if (newName && !cachedUsers.some(u => u.name === newName)) {
+          cachedUsers.push({ name: newName });
+          cachedUsers.sort((a, b) => a.name.localeCompare(b.name));
         }
         nameSelect.innerHTML = `
           <option value="">-- Select Name --</option>
-          ${cachedUsers.map(u => `<option value="${u}" ${u === newName ? 'selected' : ''}>${u}</option>`).join('')}
+          ${cachedUsers.map(u => `<option value="${u.name}" ${u.name === newName ? 'selected' : ''}>${u.name}</option>`).join('')}
           <option value="__add_new__">➕ Add new name</option>
         `;
         nameSelect.value = newName;
@@ -443,7 +500,6 @@ function toggleEditById(rowId) {
     }
   }
 }
-
 
 async function deleteRowById(rowId) {
   if (!isOwner) return;
@@ -491,7 +547,7 @@ function showRowInputs(date, tbody) {
     <td>
       <select id='${nameId}'>
         <option value="">-- Select Name --</option>
-        ${cachedUsers.map(u => `<option value="${u}">${u}</option>`).join('')}
+        ${cachedUsers.map(u => `<option value="${u.name}">${u.name}</option>`).join('')}
         <option value="__add_new__">➕ Add new name</option>
       </select>
     </td>
@@ -515,12 +571,12 @@ function showRowInputs(date, tbody) {
     nameSelect.addEventListener('change', () => {
       if (nameSelect.value === '__add_new__') {
         const newName = prompt('Enter new name:');
-        if (newName && !cachedUsers.includes(newName)) {
-          cachedUsers.push(newName);
-          cachedUsers.sort();
+        if (newName && !cachedUsers.some(u => u.name === newName)) {
+          cachedUsers.push({ name: newName });
+          cachedUsers.sort((a, b) => a.name.localeCompare(b.name));
           nameSelect.innerHTML = `
             <option value="">-- Select Name --</option>
-            ${cachedUsers.map(u => `<option value="${u}">${u}</option>`).join('')}
+            ${cachedUsers.map(u => `<option value="${u.name}">${u.name}</option>`).join('')}
             <option value="__add_new__">➕ Add new name</option>
           `;
           nameSelect.value = newName;
@@ -563,8 +619,6 @@ function showRowInputs(date, tbody) {
     endInput.addEventListener('input', updateHours);
   }, 0);
 }
-
-
 
 async function addDateSection() {
   if (!isOwner) return;
@@ -691,10 +745,46 @@ function attachEventListeners() {
   if (searchInput) searchInput.oninput = renderTableSection;
 }
 
+function exportCrewCsv() {
+  if (!tableData || !Array.isArray(tableData.rows)) return;
+  // CSV header
+  const header = ['Name', 'Start', 'End', 'Total', 'Role', 'Notes', 'Date'];
+  // Only export non-placeholder rows
+  const rows = tableData.rows.filter(row => row.role !== '__placeholder__');
+  const csvRows = [header.join(',')];
+  rows.forEach(row => {
+    const values = [
+      row.name || '',
+      row.startTime || '',
+      row.endTime || '',
+      row.totalHours || '',
+      row.role || '',
+      row.notes ? '"' + String(row.notes).replace(/"/g, '""') + '"' : '',
+      row.date || ''
+    ];
+    csvRows.push(values.map(v => {
+      v = String(v);
+      return v.includes(',') ? '"' + v + '"' : v;
+    }).join(','));
+  });
+  const csvContent = csvRows.join('\n');
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'crew.csv';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 function initPage(id) {
-  loadTable();
-  attachEventListeners();
-  document.body.classList.add('crew-page');
+  loadTable().then(() => {
+    attachEventListeners();
+    document.body.classList.add('crew-page');
+    // Attach export button event
+    const exportBtn = document.getElementById('exportCsvBtn');
+    if (exportBtn) exportBtn.onclick = exportCrewCsv;
+  });
 }
 
 window.initPage = initPage;
@@ -705,4 +795,5 @@ window.toggleEditById = toggleEditById;
 window.deleteRowById = deleteRowById;
 window.deleteDate = deleteDate;
 window.renderTableSection = renderTableSection;
+window.exportCrewCsv = exportCrewCsv;
 })();
