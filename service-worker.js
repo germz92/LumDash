@@ -27,6 +27,7 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   // Let the browser handle all requests normally
   // This disables any service worker caching
+  console.log("Service worker fetch event for:", event.request.url);
 });
 
 // Handle push notifications

@@ -8,16 +8,29 @@ let tableId = params.get('id');
 
 // Socket.IO real-time updates
 if (window.socket) {
+  // Track if the user is currently editing a field
+  window.isActiveEditing = false;
+  
   // Listen for gear-specific updates
   window.socket.on('gearChanged', () => {
     console.log('Gear data changed, reloading...');
-    loadGear();
+    // Don't reload if the user is actively editing
+    if (!window.isActiveEditing) {
+      loadGear();
+    } else {
+      console.log('Skipping reload while user is editing');
+    }
   });
   
   // Also listen for general table updates
   window.socket.on('tableUpdated', () => {
     console.log('Table updated, reloading gear data...');
-    loadGear();
+    // Don't reload if the user is actively editing
+    if (!window.isActiveEditing) {
+      loadGear();
+    } else {
+      console.log('Skipping reload while user is editing');
+    }
   });
 }
 
@@ -596,6 +609,21 @@ function createRow(item, isNewRow = false) {
   textInput.type = 'text';
   textInput.value = safeLabel;
   textInput.readOnly = !isOwner; // Make read-only for non-owners
+  
+  // Add focus and blur handlers to track editing state for Socket.IO protection
+  textInput.addEventListener('focus', () => {
+    window.isActiveEditing = true;
+    console.log('User started editing, pausing Socket.IO updates');
+  });
+  
+  textInput.addEventListener('blur', () => {
+    // Don't immediately clear editing flag on blur - give time for save operations
+    setTimeout(() => {
+      window.isActiveEditing = false;
+      console.log('User finished editing, resuming Socket.IO updates');
+    }, 500);
+  });
+  
   el.appendChild(textInput);
   
   // Set up checkbox change handler for non-owners
@@ -657,10 +685,21 @@ function createRow(item, isNewRow = false) {
   // Only set up editing handlers for owners
   if (isOwner) {
     // Save changes when input is modified
-    textInput.addEventListener('input', () => {
+    textInput.addEventListener('input', (e) => {
       // For new rows, we'll handle saving in the blur event
       if (!isNewRow) {
-        triggerAutosave();
+        // Add a data attribute to indicate this element has unsaved changes
+        el.setAttribute('data-has-changes', 'true');
+        
+        // When a user is actively typing, don't trigger saves immediately
+        // This prevents navigation issues during typing
+        clearTimeout(el.saveTimer);
+        el.saveTimer = setTimeout(() => {
+          // Only save if element is still in the DOM
+          if (el.isConnected && document.contains(el)) {
+            triggerAutosave();
+          }
+        }, 2000); // Wait 2 seconds after typing stops before saving
       }
     });
     
@@ -689,7 +728,13 @@ function createRow(item, isNewRow = false) {
             }
           }
         } else {
-          // For existing rows, directly add a new row
+          // For existing rows, save the current item first
+          eventContext.updateFromDOM();
+          const checkOutDate = document.getElementById('checkoutDate')?.value || '';
+          const checkInDate = document.getElementById('checkinDate')?.value || '';
+          eventContext.save(checkOutDate, checkInDate);
+          
+          // Then add a new row
           const parentList = el.closest('.item-list');
           if (parentList) {
             const category = el.closest('.category');
@@ -726,6 +771,54 @@ function createRow(item, isNewRow = false) {
             }
           }
         }
+      }
+    });
+  }
+  
+  // Focus on the input field for immediate editing
+  const input = textInput;
+  if (input) {
+    input.focus();
+    
+    // Add validation on blur to ensure the field isn't empty
+    input.addEventListener('blur', async (e) => {
+      try {
+        // Don't process this event if we're blurring due to page navigation or reload
+        if (document.visibilityState === 'hidden' || document.readyState !== 'complete') {
+          return;
+        }
+        
+        if (input.value.trim() === '') {
+          // If left empty and user moves away, remove the row
+          el.remove();
+        } else {
+          // Otherwise check for duplicates
+          const existingItems = Array.from(list.querySelectorAll('.item:not([data-new-row="true"]) input[type="text"]'))
+            .map(input => input.value.trim());
+          
+          if (existingItems.includes(input.value.trim())) {
+            alert(`"${input.value.trim()}" is already in this list.`);
+            input.value = '';
+            input.focus();
+          } else {
+            // Valid input, trigger IMMEDIATE save and remove the new row marker
+            row.removeAttribute('data-new-row');
+            
+            // IMMEDIATELY save to database to prevent data loss on refresh
+            eventContext.updateFromDOM();
+            const checkOutDate = document.getElementById('checkoutDate')?.value || '';
+            const checkInDate = document.getElementById('checkinDate')?.value || '';
+            await eventContext.save(checkOutDate, checkInDate);
+            
+            // Now allow refreshes to resume after successful save
+            setTimeout(() => {
+              window.isActiveEditing = false;
+              console.log('Item saved and editing completed');
+            }, 200);
+          }
+        }
+      } catch (err) {
+        console.error('Error saving new item:', err);
       }
     });
   }
@@ -791,10 +884,13 @@ function createCategory(name) {
     addRowBtn.textContent = "+ Add Item";
     addRowBtn.title = "Add a custom row";
     addRowBtn.onclick = () => {
+      // Set active editing flag to prevent Socket.IO updates
+      window.isActiveEditing = true;
+      
       // Create a blank row instead of showing a prompt
       const newItem = { label: "", checked: false };
       const row = createRow(newItem, true); // Add true parameter to indicate it's a new blank row
-    list.appendChild(row);
+      list.appendChild(row);
       
       // Focus on the input field for immediate editing
       const input = row.querySelector('input[type="text"]');
@@ -802,24 +898,44 @@ function createCategory(name) {
         input.focus();
         
         // Add validation on blur to ensure the field isn't empty
-        input.addEventListener('blur', () => {
-          if (input.value.trim() === '') {
-            // If left empty and user moves away, remove the row
-            row.remove();
-          } else {
-            // Otherwise check for duplicates
-            const existingItems = Array.from(list.querySelectorAll('.item:not([data-new-row="true"]) input[type="text"]'))
-              .map(input => input.value.trim());
-            
-            if (existingItems.includes(input.value.trim())) {
-              alert(`"${input.value.trim()}" is already in this list.`);
-              input.value = '';
-              input.focus();
-            } else {
-              // Valid input, trigger save and remove the new row marker
-              row.removeAttribute('data-new-row');
-    triggerAutosave();
+        input.addEventListener('blur', async (e) => {
+          try {
+            // Don't process this event if we're blurring due to page navigation or reload
+            if (document.visibilityState === 'hidden' || document.readyState !== 'complete') {
+              return;
             }
+            
+            if (input.value.trim() === '') {
+              // If left empty and user moves away, remove the row
+              row.remove();
+            } else {
+              // Otherwise check for duplicates
+              const existingItems = Array.from(list.querySelectorAll('.item:not([data-new-row="true"]) input[type="text"]'))
+                .map(input => input.value.trim());
+              
+              if (existingItems.includes(input.value.trim())) {
+                alert(`"${input.value.trim()}" is already in this list.`);
+                input.value = '';
+                input.focus();
+              } else {
+                // Valid input, trigger IMMEDIATE save and remove the new row marker
+                row.removeAttribute('data-new-row');
+                
+                // IMMEDIATELY save to database to prevent data loss on refresh
+                eventContext.updateFromDOM();
+                const checkOutDate = document.getElementById('checkoutDate')?.value || '';
+                const checkInDate = document.getElementById('checkinDate')?.value || '';
+                await eventContext.save(checkOutDate, checkInDate);
+                
+                // Now allow refreshes to resume after successful save
+                setTimeout(() => {
+                  window.isActiveEditing = false;
+                  console.log('Item saved and editing completed');
+                }, 200);
+              }
+            }
+          } catch (err) {
+            console.error('Error saving new item:', err);
           }
         });
       }
@@ -1000,8 +1116,29 @@ if (typeof saveGear === 'function') {
 });
 
 function triggerAutosave() {
+  // Don't autosave if the page is not fully loaded or is unloading or if user is actively editing
+  if (document.readyState !== 'complete' || document.visibilityState === 'hidden' || window.isActiveEditing) {
+    console.log('Skip autosave: page is loading/unloading or user is actively editing');
+    return;
+  }
+  
+  // Cancel any existing timeout
   clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(saveGear, 500);
+  
+  // Longer delay to ensure input focus stability
+  saveTimeout = setTimeout(async () => {
+    try {
+      // Double-check that we're still in a good state before saving
+      if (document.readyState === 'complete' && document.visibilityState === 'visible' && !window.isActiveEditing) {
+        await saveGear();
+        console.log('Autosave completed');
+      } else {
+        console.log('Autosave aborted: page state changed or user is actively editing');
+      }
+    } catch (err) {
+      console.error('Autosave error:', err);
+    }
+  }, 1000); // Increased to 1000ms to reduce frequency of saves
 }
 
 function createNewGearList() {
