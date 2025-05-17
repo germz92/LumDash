@@ -498,18 +498,30 @@ async function submitShare() {
 
   if (!email || !currentTableId) return alert('Missing info');
 
-  const res = await fetch(`${API_BASE}/api/tables/${currentTableId}/share`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: token
-    },
-    body: JSON.stringify({ email, makeOwner })
-  });
+  try {
+    const res = await fetch(`${API_BASE}/api/tables/${currentTableId}/share`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: token
+      },
+      body: JSON.stringify({ email, makeOwner })
+    });
 
-  const result = await res.json();
-  alert(result.message || result.error || 'Done');
-  closeModal();
+    const result = await res.json();
+    
+    if (res.ok) {
+      alert(`${result.message || 'Done'}. An email notification has been sent to ${email}.`);
+    } else {
+      alert(result.error || 'Error occurred while sharing');
+    }
+    
+    closeModal();
+  } catch (err) {
+    console.error('Error sharing event:', err);
+    alert('Failed to share event. Please try again.');
+    closeModal();
+  }
 }
 
 function logout() {

@@ -1033,6 +1033,10 @@ app.post('/api/tables/:id/share', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Only an owner can share this table' });
     }
 
+    // Get the current user (sharing the event)
+    const currentUser = await User.findById(req.user.id);
+    const sharerName = currentUser ? (currentUser.name || currentUser.fullName || currentUser.email) : 'An owner';
+
     if (makeOwner) {
       if (!ownerIds.includes(targetId)) {
         table.owners.push(userToShare._id);
@@ -1044,6 +1048,33 @@ app.post('/api/tables/:id/share', authenticate, async (req, res) => {
     }
 
     await table.save();
+
+    // Send email notification to the user
+    try {
+      const appUrl = process.env.APP_URL || 'https://lumdash.com';
+      const eventUrl = `https://www.lumdash.app/dashboard.html#events`;
+      
+      const msg = {
+        to: userToShare.email,
+        from: process.env.SENDGRID_FROM_EMAIL,
+        subject: makeOwner ? `You're now an owner of "${table.title}"` : `Event shared with you: "${table.title}"`,
+        html: `
+          <p>Hello ${userToShare.name || userToShare.fullName || 'there'},</p>
+          <p>${sharerName} has ${makeOwner ? 'made you an owner of' : 'shared'} the event "${table.title}" with you.</p>
+          <p>You can now access this event from your LumDash dashboard.</p>
+          <p><a href="${eventUrl}" style="padding: 10px 15px; background-color: #CC0007; color: white; text-decoration: none; border-radius: 5px;">View Event</a></p>
+          <p>If you have any questions, please contact the event owner directly.</p>
+          <p>Thank you,<br>LumDash Team</p>
+        `
+      };
+      
+      await sgMail.send(msg);
+      console.log(`Email notification sent to ${userToShare.email} for event ${table.title}`);
+    } catch (emailErr) {
+      // Log the error but don't fail the sharing process
+      console.error('Failed to send email notification:', emailErr);
+    }
+    
     res.json({ message: makeOwner ? 'Ownership granted' : 'User added to table' });
   } catch (err) {
     console.error('Error sharing table:', err);
