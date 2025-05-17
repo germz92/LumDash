@@ -93,7 +93,7 @@ function formatDate(dateStr) {
 }
 
 async function fetchTable() {
-  const res = await fetch(`/api/tables/${tableId}`, {
+  const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
     headers: { Authorization: token }
   });
   if (!res.ok) throw new Error('Failed to load event');
@@ -101,7 +101,7 @@ async function fetchTable() {
 }
 
 async function fetchNotes() {
-  const res = await fetch(`/api/tables/${tableId}/admin-notes`, {
+  const res = await fetch(`${API_BASE}/api/tables/${tableId}/admin-notes`, {
     headers: { Authorization: token }
   });
   if (!res.ok) throw new Error('Not authorized or failed to load notes');
@@ -120,7 +120,7 @@ async function saveNote() {
   try {
     let res;
     if (editingNoteId) {
-      res = await fetch(`/api/tables/${tableId}/admin-notes/${editingNoteId}`, {
+      res = await fetch(`${API_BASE}/api/tables/${tableId}/admin-notes/${editingNoteId}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -130,7 +130,7 @@ async function saveNote() {
       });
     } else {
       const localDate = new Date().toLocaleDateString('en-CA');
-      res = await fetch(`/api/tables/${tableId}/admin-notes`, {
+      res = await fetch(`${API_BASE}/api/tables/${tableId}/admin-notes`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -153,7 +153,7 @@ async function saveNote() {
 async function deleteNote(noteId) {
   if (!confirm('Delete this note?')) return;
   try {
-    const res = await fetch(`/api/tables/${tableId}/admin-notes/${noteId}`, {
+    const res = await fetch(`${API_BASE}/api/tables/${tableId}/admin-notes/${noteId}`, {
       method: 'DELETE',
       headers: { Authorization: token }
     });
