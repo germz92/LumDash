@@ -16,13 +16,11 @@
     return;
   }
 
-  // Use the same base URL as API.js for consistency
-  const SOCKET_BASE = window.location.hostname === 'localhost'
-    ? 'http://localhost:3000'
-    : 'https://spa-lumdash-backend.onrender.com';
-
+  // Use the global API_BASE from config.js
+  // The Socket.IO client should connect to the same URL as the API
+  
   // Initialize the global socket connection
-  const socket = io(SOCKET_BASE);
+  const socket = io(API_BASE);
   
   // Store connection status
   let connected = false;

@@ -1,8 +1,8 @@
-if (!localStorage.getItem('token')) {
+if (!localStorage.getItem('token') && !window.location.pathname.endsWith('index.html')) {
   window.location.replace('index.html');
 }
 
-console.log('�� app.js loaded');
+console.log(' app.js loaded');
 
 const PAGE_CLASSES = [
   'events-page', 'general-page', 'crew-page', 'travel-page', 'gear-page', 'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'users-page'

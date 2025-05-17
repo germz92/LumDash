@@ -6,7 +6,12 @@ const bcrypt = require('bcrypt');
 const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
+const sgMail = require('@sendgrid/mail');
 require('dotenv').config();
+sgMail.setApiKey(process.env.SENDGRID_API_KEY);
+console.log('SENDGRID_API_KEY loaded:', !!process.env.SENDGRID_API_KEY);
+console.log('SENDGRID_FROM_EMAIL:', process.env.SENDGRID_FROM_EMAIL);
+console.log('APP_URL:', process.env.APP_URL);
 
 const app = express();
 const server = http.createServer(app);
@@ -92,6 +97,54 @@ app.post('/api/auth/login', async (req, res) => {
 
   const token = jwt.sign({ id: user._id, fullName: user.fullName, role: user.role }, process.env.JWT_SECRET);
   res.json({ token, fullName: user.fullName, role: user.role });
+});
+
+// Forgot Password Endpoint
+app.post('/api/auth/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  const user = await User.findOne({ email });
+  if (!user) {
+    // For security, always respond with success
+    return res.json({ message: 'If that email is registered, a reset link has been sent.' });
+  }
+  const token = require('crypto').randomBytes(32).toString('hex');
+  user.resetPasswordToken = token;
+  user.resetPasswordExpires = Date.now() + 1000 * 60 * 60; // 1 hour
+  await user.save();
+
+  const resetUrl = `${process.env.APP_URL}/reset-password.html?token=${token}`;
+  const msg = {
+    to: user.email,
+    from: process.env.SENDGRID_FROM_EMAIL,
+    subject: 'Password Reset Request',
+    html: `<p>You requested a password reset for your LumDash account.</p>
+           <p><a href="${resetUrl}">Click here to reset your password</a></p>
+           <p>If you did not request this, you can ignore this email.</p>`
+  };
+  try {
+    await sgMail.send(msg);
+    res.json({ message: 'If that email is registered, a reset link has been sent.' });
+  } catch (err) {
+    console.error('SendGrid error:', err);
+    res.status(500).json({ error: 'Failed to send reset email.' });
+  }
+});
+
+// Reset Password Endpoint
+app.post('/api/auth/reset-password', async (req, res) => {
+  const { token, password } = req.body;
+  const user = await User.findOne({
+    resetPasswordToken: token,
+    resetPasswordExpires: { $gt: Date.now() }
+  });
+  if (!user) {
+    return res.status(400).json({ error: 'Invalid or expired token.' });
+  }
+  user.password = await bcrypt.hash(password, 10);
+  user.resetPasswordToken = undefined;
+  user.resetPasswordExpires = undefined;
+  await user.save();
+  res.json({ message: 'Password has been reset.' });
 });
 
 // TABLE ROUTES
