@@ -60,3 +60,5 @@ console.log(`[config.js] API_BASE set to: ${API_BASE}`);
     window.location.href = 'index.html';
   }
 })();
+
+window.API_BASE = API_BASE;
