@@ -470,8 +470,8 @@ async function openShareModal(tableId) {
     const ownerList = document.getElementById('ownerList')?.querySelector('ul');
     const sharedList = document.getElementById('sharedList')?.querySelector('ul');
 
-    if (ownerList) ownerList.innerHTML = owners.map(u => `<li>${u.fullName} (${u.email})</li>`).join('');
-    if (sharedList) sharedList.innerHTML = shared.map(u => `<li>${u.fullName} (${u.email})</li>`).join('');
+    if (ownerList) ownerList.innerHTML = owners.map(u => `<li>${u.name || u.fullName || u.email} (${u.email})</li>`).join('');
+    if (sharedList) sharedList.innerHTML = shared.map(u => `<li>${u.name || u.fullName || u.email} (${u.email})</li>`).join('');
   } catch (err) {
     console.error('Error in share modal:', err);
     alert('Error opening share options. Please try again.');
