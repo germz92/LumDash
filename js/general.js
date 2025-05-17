@@ -192,8 +192,37 @@ function collectLocations() {
   });
 }
 
+function isAdmin() {
+  try {
+    const token = window.token;
+    if (!token) return false;
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.role === 'admin';
+  } catch {
+    return false;
+  }
+}
+
+function insertAdminNotesBtn(tableId) {
+  const container = document.getElementById('adminNotesBtnContainer');
+  if (!container) return;
+  container.innerHTML = '';
+  if (isAdmin()) {
+    const btn = document.createElement('button');
+    btn.textContent = 'Notes';
+    btn.className = 'admin-notes-btn';
+    btn.style = 'margin-bottom: 18px; background: #CC0007; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-weight: 600; font-size: 17px; box-shadow: 0 2px 8px rgba(204,0,7,0.08); cursor: pointer;';
+    btn.onclick = () => {
+      window.location.href = `/pages/notes.html?id=${tableId}`;
+    };
+    container.appendChild(btn);
+  }
+}
+
 function initPage(id) {
   if (!id || !window.token) return;
+
+  insertAdminNotesBtn(id);
 
   fetch(`${API_BASE}/api/tables/${id}`, {
     headers: { Authorization: window.token }

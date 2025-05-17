@@ -493,3 +493,20 @@
   min-width: 0;
   box-sizing: border-box;
 }
+
+.general-page .admin-notes-btn {
+  background: #f3f4f6 !important;
+  color: #6b7280 !important;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 22px;
+  font-weight: 600;
+  font-size: 17px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.general-page .admin-notes-btn:hover, .general-page .admin-notes-btn:focus {
+  background: #e5e7eb !important;
+  color: #222 !important;
+}
