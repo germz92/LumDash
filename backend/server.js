@@ -199,6 +199,68 @@ app.get('/api/tables/:id', authenticate, async (req, res) => {
   res.json(table);
 });
 
+// --- ADMIN NOTES ENDPOINTS (MULTI-NOTE) ---
+// Get all admin notes for a table (owners only)
+app.get('/api/tables/:id/admin-notes', authenticate, async (req, res) => {
+  const table = await Table.findById(req.params.id);
+  if (!table) return res.status(404).json({ error: 'Table not found' });
+  if (!table.owners.map(String).includes(req.user.id)) {
+    return res.status(403).json({ error: 'Only owners can view admin notes' });
+  }
+  res.json({ adminNotes: table.adminNotes || [] });
+});
+
+// Add a new admin note (owners only)
+app.post('/api/tables/:id/admin-notes', authenticate, async (req, res) => {
+  const table = await Table.findById(req.params.id);
+  if (!table) return res.status(404).json({ error: 'Table not found' });
+  if (!table.owners.map(String).includes(req.user.id)) {
+    return res.status(403).json({ error: 'Only owners can add admin notes' });
+  }
+  const { title, content, date } = req.body;
+  if (!title) return res.status(400).json({ error: 'Title is required' });
+  let noteDate = date;
+  if (!noteDate) {
+    const now = new Date();
+    noteDate = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString().slice(0, 10);
+  }
+  const note = {
+    title,
+    content: content || '',
+    date: noteDate
+  };
+  table.adminNotes.push(note);
+  await table.save();
+  res.json({ adminNotes: table.adminNotes });
+});
+
+// Edit an admin note (owners only)
+app.put('/api/tables/:id/admin-notes/:noteId', authenticate, async (req, res) => {
+  const table = await Table.findById(req.params.id);
+  if (!table) return res.status(404).json({ error: 'Table not found' });
+  if (!table.owners.map(String).includes(req.user.id)) {
+    return res.status(403).json({ error: 'Only owners can edit admin notes' });
+  }
+  const note = table.adminNotes.id(req.params.noteId);
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  note.title = req.body.title || note.title;
+  note.content = req.body.content || note.content;
+  await table.save();
+  res.json({ adminNotes: table.adminNotes });
+});
+
+// Delete an admin note (owners only)
+app.delete('/api/tables/:id/admin-notes/:noteId', authenticate, async (req, res) => {
+  const table = await Table.findById(req.params.id);
+  if (!table) return res.status(404).json({ error: 'Table not found' });
+  if (!table.owners.map(String).includes(req.user.id)) {
+    return res.status(403).json({ error: 'Only owners can delete admin notes' });
+  }
+  table.adminNotes = table.adminNotes.filter(n => n._id.toString() !== req.params.noteId);
+  await table.save();
+  res.json({ adminNotes: table.adminNotes });
+});
+
 app.post('/api/tables/:id/rows', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === "null") {
     return res.status(400).json({ error: "Invalid table ID" });

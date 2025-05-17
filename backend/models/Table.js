@@ -122,7 +122,16 @@ const tableSchema = new mongoose.Schema({
     type: [programSchema],
     default: []
   },
-  archived: { type: Boolean, default: false }
+  archived: { type: Boolean, default: false },
+  // Admin-only notes for this event/table
+  adminNotes: [
+    {
+      _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+      title: { type: String, required: true },
+      date: { type: String, required: true }, // ISO date string
+      content: { type: String, default: '' }
+    }
+  ]
 }, { timestamps: true });
 
 // Add utility methods for date handling if needed
