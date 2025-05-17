@@ -1132,6 +1132,28 @@ app.patch('/api/tables/:id/archive', authenticate, async (req, res) => {
   res.json({ message: `Event ${req.body.archived ? 'archived' : 'unarchived'}` });
 });
 
+// PATCH /api/tables/:id (partial update, e.g. crewRates)
+app.patch('/api/tables/:id', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === "null") {
+    return res.status(400).json({ error: "Invalid table ID" });
+  }
+  const table = await Table.findById(req.params.id);
+  if (!table || !table.owners.includes(req.user.id)) {
+    return res.status(403).json({ error: 'Not authorized or not found' });
+  }
+  try {
+    const update = req.body;
+    const updated = await Table.findByIdAndUpdate(
+      req.params.id,
+      { $set: update },
+      { new: true }
+    );
+    res.json(updated);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // SERVER
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));

@@ -777,6 +777,153 @@ function exportCrewCsv() {
   document.body.removeChild(link);
 }
 
+function showCrewCostCalcModal() {
+  // Gather all crew rows (excluding placeholders)
+  const rows = (tableData.rows || []).filter(row => row.role !== '__placeholder__' && row.name && row.role);
+  if (!rows.length) {
+    alert('No crew data available.');
+    return;
+  }
+  // Aggregate: { name, role } => total hours
+  const crewMap = {};
+  rows.forEach(row => {
+    const key = row.name + '||' + row.role;
+    if (!crewMap[key]) {
+      crewMap[key] = { name: row.name, role: row.role, totalHours: 0 };
+    }
+    crewMap[key].totalHours += parseFloat(row.totalHours) || 0;
+  });
+  // Unique roles for rate inputs
+  const uniqueRoles = Array.from(new Set(rows.map(r => r.role)));
+  // Modal HTML
+  let modal = document.getElementById('crewCostCalcModal');
+  if (modal) modal.remove();
+  modal = document.createElement('div');
+  modal.id = 'crewCostCalcModal';
+  modal.className = 'crew-cost-calc-modal';
+  modal.style = 'position:fixed;top:0;left:0;width:100vw;height:100vh;background:rgba(34,41,47,0.18);display:flex;align-items:center;justify-content:center;z-index:10000;';
+  // Modal content
+  modal.innerHTML = `
+    <div style="background:#fff;border-radius:18px;max-width:700px;width:96vw;max-height:96vh;height:96vh;box-shadow:0 12px 40px rgba(204,0,7,0.13),0 2px 8px rgba(0,0,0,0.08);padding:38px 32px 28px 32px;display:flex;flex-direction:column;gap:18px;align-items:center;">
+      <h3 style='color:#CC0007;margin:0 0 8px 0;'>Crew Cost Calculator</h3>
+      <div style='width:100%;flex:1 1 auto;overflow-x:auto;overflow-y:auto;min-height:0;'>
+        <table style='width:100%;border-collapse:collapse;font-size:1rem;'>
+          <thead>
+            <tr style='background:#f5f5f5;'>
+              <th style='padding:8px 10px;text-align:left;'>Name</th>
+              <th style='padding:8px 10px;text-align:left;'>Role</th>
+              <th style='padding:8px 10px;text-align:right;'>Total Hours</th>
+              <th style='padding:8px 10px;text-align:right;'>Hourly Rate</th>
+              <th style='padding:8px 10px;text-align:right;'>Cost</th>
+            </tr>
+          </thead>
+          <tbody id='crewCostCalcTableBody'>
+            <!-- Crew rows will be inserted here -->
+          </tbody>
+        </table>
+      </div>
+      <div style='width:100%;text-align:right;font-size:1.1rem;margin-top:10px;'>
+        <strong>Total Project Cost: $<span id='crewCostCalcTotal'>0.00</span></strong>
+      </div>
+      <button id='closeCrewCostCalcModalBtn' style='background:#6c757d;color:#fff;border:none;border-radius:8px;padding:10px 22px;font-weight:600;font-size:16px;box-shadow:0 2px 8px rgba(204,0,7,0.08);cursor:pointer;margin-top:10px;'>Close</button>
+    </div>
+  `;
+  document.getElementById('crewCostCalcModalContainer').appendChild(modal);
+
+  // State: (name||role) => rate
+  const crewRates = {};
+  Object.values(crewMap).forEach(crew => {
+    const key = crew.name + '||' + crew.role;
+    // Pre-fill from tableData.crewRates if available
+    crewRates[key] = (tableData.crewRates && tableData.crewRates[key] !== undefined) ? String(tableData.crewRates[key]) : '';
+  });
+
+  // Render table body
+  function renderTable(focusedKey, caretPos) {
+    const tbody = document.getElementById('crewCostCalcTableBody');
+    let total = 0;
+    tbody.innerHTML = Object.values(crewMap).map(crew => {
+      const key = crew.name + '||' + crew.role;
+      const rate = parseFloat(crewRates[key]);
+      const validRate = isNaN(rate) ? 0 : rate;
+      const cost = validRate * crew.totalHours;
+      total += cost;
+      return `<tr>
+        <td style='padding:7px 10px;'>${crew.name}</td>
+        <td style='padding:7px 10px;'>${crew.role}</td>
+        <td style='padding:7px 10px;text-align:right;'>${crew.totalHours.toFixed(2)}</td>
+        <td style='padding:7px 10px;text-align:right;'>
+          <input type='text' inputmode='decimal' data-key='${key}' value='${crewRates[key]}' style='width:90px;padding:3px 6px;font-size:1rem;border:1px solid #bbb;border-radius:5px;text-align:right;'>
+        </td>
+        <td style='padding:7px 10px;text-align:right;'>$${cost.toFixed(2)}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('crewCostCalcTotal').textContent = total.toFixed(2);
+    // Restore focus and caret position if needed
+    if (focusedKey) {
+      const input = tbody.querySelector(`input[data-key='${focusedKey}']`);
+      if (input) {
+        input.focus();
+        if (typeof caretPos === 'number') {
+          input.setSelectionRange(caretPos, caretPos);
+        }
+      }
+    }
+  }
+  renderTable();
+
+  // Listen for rate changes
+  modal.addEventListener('input', function(e) {
+    if (e.target && e.target.matches('input[data-key]')) {
+      const key = e.target.getAttribute('data-key');
+      crewRates[key] = e.target.value;
+      // Save caret position before rerender
+      const caretPos = e.target.selectionStart;
+      renderTable(key, caretPos);
+    }
+  });
+
+  // Add Save button for owners
+  if (isOwner) {
+    const saveBtn = document.createElement('button');
+    saveBtn.textContent = 'Save Rates';
+    saveBtn.style = 'background:#CC0007;color:#fff;border:none;border-radius:8px;padding:10px 22px;font-weight:600;font-size:16px;box-shadow:0 2px 8px rgba(204,0,7,0.08);cursor:pointer;margin-top:10px;';
+    saveBtn.id = 'saveCrewRatesBtn';
+    modal.querySelector('div').appendChild(saveBtn);
+    saveBtn.onclick = async function() {
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Saving...';
+      try {
+        const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token
+          },
+          body: JSON.stringify({ crewRates })
+        });
+        if (res.ok) {
+          saveBtn.textContent = 'Saved!';
+          // Update local tableData with saved rates
+          tableData.crewRates = JSON.parse(JSON.stringify(crewRates));
+          setTimeout(() => { saveBtn.textContent = 'Save Rates'; saveBtn.disabled = false; }, 1200);
+        } else {
+          const err = await res.text();
+          saveBtn.textContent = 'Error';
+          alert('Failed to save rates: ' + err);
+          saveBtn.disabled = false;
+        }
+      } catch (err) {
+        saveBtn.textContent = 'Error';
+        alert('Failed to save rates: ' + err.message);
+        saveBtn.disabled = false;
+      }
+    };
+  }
+
+  document.getElementById('closeCrewCostCalcModalBtn').onclick = () => modal.remove();
+}
+
 function initPage(id) {
   loadTable().then(() => {
     attachEventListeners();
@@ -784,6 +931,9 @@ function initPage(id) {
     // Attach export button event
     const exportBtn = document.getElementById('exportCsvBtn');
     if (exportBtn) exportBtn.onclick = exportCrewCsv;
+    // Attach cost calculator button event
+    const costCalcBtn = document.getElementById('crewCostCalcBtn');
+    if (costCalcBtn) costCalcBtn.onclick = showCrewCostCalcModal;
   });
 }
 

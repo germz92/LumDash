@@ -131,7 +131,9 @@ const tableSchema = new mongoose.Schema({
       date: { type: String, required: true }, // ISO date string
       content: { type: String, default: '' }
     }
-  ]
+  ],
+  // Crew cost calculator rates
+  crewRates: { type: Object, default: {} }
 }, { timestamps: true });
 
 // Add utility methods for date handling if needed
