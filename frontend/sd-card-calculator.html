@@ -306,11 +306,36 @@
       margin-bottom: 2px;
       text-align: center;
     }
+    .back-btn {
+      display: inline-flex;
+      align-items: center;
+      background: #ededed;
+      color: #333;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 16px;
+      margin: 16px 0 0 16px;
+      cursor: pointer;
+      text-decoration: none;
+      font-size: 14px;
+      transition: background 0.2s, transform 0.1s;
+    }
+    .back-btn:hover {
+      background: #ddd;
+      transform: translateY(-1px);
+    }
+    .back-arrow {
+      margin-right: 6px;
+    }
   </style>
 </head>
 <body>
+  <button onclick="goBackToCardLog()" class="back-btn">
+    <span class="back-arrow">&#8592;</span>
+    Back to Card Log
+  </button>
+  <h2>SD Card Calculator</h2>
   <div class="main-center">
-    <h2>SD Card Calculator</h2>
     <div class="center">
       <label>Number of Days:
         <span class="input-arrows-group" style="margin-left:6px;">
@@ -430,6 +455,19 @@
         document.getElementById('cameraForm').innerHTML = '';
         document.getElementById('results').innerHTML = '';
         document.getElementById('numDays').value = 1;
+      }
+    }
+
+    function goBackToCardLog() {
+      // Use the SPA's navigation system to go back to card-log
+      if (window.navigate) {
+        window.navigate('card-log', localStorage.getItem('currentTableId'));
+      } else if (window.history && window.history.back) {
+        // Fallback to browser history if available
+        window.history.back();
+      } else {
+        // Last resort: direct page navigation
+        window.location.href = 'dashboard.html#card-log';
       }
     }
   </script>
