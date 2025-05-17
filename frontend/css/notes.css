@@ -334,6 +334,28 @@ body {
   background: #fff;
 }
 @media (max-width: 700px) {
+  html, body,
+  .notes-header h2,
+  #notesEventTitle,
+  #notesContainer,
+  .note-card,
+  .note-card-title,
+  .note-card-date,
+  .note-card-content,
+  .add-note-btn,
+  .edit-note-btn,
+  .delete-note-btn,
+  .modal-sticky-header label,
+  #noteTitleInput,
+  #modalEditor,
+  #modalEditor .ql-container,
+  #modalEditor .ql-editor,
+  .modal-actions,
+  .cancel-btn,
+  #saveNoteBtn,
+  .modal-error {
+    font-size: 16px !important;
+  }
   html, body {
     width: 100vw;
     overflow-x: hidden;
