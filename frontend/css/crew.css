@@ -301,6 +301,10 @@
   .crew-page #searchInput {
     font-size: 16px !important;
   }
+  
+  .hide-mobile {
+    display: none !important;
+  }
 }
 @media (min-width: 901px) {
   .crew-page td:not(.actions-cell) {

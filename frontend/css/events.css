@@ -73,11 +73,40 @@
 
 .events-header {
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    gap: 8px;
+    padding: 18px 16px;
+}
+
+.events-header-row1 {
+    display: flex;
+    justify-content: space-between;
     align-items: center;
-    margin-bottom: 18px;
+}
+
+.events-header-row2 {
+    display: flex;
     flex-wrap: wrap;
-    gap: 14px;
+    gap: 10px;
+    align-items: center;
+    justify-content: flex-start;
+}
+
+.events-header-row2 .sort-search-group {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    align-items: center;
+}
+
+.events-header h2 {
+    margin: 0;
+    flex: 1 1 auto;
+}
+
+#calendarViewBtn {
+    margin-left: auto;
+    flex-shrink: 0;
 }
 
 .btn-create {
@@ -397,6 +426,23 @@
         border-radius: 8px !important;
         padding: 10px 0 !important;
     }
+    .events-header h2 {
+        font-size: 1.1em !important;
+        margin-bottom: 4px !important;
+        margin-top: 0 !important;
+        font-weight: 800 !important;
+        line-height: 1.1 !important;
+        text-align: center !important;
+    }
+    #calendarViewBtn {
+        margin-left: 0;
+        margin-right: 0;
+        align-self: flex-start;
+        width: auto !important;
+        justify-self: flex-end;
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+    }
 }
 
 @media (min-width: 900px) {
@@ -443,5 +489,168 @@
 
 .events-page button {
   /* Add any button styles here that were previously global */
+}
+
+/* Calendar View Styles */
+#calendarViewContainer {
+  background: #fff;
+  border-radius: 22px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.10);
+  padding: 32px 18px 32px 18px;
+  max-width: 900px;
+  margin: 0 auto 32px auto;
+  min-height: 320px;
+  animation: modalPopIn 0.28s cubic-bezier(.4,1.4,.6,1) both;
+}
+
+.btn-calendar-toggle {
+  background: transparent !important;
+  border: none !important;
+  color: #CC0007 !important;
+  border-radius: 10px;
+  padding: 10px !important;
+  display: flex;
+  align-items: center;
+  gap: 0;
+  font-weight: 600;
+  font-size: 22px !important;
+  box-shadow: none !important;
+  cursor: pointer;
+  transition: color 0.2s;
+}
+.btn-calendar-toggle i[data-lucide] {
+  font-size: 1.5em;
+  color: inherit;
+}
+.btn-calendar-toggle:hover,
+.btn-calendar-toggle:focus {
+  background: transparent !important;
+  color: #a30006 !important;
+  box-shadow: none !important;
+}
+
+#calendarViewContainer .calendar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+#calendarViewContainer .calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 8px;
+  background: linear-gradient(135deg, #fff 60%, #f8fafd 100%);
+  border-radius: 18px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.09);
+  padding: 18px;
+  margin-bottom: 18px;
+}
+
+#calendarViewContainer .calendar-day {
+  position: relative;
+  min-height: 60px;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(204,0,7,0.04);
+  padding: 4px 4px 2px 4px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  cursor: pointer;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+#calendarViewContainer .calendar-day:hover {
+  background: #f8fafd;
+}
+#calendarViewContainer .calendar-day-num {
+  position: relative;
+  z-index: 3;
+  font-weight: bold;
+  color: #CC0007;
+  margin-bottom: 2px;
+}
+#calendarViewContainer .calendar-event-pill {
+  z-index: 2;
+  background: #CC0007;
+  color: #fff;
+  border-radius: 6px;
+  padding: 2px 6px;
+  margin: 2px 0;
+  font-size: 0.95em;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(204,0,7,0.08);
+  transition: background 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  position: relative;
+  border: 2px solid #fff;
+  opacity: 0.96;
+  pointer-events: auto;
+  grid-row: auto;
+}
+#calendarViewContainer .calendar-event-pill:hover {
+  background: #a30006;
+  opacity: 1;
+}
+
+@media (max-width: 600px) {
+  .top-bar {
+    padding: 6px 8px !important;
+    margin-bottom: 10px !important;
+    border-radius: 8px !important;
+    min-height: 0 !important;
+  }
+  .top-bar h2,
+  #usernameDisplay {
+    font-size: 1em !important;
+    font-weight: 500 !important;
+    margin: 0 !important;
+  }
+  .top-bar button.logout-btn {
+    font-size: 13px !important;
+    padding: 6px 10px !important;
+    border-radius: 6px !important;
+  }
+  .events-header-row2 {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  .events-header-row2 .sort-search-group {
+    flex-direction: row;
+    gap: 8px;
+    width: 100%;
+  }
+  #sortDropdown, #searchEventsInput {
+    flex: 1 1 0;
+    min-width: 0;
+    max-width: 100%;
+  }
+  .events-header-row1 h2 {
+    font-size: 1.1em !important;
+    font-weight: 800 !important;
+    margin-bottom: 0 !important;
+  }
+  .events-header {
+    padding: 10px 4px;
+  }
+  #calendarViewBtn {
+    margin-left: 0;
+    margin-right: 0;
+    align-self: flex-start;
+    width: auto !important;
+    justify-self: flex-end;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+  }
+}
+
+/* Fix: Make the last button (archive) span both columns if it's the last item */
+#toggleArchivedBtn {
+  grid-column: 1 / -1;
 }
   
