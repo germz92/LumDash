@@ -38,12 +38,17 @@ app.use(cors(corsOptions));
 app.use(express.json());
 
 // Helper function to notify clients about data changes
-function notifyDataChange(eventType, additionalData = null) {
-  console.log(`📢 Emitting ${eventType} event`);
-  if (additionalData) {
-    io.emit(eventType, additionalData);
+function notifyDataChange(eventType, additionalData = null, tableId = null) {
+  console.log(`📢 Emitting ${eventType} event for tableId: ${tableId || 'all'}`);
+  // Always include the tableId in the event data to help clients filter relevant events
+  const eventData = tableId 
+    ? { ...(additionalData || {}), tableId } 
+    : additionalData;
+    
+  if (eventData) {
+    io.emit(eventType, eventData);
   } else {
-    io.emit(eventType);
+    io.emit(eventType, tableId ? { tableId } : {});
   }
 }
 
@@ -287,8 +292,8 @@ app.put('/api/tables/:id', authenticate, async (req, res) => {
   table.rows = req.body.rows;
   await table.save();
   
-  io.emit('crewChanged'); // Notify about crew change
-  io.emit('tableUpdated'); // Also notify about general table update
+  notifyDataChange('crewChanged', null, req.params.id); // Notify about crew change with tableId
+  notifyDataChange('tableUpdated', null, req.params.id); // Also notify about general table update with tableId
   res.json({ message: 'Table updated' });
 });
 
@@ -316,7 +321,7 @@ app.put('/api/tables/:id/cardlog', authenticate, async (req, res) => {
     return res.status(403).json({ error: 'Not authorized or not found' });
   }
 
-  io.emit('cardsChanged'); // Add Socket.IO notification
+  notifyDataChange('cardsChanged', null, req.params.id); // Notify about card changes with tableId
   res.json({ message: 'Card log saved' });
   } catch (err) {
     console.error('Error updating card log:', err);
@@ -358,7 +363,7 @@ app.put('/api/tables/:id/general', authenticate, async (req, res) => {
 
   await table.save();
   
-  io.emit('generalChanged'); // Add Socket.IO notification
+  notifyDataChange('generalChanged', null, req.params.id); // Notify about general info changes with tableId
   res.json({ message: 'General info updated' });
 });
 
@@ -425,7 +430,7 @@ app.put('/api/tables/:id/gear', authenticate, async (req, res) => {
     console.log("Updated gear for table:", req.params.id);
     console.log("Lists count:", result.gear?.lists ? result.gear.lists.size : 0);
     
-    io.emit('gearChanged'); // Add Socket.IO notification
+    notifyDataChange('gearChanged', null, req.params.id); // Notify about gear changes with tableId
     res.status(200).json({ success: true });
   } catch (err) {
     console.error('Error updating gear:', err);
@@ -460,7 +465,7 @@ app.put('/api/tables/:id/travel', authenticate, async (req, res) => {
   table.accommodation = req.body.accommodation || [];
   await table.save();
   
-  io.emit('travelChanged'); // Add Socket.IO notification
+  notifyDataChange('travelChanged', null, req.params.id); // Notify about travel/accommodation changes with tableId
   res.json({ message: 'Travel and accommodation saved' });
 });
 
@@ -579,7 +584,7 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
     return res.status(403).json({ error: 'Not authorized or not found' });
   }
     
-  io.emit('scheduleChanged'); // Notify all clients of schedule change
+  notifyDataChange('scheduleChanged', null, req.params.id); // Notify clients of schedule change with tableId
   res.json({ message: 'Program schedule updated' });
   } catch (err) {
     console.error('Error updating program schedule:', err);
@@ -1102,7 +1107,7 @@ app.delete('/api/tables/:id/rows-by-id/:rowId', authenticate, async (req, res) =
 
   await table.save();
   
-  io.emit('crewChanged'); // Notify about crew change
+  notifyDataChange('crewChanged', null, req.params.id); // Notify about crew change with tableId
   res.json({ message: 'Row deleted' });
 });
 
@@ -1119,7 +1124,7 @@ app.put('/api/tables/:id/reorder-rows', authenticate, async (req, res) => {
   table.rows = req.body.rows;
   await table.save();
   
-  io.emit('crewChanged'); // Notify about crew change
+  notifyDataChange('crewChanged', null, req.params.id); // Notify about crew change with tableId
   res.json({ message: 'Row order saved' });
 });
 
@@ -1141,7 +1146,7 @@ app.put('/api/tables/:id/rows/:rowId', authenticate, async (req, res) => {
   table.rows[rowIndex] = { ...table.rows[rowIndex]._doc, ...updatedRow };
   await table.save();
 
-  io.emit('crewChanged'); // Notify about crew change
+  notifyDataChange('crewChanged', null, id); // Notify about crew change with tableId
   res.json({ success: true });
 });
 

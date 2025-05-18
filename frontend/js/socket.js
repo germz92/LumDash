@@ -97,17 +97,27 @@
   };
   
   // Attach common Socket.IO event listeners that can be used by many pages
-  socket.on(window.SOCKET_EVENTS.SCHEDULE_CHANGED, () => {
-    console.log('Schedule changed! Reloading data...');
+  socket.on(window.SOCKET_EVENTS.SCHEDULE_CHANGED, (data) => {
+    console.log('Schedule changed! Checking if relevant...');
+    const currentEventId = localStorage.getItem('eventId');
+    
+    // Only reload if it's for the current table
+    if (data && data.tableId && data.tableId !== currentEventId) {
+      console.log('Update was for a different event, ignoring');
+      return;
+    }
+    
     // Each page script should implement its own handler for this event
     // if this page is displaying the schedule
-    if (window.loadPrograms && localStorage.getItem('eventId')) {
-      window.loadPrograms(localStorage.getItem('eventId'));
+    if (window.loadPrograms && currentEventId) {
+      console.log('Reloading schedule for current event');
+      window.loadPrograms(currentEventId);
     }
   });
   
-  socket.on(window.SOCKET_EVENTS.USERS_CHANGED, () => {
+  socket.on(window.SOCKET_EVENTS.USERS_CHANGED, (data) => {
     console.log('Users changed! Reloading data...');
+    // No tableId check needed for users since it's a global admin function
     // Only reload if the current page displays users
     if (window.loadUsers) {
       window.loadUsers();

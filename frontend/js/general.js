@@ -8,14 +8,26 @@ let isOwner = false;
 // Socket.IO real-time updates
 if (window.socket) {
   // Listen for general info updates
-  window.socket.on('generalChanged', () => {
-    console.log('General info changed, reloading...');
+  window.socket.on('generalChanged', (data) => {
+    console.log('General info changed, checking if relevant...');
+    // Only reload if it's for the current table
+    if (data && data.tableId && data.tableId !== tableId) {
+      console.log('Update was for a different table, ignoring');
+      return;
+    }
+    console.log('Reloading general info for current table');
     initPage(tableId);
   });
   
   // Also listen for general table updates
-  window.socket.on('tableUpdated', () => {
-    console.log('Table updated, reloading general info...');
+  window.socket.on('tableUpdated', (data) => {
+    console.log('Table updated, checking if relevant...');
+    // Only reload if it's for the current table
+    if (data && data.tableId && data.tableId !== tableId) {
+      console.log('Update was for a different table, ignoring');
+      return;
+    }
+    console.log('Reloading general info for current table');
     initPage(tableId);
   });
 }

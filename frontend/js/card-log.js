@@ -19,15 +19,33 @@ let eventListenersAttached = false;
 // Socket.IO real-time updates
 if (window.socket) {
   // Listen for card log updates
-  window.socket.on('cardsChanged', () => {
-    console.log('Card log changed, reloading...');
-    loadCardLog(localStorage.getItem('eventId'));
+  window.socket.on('cardsChanged', (data) => {
+    console.log('Card log changed, checking if relevant...');
+    const currentEventId = localStorage.getItem('eventId');
+    
+    // Only reload if it's for the current table
+    if (data && data.tableId && data.tableId !== currentEventId) {
+      console.log('Update was for a different event, ignoring');
+      return;
+    }
+    
+    console.log('Reloading card log for current event');
+    loadCardLog(currentEventId);
   });
   
   // Also listen for general table updates
-  window.socket.on('tableUpdated', () => {
-    console.log('Table updated, reloading card log...');
-    loadCardLog(localStorage.getItem('eventId'));
+  window.socket.on('tableUpdated', (data) => {
+    console.log('Table updated, checking if relevant...');
+    const currentEventId = localStorage.getItem('eventId');
+    
+    // Only reload if it's for the current table
+    if (data && data.tableId && data.tableId !== currentEventId) {
+      console.log('Update was for a different event, ignoring');
+      return;
+    }
+    
+    console.log('Reloading card log for current event');
+    loadCardLog(currentEventId);
   });
 }
 
