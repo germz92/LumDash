@@ -904,12 +904,36 @@ window.formatTimeValue = formatTimeValue;
 window.showImportModal = showImportModal;
 
 // --- Socket.IO real-time updates ---
-if (typeof io !== 'undefined') {
-  const socket = io();
-  socket.on('scheduleChanged', () => {
+if (window.socket) {
+  // Listen for schedule-specific updates
+  window.socket.on('scheduleChanged', (data) => {
+    console.log('Schedule changed, checking if relevant...');
     const tableId = localStorage.getItem('eventId');
+    
+    // Only reload if it's for the current table
+    if (data && data.tableId && data.tableId !== tableId) {
+      console.log('Update was for a different table, ignoring');
+      return;
+    }
+    
+    console.log('Reloading schedule for current table');
     if (tableId) loadPrograms(tableId);
-});
+  });
+  
+  // Also listen for general table updates
+  window.socket.on('tableUpdated', (data) => {
+    console.log('Table updated, checking if relevant...');
+    const tableId = localStorage.getItem('eventId');
+    
+    // Only reload if it's for the current table
+    if (data && data.tableId && data.tableId !== tableId) {
+      console.log('Update was for a different table, ignoring');
+      return;
+    }
+    
+    console.log('Reloading schedule for current table');
+    if (tableId) loadPrograms(tableId);
+  });
 }
 
 })();

@@ -347,14 +347,26 @@ window.initPage = undefined;
     // Socket.IO real-time updates
     if (window.socket) {
       // Listen for travel updates
-      window.socket.on('travelChanged', () => {
-        console.log('Travel/accommodation data changed, reloading...');
+      window.socket.on('travelChanged', (data) => {
+        console.log('Travel/accommodation data changed, checking if relevant...');
+        // Only reload if it's for the current table
+        if (data && data.tableId && data.tableId !== tableId) {
+          console.log('Update was for a different table, ignoring');
+          return;
+        }
+        console.log('Reloading travel/accommodation data for current table');
         loadData();
       });
       
       // Also listen for general table updates
-      window.socket.on('tableUpdated', () => {
-        console.log('Table updated, reloading travel data...');
+      window.socket.on('tableUpdated', (data) => {
+        console.log('Table updated, checking if relevant...');
+        // Only reload if it's for the current table
+        if (data && data.tableId && data.tableId !== tableId) {
+          console.log('Update was for a different table, ignoring');
+          return;
+        }
+        console.log('Reloading travel data for current table');
         loadData();
       });
     }

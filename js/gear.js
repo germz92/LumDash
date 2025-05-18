@@ -12,10 +12,17 @@ if (window.socket) {
   window.isActiveEditing = false;
   
   // Listen for gear-specific updates
-  window.socket.on('gearChanged', () => {
-    console.log('Gear data changed, reloading...');
+  window.socket.on('gearChanged', (data) => {
+    console.log('Gear data changed, checking if relevant...');
+    // Check if update is for the current table
+    if (data && data.tableId && data.tableId !== tableId) {
+      console.log('Update was for a different table, ignoring');
+      return;
+    }
+    
     // Don't reload if the user is actively editing
     if (!window.isActiveEditing) {
+      console.log('Reloading gear data for current table');
       loadGear();
     } else {
       console.log('Skipping reload while user is editing');
@@ -23,10 +30,17 @@ if (window.socket) {
   });
   
   // Also listen for general table updates
-  window.socket.on('tableUpdated', () => {
-    console.log('Table updated, reloading gear data...');
+  window.socket.on('tableUpdated', (data) => {
+    console.log('Table updated, checking if relevant...');
+    // Check if update is for the current table
+    if (data && data.tableId && data.tableId !== tableId) {
+      console.log('Update was for a different table, ignoring');
+      return;
+    }
+    
     // Don't reload if the user is actively editing
     if (!window.isActiveEditing) {
+      console.log('Reloading gear data for current table');
       loadGear();
     } else {
       console.log('Skipping reload while user is editing');

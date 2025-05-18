@@ -14,8 +14,9 @@ window.initPage = function() {
     
     // Setup Socket.IO for real-time updates
     if (window.socket) {
-      window.socket.on('usersChanged', () => {
+      window.socket.on('usersChanged', (data) => {
         console.log('Users data changed, reloading...');
+        // No tableId check needed for users since it's a global admin function
         loadUsers();
       });
     }

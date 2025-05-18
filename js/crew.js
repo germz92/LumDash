@@ -2,8 +2,14 @@
 window.initPage = undefined;
 window.token = window.token || localStorage.getItem('token');
 
-const params = new URLSearchParams(window.location.search);
-const tableId = params.get('id') || localStorage.getItem('eventId');
+// Use a function to get the current table ID to ensure it's always current
+function getCurrentTableId() {
+  const params = new URLSearchParams(window.location.search);
+  return params.get('id') || localStorage.getItem('eventId');
+}
+
+// Get initial tableId
+let tableId = getCurrentTableId();
 
 // Add guard for missing ID
 if (!tableId) {
@@ -27,14 +33,33 @@ let isOwner = false;
 // Socket.IO real-time updates
 if (window.socket) {
   // Create a custom event for crew changes
-  window.socket.on('crewChanged', () => {
-    console.log('Crew data changed, reloading...');
-    loadTable();
+  window.socket.on('crewChanged', (data) => {
+    // Always get the most current tableId
+    const currentTableId = getCurrentTableId();
+    
+    // Only reload if it's for the current table
+    console.log('Crew data changed, checking if relevant...');
+    if (data && data.tableId && data.tableId !== currentTableId) {
+      console.log('Update was for a different table, ignoring');
+      return;
+    }
+    console.log('Reloading crew data for current table');
+    tableId = currentTableId; // Update the tableId
+    loadTable(); 
   });
   
   // Also listen for general table updates as they might affect crew
-  window.socket.on('tableUpdated', () => {
-    console.log('Table updated, reloading crew data...');
+  window.socket.on('tableUpdated', (data) => {
+    // Always get the most current tableId
+    const currentTableId = getCurrentTableId();
+    
+    console.log('Table updated, checking if relevant...');
+    if (data && data.tableId && data.tableId !== currentTableId) {
+      console.log('Update was for a different table, ignoring');
+      return;
+    }
+    console.log('Reloading crew data for current table');
+    tableId = currentTableId; // Update the tableId
     loadTable();
   });
 }
@@ -80,6 +105,14 @@ function getUserIdFromToken() {
 }
 
 async function loadTable() {
+  // Always ensure we're using the current tableId
+  const currentTableId = getCurrentTableId();
+  if (currentTableId !== tableId) {
+    console.log(`TableId changed from ${tableId} to ${currentTableId}`);
+    tableId = currentTableId;
+  }
+  
+  console.log(`Loading table data for tableId: ${tableId}`);
   const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
     headers: { Authorization: token }
   });
@@ -625,6 +658,10 @@ async function addDateSection() {
   const date = document.getElementById('newDate').value;
   if (!date) return alert('Please select a date');
 
+  // Ensure we're using the current tableId
+  tableId = getCurrentTableId();
+  console.log(`Adding date section for tableId: ${tableId}`);
+
   const exists = tableData.rows.some(row => row.date === date);
   if (exists) {
     alert('This date already exists.');
@@ -661,6 +698,11 @@ async function addDateSection() {
 
 async function addRowToDate(date) {
   if (!isOwner) return;
+  
+  // Ensure we're using the current tableId
+  tableId = getCurrentTableId();
+  console.log(`Adding row to date for tableId: ${tableId}`);
+  
   const start = document.getElementById(`start-${date}`).value;
   const end = document.getElementById(`end-${date}`).value;
   const row = {
