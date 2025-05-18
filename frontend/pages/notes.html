@@ -6,6 +6,10 @@
   <title>Admin Notes</title>
   <link href="https://cdn.quilljs.com/1.3.6/quill.snow.css" rel="stylesheet">
   <link rel="stylesheet" href="../css/notes.css">
+  
+  <!-- Load Quill and config.js first -->
+  <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
+  <script src="../js/config.js"></script>
 </head>
 <body>
   <button id="backBtn" class="back-btn" type="button" aria-label="Back"><span class="back-arrow">←</span> Back</button>
@@ -17,6 +21,7 @@
   <div id="notesContainer">
     <div id="notesList"></div>
   </div>
+  
   <!-- Modal for add/edit note -->
   <div id="noteModal" class="note-modal" style="display:none;">
     <div class="note-modal-content">
@@ -35,10 +40,37 @@
       </div>
     </div>
   </div>
-  <script src="https://cdn.quilljs.com/1.3.6/quill.js"></script>
-  <script src="../js/config.js"></script>
-  <script src="../js/notes.js"></script>
+  
+  <!-- Handle sequential script loading to ensure proper order -->
   <script>
+    // This function will load scripts in sequence
+    function loadScriptsSequentially(scripts, index = 0) {
+      if (index >= scripts.length) return;
+      
+      const script = document.createElement('script');
+      script.src = scripts[index];
+      
+      script.onload = function() {
+        loadScriptsSequentially(scripts, index + 1);
+      };
+      
+      script.onerror = function() {
+        console.error('Failed to load script:', scripts[index]);
+        // Try to continue loading the next script
+        loadScriptsSequentially(scripts, index + 1);
+      };
+      
+      document.head.appendChild(script);
+    }
+    
+    // Load in this specific order
+    loadScriptsSequentially([
+      API_BASE + '/socket.io/socket.io.js', 
+      '../js/socket.js',
+      '../js/notes.js'
+    ]);
+    
+    // Set up back button
     document.getElementById('backBtn').onclick = () => window.history.back();
   </script>
 </body>

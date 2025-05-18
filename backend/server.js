@@ -180,6 +180,10 @@ app.post('/api/tables', authenticate, async (req, res) => {
   });
 
   await table.save();
+  
+  // Notify clients about the new table
+  notifyDataChange('tableCreated', { tableId: table._id });
+  
   res.json(table);
 });
 
@@ -236,6 +240,9 @@ app.post('/api/tables/:id/admin-notes', authenticate, async (req, res) => {
   };
   table.adminNotes.push(note);
   await table.save();
+  
+  // Notify about notes change with tableId
+  notifyDataChange('notesChanged', null, req.params.id);
   res.json({ adminNotes: table.adminNotes });
 });
 
@@ -251,6 +258,9 @@ app.put('/api/tables/:id/admin-notes/:noteId', authenticate, async (req, res) =>
   note.title = req.body.title || note.title;
   note.content = req.body.content || note.content;
   await table.save();
+  
+  // Notify about notes change with tableId
+  notifyDataChange('notesChanged', null, req.params.id);
   res.json({ adminNotes: table.adminNotes });
 });
 
@@ -263,6 +273,9 @@ app.delete('/api/tables/:id/admin-notes/:noteId', authenticate, async (req, res)
   }
   table.adminNotes = table.adminNotes.filter(n => n._id.toString() !== req.params.noteId);
   await table.save();
+  
+  // Notify about notes change with tableId
+  notifyDataChange('notesChanged', null, req.params.id);
   res.json({ adminNotes: table.adminNotes });
 });
 
@@ -342,29 +355,32 @@ app.get('/api/tables/:id/general', authenticate, async (req, res) => {
 });
 
 app.put('/api/tables/:id/general', authenticate, async (req, res) => {
-  if (!req.params.id || req.params.id === "null") {
-    return res.status(400).json({ error: "Invalid table ID" });
-  }
+  const { title, general } = req.body;
   const table = await Table.findById(req.params.id);
   if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
     return res.status(403).json({ error: 'Not authorized or not found' });
   }
-
-  console.log('Received general PUT body:', req.body);
-  console.log('Current general data in DB:', table.general);
-
-  table.general = {
-    ...table.general,  // keep existing data
-    ...req.body,
-    summary: req.body.summary || req.body.eventSummary || table.general.summary || ''
-  };
-
-  console.log('Saving general data to DB:', table.general);
-
+  
+  // Only allow owners to update title
+  if (table.owners.includes(req.user.id) && title) {
+    table.title = title;
+  }
+  
+  // Update general info if provided
+  if (general) {
+    table.general = {
+      ...table.general,
+      ...general
+    };
+  }
+  
   await table.save();
   
-  notifyDataChange('generalChanged', null, req.params.id); // Notify about general info changes with tableId
-  res.json({ message: 'General info updated' });
+  // Notify clients about the general info update
+  notifyDataChange('generalChanged', null, req.params.id);
+  notifyDataChange('tableUpdated', { tableId: req.params.id });
+  
+  res.json(table);
 });
 
 //GEAR
@@ -471,15 +487,16 @@ app.put('/api/tables/:id/travel', authenticate, async (req, res) => {
 
 // DELETE
 app.delete('/api/tables/:id', authenticate, async (req, res) => {
-  if (!req.params.id || req.params.id === "null") {
-    return res.status(400).json({ error: "Invalid table ID" });
-  }
   const table = await Table.findById(req.params.id);
   if (!table || !table.owners.includes(req.user.id)) {
     return res.status(403).json({ error: 'Not authorized or not found' });
   }
-  await table.deleteOne();
-  res.json({ message: 'Table deleted' });
+  await Table.findByIdAndDelete(req.params.id);
+  
+  // Notify clients about the table being deleted
+  notifyDataChange('tableDeleted', { tableId: req.params.id });
+  
+  res.json({ success: true });
 });
 
 app.delete('/api/tables/:id/rows/:index', authenticate, async (req, res) => {
@@ -1151,21 +1168,19 @@ app.put('/api/tables/:id/rows/:rowId', authenticate, async (req, res) => {
 });
 
 // PATCH endpoint to archive/unarchive an event
-debugger;
 app.patch('/api/tables/:id/archive', authenticate, async (req, res) => {
-  if (!req.params.id || req.params.id === "null") {
-    return res.status(400).json({ error: "Invalid table ID" });
-  }
+  const { archived } = req.body;
   const table = await Table.findById(req.params.id);
   if (!table || !table.owners.includes(req.user.id)) {
     return res.status(403).json({ error: 'Not authorized or not found' });
   }
-  if (typeof req.body.archived !== 'boolean') {
-    return res.status(400).json({ error: 'archived field must be boolean' });
-  }
-  table.archived = req.body.archived;
+  table.archived = !!archived;
   await table.save();
-  res.json({ message: `Event ${req.body.archived ? 'archived' : 'unarchived'}` });
+  
+  // Notify clients about the table being archived
+  notifyDataChange('tableArchived', { tableId: table._id, archived: table.archived });
+  
+  res.json({ success: true });
 });
 
 // PATCH /api/tables/:id (partial update, e.g. crewRates)

@@ -76,3 +76,39 @@
   <script>console.log('✅ events.html loaded');</script>
   <script src="https://unpkg.com/lucide@latest"></script>
   <script>if(window.lucide) lucide.createIcons();</script>
+
+  <!-- Socket.IO for real-time updates -->
+  <script>
+    function loadScriptsSequentially(scripts, index = 0) {
+      if (index >= scripts.length) return;
+      
+      const script = document.createElement('script');
+      script.src = scripts[index];
+      
+      script.onload = function() {
+        loadScriptsSequentially(scripts, index + 1);
+      };
+      
+      script.onerror = function() {
+        console.error('Failed to load script:', scripts[index]);
+        loadScriptsSequentially(scripts, index + 1);
+      };
+      
+      document.head.appendChild(script);
+    }
+    
+    // Load the Socket.IO libraries in order
+    document.addEventListener('DOMContentLoaded', function() {
+      // Wait for config.js to be loaded first (assuming it's included in the main page)
+      setTimeout(() => {
+        if (typeof API_BASE !== 'undefined') {
+          loadScriptsSequentially([
+            API_BASE + '/socket.io/socket.io.js',
+            '../js/socket.js'
+          ]);
+        } else {
+          console.error('API_BASE not defined, cannot load Socket.IO');
+        }
+      }, 100);
+    });
+  </script>
