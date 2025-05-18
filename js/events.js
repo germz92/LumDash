@@ -653,4 +653,42 @@ window.closeModal = closeModal;
 window.submitCreate = submitCreate;
 window.hideCreateModal = hideCreateModal;
 
+// Exposing the loadTables function to the global scope for Socket.IO updates
+window.loadTables = loadTables;
+
+// Setup Socket.IO event listeners for real-time updates
+function setupSocketListeners() {
+  if (!window.socket) {
+    console.warn('Socket.IO not available, real-time updates disabled');
+    return;
+  }
+  
+  console.log('Setting up Socket.IO listeners for events page');
+  
+  // Define the events that should trigger a table reload
+  const eventsToMonitor = [
+    'tableCreated',
+    'tableUpdated',
+    'tableDeleted',
+    'tableArchived',
+    'generalChanged' // When event details are updated
+  ];
+  
+  // Setup listeners for each event
+  eventsToMonitor.forEach(eventName => {
+    window.socket.on(eventName, (data) => {
+      console.log(`${eventName} event received, reloading tables`);
+      loadTables();
+    });
+  });
+}
+
+// Run the setup when the page loads
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', setupSocketListeners);
+} else {
+  // Small delay to ensure Socket.IO is loaded
+  setTimeout(setupSocketListeners, 100);
+}
+
 })();

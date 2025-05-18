@@ -93,13 +93,31 @@
     TRAVEL_CHANGED: 'travelChanged',
     
     // Card log events
-    CARDS_CHANGED: 'cardsChanged'
+    CARDS_CHANGED: 'cardsChanged',
+    
+    // Notes events
+    NOTES_CHANGED: 'notesChanged',
+    
+    // Table/Event events
+    TABLE_CREATED: 'tableCreated',
+    TABLE_UPDATED: 'tableUpdated',
+    TABLE_DELETED: 'tableDeleted',
+    TABLE_ARCHIVED: 'tableArchived'
   };
   
   // Attach common Socket.IO event listeners that can be used by many pages
   socket.on(window.SOCKET_EVENTS.SCHEDULE_CHANGED, (data) => {
     console.log('Schedule changed! Checking if relevant...');
-    const currentEventId = localStorage.getItem('eventId');
+    
+    // Use getCurrentTableId if available, otherwise fallback to localStorage
+    let currentEventId;
+    if (window.getCurrentTableId) {
+      currentEventId = window.getCurrentTableId();
+    } else {
+      currentEventId = localStorage.getItem('eventId');
+    }
+    
+    console.log(`Current event ID: ${currentEventId}, update for: ${data?.tableId}`);
     
     // Only reload if it's for the current table
     if (data && data.tableId && data.tableId !== currentEventId) {
@@ -121,6 +139,38 @@
     // Only reload if the current page displays users
     if (window.loadUsers) {
       window.loadUsers();
+    }
+  });
+  
+  socket.on(window.SOCKET_EVENTS.NOTES_CHANGED, (data) => {
+    console.log('Notes changed! Checking if relevant...');
+    
+    // Use getCurrentTableId if available, otherwise fallback to localStorage
+    let currentEventId;
+    if (window.getCurrentTableId) {
+      currentEventId = window.getCurrentTableId();
+    } else {
+      currentEventId = localStorage.getItem('eventId');
+    }
+    
+    console.log(`Current event ID: ${currentEventId}, update for: ${data?.tableId}`);
+    
+    // Only reload if it's for the current table
+    if (data && data.tableId && data.tableId !== currentEventId) {
+      console.log('Update was for a different event, ignoring');
+      return;
+    }
+    
+    // Handle notes updates if the page has the right function
+    if (window.fetchNotes) {
+      console.log('Reloading notes for current event');
+      window.fetchNotes().then(data => {
+        if (window.renderNotes) {
+          window.renderNotes(data.adminNotes || []);
+        }
+      }).catch(e => {
+        console.error('Error refreshing notes:', e);
+      });
     }
   });
   
