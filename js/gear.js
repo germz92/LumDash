@@ -4,18 +4,21 @@ const categories = ["Cameras", "Lenses", "Lighting", "Support", "Accessories"];
 const token = window.token || (window.token = localStorage.getItem('token'));
 
 const params = new URLSearchParams(window.location.search);
-let tableId = params.get('id');
+let tableId = params.get('id') || localStorage.getItem('eventId');
 
-// Socket.IO real-time updates
+// Socket.IO real-time updates - IMPROVED IMPLEMENTATION
 if (window.socket) {
   // Track if the user is currently editing a field
   window.isActiveEditing = false;
   
   // Listen for gear-specific updates
   window.socket.on('gearChanged', (data) => {
-    console.log('Gear data changed, checking if relevant...');
+    console.log('Gear data changed, checking if relevant...', data);
+    // Get the current table ID from localStorage (more reliable than params)
+    const currentTableId = localStorage.getItem('eventId');
+    
     // Check if update is for the current table
-    if (data && data.tableId && data.tableId !== tableId) {
+    if (data && data.tableId && data.tableId !== currentTableId) {
       console.log('Update was for a different table, ignoring');
       return;
     }
@@ -26,14 +29,19 @@ if (window.socket) {
       loadGear();
     } else {
       console.log('Skipping reload while user is editing');
+      // Set a flag to reload when user finishes editing
+      window.pendingReload = true;
     }
   });
   
   // Also listen for general table updates
   window.socket.on('tableUpdated', (data) => {
-    console.log('Table updated, checking if relevant...');
+    console.log('Table updated, checking if relevant...', data);
+    // Get the current table ID from localStorage (more reliable than params)
+    const currentTableId = localStorage.getItem('eventId');
+    
     // Check if update is for the current table
-    if (data && data.tableId && data.tableId !== tableId) {
+    if (data && data.tableId && data.tableId !== currentTableId) {
       console.log('Update was for a different table, ignoring');
       return;
     }
@@ -44,7 +52,18 @@ if (window.socket) {
       loadGear();
     } else {
       console.log('Skipping reload while user is editing');
+      // Set a flag to reload when user finishes editing
+      window.pendingReload = true;
     }
+  });
+  
+  // Log connection status changes
+  window.socket.on('connect', () => {
+    console.log('Socket.IO connected - Gear page will receive live updates');
+  });
+  
+  window.socket.on('disconnect', () => {
+    console.log('Socket.IO disconnected - Gear page live updates paused');
   });
 }
 
@@ -259,7 +278,7 @@ const eventContext = {
   }
 };
 
-let saveTimeout;
+let saveTimeout = null;
 let filterSetting = 'all';
 let gearInventory = [];
 let isOwner = false;
@@ -640,18 +659,19 @@ function createRow(item, isNewRow = false) {
   
   el.appendChild(textInput);
   
-  // Set up checkbox change handler for non-owners
-  if (!isOwner) {
-    checkbox.addEventListener('change', () => {
-      // Update the item in memory without saving to server
-      const items = eventContext.getItems(el.closest('.category').querySelector('h3').textContent);
-      const itemIndex = items.findIndex(i => i.label === item.label);
+  // Set up checkbox change handler for all users, not just non-owners
+  checkbox.addEventListener('change', () => {
+    // Update the item in memory
+    const items = eventContext.getItems(el.closest('.category').querySelector('h3').textContent);
+    const itemIndex = items.findIndex(i => i.label === item.label);
+    
+    if (itemIndex !== -1) {
+      items[itemIndex].checked = checkbox.checked;
       
-      if (itemIndex !== -1) {
-        items[itemIndex].checked = checkbox.checked;
-      }
-    });
-  }
+      // Trigger save to update the server - this ensures real-time updates
+      triggerAutosave();
+    }
+  });
   
   // Only add delete button for owners
   if (isOwner) {
@@ -827,30 +847,20 @@ function createRow(item, isNewRow = false) {
           // If left empty and user moves away, remove the row
           el.remove();
         } else {
-          // Otherwise check for duplicates
-          const existingItems = Array.from(list.querySelectorAll('.item:not([data-new-row="true"]) input[type="text"]'))
-            .map(input => input.value.trim());
+          // Valid input, trigger IMMEDIATE save and remove the new row marker
+          el.removeAttribute('data-new-row');
           
-          if (existingItems.includes(input.value.trim())) {
-            alert(`"${input.value.trim()}" is already in this list.`);
-            input.value = '';
-            input.focus();
-          } else {
-            // Valid input, trigger IMMEDIATE save and remove the new row marker
-            row.removeAttribute('data-new-row');
-            
-            // IMMEDIATELY save to database to prevent data loss on refresh
-            eventContext.updateFromDOM();
-            const checkOutDate = document.getElementById('checkoutDate')?.value || '';
-            const checkInDate = document.getElementById('checkinDate')?.value || '';
-            await eventContext.save(checkOutDate, checkInDate);
-            
-            // Now allow refreshes to resume after successful save
-            setTimeout(() => {
-              window.isActiveEditing = false;
-              console.log('Item saved and editing completed');
-            }, 200);
-          }
+          // IMMEDIATELY save to database to prevent data loss on refresh
+          eventContext.updateFromDOM();
+          const checkOutDate = document.getElementById('checkoutDate')?.value || '';
+          const checkInDate = document.getElementById('checkinDate')?.value || '';
+          await eventContext.save(checkOutDate, checkInDate);
+          
+          // Now allow refreshes to resume after successful save
+          setTimeout(() => {
+            window.isActiveEditing = false;
+            console.log('Item saved and editing completed');
+          }, 200);
         }
       } catch (err) {
         console.error('Error saving new item:', err);
@@ -944,30 +954,20 @@ function createCategory(name) {
               // If left empty and user moves away, remove the row
               row.remove();
             } else {
-              // Otherwise check for duplicates
-              const existingItems = Array.from(list.querySelectorAll('.item:not([data-new-row="true"]) input[type="text"]'))
-                .map(input => input.value.trim());
+              // Valid input, trigger IMMEDIATE save and remove the new row marker
+              row.removeAttribute('data-new-row');
+                
+              // IMMEDIATELY save to database to prevent data loss on refresh
+              eventContext.updateFromDOM();
+              const checkOutDate = document.getElementById('checkoutDate')?.value || '';
+              const checkInDate = document.getElementById('checkinDate')?.value || '';
+              await eventContext.save(checkOutDate, checkInDate);
               
-              if (existingItems.includes(input.value.trim())) {
-                alert(`"${input.value.trim()}" is already in this list.`);
-                input.value = '';
-                input.focus();
-              } else {
-                // Valid input, trigger IMMEDIATE save and remove the new row marker
-                row.removeAttribute('data-new-row');
-                
-                // IMMEDIATELY save to database to prevent data loss on refresh
-                eventContext.updateFromDOM();
-                const checkOutDate = document.getElementById('checkoutDate')?.value || '';
-                const checkInDate = document.getElementById('checkinDate')?.value || '';
-                await eventContext.save(checkOutDate, checkInDate);
-                
-                // Now allow refreshes to resume after successful save
-                setTimeout(() => {
-                  window.isActiveEditing = false;
-                  console.log('Item saved and editing completed');
-                }, 200);
-              }
+              // Now allow refreshes to resume after successful save
+              setTimeout(() => {
+                window.isActiveEditing = false;
+                console.log('Item saved and editing completed');
+              }, 200);
             }
           } catch (err) {
             console.error('Error saving new item:', err);
@@ -1151,29 +1151,34 @@ if (typeof saveGear === 'function') {
 });
 
 function triggerAutosave() {
-  // Don't autosave if the page is not fully loaded or is unloading or if user is actively editing
-  if (document.readyState !== 'complete' || document.visibilityState === 'hidden' || window.isActiveEditing) {
-    console.log('Skip autosave: page is loading/unloading or user is actively editing');
-    return;
-  }
+  // Set flag to indicate editing
+  window.isActiveEditing = true;
   
-  // Cancel any existing timeout
-  clearTimeout(saveTimeout);
+  // Set a delay before triggering save to avoid excessive requests
+  if (saveTimeout) clearTimeout(saveTimeout);
   
-  // Longer delay to ensure input focus stability
   saveTimeout = setTimeout(async () => {
     try {
-      // Double-check that we're still in a good state before saving
-      if (document.readyState === 'complete' && document.visibilityState === 'visible' && !window.isActiveEditing) {
-        await saveGear();
-        console.log('Autosave completed');
-      } else {
-        console.log('Autosave aborted: page state changed or user is actively editing');
+      // Don't load from eventContext.update until this timeout because
+      // it needs time for data to enter DOM
+      eventContext.updateFromDOM();
+      await saveGear();
+      
+      // Clear the editing flag when save completes
+      window.isActiveEditing = false;
+      
+      // If there's a pending reload from Socket.IO updates, do it now
+      if (window.pendingReload) {
+        console.log('Processing pending reload after edit completion');
+        window.pendingReload = false;
+        loadGear();
       }
     } catch (err) {
-      console.error('Autosave error:', err);
+      console.error('Error in autosave:', err);
+      // Still clear the editing flag even if there's an error
+      window.isActiveEditing = false;
     }
-  }, 1000); // Increased to 1000ms to reduce frequency of saves
+  }, 2000);
 }
 
 function createNewGearList() {
@@ -1365,6 +1370,21 @@ function openCheckoutModal(category, availableUnits, checkOut, checkIn, list) {
   
   // Show the modal
   modal.style.display = 'flex';
+  
+  // Ensure the modal is centered within the viewport
+  modal.style.justifyContent = 'center';
+  modal.style.alignItems = 'center';
+  
+  // Add a small timeout to make sure styles are applied
+  setTimeout(() => {
+    const modalContent = modal.querySelector('.modal-content');
+    if (modalContent) {
+      // Get viewport height
+      const viewportHeight = window.innerHeight;
+      // Set max height to 80% of viewport
+      modalContent.style.maxHeight = `${viewportHeight * 0.8}px`;
+    }
+  }, 10);
 }
 
 function closeCheckoutModal() {
@@ -1435,6 +1455,8 @@ window.addEventListener("DOMContentLoaded", async () => {
   window.saveGear = saveGear;
   window.saveGearList = saveGearList;
   window.triggerAutosave = triggerAutosave;
+  // Expose loadGear to allow Socket.IO to refresh the page when changes occur
+  window.loadGear = loadGear;
 
   // Add listeners to re-render inventory status on date change
   ['checkoutDate', 'checkinDate'].forEach(id => {
