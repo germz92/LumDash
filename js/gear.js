@@ -10,6 +10,9 @@ let tableId = params.get('id') || localStorage.getItem('eventId');
 if (window.socket) {
   // Track if the user is currently editing a field
   window.isActiveEditing = false;
+  // Track pending reloads with their tableId
+  window.pendingReload = false;
+  window.pendingReloadTableId = null;
   
   // Listen for gear-specific updates
   window.socket.on('gearChanged', (data) => {
@@ -31,6 +34,7 @@ if (window.socket) {
       console.log('Skipping reload while user is editing');
       // Set a flag to reload when user finishes editing
       window.pendingReload = true;
+      window.pendingReloadTableId = data?.tableId || currentTableId;
     }
   });
   
@@ -54,6 +58,7 @@ if (window.socket) {
       console.log('Skipping reload while user is editing');
       // Set a flag to reload when user finishes editing
       window.pendingReload = true;
+      window.pendingReloadTableId = data?.tableId || currentTableId;
     }
   });
   
@@ -1167,11 +1172,22 @@ function triggerAutosave() {
       // Clear the editing flag when save completes
       window.isActiveEditing = false;
       
-      // If there's a pending reload from Socket.IO updates, do it now
+      // If there's a pending reload from Socket.IO updates, verify it's for the current event
       if (window.pendingReload) {
+        const currentTableId = localStorage.getItem('eventId');
         console.log('Processing pending reload after edit completion');
-        window.pendingReload = false;
-        loadGear();
+        
+        // Only reload if the pending reload is for the current event
+        if (!window.pendingReloadTableId || window.pendingReloadTableId === currentTableId) {
+          console.log('Reload is for current event, proceeding with reload');
+          window.pendingReload = false;
+          window.pendingReloadTableId = null;
+          loadGear();
+        } else {
+          console.log('Reload was for a different event, ignoring');
+          window.pendingReload = false;
+          window.pendingReloadTableId = null;
+        }
       }
     } catch (err) {
       console.error('Error in autosave:', err);

@@ -156,6 +156,7 @@
     if (window.isActiveEditing) {
       console.log('User is currently editing, setting pending reload flag');
       window.pendingReload = true;
+      window.pendingReloadTableId = data?.tableId || currentEventId;
       return;
     }
     
