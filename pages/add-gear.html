@@ -129,10 +129,8 @@
   <!-- Back to top button -->
   <button id="backToTopBtn" class="back-to-top-btn" style="display: none;">↑</button>
 
+  <script src="../js/config.js"></script>
   <script>
-    const API_BASE = window.API_BASE || localStorage.getItem('API_BASE') || '';
-    const token = window.token || localStorage.getItem('token');
-    
     // DOM Elements
     const messageArea = document.getElementById('messageArea');
     const formTitle = document.getElementById('formTitle');
@@ -155,6 +153,9 @@
     const checkDatesBtn = document.getElementById('checkDatesBtn');
     const clearDatesBtn = document.getElementById('clearDatesBtn');
     
+    // Get token from localStorage
+    const token = localStorage.getItem('token');
+    
     // State
     let inventory = [];
     let currentAction = null;
@@ -168,8 +169,9 @@
     checkFromDate.valueAsDate = today;
     checkToDate.valueAsDate = nextWeek;
     
-    // Initialize
+    // Initialize on page load
     document.addEventListener('DOMContentLoaded', function() {
+      console.log('[add-gear.html] Config loaded, API_BASE:', window.API_BASE);
       loadInventory();
       setupEventListeners();
     });
@@ -215,7 +217,7 @@
     // Load Inventory Data
     async function loadInventory() {
       try {
-        const res = await fetch(`${API_BASE}/api/gear-inventory`, {
+        const res = await fetch(`${window.API_BASE}/api/gear-inventory`, {
           headers: { Authorization: token }
         });
         
@@ -528,7 +530,7 @@
       }
       
       const isEditing = gearIdInput.value !== '';
-      let url = `${API_BASE}/api/gear-inventory`;
+      let url = `${window.API_BASE}/api/gear-inventory`;
       let method = 'POST';
       
       if (isEditing) {
@@ -622,7 +624,7 @@
     // Delete gear
     async function deleteGear(id) {
       try {
-        const res = await fetch(`${API_BASE}/api/gear-inventory/${id}`, {
+        const res = await fetch(`${window.API_BASE}/api/gear-inventory/${id}`, {
           method: 'DELETE',
           headers: { Authorization: token }
         });

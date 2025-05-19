@@ -161,7 +161,7 @@ const eventContext = {
   // Save all lists and date context to server
   async save(checkOutDate, checkInDate) {
     try {
-      console.log("Saving gear to:", `${API_BASE}/api/tables/${this.tableId}/gear`);
+      console.log("Saving gear to:", `${window.API_BASE}/api/tables/${this.tableId}/gear`);
       
       const payload = {
         lists: this.lists,
@@ -171,7 +171,7 @@ const eventContext = {
       
       console.log("Payload:", JSON.stringify(payload, null, 2));
       
-      const res = await fetch(`${API_BASE}/api/tables/${this.tableId}/gear`, {
+      const res = await fetch(`${window.API_BASE}/api/tables/${this.tableId}/gear`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -196,7 +196,7 @@ const eventContext = {
   // Load lists and date context from server
   async load() {
     try {
-      const res = await fetch(`${API_BASE}/api/tables/${this.tableId}/gear`, {
+      const res = await fetch(`${window.API_BASE}/api/tables/${this.tableId}/gear`, {
         headers: { Authorization: token }
       });
       
@@ -284,10 +284,10 @@ let gearInventory = [];
 let isOwner = false;
 let pendingProceed = false;
 
-console.log("Using API_BASE:", API_BASE);
+console.log("Using API_BASE:", window.API_BASE);
 
 // Fail-safe for missing config
-if (!API_BASE || !token) {
+if (!window.API_BASE || !token) {
   alert("Missing configuration: API_BASE or token is not set.");
   throw new Error("Missing API_BASE or token");
 }
@@ -299,7 +299,7 @@ function goBack() {
 async function loadGear() {
   console.log("Token:", token);
   console.log("Table ID:", eventContext.tableId);
-  console.log("API_BASE:", API_BASE);
+  console.log("API_BASE:", window.API_BASE);
 
   try {
     // Initialize event context
@@ -360,7 +360,7 @@ function deleteGearList() {
 
 async function loadEventTitle() {
     try {
-    const res = await fetch(`${API_BASE}/api/tables/${eventContext.tableId}`, {
+    const res = await fetch(`${window.API_BASE}/api/tables/${eventContext.tableId}`, {
         headers: { Authorization: token }
       });
   
@@ -706,7 +706,7 @@ function createRow(item, isNewRow = false) {
       const reserved = gearInventory.find(g => g.label === item.label && g.checkedOutEvent === eventContext.tableId);
       if (reserved && reserved.status === 'checked_out') {
         try {
-          await fetch(`${API_BASE}/api/gear-inventory/checkin`, {
+          await fetch(`${window.API_BASE}/api/gear-inventory/checkin`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -1206,15 +1206,17 @@ function createNewGearList() {
 
 async function loadGearInventory() {
   try {
-    const res = await fetch(`${API_BASE}/api/gear-inventory`, {
+    console.log('[gear.js] Loading gear inventory from API');
+    const res = await fetch(`${window.API_BASE}/api/gear-inventory`, {
       headers: { Authorization: token }
     });
-    if (!res.ok) throw new Error('Failed to fetch gear inventory');
+    
+    if (!res.ok) throw new Error(`Status ${res.status}`);
     gearInventory = await res.json();
+    console.log(`[gear.js] Loaded ${gearInventory.length} inventory items`);
     renderInventoryStatus();
   } catch (err) {
-    document.getElementById('gearStatusMessage').textContent = 'Failed to load gear inventory.';
-    console.error(err);
+    console.error('Failed to load gear inventory:', err);
   }
 }
 
@@ -1306,7 +1308,7 @@ function openCheckoutModal(category, availableUnits, checkOut, checkIn, list) {
         }
         
         // Call the API to check out this item
-        const res = await fetch(`${API_BASE}/api/gear-inventory/checkout`, {
+        const res = await fetch(`${window.API_BASE}/api/gear-inventory/checkout`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

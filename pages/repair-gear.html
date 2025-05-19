@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Repair Gear Inventory</title>
   <link rel="stylesheet" href="../css/styles.css">
+  <script src="../js/config.js"></script>
   <style>
     .container {
       max-width: 800px;
@@ -120,8 +121,8 @@
         return;
       }
       
-      // API base URL
-      const API_BASE = '';
+      // Log API base URL for debugging
+      console.log('[repair-gear.html] API_BASE:', window.API_BASE);
       
       repairBtn.addEventListener('click', async function() {
         try {
@@ -129,7 +130,7 @@
           statusElement.innerHTML = '<p>Repairing gear inventory data... Please wait.</p>';
           resultsElement.textContent = 'Processing...';
           
-          const response = await fetch(`${API_BASE}/api/gear-inventory/repair`, {
+          const response = await fetch(`${window.API_BASE}/api/gear-inventory/repair`, {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
