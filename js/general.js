@@ -32,6 +32,44 @@ if (window.socket) {
   });
 }
 
+// Function to get appropriate weather icon based on text description
+function getWeatherIcon(weatherText) {
+  if (!weatherText) return '☁️'; // Default icon
+  
+  const text = weatherText.toLowerCase();
+  
+  // Check for various weather conditions
+  if (text.includes('sunny') || text.includes('clear')) return '☀️';
+  if (text.includes('partly cloudy') || text.includes('partly sunny')) return '⛅';
+  if (text.includes('cloudy') || text.includes('overcast')) return '☁️';
+  if (text.includes('rain') || text.includes('shower')) return '🌧️';
+  if (text.includes('storm') || text.includes('thunder') || text.includes('lightning')) return '⛈️';
+  if (text.includes('snow') || text.includes('flurrie')) return '❄️';
+  if (text.includes('fog') || text.includes('mist')) return '🌫️';
+  if (text.includes('wind') || text.includes('breez')) return '💨';
+  if (text.includes('hot') || text.includes('heat')) return '🔥';
+  if (text.includes('cold') || text.includes('freez')) return '🥶';
+  if (text.includes('tornado') || text.includes('hurricane')) return '🌪️';
+  
+  // Return default icon if no match
+  return '☁️';
+}
+
+// Function to update the weather label icon based on current weather text
+function updateWeatherIcon() {
+  const weatherLabel = document.querySelector('label[for="weather"]');
+  if (!weatherLabel) return;
+  
+  const weatherEl = document.getElementById('weather');
+  const weatherText = weatherEl?.tagName === 'TEXTAREA' 
+    ? weatherEl.value.trim() 
+    : weatherEl?.textContent.trim() || '';
+  
+  // Extract icon and set new one
+  const icon = getWeatherIcon(weatherText);
+  weatherLabel.innerHTML = `${icon} Weather`;
+}
+
 function getUserIdFromToken() {
   try {
     const token = window.token;
@@ -260,6 +298,9 @@ function initPage(id) {
         }
       });
 
+      // Update weather icon after loading data
+      updateWeatherIcon();
+      
       // Store original date values for non-owners
       const startDate = general.start?.split('T')[0] || '';
       const endDate = general.end?.split('T')[0] || '';
@@ -359,6 +400,7 @@ async function saveGeneralInfo() {
     return el?.tagName === 'TEXTAREA' ? el.value.trim() : el?.textContent.trim() || '';
   };
 
+  // Create the general data object with the exact schema structure expected by the backend
   const generalData = {
     summary: getText('summary'),
     location: getText('location'),
@@ -371,24 +413,44 @@ async function saveGeneralInfo() {
     locations: collectLocations()
   };
 
+  // Update the weather icon before saving
+  updateWeatherIcon();
+
   console.log('Saving general data:', generalData);
 
   try {
-    const res = await fetch(`${API_BASE}/api/tables/${tableId}/general`, {
+    // Get the current table ID directly from the URL or localStorage
+    const currentTableId = params.get('id') || localStorage.getItem('eventId');
+    
+    if (!currentTableId) {
+      throw new Error('No table ID found. Cannot save data.');
+    }
+    
+    console.log('Saving to table ID:', currentTableId);
+    
+    // Key difference: Wrap the generalData in a "general" property to match the backend API expectation
+    const res = await fetch(`${API_BASE}/api/tables/${currentTableId}/general`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
-        Authorization: window.token
+        'Authorization': window.token
       },
-      body: JSON.stringify(generalData)
+      // This is the key fix - the server.js API expects a body with a "general" property
+      body: JSON.stringify({ general: generalData })
     });
 
-    if (!res.ok) throw new Error(await res.text());
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('Server error response:', errorText);
+      throw new Error(errorText || 'Server returned an error');
+    }
+    
+    console.log('Save successful!');
     alert("Saved successfully!");
-    location.reload();
+    window.location.reload();
   } catch (err) {
-    console.error(err);
-    alert("Failed to save.");
+    console.error('Save error:', err);
+    alert("Failed to save: " + (err.message || "Unknown error occurred"));
   }
 }
 
@@ -403,6 +465,11 @@ function switchToEdit() {
     textarea.value = div.dataset.value || div.textContent || '';
     div.replaceWith(textarea);
     autoResizeTextarea(textarea);
+    
+    // Add input handler for weather field to update icon
+    if (id === 'weather') {
+      textarea.addEventListener('input', updateWeatherIcon);
+    }
   });
 
   const contactData = collectContacts();

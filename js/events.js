@@ -570,11 +570,7 @@ window.initPage = function(id) {
           adminBtn.className = 'btn-admin';
           adminBtn.textContent = 'Admin Console';
           adminBtn.onclick = () => {
-            if (window.navigate) {
-              window.navigate('users');
-            } else {
-              window.location.href = 'users.html';
-            }
+            window.location.href = '/pages/users.html';
           };
           // Insert before logout button
           const logoutBtn = document.getElementById('logoutBtn');

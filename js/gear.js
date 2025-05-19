@@ -657,9 +657,30 @@ function createRow(item, isNewRow = false) {
   if (isOwner) {
     // Add delete button
     const deleteBtn = document.createElement('button');
-    deleteBtn.textContent = '🗑';
+    deleteBtn.textContent = '🗑️';
     deleteBtn.title = 'Delete item';
+    deleteBtn.className = 'delete-btn';
     deleteBtn.style.marginLeft = '8px';
+    deleteBtn.style.color = '#CC0007'; // Add red color for visibility
+    deleteBtn.style.fontSize = '18px'; // Increase font size
+    deleteBtn.style.background = '#f8f8f8'; // Light background for contrast
+    deleteBtn.style.border = '1px solid #ddd'; // Add border
+    deleteBtn.style.borderRadius = '4px'; // Rounded corners
+    deleteBtn.style.padding = '2px 6px'; // Add padding
+    deleteBtn.style.cursor = 'pointer'; // Show pointer cursor on hover
+    deleteBtn.style.opacity = '1'; // Ensure full opacity
+    deleteBtn.style.flexShrink = '0'; // Prevent button from shrinking
+    
+    // Add hover effect
+    deleteBtn.onmouseover = () => {
+      deleteBtn.style.background = '#ffeeee';
+      deleteBtn.style.borderColor = '#CC0007';
+    };
+    deleteBtn.onmouseout = () => {
+      deleteBtn.style.background = '#f8f8f8';
+      deleteBtn.style.borderColor = '#ddd';
+    };
+    
     deleteBtn.onclick = async () => {
       // If this item is a reserved inventory item, check it in
       const reserved = gearInventory.find(g => g.label === item.label && g.checkedOutEvent === eventContext.tableId);
@@ -1572,6 +1593,36 @@ window.addEventListener("DOMContentLoaded", async () => {
       saveBtn.style.display = isOwner ? 'inline-block' : 'none';
     }
     
+    // Add admin link to manage gear inventory if user is admin
+    const isAdmin = checkAdminRole();
+    if (isAdmin) {
+      // Check if admin link already exists to avoid duplicates
+      let adminLink = document.getElementById('adminGearLink');
+      if (!adminLink) {
+        const controlsDiv = document.querySelector('.gear-controls');
+        adminLink = document.createElement('a');
+        adminLink.id = 'adminGearLink';
+        adminLink.href = '/pages/add-gear.html';
+        adminLink.className = 'admin-gear-link';
+        adminLink.innerHTML = '⚙️ Manage Gear Inventory';
+        adminLink.style.display = 'inline-block';
+        adminLink.style.backgroundColor = '#444';
+        adminLink.style.color = 'white';
+        adminLink.style.padding = '8px 16px';
+        adminLink.style.borderRadius = '8px';
+        adminLink.style.textDecoration = 'none';
+        adminLink.style.fontWeight = 'bold';
+        adminLink.style.marginTop = '10px';
+        adminLink.style.marginBottom = '10px';
+        adminLink.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+        
+        // Add to DOM
+        if (controlsDiv) {
+          controlsDiv.appendChild(adminLink);
+        }
+      }
+    }
+    
     // Make gear container read-only mode for non-owners (but allow checkbox toggling)
     const gearContainer = document.getElementById('gearContainer');
     if (gearContainer) {
@@ -1596,6 +1647,18 @@ window.addEventListener("DOMContentLoaded", async () => {
         
         document.head.appendChild(style);
       }
+    }
+  }
+
+  // Check if the current user has admin role
+  function checkAdminRole() {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) return false;
+      const payload = JSON.parse(atob(token.split('.')[1]));
+      return payload.role === 'admin';
+    } catch {
+      return false;
     }
   }
 })();
