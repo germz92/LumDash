@@ -1,5 +1,8 @@
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<link rel="stylesheet" href="../css/gear.css">
 
-  <div class="container">
+  <div class="container gear-page">
+    <button onclick="window.history.back()" class="back-button" style="margin-top: 20px; margin-bottom: 20px;">← Back to Gear</button>
     <div class="card">
       <h1>Gear Inventory Management</h1>
       
@@ -92,7 +95,7 @@
             <thead>
               <tr>
                 <th>Label</th>
-                <th>Category</th>
+                <th class="category-column">Category</th>
                 <th>Serial</th>
                 <th>Status</th>
                 <th>Actions</th>
@@ -122,6 +125,9 @@
       </div>
     </div>
   </div>
+  
+  <!-- Back to top button -->
+  <button id="backToTopBtn" class="back-to-top-btn" style="display: none;">↑</button>
 
   <script>
     const API_BASE = window.API_BASE || localStorage.getItem('API_BASE') || '';
@@ -400,13 +406,25 @@
         items = inventory;
       }
       
-      if (items.length === 0) {
-        inventoryTableBody.innerHTML = '<tr><td colspan="5">No items found</td></tr>';
-        return;
-      }
-      
       // Check if we're on mobile
       const isMobile = window.innerWidth <= 768;
+      
+      // Add mobile class to table if needed
+      const inventoryTable = document.querySelector('.inventory-table');
+      if (inventoryTable) {
+        if (isMobile) {
+          inventoryTable.classList.add('mobile-view');
+        } else {
+          inventoryTable.classList.remove('mobile-view');
+        }
+      }
+      
+      if (items.length === 0) {
+        // Adjust colspan based on viewport
+        const colspan = isMobile ? 4 : 5;
+        inventoryTableBody.innerHTML = `<tr><td colspan="${colspan}">No items found</td></tr>`;
+        return;
+      }
       
       inventoryTableBody.innerHTML = items.map(item => {
         // Calculate availability status
@@ -464,10 +482,10 @@
         
         return `
           <tr>
-            <td>${escapeHtml(item.label)}</td>
-            <td>${escapeHtml(item.category)}</td>
-            <td>${escapeHtml(item.serial || '')}</td>
-            <td>
+            <td class="item-label">${escapeHtml(item.label)}${isMobile ? `<div class="mobile-category">${escapeHtml(item.category)}</div>` : ''}</td>
+            <td class="item-category">${escapeHtml(item.category)}</td>
+            <td class="item-serial">${escapeHtml(item.serial || '')}</td>
+            <td class="item-status">
               <span class="${statusClass}">
                 ${statusText}${availableInfo}
               </span>
@@ -476,11 +494,11 @@
             <td class="action-buttons">
               <button class="action-btn btn-warning" onclick="editGear('${item._id}')" 
                   ${item.status === 'checked_out' ? 'disabled title="Cannot edit checked out gear"' : ''}>
-                ${isMobile ? 'Edit' : 'Edit'}
+                Edit
               </button>
               <button class="action-btn btn-danger" onclick="showDeleteConfirmation('${item._id}')"
                   ${item.status === 'checked_out' ? 'disabled title="Cannot delete checked out gear"' : ''}>
-                ${isMobile ? 'Del' : 'Delete'}
+                Delete
               </button>
             </td>
           </tr>
@@ -669,6 +687,26 @@
     // Add a resize listener to refresh display on window resize
     window.addEventListener('resize', () => {
       renderInventory();
+    });
+    
+    // Back to top button functionality
+    const backToTopBtn = document.getElementById('backToTopBtn');
+    
+    // Show/hide button based on scroll position
+    window.addEventListener('scroll', () => {
+      if (document.body.scrollTop > 300 || document.documentElement.scrollTop > 300) {
+        backToTopBtn.style.display = 'flex';
+      } else {
+        backToTopBtn.style.display = 'none';
+      }
+    });
+    
+    // Scroll to top when button is clicked
+    backToTopBtn.addEventListener('click', () => {
+      window.scrollTo({
+        top: 0,
+        behavior: 'smooth'
+      });
     });
   </script>
 <script src="js/add-gear.js"></script>

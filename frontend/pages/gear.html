@@ -14,7 +14,7 @@
         <select id="gearListSelect"></select>
         <div class="list-controls">
           <button onclick="createNewGearList()" title="Create a new gear list">+ New List</button>
-          <button onclick="deleteGearList()" style="background-color: #a1a1a1;" title="Delete the current gear list">🗑 Delete</button>
+          <button onclick="deleteGearList()" style="background-color: #a1a1a1;" title="Delete the current gear list">🗑️ Delete</button>
         </div>
       </div>
       <button onclick="saveGearList()">💾 Save</button>
@@ -194,6 +194,9 @@
       border: 1px solid #ddd;
       border-radius: 4px;
       transition: border-color 0.2s;
+      width: 100%;
+      box-sizing: border-box;
+      text-overflow: ellipsis;
     }
     
     .item input[type="text"]:focus {
@@ -253,6 +256,10 @@
     /* Make gear container position relative for the view-only badge */
     #gearContainer {
       position: relative;
+      width: 100%;
+      max-width: 1200px;
+      margin: 0 auto;
+      box-sizing: border-box;
     }
     #modalItemList {
       max-height: 60vh;
@@ -266,5 +273,19 @@
       #modalItemList {
         max-height: 70vh;
       }
+    }
+    
+    /* Fix for delete buttons */
+    .item button {
+      color: #CC0007;
+      font-size: 18px;
+      background: #f8f8f8;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+      padding: 2px 6px;
+      margin-left: 8px;
+      cursor: pointer;
+      opacity: 1;
+      flex-shrink: 0;
     }
   </style>

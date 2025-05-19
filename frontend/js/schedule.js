@@ -13,6 +13,112 @@ let filterDate = 'all';
 let allNotesVisible = false;
 let isOwner = false;
 
+// Add a global variable to track if scroll position should be restored
+let pendingScrollRestore = null;
+
+// Function to get the scrolling container element 
+function getScrollContainer() {
+  // Look for the page-container element which is the scrollable container in the SPA
+  const container = document.getElementById('page-container');
+  return container || window; // Fallback to window if container not found
+}
+
+// Store filter settings in sessionStorage
+function saveFilterSettings() {
+  const tableId = localStorage.getItem('eventId');
+  if (!tableId) return;
+  
+  // Get current scroll position from the container instead of window
+  const scrollContainer = getScrollContainer();
+  const currentScrollY = scrollContainer === window ? 
+    (window.scrollY || window.pageYOffset || document.documentElement.scrollTop) : 
+    scrollContainer.scrollTop;
+  
+  const settings = {
+    filterDate,
+    scrollPosition: currentScrollY,
+    searchQuery
+  };
+  
+  console.log(`Saving settings with scroll position: ${currentScrollY} for container: ${scrollContainer.id || 'window'}`);
+  sessionStorage.setItem(`schedule_${tableId}_settings`, JSON.stringify(settings));
+}
+
+// Create a debounced scroll handler with proper reference for removal
+function createScrollListener() {
+  let timeout;
+  
+  const scrollHandler = function() {
+    clearTimeout(timeout);
+    timeout = setTimeout(() => {
+      // Get current scroll position directly at time of saving
+      const scrollContainer = getScrollContainer();
+      const currentScrollY = scrollContainer === window ? 
+        (window.scrollY || window.pageYOffset || document.documentElement.scrollTop) : 
+        scrollContainer.scrollTop;
+        
+      console.log(`Detected scroll position: ${currentScrollY} for container: ${scrollContainer.id || 'window'}`);
+      
+      // Only save if we've scrolled a meaningful amount
+      if (currentScrollY > 10) {
+        saveFilterSettings();
+      }
+    }, 200);
+  };
+  
+  // Add event listener to the correct scrolling container
+  const scrollContainer = getScrollContainer();
+  scrollContainer.addEventListener('scroll', scrollHandler);
+  console.log(`Added scroll event listener to ${scrollContainer.id || 'window'}`);
+  
+  return {
+    handler: scrollHandler,
+    container: scrollContainer
+  };
+}
+
+// Restore filter settings from sessionStorage
+function restoreFilterSettings() {
+  const tableId = localStorage.getItem('eventId');
+  if (!tableId) return;
+  
+  const settingsJson = sessionStorage.getItem(`schedule_${tableId}_settings`);
+  if (!settingsJson) {
+    console.log(`No saved settings found for event ${tableId}`);
+    return;
+  }
+  
+  try {
+    const settings = JSON.parse(settingsJson);
+    console.log('Restoring filter settings:', settings);
+    
+    // Restore filter date (will be applied when dropdown is populated)
+    if (settings.filterDate) {
+      filterDate = settings.filterDate;
+      console.log(`Restored filter date: ${filterDate}`);
+    }
+    
+    // Restore search query
+    if (settings.searchQuery) {
+      searchQuery = settings.searchQuery;
+      const searchInput = document.getElementById('searchInput');
+      if (searchInput) searchInput.value = searchQuery;
+      console.log(`Restored search query: ${searchQuery}`);
+    }
+    
+    // Store the scroll position to be applied after rendering
+    if (settings.scrollPosition) {
+      pendingScrollRestore = settings.scrollPosition;
+      console.log(`Saved scroll position ${settings.scrollPosition} for restoration after rendering`);
+    }
+    
+    // Re-render with restored filters
+    renderProgramSections();
+  } catch (err) {
+    console.error('Error restoring filter settings:', err);
+  }
+}
+
 function formatDate(dateStr) {
   const [year, month, day] = dateStr.split('-');
   const d = new Date(year, month - 1, day);
@@ -37,6 +143,14 @@ window.initPage = async function(id) {
     alert('Event ID missing.');
     return;
   }
+  
+  // Check if we're switching to a different event
+  const previousEventId = localStorage.getItem('eventId');
+  const isEventChange = previousEventId && previousEventId !== tableId;
+  
+  console.log(`Schedule page init: ${isEventChange ? 'Switching events' : 'Same event'} (previous: ${previousEventId}, current: ${tableId})`);
+  
+  // Store the current event ID
   localStorage.setItem('eventId', tableId);
 
   // Add schedule-page class to body
@@ -92,6 +206,7 @@ window.initPage = async function(id) {
     filterDropdown.addEventListener('change', function(e) {
       filterDate = e.target.value;
       renderProgramSections();
+      saveFilterSettings(); // Save filter selection
     });
   }
   
@@ -111,6 +226,15 @@ window.initPage = async function(id) {
 
   // Load programs
   await loadPrograms(tableId);
+  
+  // Reset filters if we've switched events, otherwise restore settings
+  if (isEventChange) {
+    console.log('Event changed, resetting filters and scroll position');
+    resetFilterSettings();
+  } else {
+    // Restore filter settings after programs are loaded
+    restoreFilterSettings();
+  }
 };
 
 async function loadPrograms(tableId) {
@@ -183,15 +307,19 @@ function scheduleSave() {
   saveTimeout = setTimeout(savePrograms, 1000);
 }
 
-function renderProgramSections() {
+function renderProgramSections(callback) {
   const container = document.getElementById('programSections');
-  if (!container) return console.error('Missing #programSections div!');
+  if (!container) {
+    console.error('Missing #programSections div!');
+    if (callback) callback();
+    return;
+  }
   container.innerHTML = '';
 
   const filterDropdown = document.getElementById('filterDateDropdown');
   if (filterDropdown) {
     const allDates = [...new Set(tableData.programs.map(p => p.date))].sort((a, b) => a.localeCompare(b));
-    const currentSelection = filterDropdown.value;
+    const currentSelection = filterDate || 'all';
     filterDropdown.innerHTML = `<option value="all">All Dates</option>`;
     allDates.forEach(date => {
       const option = document.createElement('option');
@@ -199,7 +327,7 @@ function renderProgramSections() {
       option.textContent = formatDate(date);
       filterDropdown.appendChild(option);
     });
-    filterDropdown.value = currentSelection || 'all';
+    filterDropdown.value = currentSelection;
   }
 
   if (tableData.programs.length === 0) {
@@ -315,9 +443,68 @@ function renderProgramSections() {
     container.appendChild(section);
   });
 
+  // After rendering is complete, restore scroll position if needed
   setTimeout(() => {
     document.querySelectorAll('textarea').forEach(setupTextareaResize);
-  }, 50);
+    
+    // Apply pending scroll restore if exists
+    if (pendingScrollRestore !== null) {
+      applyScrollRestore();
+    }
+    
+    if (callback) callback();
+  }, 150); // Increased delay for more reliable rendering completion
+}
+
+// Create a separate function for scroll restoration that can be called multiple times
+function applyScrollRestore() {
+  if (pendingScrollRestore === null) return;
+  
+  const scrollContainer = getScrollContainer();
+  console.log(`Applying pending scroll restore to position: ${pendingScrollRestore} for container: ${scrollContainer.id || 'window'}`);
+  
+  if (scrollContainer === window) {
+    window.scrollTo({
+      top: pendingScrollRestore,
+      behavior: 'auto'
+    });
+  } else {
+    scrollContainer.scrollTop = pendingScrollRestore;
+  }
+  
+  // Schedule multiple restore attempts to overcome any competing operations
+  // that might be scrolling the container back to top
+  const scrollValue = pendingScrollRestore;
+  
+  // Make multiple attempts to restore the scroll position
+  for (let delay of [100, 300, 500, 1000, 2000]) {
+    setTimeout(() => {
+      const currentScrollY = scrollContainer === window ? 
+        (window.scrollY || window.pageYOffset || document.documentElement.scrollTop) : 
+        scrollContainer.scrollTop;
+      
+      // Only re-apply if the position was lost
+      if (currentScrollY < scrollValue - 50) {
+        console.log(`Scroll position lost (current: ${currentScrollY}, target: ${scrollValue}), reapplying at ${delay}ms`);
+        
+        if (scrollContainer === window) {
+          window.scrollTo({
+            top: scrollValue,
+            behavior: 'auto'
+          });
+        } else {
+          scrollContainer.scrollTop = scrollValue;
+        }
+      } else {
+        console.log(`Scroll position maintained at ${currentScrollY} at ${delay}ms check`);
+      }
+      
+      // Clear after final check
+      if (delay === 2000) {
+        pendingScrollRestore = null;
+      }
+    }, delay);
+  }
 }
 
 function toggleDone(checkbox, index) {
@@ -483,8 +670,9 @@ function goBack() {
 }
 
 function handleSearchInput(e) {
-  searchQuery = e.target.value.trim();
+  searchQuery = e.target.value.toLowerCase();
   renderProgramSections();
+  saveFilterSettings(); // Save search query
 }
 
 window.loadPrograms = loadPrograms;
@@ -506,6 +694,7 @@ window.deleteProgram = deleteProgram;
 window.deleteDate = deleteDate;
 window.goBack = goBack;
 window.handleSearchInput = handleSearchInput;
+window.resetFilterSettings = resetFilterSettings;
 
 // Call setupTextareaResize for each textarea on page load
 document.querySelectorAll('.auto-expand').forEach(setupTextareaResize);
@@ -533,6 +722,20 @@ function cleanupSchedulePage() {
     navContainer.innerHTML = '';
   }
 
+  // Remove scroll event listener
+  if (window.scheduleScrollHandler) {
+    const { handler, container } = window.scheduleScrollHandler;
+    if (container && handler) {
+      container.removeEventListener('scroll', handler);
+      console.log(`Removed scroll event listener from ${container.id || 'window'}`);
+    }
+  }
+  
+  // Clear scroll timeout if exists
+  if (window.scrollSaveTimeout) {
+    clearTimeout(window.scrollSaveTimeout);
+  }
+
   // Reset any global variables or state
   tableData = { programs: [] };
   saveTimeout = null;
@@ -540,6 +743,7 @@ function cleanupSchedulePage() {
   filterDate = 'all';
   allNotesVisible = false;
   isOwner = false;
+  pendingScrollRestore = null;
 
   // Remove any other dynamically added elements or styles
   const dynamicElements = document.querySelectorAll('.dynamic-element');
@@ -558,7 +762,7 @@ function handleNavClick(e) {
   e.preventDefault();
   const page = e.currentTarget.getAttribute('data-page');
   window.navigate(page, getTableId());
-  }
+}
 
 // Call cleanupSchedulePage before navigating away
 window.addEventListener('beforeunload', cleanupSchedulePage);
@@ -894,7 +1098,7 @@ function downloadImportTemplate() {
   document.body.appendChild(link);
   link.click();
   document.body.removeChild(link);
-  }
+}
 
 // Add to exports
 window.downloadImportTemplate = downloadImportTemplate;
@@ -934,6 +1138,29 @@ if (window.socket) {
     console.log('Reloading schedule for current table');
     if (tableId) loadPrograms(tableId);
   });
+}
+
+// Create and store the scroll handler when page loads
+window.scheduleScrollHandler = createScrollListener();
+
+// Add a function to reset filter settings
+function resetFilterSettings() {
+  // Reset filter date
+  filterDate = 'all';
+  const filterDropdown = document.getElementById('filterDateDropdown');
+  if (filterDropdown) filterDropdown.value = 'all';
+  
+  // Reset search query
+  searchQuery = '';
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput) searchInput.value = '';
+  
+  // Reset scroll position
+  window.scrollTo(0, 0);
+  pendingScrollRestore = null;
+  
+  // Apply the reset filters
+  renderProgramSections();
 }
 
 })();

@@ -6,22 +6,42 @@ if (typeof window.API_BASE === 'undefined') {
 // const API_BASE = window.API_BASE;
 const token = window.token || localStorage.getItem('token');
 
-// Immediately define window.initPage to prevent "not defined" errors
-window.initPage = function() {
+// Document ready function to initialize page
+document.addEventListener('DOMContentLoaded', function() {
   console.log('Users admin page initialized');
   if (checkAdminRole()) {
     loadUsers();
     
     // Setup Socket.IO for real-time updates
-    if (window.socket) {
-      window.socket.on('usersChanged', (data) => {
+    setupSocketIO();
+  }
+});
+
+// Setup Socket.IO to handle updates
+function setupSocketIO() {
+  // Check if socket.io is loaded
+  if (typeof io !== 'undefined') {
+    try {
+      // Connect to socket server
+      const socketServerUrl = localStorage.getItem('SOCKET_SERVER') || window.API_BASE;
+      window.socket = io(socketServerUrl);
+      
+      // Listen for updates
+      window.socket.on('usersChanged', () => {
         console.log('Users data changed, reloading...');
-        // No tableId check needed for users since it's a global admin function
         loadUsers();
       });
+    } catch (err) {
+      console.error('Socket.IO initialization error:', err);
     }
+  } else {
+    // Try to load socket.io-client library
+    const script = document.createElement('script');
+    script.src = 'https://cdn.socket.io/4.5.0/socket.io.min.js';
+    script.onload = setupSocketIO;  // Try again when loaded
+    document.head.appendChild(script);
   }
-};
+}
 
 // Check if user is admin, otherwise show error and redirect
 function checkAdminRole() {
@@ -41,11 +61,7 @@ function checkAdminRole() {
       }
       
       setTimeout(() => {
-        if (window.navigate) {
-          window.navigate('events');
-        } else {
-          window.location.href = 'dashboard.html';
-        }
+        window.location.href = '../dashboard.html#events';
       }, 3000);
       return false;
     }
