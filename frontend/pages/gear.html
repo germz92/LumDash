@@ -74,6 +74,12 @@
       animation: modalPopIn 0.28s cubic-bezier(.4,1.4,.6,1) both;
       max-height: 80vh;
       overflow-y: auto;
+      position: relative;
+      margin: auto;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
     }
     @keyframes modalPopIn {
       0% { opacity: 0; transform: scale(0.96) translateY(30px); }
@@ -264,14 +270,19 @@
     #modalItemList {
       max-height: 60vh;
       overflow-y: auto;
-      margin-bottom: 12px;
+      margin-bottom: 15px;
+      padding-right: 5px;
     }
-    @media (max-width: 600px) {
+    @media (max-width: 768px) {
       .modal-content {
-        max-height: 90vh;
+        width: 90%;
+        max-width: 90vw;
+        padding: 20px 15px;
+        margin: 10px;
       }
+      
       #modalItemList {
-        max-height: 70vh;
+        max-height: 50vh;
       }
     }
     
@@ -289,3 +300,34 @@
       flex-shrink: 0;
     }
   </style>
+
+  <!-- Load config first -->
+  <script src="../js/config.js"></script>
+
+  <!-- Load scripts in sequence -->
+  <script>
+    function loadScriptsSequentially(scripts, index = 0) {
+      if (index >= scripts.length) return;
+      
+      const script = document.createElement('script');
+      script.src = scripts[index];
+      
+      script.onload = function() {
+        loadScriptsSequentially(scripts, index + 1);
+      };
+      
+      script.onerror = function() {
+        console.error('Failed to load script:', scripts[index]);
+        loadScriptsSequentially(scripts, index + 1);
+      };
+      
+      document.head.appendChild(script);
+    }
+    
+    // Load in this specific order
+    loadScriptsSequentially([
+      API_BASE + '/socket.io/socket.io.js', 
+      '../js/socket.js',
+      '../js/gear.js'
+    ]);
+  </script>

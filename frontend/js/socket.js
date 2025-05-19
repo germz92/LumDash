@@ -133,6 +133,40 @@
     }
   });
   
+  socket.on(window.SOCKET_EVENTS.GEAR_CHANGED, (data) => {
+    console.log('Gear changed! Checking if relevant...');
+    
+    // Use getCurrentTableId if available, otherwise fallback to localStorage
+    let currentEventId;
+    if (window.getCurrentTableId) {
+      currentEventId = window.getCurrentTableId();
+    } else {
+      currentEventId = localStorage.getItem('eventId');
+    }
+    
+    console.log(`Current event ID: ${currentEventId}, update for: ${data?.tableId}`);
+    
+    // Only reload if it's for the current table
+    if (data && data.tableId && data.tableId !== currentEventId) {
+      console.log('Update was for a different event, ignoring');
+      return;
+    }
+    
+    // Check if user is actively editing to prevent disruptions
+    if (window.isActiveEditing) {
+      console.log('User is currently editing, setting pending reload flag');
+      window.pendingReload = true;
+      return;
+    }
+    
+    // Each page script should implement its own handler for this event
+    // if this page is displaying gear
+    if (window.loadGear && currentEventId) {
+      console.log('Reloading gear for current event');
+      window.loadGear();
+    }
+  });
+  
   socket.on(window.SOCKET_EVENTS.USERS_CHANGED, (data) => {
     console.log('Users changed! Reloading data...');
     // No tableId check needed for users since it's a global admin function
