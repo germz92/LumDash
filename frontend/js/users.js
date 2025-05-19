@@ -99,13 +99,31 @@ function showMessage(text, type = 'error') {
 async function loadUsers() {
   userTableBody.innerHTML = '<tr><td colspan="4">Loading users...</td></tr>';
   try {
+    console.log('Attempting to load users from:', `${window.API_BASE}/api/users`);
+    console.log('Using token:', token ? 'Token exists' : 'No token found');
+    
     const res = await fetch(`${window.API_BASE}/api/users`, {
       headers: { Authorization: token }
     });
-    if (!res.ok) throw new Error('Failed to load users');
+    
+    console.log('Response status:', res.status);
+    console.log('Response headers:', 
+      Array.from(res.headers.entries())
+        .map(([key, value]) => `${key}: ${value}`)
+        .join(', ')
+    );
+    
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error('API Error:', errorText);
+      throw new Error(`Failed to load users: ${res.status} ${errorText}`);
+    }
+    
     users = await res.json();
+    console.log('Users loaded successfully:', users.length);
     renderUsers();
   } catch (err) {
+    console.error('Error in loadUsers():', err);
     showMessage(err.message, 'error');
     userTableBody.innerHTML = '<tr><td colspan="4">Error loading users</td></tr>';
   }
