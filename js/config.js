@@ -4,7 +4,8 @@ const ENVIRONMENTS = {
     API_BASE: 'http://localhost:3000',
   },
   production: {
-    API_BASE: 'https://spa-lumdash-backend.onrender.com', // Updated to the correct Render URL
+    // Make sure to include www if that's how the site is accessed
+    API_BASE: 'https://spa-lumdash-backend.onrender.com', 
   }
 };
 
@@ -16,6 +17,7 @@ const isProduction = window.location.hostname !== 'localhost' &&
 const API_BASE = isProduction ? ENVIRONMENTS.production.API_BASE : ENVIRONMENTS.development.API_BASE;
 
 console.log(`[config.js] Running in ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'} mode`);
+console.log(`[config.js] Hostname: ${window.location.hostname}`);
 console.log(`[config.js] API_BASE set to: ${API_BASE}`);
 
 (async function checkLogin() {
