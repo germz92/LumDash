@@ -1,11 +1,13 @@
 const mongoose = require('mongoose');
 
+// Serial numbers must be unique for all gear inventory items. This is enforced by a unique index in the schema.
 const gearInventorySchema = new mongoose.Schema({
   label: { type: String, required: true, unique: true }, // e.g., "Canon R5 Body #1"
   category: { type: String, required: true }, // e.g., "Camera"
   serial: { 
     type: String,
     required: true, // Make serial required
+    unique: true, // Enforce uniqueness
     sparse: true,
     set: v => v === '' ? 'N/A' : v // Convert empty strings to "N/A" as default value
   },

@@ -29,10 +29,15 @@ io.on('connection', (socket) => {
 
 // CORS configuration
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || ['https://www.lumdash.app', 'https://spa-lumdash-backend.onrender.com', 'https://germainedavid.github.io'],
+  origin: function(origin, callback) {
+    // Allow any origin
+    callback(null, true);
+  },
   methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
   credentials: true,
   optionsSuccessStatus: 204,
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With'],
+  exposedHeaders: ['rndr-id']
 };
 app.use(cors(corsOptions));
 app.use(express.json());
@@ -55,6 +60,7 @@ function notifyDataChange(eventType, additionalData = null, tableId = null) {
 const User = require('./models/User');
 const Table = require('./models/Table');
 const GearInventory = require('./models/GearInventory');
+const GearPackage = require('./models/GearPackage');
 
 // Connect to MongoDB
 const MONGO_URI = process.env.MONGO_URI;
@@ -649,6 +655,19 @@ app.post('/api/gear-inventory/checkout', authenticate, async (req, res) => {
   const gear = await GearInventory.findById(gearId);
   if (!gear) return res.status(404).json({ error: 'Gear not found' });
 
+  // Log current gear history before processing
+  console.log(`[DEBUG] Gear history before checkout for ${gear.label} (${gear._id}):`, JSON.stringify(gear.history, null, 2));
+
+  // Enforce exclusive reservation by serial (if present)
+  if (gear.serial && gear.serial !== 'N/A') {
+    // Find any other gear with the same serial
+    const otherWithSerial = await GearInventory.findOne({ serial: gear.serial, _id: { $ne: gear._id } });
+    if (otherWithSerial && otherWithSerial.status === 'checked_out') {
+      console.log(`[DEBUG] Serial conflict: another item with serial ${gear.serial} is already checked out.`);
+      return res.status(409).json({ error: 'Another item with this serial is already checked out.' });
+    }
+  }
+
   // If gear is already checked out to this event, allow updating the dates
   if (gear.status === 'checked_out' && gear.checkedOutEvent && 
       gear.checkedOutEvent.toString() === eventId) {
@@ -669,6 +688,8 @@ app.post('/api/gear-inventory/checkout', authenticate, async (req, res) => {
     }
     
     await gear.save();
+    // Log updated gear history
+    console.log(`[DEBUG] Gear history after update for ${gear.label} (${gear._id}):`, JSON.stringify(gear.history, null, 2));
     return res.json({ message: 'Gear reservation updated', gear });
   }
 
@@ -708,14 +729,14 @@ app.post('/api/gear-inventory/checkout', authenticate, async (req, res) => {
     
     // Skip entries for this event
     if (entryEventId === eventId) {
-      console.log(`Skipping entry for current event: ${entryEventId}`);
+      console.log(`[DEBUG] Skipping entry for current event: ${entryEventId}`);
       return false;
     }
     
     const entryStart = normalizeDate(entry.checkOutDate);
     const entryEnd = normalizeDate(entry.checkInDate);
     
-    console.log("Checking entry:", {
+    console.log(`[DEBUG] Checking entry:`, {
       event: entryEventId,
       entryStart: entryStart.toISOString(),
       entryEnd: entryEnd.toISOString()
@@ -723,21 +744,34 @@ app.post('/api/gear-inventory/checkout', authenticate, async (req, res) => {
     
     // Only consider reservations that are not fully in the past
     if (entryEnd < now) {
-      console.log("Skipping past reservation (end < now)");
+      console.log("[DEBUG] Skipping past reservation (end < now)");
       return false;
     }
     
     // Overlap if: (startA <= endB) && (endA >= startB)
     const isOverlap = reqStart <= entryEnd && reqEnd >= entryStart;
     if (isOverlap) {
-      console.log("OVERLAP DETECTED!");
+      console.log("[DEBUG] OVERLAP DETECTED!");
     }
     return isOverlap;
   };
   
   if (gear.history && gear.history.some(overlaps)) {
-    console.log("Reservation rejected: overlapping dates");
+    console.log("[DEBUG] Reservation rejected: overlapping dates");
+    // Log gear history at rejection
+    console.log(`[DEBUG] Gear history at rejection for ${gear.label} (${gear._id}):`, JSON.stringify(gear.history, null, 2));
     return res.status(409).json({ error: 'Gear is already reserved for overlapping dates.' });
+  }
+
+  // Also check for other gear with the same serial (if present) for overlapping reservations
+  if (gear.serial && gear.serial !== 'N/A') {
+    const others = await GearInventory.find({ serial: gear.serial, _id: { $ne: gear._id } });
+    for (const other of others) {
+      if (other.history && other.history.some(overlaps)) {
+        console.log(`[DEBUG] Serial overlap detected for other item with serial ${gear.serial}`);
+        return res.status(409).json({ error: 'Another item with this serial has an overlapping reservation.' });
+      }
+    }
   }
 
   // Store dates as strings for UI consistency
@@ -755,6 +789,8 @@ app.post('/api/gear-inventory/checkout', authenticate, async (req, res) => {
   });
   
   await gear.save();
+  // Log updated gear history
+  console.log(`[DEBUG] Gear history after successful checkout for ${gear.label} (${gear._id}):`, JSON.stringify(gear.history, null, 2));
   console.log("Reservation successful");
   res.json({ message: 'Gear checked out', gear });
 });
@@ -1025,184 +1061,134 @@ app.post('/api/gear-inventory/repair', authenticate, async (req, res) => {
   }
 });
 
-// Catch-all for SPA routing
+// ========= GEAR PACKAGES API =========
+
+// Use the gear packages routes
+const gearPackagesRoutes = require('./routes/gearPackages');
+app.use('/api/gear-packages', authenticate, gearPackagesRoutes);
+
+// Fallback route in case the module doesn't load properly
+app.get('/api/gear-packages-fallback', authenticate, async (req, res) => {
+  try {
+    console.log('[Fallback] GET gear packages for user:', req.user.id);
+    const GearPackage = require('./models/GearPackage');
+    const packages = await GearPackage.find({ userId: String(req.user.id) })
+      .sort({ createdAt: -1 })
+      .select('_id name description createdAt');
+    
+    console.log(`[Fallback] Found ${packages.length} packages`);
+    res.json(packages);
+  } catch (err) {
+    console.error('[Fallback] Error:', err);
+    res.status(500).json({ error: 'Server error', message: err.message });
+  }
+});
+
+// Add a direct test endpoint for diagnostic purposes
+app.get('/api/gear-packages-test/:userId', authenticate, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const GearPackage = require('./models/GearPackage');
+    
+    console.log('[Test] Directly testing user ID:', userId);
+    console.log('[Test] Authenticated user ID:', req.user.id);
+    
+    // Helper to normalize user ID
+    function normalizeUserId(id) {
+      if (!id) return null;
+      return String(id);
+    }
+    
+    // First, try with exact match
+    let packages = await GearPackage.find({ userId: userId })
+      .sort({ createdAt: -1 })
+      .select('_id name description createdAt');
+    
+    console.log(`[Test] Found ${packages.length} packages with exact userId match`);
+    
+    // If none found, try with normalized version
+    if (packages.length === 0) {
+      const normalizedId = normalizeUserId(userId);
+      console.log(`[Test] Trying with normalized ID: ${normalizedId}`);
+      
+      packages = await GearPackage.find({ userId: normalizedId })
+        .sort({ createdAt: -1 })
+        .select('_id name description createdAt');
+      
+      console.log(`[Test] Found ${packages.length} packages with normalized userId match`);
+      
+      // If still none found, do a flexible search through all packages
+      if (packages.length === 0) {
+        console.log('[Test] Trying flexible search through all packages');
+        const allPackages = await GearPackage.find()
+          .select('_id name description createdAt userId');
+        
+        console.log(`[Test] Total packages in database: ${allPackages.length}`);
+        
+        // Log details of found packages
+        if (allPackages.length > 0) {
+          console.log('[Test] Sample of packages found:');
+          allPackages.slice(0, 3).forEach((pkg, i) => {
+            console.log(`  ${i+1}. ID: ${pkg._id}, Name: ${pkg.name}, UserId: ${pkg.userId}`);
+          });
+          
+          // Try to find matches using flexible comparison
+          const matchedPackages = allPackages.filter(pkg => normalizeUserId(pkg.userId) === normalizedId);
+          console.log(`[Test] Found ${matchedPackages.length} packages with flexible comparison`);
+          
+          if (matchedPackages.length > 0) {
+            packages = matchedPackages;
+          }
+        }
+      }
+    }
+    
+    res.json({
+      requestedUserId: userId,
+      normalizedUserId: normalizeUserId(userId),
+      authenticatedUserId: req.user.id,
+      normalizedAuthUserId: normalizeUserId(req.user.id),
+      count: packages.length,
+      packages: packages
+    });
+  } catch (err) {
+    console.error('[Test] Error:', err);
+    res.status(500).json({ error: 'Server error', message: err.message });
+  }
+});
+
+// Add a simple endpoint to get ALL gear packages (no filtering)
+app.get('/api/gear-packages-all', authenticate, async (req, res) => {
+  try {
+    console.log('[ALL] Getting all gear packages');
+    const GearPackage = require('./models/GearPackage');
+    
+    // Get all packages in the database
+    const packages = await GearPackage.find()
+      .sort({ createdAt: -1 })
+      .select('_id name description createdAt userId');
+    
+    console.log(`[ALL] Found ${packages.length} total packages`);
+    
+    // Return all packages with user ID info
+    res.json({
+      count: packages.length,
+      packages: packages
+    });
+  } catch (err) {
+    console.error('[ALL] Error:', err);
+    res.status(500).json({ error: 'Server error', message: err.message });
+  }
+});
+
+// ========= END GEAR PACKAGES API =========
+
+// Catch-all for SPA routing (should be last!)
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'API route not found' });
   }
   res.sendFile(path.join(__dirname, '../frontend', 'dashboard.html'));
-});
-
-// MAKE OWNER
-app.post('/api/tables/:id/share', authenticate, async (req, res) => {
-  if (!req.params.id || req.params.id === "null") {
-    return res.status(400).json({ error: "Invalid table ID" });
-  }
-  const { email, makeOwner } = req.body;
-  const tableId = req.params.id;
-
-  try {
-    const userToShare = await User.findOne({ email: email.toLowerCase().trim() });
-    if (!userToShare) return res.status(404).json({ error: 'User not found' });
-
-    const table = await Table.findById(tableId);
-    if (!table) return res.status(404).json({ error: 'Table not found' });
-
-    const ownerIds = table.owners.map(id => id.toString());
-    const targetId = userToShare._id.toString();
-
-    if (!ownerIds.includes(req.user.id)) {
-      return res.status(403).json({ error: 'Only an owner can share this table' });
-    }
-
-    // Get the current user (sharing the event)
-    const currentUser = await User.findById(req.user.id);
-    const sharerName = currentUser ? (currentUser.name || currentUser.fullName || currentUser.email) : 'An owner';
-
-    if (makeOwner) {
-      if (!ownerIds.includes(targetId)) {
-        table.owners.push(userToShare._id);
-      }
-    } else {
-      if (!table.sharedWith.map(id => id.toString()).includes(targetId)) {
-        table.sharedWith.push(userToShare._id);
-      }
-    }
-
-    await table.save();
-
-    // Send email notification to the user
-    try {
-      const appUrl = process.env.APP_URL || 'https://lumdash.com';
-      const eventUrl = `https://www.lumdash.app/dashboard.html#events`;
-      
-      const msg = {
-        to: userToShare.email,
-        from: process.env.SENDGRID_FROM_EMAIL,
-        subject: makeOwner ? `You're now an owner of "${table.title}"` : `Event shared with you: "${table.title}"`,
-        html: `
-          <p>Hello ${userToShare.name || userToShare.fullName || 'there'},</p>
-          <p>${sharerName} has ${makeOwner ? 'made you an owner of' : 'shared'} the event "${table.title}" with you.</p>
-          <p>You can now access this event from your LumDash dashboard.</p>
-          <p><a href="${eventUrl}" style="padding: 10px 15px; background-color: #CC0007; color: white; text-decoration: none; border-radius: 5px;">View Event</a></p>
-          <p>If you have any questions, please contact the event owner directly.</p>
-          <p>Thank you,<br>LumDash Team</p>
-        `
-      };
-      
-      await sgMail.send(msg);
-      console.log(`Email notification sent to ${userToShare.email} for event ${table.title}`);
-    } catch (emailErr) {
-      // Log the error but don't fail the sharing process
-      console.error('Failed to send email notification:', emailErr);
-    }
-    
-    res.json({ message: makeOwner ? 'Ownership granted' : 'User added to table' });
-  } catch (err) {
-    console.error('Error sharing table:', err);
-    res.status(500).json({ error: 'Server error' });
-  }
-});
-
-app.delete('/api/tables/:id/rows-by-id/:rowId', authenticate, async (req, res) => {
-  if (!req.params.id || req.params.id === "null") {
-    return res.status(400).json({ error: "Invalid table ID" });
-  }
-  const table = await Table.findById(req.params.id);
-  if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
-    return res.status(403).json({ error: 'Not authorized or not found' });
-  }
-
-  const rowId = req.params.rowId;
-  const originalLength = table.rows.length;
-
-  table.rows = table.rows.filter(row => row._id?.toString() !== rowId);
-
-  if (table.rows.length === originalLength) {
-    return res.status(404).json({ error: 'Row not found' });
-  }
-
-  await table.save();
-  
-  notifyDataChange('crewChanged', null, req.params.id); // Notify about crew change with tableId
-  res.json({ message: 'Row deleted' });
-});
-
-app.put('/api/tables/:id/reorder-rows', authenticate, async (req, res) => {
-  if (!req.params.id || req.params.id === "null") {
-    return res.status(400).json({ error: "Invalid table ID" });
-  }
-  const table = await Table.findById(req.params.id);
-  if (!table || !table.owners.includes(req.user.id)) {
-    return res.status(403).json({ error: 'Not authorized' });
-  }
-
-  // Replace with reordered list
-  table.rows = req.body.rows;
-  await table.save();
-  
-  notifyDataChange('crewChanged', null, req.params.id); // Notify about crew change with tableId
-  res.json({ message: 'Row order saved' });
-});
-
-app.put('/api/tables/:id/rows/:rowId', authenticate, async (req, res) => {
-  if (!req.params.id || req.params.id === "null") {
-    return res.status(400).json({ error: "Invalid table ID" });
-  }
-  const { id, rowId } = req.params;
-  const updatedRow = req.body;
-
-  const table = await Table.findById(id);
-  if (!table) return res.status(404).json({ error: 'Table not found' });
-
-  const rowIndex = table.rows.findIndex(row => row._id.toString() === rowId);
-  if (rowIndex === -1) {
-    return res.status(400).json({ error: 'Invalid row index' });
-  }
-
-  table.rows[rowIndex] = { ...table.rows[rowIndex]._doc, ...updatedRow };
-  await table.save();
-
-  notifyDataChange('crewChanged', null, id); // Notify about crew change with tableId
-  res.json({ success: true });
-});
-
-// PATCH endpoint to archive/unarchive an event
-app.patch('/api/tables/:id/archive', authenticate, async (req, res) => {
-  const { archived } = req.body;
-  const table = await Table.findById(req.params.id);
-  if (!table || !table.owners.includes(req.user.id)) {
-    return res.status(403).json({ error: 'Not authorized or not found' });
-  }
-  table.archived = !!archived;
-  await table.save();
-  
-  // Notify clients about the table being archived
-  notifyDataChange('tableArchived', { tableId: table._id, archived: table.archived });
-  
-  res.json({ success: true });
-});
-
-// PATCH /api/tables/:id (partial update, e.g. crewRates)
-app.patch('/api/tables/:id', authenticate, async (req, res) => {
-  if (!req.params.id || req.params.id === "null") {
-    return res.status(400).json({ error: "Invalid table ID" });
-  }
-  const table = await Table.findById(req.params.id);
-  if (!table || !table.owners.includes(req.user.id)) {
-    return res.status(403).json({ error: 'Not authorized or not found' });
-  }
-  try {
-    const update = req.body;
-    const updated = await Table.findByIdAndUpdate(
-      req.params.id,
-      { $set: update },
-      { new: true }
-    );
-    res.json(updated);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 });
 
 // SERVER
