@@ -111,9 +111,6 @@ function restoreFilterSettings() {
       pendingScrollRestore = settings.scrollPosition;
       console.log(`Saved scroll position ${settings.scrollPosition} for restoration after rendering`);
     }
-    
-    // Re-render with restored filters
-    renderProgramSections();
   } catch (err) {
     console.error('Error restoring filter settings:', err);
   }
@@ -205,7 +202,7 @@ window.initPage = async function(id) {
   if (filterDropdown) {
     filterDropdown.addEventListener('change', function(e) {
       filterDate = e.target.value;
-      renderProgramSections();
+      renderProgramSections(isOwner); // Use the correct access
       saveFilterSettings(); // Save filter selection
     });
   }
@@ -222,18 +219,15 @@ window.initPage = async function(id) {
     fileInput.addEventListener('change', handleFileImport);
   }
 
-  // ... add any other event listeners needed for SPA ...
-
-  // Load programs
+  // Load programs (this sets isOwner/hasScheduleAccess and calls renderProgramSections)
   await loadPrograms(tableId);
-  
-  // Reset filters if we've switched events, otherwise restore settings
+
+  // Only restore filter settings after loadPrograms, and do not call renderProgramSections in restoreFilterSettings
   if (isEventChange) {
     console.log('Event changed, resetting filters and scroll position');
     resetFilterSettings();
   } else {
-    // Restore filter settings after programs are loaded
-    restoreFilterSettings();
+    restoreFilterSettings(); // This should only update filter/search UI, not re-render
   }
 };
 
@@ -244,27 +238,29 @@ async function loadPrograms(tableId) {
     });
     const data = await res.json();
     tableData.programs = data.programSchedule || [];
-    isOwner = Array.isArray(data.owners) && data.owners.map(String).includes(getUserIdFromToken());
-    renderProgramSections();
-
-    // 🔒 Hide controls for non-owners
-    if (!isOwner) {
+    const userId = getUserIdFromToken();
+    const isOwnerRaw = Array.isArray(data.owners) && data.owners.includes(userId);
+    const isLead = Array.isArray(data.leads) && data.leads.includes(userId);
+    isOwner = isOwnerRaw || isLead; // Treat leads as owners for this page
+    const hasScheduleAccess = isOwner;
+    // 🔒 Hide controls for non-owners and non-leads
+    if (!hasScheduleAccess) {
       // Hide date adding controls
       const newDateInput = document.getElementById('newDate');
       const addDateBtn = document.querySelector('button.add-btn');
       if (newDateInput) newDateInput.style.display = 'none';
       if (addDateBtn) addDateBtn.style.display = 'none';
-      
       // Hide import schedule button and download template link
       const importBtn = document.getElementById('importBtn');
       const downloadTemplateBtn = document.getElementById('downloadTemplateBtn');
       if (importBtn) importBtn.style.display = 'none';
       if (downloadTemplateBtn) downloadTemplateBtn.style.display = 'none';
     }
+    renderProgramSections(hasScheduleAccess);
   } catch (err) {
     console.error('Failed to load programs:', err);
     tableData.programs = [];
-    renderProgramSections();
+    renderProgramSections(false);
   }
 }
 
@@ -273,6 +269,13 @@ function getUserIdFromToken() {
   if (!token) return null;
   const payload = JSON.parse(atob(token.split('.')[1]));
   return payload.id;
+}
+
+function getUserRoleFromToken() {
+  const token = localStorage.getItem('token');
+  if (!token) return null;
+  const payload = JSON.parse(atob(token.split('.')[1]));
+  return payload.role;
 }
 
 async function savePrograms() {
@@ -307,11 +310,10 @@ function scheduleSave() {
   saveTimeout = setTimeout(savePrograms, 1000);
 }
 
-function renderProgramSections(callback) {
+function renderProgramSections(hasScheduleAccess) {
   const container = document.getElementById('programSections');
   if (!container) {
     console.error('Missing #programSections div!');
-    if (callback) callback();
     return;
   }
   container.innerHTML = '';
@@ -358,7 +360,7 @@ function renderProgramSections(callback) {
     headerWrapper.className = 'date-header';
     headerWrapper.innerHTML = `
       <div class="date-title">${formatDate(date)}</div>
-      ${isOwner ? `<button class="delete-date-btn" onclick="deleteDate('${date}')">🗑️</button>` : ''}
+      ${hasScheduleAccess ? `<button class="delete-date-btn" onclick="deleteDate('${date}')">🗑️</button>` : ''}
     `;
     section.appendChild(headerWrapper);
 
@@ -370,12 +372,12 @@ function renderProgramSections(callback) {
       entry.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
           <input class="program-name" type="text"
-            ${!isOwner ? 'readonly' : ''}
+            ${!hasScheduleAccess ? 'readonly' : ''}
             placeholder="Program Name"
             style="flex: 1;"
             value="${program.name || ''}" 
-            onfocus="${isOwner ? 'enableEdit(this)' : ''}" 
-            onblur="${isOwner ? `autoSave(this, '${program.date}', ${program.__index}, 'name')` : ''}">
+            onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}" 
+            onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'name')` : ''}">
           <div class="right-actions">
             <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; margin-bottom: 0;">
             <input type="checkbox" class="done-checkbox"
@@ -388,47 +390,47 @@ function renderProgramSections(callback) {
         <div style="display: flex; align-items: center; gap: 3px;">
           <input type="time" placeholder="Start Time" style="flex: 1; min-width: 0; text-align: left;"
             value="${program.startTime || ''}"
-            ${!isOwner ? 'readonly' : ''}
-            onfocus="${isOwner ? 'enableEdit(this)' : ''}"
-            onblur="${isOwner ? `autoSave(this, '${program.date}', ${program.__index}, 'startTime')` : ''}">
+            ${!hasScheduleAccess ? 'readonly' : ''}
+            onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
+            onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'startTime')` : ''}">
           <input type="time" placeholder="End Time" style="flex: 1; min-width: 0; text-align: left;"
             value="${program.endTime || ''}"
-            ${!isOwner ? 'readonly' : ''}
-            onfocus="${isOwner ? 'enableEdit(this)' : ''}"
-            onblur="${isOwner ? `autoSave(this, '${program.date}', ${program.__index}, 'endTime')` : ''}">
+            ${!hasScheduleAccess ? 'readonly' : ''}
+            onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
+            onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'endTime')` : ''}">
         </div>
         <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
           <div style="display: flex; align-items: center; flex: 1;">
             <span style="margin-right: 4px;">📍</span>
             <textarea style="flex: 1; resize: none;"
               placeholder="Location"
-              ${!isOwner ? 'readonly' : ''}
-              onfocus="${isOwner ? 'enableEdit(this)' : ''}"
-              oninput="${isOwner ? 'autoResizeTextarea(this)' : ''}"
-              onblur="${isOwner ? `autoSave(this, '${program.date}', ${program.__index}, 'location')` : ''}">${program.location || ''}</textarea>
+              ${!hasScheduleAccess ? 'readonly' : ''}
+              onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
+              oninput="${hasScheduleAccess ? 'autoResizeTextarea(this)' : ''}"
+              onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'location')` : ''}">${program.location || ''}</textarea>
           </div>
           <div style="display: flex; align-items: center; flex: 1;">
             <span style="margin-right: 4px;">👤</span>
             <textarea style="flex: 1; resize: none;"
               placeholder="Photographer"
-              ${!isOwner ? 'readonly' : ''}
-              onfocus="${isOwner ? 'enableEdit(this)' : ''}"
-              oninput="${isOwner ? 'autoResizeTextarea(this)' : ''}"
-              onblur="${isOwner ? `autoSave(this, '${program.date}', ${program.__index}, 'photographer')` : ''}">${program.photographer || ''}</textarea>
+              ${!hasScheduleAccess ? 'readonly' : ''}
+              onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
+              oninput="${hasScheduleAccess ? 'autoResizeTextarea(this)' : ''}"
+              onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'photographer')` : ''}">${program.photographer || ''}</textarea>
           </div>
         </div>
         <div class="entry-actions">
         <button class="show-notes-btn" onclick="toggleNotes(this)">Show Notes</button>
-          ${isOwner ? `<button class="delete-btn" onclick="deleteProgram(this)">🗑️</button>` : ''}
+          ${hasScheduleAccess ? `<button class="delete-btn" onclick="deleteProgram(this)">🗑️</button>` : ''}
         </div>
         <div class="notes-field" style="display: none;">
           <textarea
             class="auto-expand"
             placeholder="Notes"
             oninput="autoResizeTextarea(this)"
-            ${!isOwner ? 'readonly' : ''}
-            onfocus="${isOwner ? 'enableEdit(this)' : ''}"
-            onblur="${isOwner ? `autoSave(this, '${program.date}', ${program.__index}, 'notes')` : ''}">${program.notes || ''}</textarea>
+            ${!hasScheduleAccess ? 'readonly' : ''}
+            onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
+            onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'notes')` : ''}">${program.notes || ''}</textarea>
         </div>
       `;
       section.appendChild(entry);
@@ -438,7 +440,7 @@ function renderProgramSections(callback) {
     addBtn.className = 'add-btn';
     addBtn.textContent = '+ Add Row';
     addBtn.onclick = () => addProgram(date);
-    if (isOwner) section.appendChild(addBtn);
+    if (hasScheduleAccess) section.appendChild(addBtn);
 
     container.appendChild(section);
   });
@@ -451,8 +453,6 @@ function renderProgramSections(callback) {
     if (pendingScrollRestore !== null) {
       applyScrollRestore();
     }
-    
-    if (callback) callback();
   }, 150); // Increased delay for more reliable rendering completion
 }
 

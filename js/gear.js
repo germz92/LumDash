@@ -1801,6 +1801,20 @@ window.addEventListener("DOMContentLoaded", async () => {
         document.head.appendChild(style);
       }
     }
+
+    // Hide new list and delete buttons for non-owners
+    document.querySelectorAll('.new-list-btn, .delete-btn').forEach(btn => {
+      btn.style.display = isOwner ? 'inline-block' : 'none';
+    });
+
+    // Add/remove 'owner' class on body for CSS fallback
+    document.body.classList.toggle('owner', isOwner);
+
+    // Hide and disable Delete List button for non-owners
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+      btn.style.display = isOwner ? 'inline-block' : 'none';
+      btn.disabled = !isOwner;
+    });
   }
 
   // Check if the current user has admin role
