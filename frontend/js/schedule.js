@@ -316,6 +316,27 @@ function renderProgramSections(hasScheduleAccess) {
     console.error('Missing #programSections div!');
     return;
   }
+
+  // --- Preserve focus and cursor position ---
+  let activeElement = document.activeElement;
+  let focusInfo = null;
+  if (container.contains(activeElement) && (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA')) {
+    focusInfo = {
+      tag: activeElement.tagName,
+      className: activeElement.className,
+      placeholder: activeElement.getAttribute('placeholder'),
+      dataset: { ...activeElement.dataset },
+      value: activeElement.value,
+      selectionStart: activeElement.selectionStart,
+      selectionEnd: activeElement.selectionEnd
+    };
+    // Try to get program index if present
+    const entry = activeElement.closest('.program-entry');
+    if (entry) {
+      focusInfo.programIndex = entry.getAttribute('data-program-index');
+    }
+  }
+
   container.innerHTML = '';
 
   const filterDropdown = document.getElementById('filterDateDropdown');
@@ -368,6 +389,7 @@ function renderProgramSections(hasScheduleAccess) {
       const entry = document.createElement('div');
       entry.className = 'program-entry' + (program.done ? ' done-entry' : '');
       entry.setAttribute('data-program-index', program.__index);
+      if (program._id) entry.setAttribute('data-program-id', program._id);
 
       entry.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
@@ -448,7 +470,29 @@ function renderProgramSections(hasScheduleAccess) {
   // After rendering is complete, restore scroll position if needed
   setTimeout(() => {
     document.querySelectorAll('textarea').forEach(setupTextareaResize);
-    
+    // --- Restore focus and cursor position ---
+    if (focusInfo) {
+      // Try to find the new element matching the previous one
+      let selector = '';
+      if (focusInfo.className) selector += '.' + focusInfo.className.split(' ').join('.');
+      if (focusInfo.placeholder) selector += `[placeholder="${focusInfo.placeholder}"]`;
+      let candidates = Array.from(container.querySelectorAll(focusInfo.tag + selector));
+      let target = null;
+      if (focusInfo.programIndex) {
+        // Try to match by program index
+        target = candidates.find(el => {
+          const entry = el.closest('.program-entry');
+          return entry && entry.getAttribute('data-program-index') === focusInfo.programIndex;
+        });
+      }
+      if (!target && candidates.length === 1) target = candidates[0];
+      if (target) {
+        target.focus();
+        if (typeof focusInfo.selectionStart === 'number' && typeof focusInfo.selectionEnd === 'number') {
+          target.setSelectionRange(focusInfo.selectionStart, focusInfo.selectionEnd);
+        }
+      }
+    }
     // Apply pending scroll restore if exists
     if (pendingScrollRestore !== null) {
       applyScrollRestore();
@@ -532,8 +576,23 @@ function matchesSearch(program) {
   );
 }
 
+// --- Editing guard for partial updates and optimistic UI ---
+window.currentlyEditing = null; // { programId, field, pendingUpdate: null }
+
 function enableEdit(field) {
   field.classList.add('editing');
+  const entry = field.closest('.program-entry');
+  if (entry) {
+    const programIndex = entry.getAttribute('data-program-index');
+    const program = tableData.programs[programIndex];
+    if (program && program._id) {
+      window.currentlyEditing = {
+        programId: program._id,
+        field: field.getAttribute('placeholder') || field.className,
+        pendingUpdate: null
+      };
+    }
+  }
 }
 
 function autoSave(field, date, ignoredIndex, key) {
@@ -543,6 +602,33 @@ function autoSave(field, date, ignoredIndex, key) {
   if (!isNaN(programIndex)) {
     tableData.programs[programIndex][key] = field.value.trim();
     scheduleSave();
+  }
+  // If there was a pending update for this program/field, apply it now
+  if (window.currentlyEditing && window.currentlyEditing.pendingUpdate) {
+    const { program, field: pendingField } = window.currentlyEditing.pendingUpdate;
+    if (program && program._id && pendingField === key) {
+      // Find the program and update it
+      const idx = tableData.programs.findIndex(p => p._id === program._id);
+      if (idx !== -1) {
+        tableData.programs[idx] = program;
+        renderProgramSections(isOwner);
+      }
+      window.currentlyEditing.pendingUpdate = null;
+    }
+  }
+  window.currentlyEditing = null;
+}
+
+// Optimistic UI: update tableData on input
+function optimisticInputHandler(e) {
+  const field = e.target;
+  const entry = field.closest('.program-entry');
+  if (!entry) return;
+  const programIndex = parseInt(entry.getAttribute('data-program-index'), 10);
+  if (isNaN(programIndex)) return;
+  const key = field.getAttribute('placeholder') || field.className;
+  if (key && tableData.programs[programIndex]) {
+    tableData.programs[programIndex][key] = field.value;
   }
 }
 
@@ -1113,13 +1199,16 @@ if (window.socket) {
   window.socket.on('scheduleChanged', (data) => {
     console.log('Schedule changed, checking if relevant...');
     const tableId = localStorage.getItem('eventId');
-    
     // Only reload if it's for the current table
     if (data && data.tableId && data.tableId !== tableId) {
       console.log('Update was for a different table, ignoring');
       return;
     }
-    
+    if (window.isActiveEditing) {
+      console.log('User is editing, deferring schedule reload');
+      window.pendingReload = true;
+      return;
+    }
     console.log('Reloading schedule for current table');
     if (tableId) loadPrograms(tableId);
   });
@@ -1128,15 +1217,52 @@ if (window.socket) {
   window.socket.on('tableUpdated', (data) => {
     console.log('Table updated, checking if relevant...');
     const tableId = localStorage.getItem('eventId');
-    
     // Only reload if it's for the current table
     if (data && data.tableId && data.tableId !== tableId) {
       console.log('Update was for a different table, ignoring');
       return;
     }
-    
+    if (window.isActiveEditing) {
+      console.log('User is editing, deferring table reload');
+      window.pendingReload = true;
+      return;
+    }
     console.log('Reloading schedule for current table');
     if (tableId) loadPrograms(tableId);
+  });
+
+  // --- Partial update events ---
+  window.socket.on('programAdded', (data) => {
+    const tableId = localStorage.getItem('eventId');
+    if (!data || data.tableId !== tableId || !data.program) return;
+    // Only add if not already present
+    if (!tableData.programs.some(p => p._id === data.program._id)) {
+      tableData.programs.push(data.program);
+      renderProgramSections(isOwner);
+    }
+  });
+  window.socket.on('programUpdated', (data) => {
+    const tableId = localStorage.getItem('eventId');
+    if (!data || data.tableId !== tableId || !data.program) return;
+    // Editing guard: if user is editing this program/field, defer update
+    if (window.currentlyEditing && window.currentlyEditing.programId === data.program._id) {
+      window.currentlyEditing.pendingUpdate = { program: data.program, field: window.currentlyEditing.field };
+      return;
+    }
+    const idx = tableData.programs.findIndex(p => p._id === data.program._id);
+    if (idx !== -1) {
+      tableData.programs[idx] = data.program;
+      updateProgramRow(data.program, isOwner);
+    }
+  });
+  window.socket.on('programDeleted', (data) => {
+    const tableId = localStorage.getItem('eventId');
+    if (!data || data.tableId !== tableId || !data.program) return;
+    const idx = tableData.programs.findIndex(p => p._id === data.program._id);
+    if (idx !== -1) {
+      tableData.programs.splice(idx, 1);
+      renderProgramSections(isOwner);
+    }
   });
 }
 
@@ -1161,6 +1287,119 @@ function resetFilterSettings() {
   
   // Apply the reset filters
   renderProgramSections();
+}
+
+// --- Editing guard for real-time updates ---
+window.isActiveEditing = false;
+window.pendingReload = false;
+
+function setEditingListeners() {
+  // Attach to all inputs and textareas in the schedule page
+  document.querySelectorAll('input, textarea').forEach(el => {
+    el.addEventListener('focus', () => {
+      window.isActiveEditing = true;
+    });
+    el.addEventListener('blur', () => {
+      window.isActiveEditing = false;
+      // If a reload was pending, do it now
+      if (window.pendingReload) {
+        window.pendingReload = false;
+        const tableId = localStorage.getItem('eventId');
+        if (tableId && typeof loadPrograms === 'function') loadPrograms(tableId);
+      }
+    });
+  });
+}
+
+// Call this after rendering program sections
+const origRenderProgramSections = renderProgramSections;
+renderProgramSections = function(...args) {
+  origRenderProgramSections.apply(this, args);
+  setEditingListeners();
+  // Attach input handler for optimistic UI
+  document.querySelectorAll('.program-entry input, .program-entry textarea').forEach(el => {
+    el.removeEventListener('input', optimisticInputHandler);
+    el.addEventListener('input', optimisticInputHandler);
+  });
+};
+
+// --- Per-row update for programUpdated ---
+function updateProgramRow(program, hasScheduleAccess) {
+  // Find the row by _id
+  const container = document.getElementById('programSections');
+  if (!container) return;
+  // Find the entry with the matching data-program-id
+  const entry = container.querySelector(`.program-entry[data-program-id='${program._id}']`);
+  if (!entry) return;
+  // Rebuild the row's HTML (copy from renderProgramSections)
+  const programIndex = tableData.programs.findIndex(p => p._id === program._id);
+  if (programIndex === -1) return;
+  entry.innerHTML = `
+    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+      <input class="program-name" type="text"
+        ${!hasScheduleAccess ? 'readonly' : ''}
+        placeholder="Program Name"
+        style="flex: 1;"
+        value="${program.name || ''}" 
+        onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}" 
+        onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${programIndex}, 'name')` : ''}">
+      <div class="right-actions">
+        <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; margin-bottom: 0;">
+        <input type="checkbox" class="done-checkbox"
+          style="width: 20px; height: 20px;"
+          ${program.done ? 'checked' : ''}
+          onchange="toggleDone(this, ${programIndex})">
+      </label>
+    </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 3px;">
+      <input type="time" placeholder="Start Time" style="flex: 1; min-width: 0; text-align: left;"
+        value="${program.startTime || ''}"
+        ${!hasScheduleAccess ? 'readonly' : ''}
+        onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
+        onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${programIndex}, 'startTime')` : ''}">
+      <input type="time" placeholder="End Time" style="flex: 1; min-width: 0; text-align: left;"
+        value="${program.endTime || ''}"
+        ${!hasScheduleAccess ? 'readonly' : ''}
+        onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
+        onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${programIndex}, 'endTime')` : ''}">
+    </div>
+    <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
+      <div style="display: flex; align-items: center; flex: 1;">
+        <span style="margin-right: 4px;">📍</span>
+        <textarea style="flex: 1; resize: none;"
+          placeholder="Location"
+          ${!hasScheduleAccess ? 'readonly' : ''}
+          onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
+          oninput="${hasScheduleAccess ? 'autoResizeTextarea(this)' : ''}"
+          onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${programIndex}, 'location')` : ''}">${program.location || ''}</textarea>
+      </div>
+      <div style="display: flex; align-items: center; flex: 1;">
+        <span style="margin-right: 4px;">👤</span>
+        <textarea style="flex: 1; resize: none;"
+          placeholder="Photographer"
+          ${!hasScheduleAccess ? 'readonly' : ''}
+          onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
+          oninput="${hasScheduleAccess ? 'autoResizeTextarea(this)' : ''}"
+          onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${programIndex}, 'photographer')` : ''}">${program.photographer || ''}</textarea>
+      </div>
+    </div>
+    <div class="entry-actions">
+    <button class="show-notes-btn" onclick="toggleNotes(this)">Show Notes</button>
+      ${hasScheduleAccess ? `<button class="delete-btn" onclick="deleteProgram(this)">🗑️</button>` : ''}
+    </div>
+    <div class="notes-field" style="display: none;">
+      <textarea
+        class="auto-expand"
+        placeholder="Notes"
+        oninput="autoResizeTextarea(this)"
+        ${!hasScheduleAccess ? 'readonly' : ''}
+        onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
+        onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${programIndex}, 'notes')` : ''}">${program.notes || ''}</textarea>
+    </div>
+  `;
+  // Re-attach listeners and auto-resize
+  entry.querySelectorAll('textarea').forEach(setupTextareaResize);
 }
 
 })();

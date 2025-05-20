@@ -324,6 +324,9 @@ app.put('/api/tables/:id/cardlog', authenticate, async (req, res) => {
   }
   
   try {
+    // Get the old card log for diffing
+    const oldTable = await Table.findById(req.params.id);
+    const oldCardLog = oldTable ? (oldTable.cardLog || []) : [];
     // Use findOneAndUpdate instead of findById + save to avoid version conflicts
     const result = await Table.findOneAndUpdate(
       { 
@@ -338,11 +341,33 @@ app.put('/api/tables/:id/cardlog', authenticate, async (req, res) => {
     );
     
     if (!result) {
-    return res.status(403).json({ error: 'Not authorized or not found' });
-  }
-
-  notifyDataChange('cardsChanged', null, req.params.id); // Notify about card changes with tableId
-  res.json({ message: 'Card log saved' });
+      return res.status(403).json({ error: 'Not authorized or not found' });
+    }
+    // --- Partial update events for card log ---
+    const newCardLog = req.body.cardLog || [];
+    // Build maps for fast lookup
+    const oldMap = new Map(oldCardLog.map(e => [e._id?.toString?.(), e]));
+    const newMap = new Map(newCardLog.map(e => [e._id?.toString?.(), e]));
+    // Added
+    for (const e of newCardLog) {
+      if (!oldMap.has(e._id?.toString?.())) {
+        notifyDataChange('cardLogAdded', { cardLog: e }, req.params.id);
+      }
+    }
+    // Updated
+    for (const e of newCardLog) {
+      const old = oldMap.get(e._id?.toString?.());
+      if (old && JSON.stringify(e) !== JSON.stringify(old)) {
+        notifyDataChange('cardLogUpdated', { cardLog: e }, req.params.id);
+      }
+    }
+    // Deleted
+    for (const e of oldCardLog) {
+      if (!newMap.has(e._id?.toString?.())) {
+        notifyDataChange('cardLogDeleted', { cardLog: e }, req.params.id);
+      }
+    }
+    res.json({ message: 'Card log saved' });
   } catch (err) {
     console.error('Error updating card log:', err);
     res.status(500).json({ error: 'Failed to update card log' });
@@ -427,6 +452,10 @@ app.put('/api/tables/:id/gear', authenticate, async (req, res) => {
     return res.status(400).json({ error: "Invalid table ID" });
     }
   try {
+    // Get the old gear lists for diffing
+    const oldTable = await Table.findById(req.params.id);
+    const oldLists = oldTable && oldTable.gear && oldTable.gear.lists ? Object.fromEntries(oldTable.gear.lists) : {};
+
     // Find and update in one atomic operation (fixes versioning issues)
     const result = await Table.findOneAndUpdate(
       {
@@ -450,10 +479,33 @@ app.put('/api/tables/:id/gear', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized or not found' });
     }
 
-    console.log("Updated gear for table:", req.params.id);
-    console.log("Lists count:", result.gear?.lists ? result.gear.lists.size : 0);
-    
-    notifyDataChange('gearChanged', null, req.params.id); // Notify about gear changes with tableId
+    // --- Granular event emission ---
+    const newLists = result.gear && result.gear.lists ? Object.fromEntries(result.gear.lists) : {};
+    const oldListNames = new Set(Object.keys(oldLists));
+    const newListNames = new Set(Object.keys(newLists));
+
+    // Additions
+    for (const name of newListNames) {
+      if (!oldListNames.has(name)) {
+        notifyDataChange('gearListAdded', { listName: name, list: newLists[name] }, req.params.id);
+      }
+    }
+    // Updates
+    for (const name of newListNames) {
+      if (oldListNames.has(name)) {
+        // Compare JSON for simplicity
+        if (JSON.stringify(oldLists[name]) !== JSON.stringify(newLists[name])) {
+          notifyDataChange('gearListUpdated', { listName: name, list: newLists[name] }, req.params.id);
+        }
+      }
+    }
+    // Deletions
+    for (const name of oldListNames) {
+      if (!newListNames.has(name)) {
+        notifyDataChange('gearListDeleted', { listName: name }, req.params.id);
+      }
+    }
+
     res.status(200).json({ success: true });
   } catch (err) {
     console.error('Error updating gear:', err);
@@ -591,6 +643,9 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
   }
   
   try {
+    // Get the old schedule for diffing
+    const oldTable = await Table.findById(req.params.id);
+    const oldSchedule = oldTable ? (oldTable.programSchedule || []) : [];
     // Use findOneAndUpdate instead of find + save to avoid version conflicts
     const result = await Table.findOneAndUpdate(
       { 
@@ -605,11 +660,33 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
     );
     
     if (!result) {
-    return res.status(403).json({ error: 'Not authorized or not found' });
-  }
-    
-  notifyDataChange('scheduleChanged', null, req.params.id); // Notify clients of schedule change with tableId
-  res.json({ message: 'Program schedule updated' });
+      return res.status(403).json({ error: 'Not authorized or not found' });
+    }
+    // --- Partial update events ---
+    const newSchedule = req.body.programSchedule || [];
+    // Build maps for fast lookup
+    const oldMap = new Map(oldSchedule.map(p => [p._id?.toString?.(), p]));
+    const newMap = new Map(newSchedule.map(p => [p._id?.toString?.(), p]));
+    // Added
+    for (const p of newSchedule) {
+      if (!oldMap.has(p._id?.toString?.())) {
+        notifyDataChange('programAdded', { program: p }, req.params.id);
+      }
+    }
+    // Updated
+    for (const p of newSchedule) {
+      const old = oldMap.get(p._id?.toString?.());
+      if (old && JSON.stringify(p) !== JSON.stringify(old)) {
+        notifyDataChange('programUpdated', { program: p }, req.params.id);
+      }
+    }
+    // Deleted
+    for (const p of oldSchedule) {
+      if (!newMap.has(p._id?.toString?.())) {
+        notifyDataChange('programDeleted', { program: p }, req.params.id);
+      }
+    }
+    res.json({ message: 'Program schedule updated' });
   } catch (err) {
     console.error('Error updating program schedule:', err);
     res.status(500).json({ error: 'Failed to update program schedule' });

@@ -32,7 +32,7 @@ const programSchema = new mongoose.Schema({
   photographer: String,
   notes: String,
   done: { type: Boolean, default: false }
-}, { _id: false });
+}, { _id: true });
 
 // ✅ NEW: Separate crew row schema with ObjectId _id
 const crewRowSchema = new mongoose.Schema({
@@ -108,6 +108,7 @@ const tableSchema = new mongoose.Schema({
   ],
   cardLog: [
     {
+      _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
       date: String,
       entries: [
         {

@@ -70,6 +70,40 @@ if (window.socket) {
   window.socket.on('disconnect', () => {
     console.log('Socket.IO disconnected - Gear page live updates paused');
   });
+
+  // --- Granular gear list events ---
+  window.socket.on('gearListAdded', (data) => {
+    const currentTableId = localStorage.getItem('eventId');
+    if (!data || data.tableId !== currentTableId || !data.listName || !data.list) return;
+    // Add the new list to eventContext and update UI
+    eventContext.lists[data.listName] = data.list;
+    populateGearListDropdown();
+    renderGear();
+  });
+  window.socket.on('gearListUpdated', (data) => {
+    const currentTableId = localStorage.getItem('eventId');
+    if (!data || data.tableId !== currentTableId || !data.listName || !data.list) return;
+    // Update the list in eventContext and update UI
+    eventContext.lists[data.listName] = data.list;
+    // If the updated list is active, re-render gear
+    if (eventContext.activeList === data.listName) {
+      renderGear();
+    }
+  });
+  window.socket.on('gearListDeleted', (data) => {
+    const currentTableId = localStorage.getItem('eventId');
+    if (!data || data.tableId !== currentTableId || !data.listName) return;
+    // Remove the list from eventContext and update UI
+    delete eventContext.lists[data.listName];
+    // If the deleted list was active, switch to another
+    if (eventContext.activeList === data.listName) {
+      eventContext.activeList = Object.keys(eventContext.lists)[0] || null;
+    }
+    populateGearListDropdown();
+    renderGear();
+  });
+  // Remove old gearChanged event listener
+  // window.socket.on('gearChanged', ...); // Remove or comment out
 }
 
 // ✨ New centralized event context
