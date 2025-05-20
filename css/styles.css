@@ -99,4 +99,10 @@ html, body {
   height: 20px;
   margin-bottom: 4px;
 }
+
+#bottomNavPlaceholder {
+  height: 70px; /* Match .bottom-nav height */
+  width: 100%;
+  display: block;
+}
   
