@@ -257,6 +257,9 @@ function insertAdminNotesBtn(tableId) {
   const container = document.getElementById('adminNotesBtnContainer');
   if (!container) return;
   container.innerHTML = '';
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+  
   if (isAdmin()) {
     const btn = document.createElement('button');
     btn.textContent = 'Notes';
@@ -267,6 +270,17 @@ function insertAdminNotesBtn(tableId) {
     };
     container.appendChild(btn);
   }
+  
+  // Add Folder Logs icon button for all users
+  const folderBtn = document.createElement('button');
+  folderBtn.innerHTML = '<i data-lucide="folder"></i>';
+  folderBtn.className = 'folder-logs-btn';
+  folderBtn.style = 'margin-bottom: 18px; margin-left: 8px; background: none; color: #888; border: none; border-radius: 8px; padding: 8px; font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;';
+  folderBtn.title = 'Folder Logs';
+  folderBtn.onclick = () => {
+    window.location.href = `/folder-logs.html?id=${tableId}`;
+  };
+  container.appendChild(folderBtn);
 }
 
 function initPage(id) {
@@ -385,6 +399,9 @@ function initPage(id) {
         document.querySelector('.container').style.position = 'relative';
         document.querySelector('.container').appendChild(viewOnlyIndicator);
       }
+      
+      // Initialize Lucide icons for the folder button
+      if (window.lucide) lucide.createIcons();
     })
     .catch(err => console.error('Error loading event:', err));
 }
