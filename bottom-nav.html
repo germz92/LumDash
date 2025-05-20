@@ -1,51 +1,10 @@
-<style>
-    .bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 70px; /* increased height */
-      background: #fff;
-      border-top: 1px solid #ccc;
-      display: flex;
-      justify-content: space-around;
-      align-items: flex-start; /* top align to allow inner padding */
-      padding-top: 6px;
-      z-index: 1000;
-      padding-bottom: env(safe-area-inset-bottom, 10px); /* support iPhones with notches */
-    }
-  
-    .bottom-nav a {
-      color: #cc0007;
-      text-decoration: none;
-      font-size: 12px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      flex: 1;
-      padding-bottom: 12px; /* more space from bottom */
-    }
-  
-    .bottom-nav a:hover {
-      background-color: #f0f0f0;
-    }
-  
-    .bottom-nav i {
-      stroke: #CC0007;
-      width: 20px;
-      height: 20px;
-      margin-bottom: 4px;
-    }
-  </style>
-  
-  <nav class="bottom-nav">
-    <a href="#" id="navHome" data-page="events"><i data-lucide="home"></i><span>Home</span></a>
-    <a href="#" id="navGeneral" data-page="general"><i data-lucide="info"></i><span>General</span></a>
-    <a href="#" id="navCrew" data-page="crew"><i data-lucide="users"></i><span>Crew</span></a>
-    <a href="#" id="navTravel" data-page="travel-accommodation"><i data-lucide="plane"></i><span>Travel</span></a>
-    <a href="#" id="navGear" data-page="gear"><i data-lucide="camera"></i><span>Gear</span></a>
-    <a href="#" id="navCard" data-page="card-log"><i data-lucide="memory-stick"></i><span>Cards</span></a>
-    <a href="#" id="navSchedule" data-page="schedule"><i data-lucide="calendar"></i><span>Schedule</span></a>
-    <a href="#" id="navFolderLogs" data-page="folder-logs"><i data-lucide="folder"></i><span>Folders</span></a>
-  </nav>
+<nav class="bottom-nav">
+  <a href="#" id="navHome" data-page="events"><i data-lucide="home"></i><span>Home</span></a>
+  <a href="#" id="navGeneral" data-page="general"><i data-lucide="info"></i><span>General</span></a>
+  <a href="#" id="navCrew" data-page="crew"><i data-lucide="users"></i><span>Crew</span></a>
+  <a href="#" id="navTravel" data-page="travel-accommodation"><i data-lucide="plane"></i><span>Travel</span></a>
+  <a href="#" id="navGear" data-page="gear"><i data-lucide="camera"></i><span>Gear</span></a>
+  <a href="#" id="navCard" data-page="card-log"><i data-lucide="memory-stick"></i><span>Cards</span></a>
+  <a href="#" id="navSchedule" data-page="schedule"><i data-lucide="calendar"></i><span>Schedule</span></a>
+</nav>
   

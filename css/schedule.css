@@ -1,7 +1,7 @@
 /* Schedule page specific styles */
 .schedule-page {
     --header-height: 160px; /* Desktop default */
-    font-family: 'Segoe UI', sans-serif;
+    font-family: 'Roboto', Arial, sans-serif;
     background: linear-gradient(135deg, #f5f7fa 0%, #e9ecf3 100%);
     margin: 0;
     padding: 0;

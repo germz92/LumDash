@@ -150,4 +150,6 @@ button:hover {
     padding: 10px 0;
     border-radius: 8px;
   }
-} 
+}
+
+.auth-page { font-family: 'Roboto', Arial, sans-serif; } 
