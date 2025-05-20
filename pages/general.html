@@ -1,86 +1,97 @@
-  <div class="container">
+<div class="container">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
     <div id="adminNotesBtnContainer"></div>
-    <h2 id="eventTitle" style="text-align: center; margin-bottom: 20px;"></h2>
-    <h1>General Event Info</h1>
-    <form id="generalForm">
-      <div class="info-section">
-        <div class="info-card">
-          <label for="summary">📝 Event Summary</label>
-          <div id="summary" class="read-only"></div>
-        </div>
-        <div class="info-row">
-          <div class="info-card">
-            <label for="location">📍 Location</label>
-            <div id="location" class="read-only"></div>
-          </div>
-          <div class="info-card">
-            <label for="weather">☁️ Weather</label>
-            <div id="weather" class="read-only"></div>
-          </div>
-        </div>
-        <div class="info-row">
-          <div class="info-card">
-            <label for="start">📅 Start Date</label>
-            <input type="date" id="start" name="start" placeholder="Select Date">
-          </div>
-          <div class="info-card">
-            <label for="end">🏁 End Date</label>
-            <input type="date" id="end" name="end" placeholder="Select Date">
-          </div>
-        </div>
-        <div class="info-row">
-          <div class="info-card">
-            <label for="attendees">👥 Attendee Count</label>
-            <div id="attendees" class="read-only"></div>
-          </div>
-          <div class="info-card">
-            <label for="budget">💰 Budget</label>
-            <div id="budget" class="read-only"></div>
-          </div>
-        </div>
-      </div>      
-
-      <div class="contacts-container">
-        <h2 style="margin-top: 0;">📞 Point of Contacts</h2>
-        <div class="contacts-scroll-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Phone</th>
-                <th>Email</th>
-                <th>Role</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="contactRows"></tbody>
-          </table>
-        </div>
-        <button type="button" class="add-row-btn" onclick="addContactRow()">Add Row</button>
-      </div>
-
-      <div class="contacts-container">
-        <h2 style="margin-top: 40px;">🏢 Locations</h2>
-        <div class="contacts-scroll-wrapper">
-          <table>
-            <thead>
-              <tr>
-                <th>Name</th>
-                <th>Address</th>
-                <th>Event</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="locationsRows"></tbody>
-          </table>
-        </div>
-        <button type="button" class="add-row-btn" onclick="addLocationRow()">Add Row</button>
-      </div>      
-
-      <div class="save-button-container">
-        <button type="button" class="add-row-btn" onclick="saveGeneralInfo()">Save</button>
-        <button id="editBtn" type="button" class="add-row-btn" onclick="switchToEdit()" style="display: none;">Edit</button>
-      </div>
-    </form>
+    <div id="clockIconContainer">
+      <button id="clockIconBtn" class="clock-icon-btn" title="Show current time" aria-label="Show current time">
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </button>
+      <div id="clockPopup" class="clock-popup"></div>
+    </div>
   </div>
+  <h2 id="eventTitle" style="text-align: center; margin-bottom: 20px;"></h2>
+  <h1>General Event Info</h1>
+  <form id="generalForm">
+    <div class="info-section">
+      <div class="info-card">
+        <label for="summary">📝 Event Summary</label>
+        <div id="summary" class="read-only"></div>
+      </div>
+      <div class="info-row">
+        <div class="info-card">
+          <label for="location">📍 Location</label>
+          <div id="location" class="read-only"></div>
+        </div>
+        <div class="info-card">
+          <label for="weather">☁️ Weather</label>
+          <div id="weather" class="read-only"></div>
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-card">
+          <label for="start">📅 Start Date</label>
+          <input type="date" id="start" name="start" placeholder="Select Date">
+        </div>
+        <div class="info-card">
+          <label for="end">🏁 End Date</label>
+          <input type="date" id="end" name="end" placeholder="Select Date">
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-card">
+          <label for="attendees">👥 Attendee Count</label>
+          <div id="attendees" class="read-only"></div>
+        </div>
+        <div class="info-card">
+          <label for="budget">💰 Budget</label>
+          <div id="budget" class="read-only"></div>
+        </div>
+      </div>
+    </div>      
+
+    <div class="contacts-container">
+      <h2 style="margin-top: 0;">📞 Point of Contacts</h2>
+      <div class="contacts-scroll-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="contactRows"></tbody>
+        </table>
+      </div>
+      <button type="button" class="add-row-btn" onclick="addContactRow()">Add Row</button>
+    </div>
+
+    <div class="contacts-container">
+      <h2 style="margin-top: 40px;">🏢 Locations</h2>
+      <div class="contacts-scroll-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Address</th>
+              <th>Event</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="locationsRows"></tbody>
+        </table>
+      </div>
+      <button type="button" class="add-row-btn" onclick="addLocationRow()">Add Row</button>
+    </div>      
+
+    <div class="save-button-container">
+      <button type="button" class="add-row-btn" onclick="saveGeneralInfo()">Save</button>
+      <button id="editBtn" type="button" class="add-row-btn" onclick="switchToEdit()" style="display: none;">Edit</button>
+    </div>
+  </form>
+</div>
 

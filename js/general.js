@@ -507,4 +507,49 @@ window.addContactRow = addContactRow;
 window.addLocationRow = addLocationRow;
 window.saveGeneralInfo = saveGeneralInfo;
 window.switchToEdit = switchToEdit;
+
+// CLOCK ICON LOGIC
+(function() {
+  const clockBtn = document.getElementById('clockIconBtn');
+  const clockPopup = document.getElementById('clockPopup');
+  let clockInterval = null;
+
+  function formatTime(date) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  function showClock() {
+    clockPopup.style.display = 'block';
+    clockPopup.textContent = formatTime(new Date());
+    clockInterval = setInterval(() => {
+      clockPopup.textContent = formatTime(new Date());
+    }, 1000);
+  }
+
+  function hideClock() {
+    clockPopup.style.display = 'none';
+    if (clockInterval) clearInterval(clockInterval);
+    clockInterval = null;
+  }
+
+  if (clockBtn && clockPopup) {
+    let isVisible = false;
+    clockBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      isVisible = !isVisible;
+      if (isVisible) {
+        showClock();
+      } else {
+        hideClock();
+      }
+    });
+    // Hide popup when clicking outside
+    document.addEventListener('click', (e) => {
+      if (isVisible && !clockPopup.contains(e.target) && e.target !== clockBtn) {
+        hideClock();
+        isVisible = false;
+      }
+    });
+  }
+})();
 })();
