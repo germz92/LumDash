@@ -1468,12 +1468,14 @@ function closeCheckoutModal() {
 
 window.addEventListener("DOMContentLoaded", async () => {
   try {
-    // Always set eventContext.tableId from URL or localStorage
-    const params = new URLSearchParams(window.location.search);
-    let tableId = params.get('id') || localStorage.getItem('eventId');
-    if (tableId) {
-      eventContext.tableId = tableId;
-      localStorage.setItem('eventId', tableId);
+    // Only set eventContext.tableId and localStorage.eventId if not already set
+    if (!eventContext.tableId) {
+      const params = new URLSearchParams(window.location.search);
+      let tableId = params.get('id') || localStorage.getItem('eventId');
+      if (tableId) {
+        eventContext.tableId = tableId;
+        localStorage.setItem('eventId', tableId);
+      }
     }
     await loadGear();
     await loadEventTitle();

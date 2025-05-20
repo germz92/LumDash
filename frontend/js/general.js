@@ -257,6 +257,9 @@ function insertAdminNotesBtn(tableId) {
   const container = document.getElementById('adminNotesBtnContainer');
   if (!container) return;
   container.innerHTML = '';
+  container.style.display = 'flex';
+  container.style.alignItems = 'center';
+  
   if (isAdmin()) {
     const btn = document.createElement('button');
     btn.textContent = 'Notes';
@@ -267,6 +270,17 @@ function insertAdminNotesBtn(tableId) {
     };
     container.appendChild(btn);
   }
+  
+  // Add Folder Logs icon button for all users
+  const folderBtn = document.createElement('button');
+  folderBtn.innerHTML = '<i data-lucide="folder"></i>';
+  folderBtn.className = 'folder-logs-btn';
+  folderBtn.style = 'margin-bottom: 18px; margin-left: 8px; background: none; color: #888; border: none; border-radius: 8px; padding: 8px; font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;';
+  folderBtn.title = 'Folder Logs';
+  folderBtn.onclick = () => {
+    window.location.href = `/folder-logs.html?id=${tableId}`;
+  };
+  container.appendChild(folderBtn);
 }
 
 function initPage(id) {
@@ -385,6 +399,9 @@ function initPage(id) {
         document.querySelector('.container').style.position = 'relative';
         document.querySelector('.container').appendChild(viewOnlyIndicator);
       }
+      
+      // Initialize Lucide icons for the folder button
+      if (window.lucide) lucide.createIcons();
     })
     .catch(err => console.error('Error loading event:', err));
 }
@@ -507,4 +524,49 @@ window.addContactRow = addContactRow;
 window.addLocationRow = addLocationRow;
 window.saveGeneralInfo = saveGeneralInfo;
 window.switchToEdit = switchToEdit;
+
+// CLOCK ICON LOGIC
+(function() {
+  const clockBtn = document.getElementById('clockIconBtn');
+  const clockPopup = document.getElementById('clockPopup');
+  let clockInterval = null;
+
+  function formatTime(date) {
+    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  }
+
+  function showClock() {
+    clockPopup.style.display = 'block';
+    clockPopup.textContent = formatTime(new Date());
+    clockInterval = setInterval(() => {
+      clockPopup.textContent = formatTime(new Date());
+    }, 1000);
+  }
+
+  function hideClock() {
+    clockPopup.style.display = 'none';
+    if (clockInterval) clearInterval(clockInterval);
+    clockInterval = null;
+  }
+
+  if (clockBtn && clockPopup) {
+    let isVisible = false;
+    clockBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      isVisible = !isVisible;
+      if (isVisible) {
+        showClock();
+      } else {
+        hideClock();
+      }
+    });
+    // Hide popup when clicking outside
+    document.addEventListener('click', (e) => {
+      if (isVisible && !clockPopup.contains(e.target) && e.target !== clockBtn) {
+        hideClock();
+        isVisible = false;
+      }
+    });
+  }
+})();
 })();

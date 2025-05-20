@@ -61,6 +61,7 @@ const User = require('./models/User');
 const Table = require('./models/Table');
 const GearInventory = require('./models/GearInventory');
 const GearPackage = require('./models/GearPackage');
+const FolderLog = require('./models/FolderLog');
 
 // Connect to MongoDB
 const MONGO_URI = process.env.MONGO_URI;
@@ -612,6 +613,58 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
   } catch (err) {
     console.error('Error updating program schedule:', err);
     res.status(500).json({ error: 'Failed to update program schedule' });
+  }
+});
+
+// FOLDER LOGS
+app.get('/api/tables/:id/folder-logs', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === "null") {
+    return res.status(400).json({ error: "Invalid table ID" });
+  }
+  
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
+      return res.status(403).json({ error: 'Not authorized or not found' });
+    }
+    
+    // Find folder log for this table or create a new one if it doesn't exist
+    let folderLog = await FolderLog.findOne({ tableId: req.params.id });
+    if (!folderLog) {
+      folderLog = { folders: [] };
+    }
+    
+    res.json({ folders: folderLog.folders || [] });
+  } catch (err) {
+    console.error('Error getting folder logs:', err);
+    res.status(500).json({ error: 'Failed to get folder logs' });
+  }
+});
+
+app.put('/api/tables/:id/folder-logs', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === "null") {
+    return res.status(400).json({ error: "Invalid table ID" });
+  }
+  
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
+      return res.status(403).json({ error: 'Not authorized or not found' });
+    }
+    
+    // Use findOneAndUpdate with upsert to create if it doesn't exist
+    const result = await FolderLog.findOneAndUpdate(
+      { tableId: req.params.id },
+      { $set: { folders: req.body.folders || [] } },
+      { new: true, upsert: true, runValidators: true }
+    );
+    
+    // Notify clients about the folder logs update
+    notifyDataChange('folderLogsChanged', null, req.params.id);
+    res.json({ message: 'Folder logs updated' });
+  } catch (err) {
+    console.error('Error updating folder logs:', err);
+    res.status(500).json({ error: 'Failed to update folder logs' });
   }
 });
 
@@ -1184,6 +1237,10 @@ app.get('/api/gear-packages-all', authenticate, async (req, res) => {
 // ========= END GEAR PACKAGES API =========
 
 // Catch-all for SPA routing (should be last!)
+app.get('/folder-logs.html', (req, res) => {
+  res.sendFile(path.join(__dirname, '../frontend', 'folder-logs.html'));
+});
+
 app.get('*', (req, res) => {
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'API route not found' });
