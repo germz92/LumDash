@@ -18,20 +18,34 @@ let eventListenersAttached = false;
 // Add Socket.IO real-time updates early in the file, after any variable declarations but before function definitions
 // Socket.IO real-time updates
 if (window.socket) {
-  // Listen for card log updates
-  window.socket.on('cardsChanged', (data) => {
-    console.log('Card log changed, checking if relevant...');
+  // --- Granular card log events ---
+  window.socket.on('cardLogAdded', (data) => {
     const currentEventId = localStorage.getItem('eventId');
-    
-    // Only reload if it's for the current table
-    if (data && data.tableId && data.tableId !== currentEventId) {
-      console.log('Update was for a different event, ignoring');
-      return;
+    if (!data || data.tableId !== currentEventId || !data.cardLog) return;
+    // Only add if not already present
+    if (!document.getElementById(`day-${data.cardLog.date}`)) {
+      addDaySection(data.cardLog.date, data.cardLog.entries);
     }
-    
-    console.log('Reloading card log for current event');
-    loadCardLog(currentEventId);
   });
+  window.socket.on('cardLogUpdated', (data) => {
+    const currentEventId = localStorage.getItem('eventId');
+    if (!data || data.tableId !== currentEventId || !data.cardLog) return;
+    // Update the day section if it exists
+    const dayDiv = document.getElementById(`day-${data.cardLog.date}`);
+    if (dayDiv) {
+      dayDiv.remove();
+      addDaySection(data.cardLog.date, data.cardLog.entries);
+    }
+  });
+  window.socket.on('cardLogDeleted', (data) => {
+    const currentEventId = localStorage.getItem('eventId');
+    if (!data || data.tableId !== currentEventId || !data.cardLog) return;
+    // Remove the day section if it exists
+    const dayDiv = document.getElementById(`day-${data.cardLog.date}`);
+    if (dayDiv) dayDiv.remove();
+  });
+  // Remove old cardsChanged event listener
+  // window.socket.on('cardsChanged', ...); // Remove or comment out
   
   // Also listen for general table updates
   window.socket.on('tableUpdated', (data) => {
