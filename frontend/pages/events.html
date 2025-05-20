@@ -46,6 +46,12 @@
       <ul style="margin: 5px 0; padding-left: 20px;"></ul>
     </div>
 
+    <!-- Leads List -->
+    <div id="leadList" style="margin-bottom: 10px;">
+      <strong>Leads:</strong>
+      <ul style="margin: 5px 0; padding-left: 20px;"></ul>
+    </div>
+
     <!-- Shared With List -->
     <div id="sharedList" style="margin-bottom: 10px;">
       <strong>Shared With:</strong>
@@ -57,6 +63,11 @@
     <label style="margin: 8px 0; display: block;">
       <input type="checkbox" id="makeOwnerCheckbox">
       Make this user an owner
+    </label>
+
+    <label style="margin: 8px 0 0 0; display: block;">
+      <input type="checkbox" id="makeLeadCheckbox">
+      Make this user a lead (full schedule access)
     </label>
 
     <button onclick="submitShare()">Share</button>

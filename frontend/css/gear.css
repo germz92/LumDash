@@ -506,4 +506,8 @@
     right: 15px;
   }
 }
+
+body:not(.owner) .delete-btn {
+  display: none !important;
+}
   

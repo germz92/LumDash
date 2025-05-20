@@ -281,6 +281,8 @@ function insertAdminNotesBtn(tableId) {
     window.location.href = `/folder-logs.html?id=${tableId}`;
   };
   container.appendChild(folderBtn);
+  if (window.lucide) lucide.createIcons();
+  console.log('Folder logs button added for all users');
 }
 
 function initPage(id) {

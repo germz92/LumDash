@@ -1251,3 +1251,77 @@ app.get('*', (req, res) => {
 // SERVER
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));
+
+// --- SHARE TABLE WITH USER (OWNER/LEAD/SHARED) ---
+app.post('/api/tables/:id/share', authenticate, async (req, res) => {
+  const { email, makeOwner, makeLead, unshare } = req.body;
+  if (!email) return res.status(400).json({ error: 'Email is required' });
+
+  const user = await User.findOne({ email });
+  if (!user) return res.status(404).json({ error: 'User not found' });
+
+  const table = await Table.findById(req.params.id);
+  if (!table) return res.status(404).json({ error: 'Table not found' });
+
+  // Handle unshare: remove from sharedWith and leads (and owners if present, but only if not last owner)
+  if (unshare) {
+    table.sharedWith = table.sharedWith.filter(id => !id.equals(user._id));
+    table.leads = table.leads.filter(id => !id.equals(user._id));
+    // Only remove from owners if more than one owner remains
+    if (table.owners.includes(user._id) && table.owners.length > 1) {
+      table.owners = table.owners.filter(id => !id.equals(user._id));
+    }
+    await table.save();
+    notifyDataChange('tableUpdated', { tableId: table._id });
+    return res.json({ message: 'User unshared from event.' });
+  }
+
+  // Add as owner if requested
+  if (makeOwner && !table.owners.includes(user._id)) {
+    table.owners.push(user._id);
+    // Remove from leads/sharedWith if promoted
+    table.leads = table.leads.filter(id => !id.equals(user._id));
+    table.sharedWith = table.sharedWith.filter(id => !id.equals(user._id));
+  } else if (makeLead && !table.leads.includes(user._id)) {
+    table.leads.push(user._id);
+  } else if (!table.sharedWith.includes(user._id)) {
+    table.sharedWith.push(user._id);
+  }
+
+  await table.save();
+  notifyDataChange('tableUpdated', { tableId: table._id });
+
+  // Send notification email to the user
+  try {
+    let subject = 'You have been added to an event in LumDash';
+    let html = `<p>Hello ${user.fullName || user.email},</p>`;
+    if (makeOwner) {
+      html += `<p>You have been made an <b>owner</b> of the event: <b>${table.title}</b>.</p>`;
+    } else if (makeLead) {
+      html += `<p>You have been given <b>lead access</b> to the event: <b>${table.title}</b>.<br>
+        This gives you full schedule access for this event only.</p>`;
+    } else {
+      html += `<p>You have been added as a collaborator to the event: <b>${table.title}</b>.</p>`;
+    }
+    // Add a consistent View Event button for all roles
+    const eventUrl = `${process.env.APP_URL}/dashboard.html?id=${table._id}`;
+    html += `
+      <div style="margin: 24px 0;">
+        <a href="${eventUrl}" style="display:inline-block;padding:12px 28px;background:#CC0007;color:#fff;text-decoration:none;font-size:17px;font-weight:600;border-radius:8px;">View Event</a>
+      </div>
+    `;
+    html += `<p>Log in to LumDash to view the event.</p>`;
+
+    await sgMail.send({
+      to: user.email,
+      from: process.env.SENDGRID_FROM_EMAIL,
+      subject,
+      html
+    });
+  } catch (err) {
+    console.error('Failed to send share notification email:', err);
+    // Don't fail the request if email fails
+  }
+
+  res.json({ message: 'User shared and role updated.' });
+});

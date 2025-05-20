@@ -464,14 +464,138 @@ async function openShareModal(tableId) {
     const users = await userRes.json();
 
     const owners = users.filter(u => table.owners.includes(u._id));
-    const shared = users.filter(u => table.sharedWith.includes(u._id));
+    const leads = users.filter(u => table.leads.includes(u._id) && !table.owners.includes(u._id));
+    const shared = users.filter(u => table.sharedWith.includes(u._id) && !table.leads.includes(u._id) && !table.owners.includes(u._id));
 
     // Render into <ul> elements
     const ownerList = document.getElementById('ownerList')?.querySelector('ul');
+    const leadList = document.getElementById('leadList')?.querySelector('ul');
     const sharedList = document.getElementById('sharedList')?.querySelector('ul');
 
-    if (ownerList) ownerList.innerHTML = owners.map(u => `<li>${u.name || u.fullName || u.email} (${u.email})</li>`).join('');
-    if (sharedList) sharedList.innerHTML = shared.map(u => `<li>${u.name || u.fullName || u.email} (${u.email})</li>`).join('');
+    // Helper to check if user is a lead
+    const isLead = (user) => Array.isArray(table.leads) && table.leads.includes(user._id);
+    // Helper to check if user is an owner
+    const isOwnerUser = (user) => Array.isArray(table.owners) && table.owners.includes(user._id);
+
+    // Helper to render user with action buttons (no badges)
+    function renderUser(user, isOwnerList) {
+      const name = user.name || user.fullName || user.email;
+      const email = user.email;
+      // Action buttons (only if current user is owner and not self)
+      let actions = '';
+      const currentUserId = getUserIdFromToken && getUserIdFromToken();
+      const isSelf = user._id === currentUserId;
+      if (isOwner) {
+        if (!isOwnerUser(user)) {
+          actions += `<button class=\"make-owner-btn\" data-email=\"${email}\" style=\"width:60px;min-width:60px;max-width:60px;margin-left:6px;padding:1px 0;font-size:12px;border-radius:4px;background:#CC0007;color:#fff;border:none;cursor:pointer;line-height:1.1;vertical-align:middle;\">Owner</button>`;
+        }
+        if (!isLead(user)) {
+          actions += `<button class=\"make-lead-btn\" data-email=\"${email}\" style=\"width:60px;min-width:60px;max-width:60px;margin-left:3px;padding:1px 0;font-size:12px;border-radius:4px;background:#ff9800;color:#fff;border:none;cursor:pointer;line-height:1.1;vertical-align:middle;\">Lead</button>`;
+        }
+        // Add Unshare button (not for self, and not for owners in owner list)
+        if (!isSelf && (!isOwnerList || !isOwnerUser(user))) {
+          actions += `<button class=\"unshare-btn\" data-email=\"${email}\" title=\"Remove from event\" style=\"width:28px;min-width:28px;max-width:28px;height:28px;display:inline-flex;align-items:center;justify-content:center;margin-left:3px;padding:0;font-size:18px;border-radius:50%;background:#eee;color:#CC0007;border:none;cursor:pointer;line-height:1;vertical-align:middle;transition:background 0.15s;\">&#10005;</button>`;
+        }
+      }
+      return `<li style=\"display:flex;align-items:center;justify-content:space-between;min-height:28px;width:100%;padding:2px 0;word-break:break-all;\"><span style=\"display:block;overflow-wrap:break-word;word-break:break-all;flex:1 1 0;\">${name} (${email})</span> <span style=\"display:flex;gap:3px;min-width:190px;justify-content:flex-end;\">${actions}</span></li>`;
+    }
+
+    if (ownerList) ownerList.innerHTML = owners.map(u => renderUser(u, true)).join('');
+    if (leadList) leadList.innerHTML = leads.map(u => renderUser(u, false)).join('');
+    if (sharedList) sharedList.innerHTML = shared.map(u => renderUser(u, false)).join('');
+
+    // Make the lists scrollable if long, no horizontal scroll
+    if (ownerList) {
+      ownerList.parentElement.style.maxHeight = '220px';
+      ownerList.parentElement.style.overflowY = 'auto';
+      ownerList.parentElement.style.overflowX = 'hidden';
+    }
+    if (leadList) {
+      leadList.parentElement.style.maxHeight = '220px';
+      leadList.parentElement.style.overflowY = 'auto';
+      leadList.parentElement.style.overflowX = 'hidden';
+    }
+    if (sharedList) {
+      sharedList.parentElement.style.maxHeight = '220px';
+      sharedList.parentElement.style.overflowY = 'auto';
+      sharedList.parentElement.style.overflowX = 'hidden';
+    }
+
+    // Add event listeners for the new buttons
+    function addRoleButtonListeners() {
+      document.querySelectorAll('.make-lead-btn').forEach(btn => {
+        btn.onclick = async function() {
+          const email = btn.getAttribute('data-email');
+          if (confirm('Are you sure you want to make this user a lead?')) {
+            await submitRoleChange(email, false, true);
+          }
+        };
+      });
+      document.querySelectorAll('.make-owner-btn').forEach(btn => {
+        btn.onclick = async function() {
+          const email = btn.getAttribute('data-email');
+          if (confirm('Are you sure you want to make this user an owner? This will give them full control of the event, including deletion.')) {
+            await submitRoleChange(email, true, false);
+          }
+        };
+      });
+      document.querySelectorAll('.unshare-btn').forEach(btn => {
+        btn.onclick = async function() {
+          const email = btn.getAttribute('data-email');
+          if (confirm('Are you sure you want to remove this user from the event?')) {
+            await submitUnshare(email);
+          }
+        };
+      });
+    }
+    addRoleButtonListeners();
+
+    // Helper to submit role change and refresh modal
+    async function submitRoleChange(email, makeOwner, makeLead) {
+      if (!email || !currentTableId) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/tables/${currentTableId}/share`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token
+          },
+          body: JSON.stringify({ email, makeOwner, makeLead })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          // Refresh the modal
+          await openShareModal(currentTableId);
+        } else {
+          alert(result.error || 'Error updating role');
+        }
+      } catch (err) {
+        alert('Failed to update role. Please try again.');
+      }
+    }
+
+    // Helper to submit unshare and refresh modal
+    async function submitUnshare(email) {
+      if (!email || !currentTableId) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/tables/${currentTableId}/share`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token
+          },
+          body: JSON.stringify({ email, unshare: true })
+        });
+        const result = await res.json();
+        if (res.ok) {
+          await openShareModal(currentTableId);
+        } else {
+          alert(result.error || 'Error removing user');
+        }
+      } catch (err) {
+        alert('Failed to remove user. Please try again.');
+      }
+    }
   } catch (err) {
     console.error('Error in share modal:', err);
     alert('Error opening share options. Please try again.');
@@ -485,16 +609,21 @@ function closeModal() {
   if (shareEmail) shareEmail.value = '';
   const makeOwnerCheckbox = document.getElementById('makeOwnerCheckbox');
   if (makeOwnerCheckbox) makeOwnerCheckbox.checked = false;
+  const makeLeadCheckbox = document.getElementById('makeLeadCheckbox');
+  if (makeLeadCheckbox) makeLeadCheckbox.checked = false;
 
   const ownerList = document.getElementById('ownerList')?.querySelector('ul');
+  const leadList = document.getElementById('leadList')?.querySelector('ul');
   const sharedList = document.getElementById('sharedList')?.querySelector('ul');
   if (ownerList) ownerList.innerHTML = '';
+  if (leadList) leadList.innerHTML = '';
   if (sharedList) sharedList.innerHTML = '';
 }
 
 async function submitShare() {
   const email = document.getElementById('shareEmail')?.value;
   const makeOwner = document.getElementById('makeOwnerCheckbox')?.checked;
+  const makeLead = document.getElementById('makeLeadCheckbox')?.checked;
 
   if (!email || !currentTableId) return alert('Missing info');
 
@@ -505,18 +634,25 @@ async function submitShare() {
         'Content-Type': 'application/json',
         Authorization: token
       },
-      body: JSON.stringify({ email, makeOwner })
+      body: JSON.stringify({ email, makeOwner, makeLead })
     });
 
     const result = await res.json();
     
     if (res.ok) {
-      alert(`${result.message || 'Done'}. An email notification has been sent to ${email}.`);
+      let msg = result.message || 'Done.';
+      if (makeOwner) {
+        msg += `\n\n${email} is now an owner for this event.`;
+      } else if (makeLead) {
+        msg += `\n\n${email} has been given lead access to this event. This gives them full schedule access for this event only.`;
+      } else {
+        msg += `\n\n${email} has been shared as a collaborator for this event.`;
+      }
+      alert(msg + '\nAn email notification has been sent.');
+      closeModal();
     } else {
-      alert(result.error || 'Error occurred while sharing');
+      alert(result.error || 'Error sharing event');
     }
-    
-    closeModal();
   } catch (err) {
     console.error('Error sharing event:', err);
     alert('Failed to share event. Please try again.');

@@ -48,6 +48,7 @@ const crewRowSchema = new mongoose.Schema({
 const tableSchema = new mongoose.Schema({
   title: String,
   owners: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+  leads: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }], // Per-event leads
   sharedWith: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
   
   // ✅ Updated to use schema with _id
