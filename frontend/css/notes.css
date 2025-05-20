@@ -415,4 +415,5 @@ body {
 .admin-notes-btn:hover, .admin-notes-btn:focus {
   background: #e5e7eb;
   color: #222;
-} 
+}
+.notes-page { font-family: 'Roboto', Arial, sans-serif; } 

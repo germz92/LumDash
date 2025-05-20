@@ -1,3 +1,15 @@
+html, body {
+  font-family: 'Roboto', Arial, sans-serif;
+}
+
+.bottom-nav, .bottom-nav a, .bottom-nav span {
+  font-family: 'Roboto', Arial, sans-serif !important;
+}
+
+.dashboard-page, .gear-page {
+  font-family: 'Roboto', Arial, sans-serif;
+}
+
 .dashboard-page { font-family: Arial, sans-serif; margin: 0; padding: 0 5%; background: #f4f4f4; min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; }
 .dashboard-page html, .dashboard-page body { max-width: 100%; overflow-x: hidden; }
 .dashboard-page .top-controls { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-top: 20px; }
@@ -47,5 +59,44 @@
 @keyframes spin {
   0% { transform: rotate(0deg); }
   100% { transform: rotate(360deg); }
+}
+
+/* Bottom Nav Bar Styles */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 70px; /* increased height */
+  background: #fff;
+  border-top: 1px solid #ccc;
+  display: flex;
+  justify-content: space-around;
+  align-items: flex-start; /* top align to allow inner padding */
+  padding-top: 6px;
+  z-index: 1000;
+  padding-bottom: env(safe-area-inset-bottom, 10px); /* support iPhones with notches */
+}
+
+.bottom-nav a {
+  color: #cc0007;
+  text-decoration: none;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  padding-bottom: 12px; /* more space from bottom */
+}
+
+.bottom-nav a:hover {
+  background-color: #f0f0f0;
+}
+
+.bottom-nav i {
+  stroke: #CC0007;
+  width: 20px;
+  height: 20px;
+  margin-bottom: 4px;
 }
   
