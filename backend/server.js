@@ -215,6 +215,75 @@ app.get('/api/tables/:id', authenticate, async (req, res) => {
   res.json(table);
 });
 
+// --- TASKS ENDPOINTS (COLLABORATIVE TO-DO LIST) ---
+app.get('/api/tables/:id/tasks', authenticate, async (req, res) => {
+  const table = await Table.findById(req.params.id);
+  if (!table) return res.status(404).json({ error: 'Table not found' });
+  if (!table.owners.map(String).includes(req.user.id) && !table.sharedWith.map(String).includes(req.user.id)) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+  res.json({ tasks: table.tasks || [] });
+});
+
+app.post('/api/tables/:id/tasks', authenticate, async (req, res) => {
+  const table = await Table.findById(req.params.id);
+  if (!table) return res.status(404).json({ error: 'Table not found' });
+  if (!table.owners.map(String).includes(req.user.id)) {
+    return res.status(403).json({ error: 'Only owners can add tasks' });
+  }
+  const { title, deadline } = req.body;
+  if (!title) return res.status(400).json({ error: 'Title is required' });
+  const task = {
+    title,
+    deadline: deadline || '',
+    completed: false,
+    createdBy: req.user.id
+  };
+  table.tasks.push(task);
+  await table.save();
+  const newTask = table.tasks[table.tasks.length - 1];
+  notifyDataChange('taskAdded', { task: newTask }, req.params.id);
+  res.json({ task: newTask });
+});
+
+app.put('/api/tables/:id/tasks/:taskId', authenticate, async (req, res) => {
+  const table = await Table.findById(req.params.id);
+  if (!table) return res.status(404).json({ error: 'Table not found' });
+  if (!table.owners.map(String).includes(req.user.id)) {
+    return res.status(403).json({ error: 'Only owners can edit tasks' });
+  }
+  const task = table.tasks.id(req.params.taskId);
+  if (!task) return res.status(404).json({ error: 'Task not found' });
+  if (typeof req.body.title === 'string') task.title = req.body.title;
+  if (typeof req.body.deadline === 'string') task.deadline = req.body.deadline;
+  if (typeof req.body.completed === 'boolean') task.completed = req.body.completed;
+  await table.save();
+  notifyDataChange('taskUpdated', { task }, req.params.id);
+  res.json({ task });
+});
+
+app.delete('/api/tables/:id/tasks/:taskId', authenticate, async (req, res) => {
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) return res.status(404).json({ error: 'Table not found' });
+    if (!table.owners.map(String).includes(req.user.id)) {
+      return res.status(403).json({ error: 'Only owners can delete tasks' });
+    }
+    const taskIndex = table.tasks.findIndex(t => t._id && t._id.toString() === req.params.taskId);
+    if (taskIndex === -1) {
+      console.error(`Task not found: ${req.params.taskId} in table ${req.params.id}`);
+      return res.status(404).json({ error: 'Task not found' });
+    }
+    table.tasks.splice(taskIndex, 1);
+    await table.save();
+    notifyDataChange('taskDeleted', { taskId: req.params.taskId }, req.params.id);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('Error deleting task:', err);
+    res.status(500).json({ error: 'Server error while deleting task' });
+  }
+});
+
 // --- ADMIN NOTES ENDPOINTS (MULTI-NOTE) ---
 // Get all admin notes for a table (owners only)
 app.get('/api/tables/:id/admin-notes', authenticate, async (req, res) => {

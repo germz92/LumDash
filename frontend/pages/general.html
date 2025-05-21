@@ -4,14 +4,16 @@
 <div class="general-page">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
     <div id="adminNotesBtnContainer"></div>
-    <div id="clockIconContainer">
-      <button id="clockIconBtn" class="clock-icon-btn" title="Show current time" aria-label="Show current time">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="12" cy="12" r="10"/>
-          <polyline points="12 6 12 12 16 14"/>
-        </svg>
-      </button>
-      <div id="clockPopup" class="clock-popup"></div>
+    <div style="display: flex; gap: 12px; align-items: center;">
+      <div id="clockIconContainer">
+        <button id="clockIconBtn" class="clock-icon-btn" title="Show current time" aria-label="Show current time">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+        </button>
+        <div id="clockPopup" class="clock-popup"></div>
+      </div>
     </div>
   </div>
   <h2 id="eventTitle" style="text-align: center; margin-bottom: 20px;"></h2>
@@ -97,4 +99,12 @@
     </div>
   </form>
 </div>
+
+<!-- Lucide icon library for folder/task icons -->
+<script src="https://unpkg.com/lucide@latest" defer></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  if (window.lucide) lucide.createIcons();
+});
+</script>
 

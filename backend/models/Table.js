@@ -135,7 +135,17 @@ const tableSchema = new mongoose.Schema({
     }
   ],
   // Crew cost calculator rates
-  crewRates: { type: Object, default: {} }
+  crewRates: { type: Object, default: {} },
+  // Collaborative tasks/to-do list
+  tasks: [
+    {
+      _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+      title: { type: String, required: true },
+      deadline: { type: String },
+      completed: { type: Boolean, default: false },
+      createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+    }
+  ]
 }, { timestamps: true });
 
 // Add utility methods for date handling if needed
