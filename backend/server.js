@@ -1442,3 +1442,21 @@ app.delete('/api/tables/:id/rows-by-id/:rowId', authenticate, async (req, res) =
   notifyDataChange('tableUpdated', null, req.params.id);
   res.json({ message: 'Row deleted' });
 });
+
+// PATCH endpoint for partial updates (e.g., crewRates)
+app.patch('/api/tables/:id', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === "null") {
+    return res.status(400).json({ error: "Invalid table ID" });
+  }
+  const table = await Table.findById(req.params.id);
+  if (!table || !table.owners.includes(req.user.id)) {
+    return res.status(403).json({ error: 'Not authorized or not found' });
+  }
+  // Only allow updating crewRates for now
+  if (req.body.crewRates) {
+    table.crewRates = { ...table.crewRates, ...req.body.crewRates };
+    await table.save();
+    return res.json({ crewRates: table.crewRates });
+  }
+  res.status(400).json({ error: 'No valid fields to update' });
+});
