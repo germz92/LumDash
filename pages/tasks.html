@@ -40,6 +40,9 @@
       .task-actions { gap: 2px; }
     }
   </style>
+  
+  <!-- Load config.js first -->
+  <script src="/js/config.js"></script>
 </head>
 <body>
   <div class="tasks-container">
@@ -54,9 +57,37 @@
     </form>
     <ul class="tasks-list" id="tasksList"></ul>
   </div>
-  <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-  <script src="/js/tasks.js"></script>
+  
+  <!-- Handle sequential script loading to ensure proper order -->
   <script>
+    // This function will load scripts in sequence
+    function loadScriptsSequentially(scripts, index = 0) {
+      if (index >= scripts.length) return;
+      
+      const script = document.createElement('script');
+      script.src = scripts[index];
+      
+      script.onload = function() {
+        loadScriptsSequentially(scripts, index + 1);
+      };
+      
+      script.onerror = function() {
+        console.error('Failed to load script:', scripts[index]);
+        // Try to continue loading the next script
+        loadScriptsSequentially(scripts, index + 1);
+      };
+      
+      document.head.appendChild(script);
+    }
+    
+    // Load in this specific order
+    loadScriptsSequentially([
+      API_BASE + '/socket.io/socket.io.js', 
+      '/js/socket.js',
+      '/js/tasks.js'
+    ]);
+    
+    // Set up back button
     const params = new URLSearchParams(window.location.search);
     const tableId = params.get('id') || localStorage.getItem('eventId');
     document.getElementById('backToGeneral').onclick = function(e) {
