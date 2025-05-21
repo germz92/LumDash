@@ -410,8 +410,8 @@ app.put('/api/tables/:id/cardlog', authenticate, async (req, res) => {
     );
     
     if (!result) {
-      return res.status(403).json({ error: 'Not authorized or not found' });
-    }
+    return res.status(403).json({ error: 'Not authorized or not found' });
+  }
     // --- Partial update events for card log ---
     const newCardLog = req.body.cardLog || [];
     // Build maps for fast lookup
@@ -436,7 +436,7 @@ app.put('/api/tables/:id/cardlog', authenticate, async (req, res) => {
         notifyDataChange('cardLogDeleted', { cardLog: e }, req.params.id);
       }
     }
-    res.json({ message: 'Card log saved' });
+  res.json({ message: 'Card log saved' });
   } catch (err) {
     console.error('Error updating card log:', err);
     res.status(500).json({ error: 'Failed to update card log' });
@@ -729,8 +729,8 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
     );
     
     if (!result) {
-      return res.status(403).json({ error: 'Not authorized or not found' });
-    }
+    return res.status(403).json({ error: 'Not authorized or not found' });
+  }
     // --- Partial update events ---
     const newSchedule = req.body.programSchedule || [];
     // Build maps for fast lookup
@@ -755,7 +755,7 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
         notifyDataChange('programDeleted', { program: p }, req.params.id);
       }
     }
-    res.json({ message: 'Program schedule updated' });
+  res.json({ message: 'Program schedule updated' });
   } catch (err) {
     console.error('Error updating program schedule:', err);
     res.status(500).json({ error: 'Failed to update program schedule' });

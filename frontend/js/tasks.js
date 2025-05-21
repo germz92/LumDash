@@ -3,9 +3,10 @@
 const params = new URLSearchParams(window.location.search);
 const tableId = params.get('id') || localStorage.getItem('eventId');
 const token = window.token || localStorage.getItem('token');
+// Use API_BASE from config.js
+const API_BASE = window.API_BASE || '';
 let isOwner = false;
 let tasks = [];
-let socket;
 
 // Helper: get userId from JWT
 function getUserId() {
@@ -14,7 +15,7 @@ function getUserId() {
 
 // Check owner status
 async function checkOwner() {
-  const res = await fetch(`/api/tables/${tableId}`, { headers: { Authorization: token } });
+  const res = await fetch(`${API_BASE}/api/tables/${tableId}`, { headers: { Authorization: token } });
   if (!res.ok) return false;
   const table = await res.json();
   const userId = getUserId();
@@ -23,7 +24,7 @@ async function checkOwner() {
 
 // Fetch tasks from backend
 async function fetchTasks() {
-  const res = await fetch(`/api/tables/${tableId}/tasks`, { headers: { Authorization: token } });
+  const res = await fetch(`${API_BASE}/api/tables/${tableId}/tasks`, { headers: { Authorization: token } });
   if (!res.ok) return [];
   const data = await res.json();
   tasks = Array.isArray(data.tasks) ? data.tasks : [];
@@ -65,7 +66,7 @@ function renderTasks() {
 
 // Add task via API
 async function addTask(title, deadline) {
-  const res = await fetch(`/api/tables/${tableId}/tasks`, {
+  const res = await fetch(`${API_BASE}/api/tables/${tableId}/tasks`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: token },
     body: JSON.stringify({ title, deadline })
@@ -85,7 +86,7 @@ async function editTask(id) {
   if (newTitle === null) return;
   const newDeadline = prompt('Edit deadline (YYYY-MM-DD):', task.deadline);
   if (newDeadline === null) return;
-  const res = await fetch(`/api/tables/${tableId}/tasks/${id}`, {
+  const res = await fetch(`${API_BASE}/api/tables/${tableId}/tasks/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: token },
     body: JSON.stringify({ title: newTitle.trim(), deadline: newDeadline })
@@ -96,7 +97,7 @@ async function editTask(id) {
 // Delete task via API
 async function deleteTask(id) {
   if (!confirm('Delete this task?')) return;
-  const res = await fetch(`/api/tables/${tableId}/tasks/${id}`, {
+  const res = await fetch(`${API_BASE}/api/tables/${tableId}/tasks/${id}`, {
     method: 'DELETE',
     headers: { Authorization: token }
   });
@@ -107,7 +108,7 @@ async function deleteTask(id) {
 async function toggleComplete(id) {
   const task = tasks.find(t => t._id === id);
   if (!task) return;
-  const res = await fetch(`/api/tables/${tableId}/tasks/${id}`, {
+  const res = await fetch(`${API_BASE}/api/tables/${tableId}/tasks/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json', Authorization: token },
     body: JSON.stringify({ completed: !task.completed })
@@ -135,23 +136,19 @@ document.getElementById('tasksList').onclick = function(e) {
 
 // Socket.IO setup
 function setupSocket() {
-  if (window.io) {
+  // Use the global socket initialized by socket.js
+  if (window.socket) {
     console.log('Socket.IO is available');
-    socket = io('http://localhost:3000'); // Explicitly specify backend URL for local dev
-    socket.on('connect', () => {
-      console.log('Socket connected');
-    });
-    socket.on('connect_error', (error) => {
-      console.error('Socket.IO connection error:', error);
-    });
-    socket.on('taskAdded', data => {
+    
+    window.socket.on('taskAdded', data => {
       console.log('Received taskAdded', data);
       if (data.tableId === tableId) {
         tasks.push(data.task);
         renderTasks();
       }
     });
-    socket.on('taskUpdated', data => {
+    
+    window.socket.on('taskUpdated', data => {
       console.log('Received taskUpdated', data);
       if (data.tableId === tableId) {
         const idx = tasks.findIndex(t => t._id === data.task._id);
@@ -161,7 +158,8 @@ function setupSocket() {
         }
       }
     });
-    socket.on('taskDeleted', data => {
+    
+    window.socket.on('taskDeleted', data => {
       console.log('Received taskDeleted', data);
       if (data.tableId === tableId) {
         tasks = tasks.filter(t => t._id !== data.taskId);
@@ -169,9 +167,12 @@ function setupSocket() {
       }
     });
   } else {
-    console.error('Socket.IO is not available! Check if the client library is loaded.');
+    console.error('Socket.IO is not available! Check if socket.js is loaded correctly.');
   }
 }
+
+// Make fetchTasks available globally for event refreshes
+window.fetchTasks = fetchTasks;
 
 // Hide add form if not owner
 async function setup() {
