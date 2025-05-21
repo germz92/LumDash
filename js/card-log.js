@@ -14,42 +14,97 @@ const cameras = ["A7IV-A", "A7IV-B", "A7IV-C", "A7IV-D", "A7IV-E", "A7RV-A", "FX
 let isOwner = false;
 let saveTimeout;
 let eventListenersAttached = false;
+let processingSocketEvent = false; // Flag to prevent multiple socket events processing at once
 
 // Add Socket.IO real-time updates early in the file, after any variable declarations but before function definitions
 // Socket.IO real-time updates
 if (window.socket) {
   // --- Granular card log events ---
   window.socket.on('cardLogAdded', (data) => {
-    const currentEventId = localStorage.getItem('eventId');
-    if (!data || data.tableId !== currentEventId || !data.cardLog) return;
-    // Only add if not already present
-    if (!document.getElementById(`day-${data.cardLog.date}`)) {
-      addDaySection(data.cardLog.date, data.cardLog.entries);
+    if (processingSocketEvent) {
+      console.log("Ignoring cardLogAdded event - already processing another event");
+      return;
+    }
+    
+    processingSocketEvent = true;
+    
+    try {
+      const currentEventId = localStorage.getItem('eventId');
+      if (!data || data.tableId !== currentEventId || !data.cardLog) {
+        console.log("Ignoring cardLogAdded - not for current event or missing data");
+        return;
+      }
+      
+      console.log(`Received cardLogAdded for date: ${data.cardLog.date}`);
+      
+      // Only add if not already present - don't clear container
+      if (!document.getElementById(`day-${data.cardLog.date}`)) {
+        console.log("Adding new day section to UI");
+        addDaySection(data.cardLog.date, data.cardLog.entries);
+      } else {
+        console.log("Day already exists in UI, ignoring");
+      }
+    } finally {
+      // Use a timeout to prevent rapid event processing
+      setTimeout(() => {
+        processingSocketEvent = false;
+      }, 100);
     }
   });
+  
   window.socket.on('cardLogUpdated', (data) => {
-    const currentEventId = localStorage.getItem('eventId');
-    if (!data || data.tableId !== currentEventId || !data.cardLog) return;
-    // Update the day section if it exists
-    const dayDiv = document.getElementById(`day-${data.cardLog.date}`);
-    if (dayDiv) {
-      dayDiv.remove();
-      addDaySection(data.cardLog.date, data.cardLog.entries);
+    if (processingSocketEvent) return;
+    processingSocketEvent = true;
+    
+    try {
+      const currentEventId = localStorage.getItem('eventId');
+      if (!data || data.tableId !== currentEventId || !data.cardLog) return;
+      console.log(`Received cardLogUpdated for date: ${data.cardLog.date}`);
+      
+      // Update the day section if it exists
+      const dayDiv = document.getElementById(`day-${data.cardLog.date}`);
+      if (dayDiv) {
+        console.log("Updating day section in UI");
+        dayDiv.remove();
+        addDaySection(data.cardLog.date, data.cardLog.entries);
+      } else {
+        console.log("Day doesn't exist in UI, ignoring update");
+      }
+    } finally {
+      setTimeout(() => {
+        processingSocketEvent = false;
+      }, 100);
     }
   });
+  
   window.socket.on('cardLogDeleted', (data) => {
-    const currentEventId = localStorage.getItem('eventId');
-    if (!data || data.tableId !== currentEventId || !data.cardLog) return;
-    // Remove the day section if it exists
-    const dayDiv = document.getElementById(`day-${data.cardLog.date}`);
-    if (dayDiv) dayDiv.remove();
+    if (processingSocketEvent) return;
+    processingSocketEvent = true;
+    
+    try {
+      const currentEventId = localStorage.getItem('eventId');
+      if (!data || data.tableId !== currentEventId || !data.cardLog) return;
+      console.log(`Received cardLogDeleted for date: ${data.cardLog.date}`);
+      
+      // Remove the day section if it exists
+      const dayDiv = document.getElementById(`day-${data.cardLog.date}`);
+      if (dayDiv) {
+        console.log("Removing day section from UI");
+        dayDiv.remove();
+      } else {
+        console.log("Day doesn't exist in UI, ignoring delete");
+      }
+    } finally {
+      setTimeout(() => {
+        processingSocketEvent = false;
+      }, 100);
+    }
   });
-  // Remove old cardsChanged event listener
-  // window.socket.on('cardsChanged', ...); // Remove or comment out
   
   // Also listen for general table updates
   window.socket.on('tableUpdated', (data) => {
-    console.log('Table updated, checking if relevant...');
+    if (processingSocketEvent) return;
+    
     const currentEventId = localStorage.getItem('eventId');
     
     // Only reload if it's for the current table
@@ -58,33 +113,97 @@ if (window.socket) {
       return;
     }
     
-    console.log('Reloading card log for current event');
-    loadCardLog(currentEventId);
+    console.log('Table updated event received - NOT reloading entire card log to maintain state');
+    // We no longer call loadCardLog() here to avoid resetting the UI
   });
 }
 
 // Utility and handler functions
 async function saveToMongoDB() {
-  const tables = document.querySelectorAll('.day-table');
-  const cardLog = Array.from(tables).map(dayTable => {
-    const date = dayTable.querySelector('h3').textContent;
-    const entries = Array.from(dayTable.querySelectorAll('tbody tr')).map(row => {
-      const cells = row.querySelectorAll('td');
-      return {
-        camera: cells[0].querySelector('select')?.value || '',
-        card1: cells[1].querySelector('input')?.value || '',
-        card2: cells[2].querySelector('input')?.value || '',
-        user: cells[3].querySelector('select')?.value || ''
+  try {
+    const tables = document.querySelectorAll('.day-table');
+    
+    // If no day tables exist, send an empty array explicitly
+    if (tables.length === 0) {
+      console.log("No days found in the UI, sending empty card log");
+      const response = await fetch(`${API_BASE}/api/tables/${localStorage.getItem('eventId')}/cardlog`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') },
+        body: JSON.stringify({ cardLog: [] })
+      });
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        alert(`Error saving changes: ${errorData.error || response.statusText}`);
+        return false;
+      }
+      console.log("Empty card log saved successfully");
+      return true;
+    }
+    
+    const cardLog = Array.from(tables).map(dayTable => {
+      const date = dayTable.querySelector('h3').textContent;
+      const entries = Array.from(dayTable.querySelectorAll('tbody tr')).map(row => {
+        const cells = row.querySelectorAll('td');
+        return {
+          camera: cells[0].querySelector('select')?.value || '',
+          card1: cells[1].querySelector('input')?.value || '',
+          card2: cells[2].querySelector('input')?.value || '',
+          user: cells[3].querySelector('select')?.value || '',
+          // Add a client-side ID if needed
+          _id: row.getAttribute('data-id') || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+        };
+      });
+      
+      // Get the day ID from the DOM if it exists
+      const dayId = dayTable.getAttribute('data-id');
+      
+      return { 
+        date, 
+        entries,
+        _id: dayId || `day-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       };
     });
-    return { date, entries };
-  });
 
-  await fetch(`${API_BASE}/api/tables/${localStorage.getItem('eventId')}/cardlog`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') },
-    body: JSON.stringify({ cardLog })
-  });
+    console.log("Saving card log with entries:", cardLog.map(log => `${log.date} (${log.entries.length} entries)`));
+    const response = await fetch(`${API_BASE}/api/tables/${localStorage.getItem('eventId')}/cardlog`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') },
+      body: JSON.stringify({ cardLog })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error(`Error saving card log: ${response.status} ${response.statusText}`, errorData);
+      
+      // Show error to user
+      alert(`Error saving changes: ${errorData.error || response.statusText}`);
+      return false;
+    }
+    
+    console.log("Card log saved successfully");
+    
+    // Update the data-id attributes after saving
+    cardLog.forEach(day => {
+      const dayDiv = document.getElementById(`day-${day.date}`);
+      if (dayDiv) {
+        dayDiv.setAttribute('data-id', day._id);
+        
+        // Also update row IDs
+        day.entries.forEach((entry, index) => {
+          const rows = dayDiv.querySelectorAll('tbody tr');
+          if (rows[index]) {
+            rows[index].setAttribute('data-id', entry._id);
+          }
+        });
+      }
+    });
+    
+    return true;
+  } catch (error) {
+    console.error("Error saving card log:", error);
+    alert(`Error saving changes: ${error.message || 'Unknown error'}`);
+    return false;
+  }
 }
 
 function debounceSave() {
@@ -107,6 +226,7 @@ function createNewDay() {
   addDaySection(date);
   dateInput.value = '';
   closeDateModal();
+  // Only save, do not reload the card log
   saveToMongoDB();
 }
 
@@ -127,7 +247,7 @@ function setupEventListeners() {
   if (submitDateBtn) submitDateBtn.addEventListener('click', createNewDay);
   
   if (tableContainer) {
-    tableContainer.addEventListener('click', (e) => {
+    tableContainer.addEventListener('click', async (e) => {
       if (e.target.classList.contains('add-row-btn')) {
         const date = e.target.getAttribute('data-date');
         addRow(date);
@@ -140,8 +260,23 @@ function setupEventListeners() {
       if (e.target.classList.contains('delete-day-btn') && isOwner) {
         const dayDiv = e.target.closest('.day-table');
         if (dayDiv && confirm('Delete this entire day?')) {
+          // Store the day information before removing it
+          const date = dayDiv.querySelector('h3').textContent;
+          const dayId = dayDiv.getAttribute('data-id');
+          
+          // Remove from DOM
           dayDiv.remove();
-          saveToMongoDB();
+          
+          // Try to save
+          const success = await saveToMongoDB();
+          
+          // If saving failed, recreate the day
+          if (!success) {
+            console.log(`Save failed, restoring deleted day: ${date}`);
+            // Reload the entire card log to ensure consistency
+            await loadCardLog();
+            alert(`The day could not be deleted due to an error. The page has been refreshed.`);
+          }
         }
       }
     });
@@ -262,9 +397,34 @@ async function loadCardLog() {
   const userId = getUserIdFromToken();
   isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
   if (!table.cardLog || table.cardLog.length === 0) return;
+  
   const container = document.getElementById('table-container');
-  container.innerHTML = '';
-  table.cardLog.forEach(day => addDaySection(day.date, day.entries));
+  
+  // Get existing days
+  const existingDays = new Set(Array.from(document.querySelectorAll('.day-table')).map(div => {
+    const dateHeader = div.querySelector('h3');
+    return dateHeader ? dateHeader.textContent : null;
+  }).filter(Boolean));
+  
+  console.log("Existing days in UI:", Array.from(existingDays));
+  console.log("Days in database:", table.cardLog.map(day => day.date));
+  
+  // Don't clear container if we already have days, only add missing ones
+  const shouldAddAll = existingDays.size === 0;
+  
+  if (shouldAddAll) {
+    // No existing days, start fresh
+    container.innerHTML = '';
+    table.cardLog.forEach(day => addDaySection(day.date, day.entries));
+  } else {
+    // Only add days that aren't already shown
+    table.cardLog.forEach(day => {
+      if (!existingDays.has(day.date)) {
+        console.log(`Adding missing day: ${day.date}`);
+        addDaySection(day.date, day.entries);
+      }
+    });
+  }
 }
 
 function getUserIdFromToken() {
@@ -311,8 +471,14 @@ function getCurrentUserName() {
 function addDaySection(date, entries = []) {
   const container = document.getElementById('table-container');
   const dayDiv = document.createElement('div');
+  
+  // Generate a unique ID for this day if not already present
+  const dayId = `day-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
   dayDiv.className = 'day-table';
   dayDiv.id = `day-${date}`;
+  dayDiv.setAttribute('data-id', dayId);
+  
   dayDiv.innerHTML = `
     <div style="display: flex; align-items: center; justify-content: center;">
       <h3 style="margin: 0;">${date}</h3>
@@ -342,7 +508,10 @@ function addDaySection(date, entries = []) {
     </div>
   `;
   container.appendChild(dayDiv);
-  entries.forEach(entry => addRow(date, entry));
+  
+  // Make sure entries is an array
+  const entriesArray = Array.isArray(entries) ? entries : [];
+  entriesArray.forEach(entry => addRow(date, entry));
 }
 
 function addRow(date, entry = {}) {
@@ -353,6 +522,10 @@ function addRow(date, entry = {}) {
   }
   
   const row = document.createElement('tr');
+  
+  // Generate or use existing ID for this row
+  const rowId = entry._id || `row-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  row.setAttribute('data-id', rowId);
 
   const currentUser = getCurrentUserName();
   const isCreator = !entry.user || entry.user === currentUser;
