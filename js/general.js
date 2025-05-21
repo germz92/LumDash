@@ -281,14 +281,25 @@ function insertAdminNotesBtn(tableId) {
     window.location.href = `/folder-logs.html?id=${tableId}`;
   };
   container.appendChild(folderBtn);
+
+  // Add Task icon button for owners, styled like folder icon, to the right
+  if (isOwner) {
+    const taskBtn = document.createElement('button');
+    taskBtn.innerHTML = '<i data-lucide="check-square"></i>';
+    taskBtn.className = 'task-logs-btn';
+    taskBtn.style = 'margin-bottom: 18px; margin-left: 8px; background: none; color: #888; border: none; border-radius: 8px; padding: 8px; font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;';
+    taskBtn.title = 'To-Do List';
+    taskBtn.onclick = () => {
+      window.location.href = `/pages/tasks.html?id=${tableId}`;
+    };
+    container.appendChild(taskBtn);
+  }
   if (window.lucide) lucide.createIcons();
   console.log('Folder logs button added for all users');
 }
 
 function initPage(id) {
   if (!id || !window.token) return;
-
-  insertAdminNotesBtn(id);
 
   fetch(`${API_BASE}/api/tables/${id}`, {
     headers: { Authorization: window.token }
@@ -298,6 +309,9 @@ function initPage(id) {
       const general = table.general || {};
       const userId = getUserIdFromToken();
       isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
+
+      // Now that isOwner is set, insert the admin/folder/task buttons
+      insertAdminNotesBtn(id);
 
       const eventTitleEl = document.getElementById('eventTitle');
       if (eventTitleEl) eventTitleEl.textContent = table.title;
