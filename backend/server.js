@@ -1402,3 +1402,43 @@ app.post('/api/tables/:id/share', authenticate, async (req, res) => {
 
   res.json({ message: 'User shared and role updated.' });
 });
+
+// --- Add/Update/Delete single crew row by _id ---
+app.put('/api/tables/:id/rows/:rowId', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === "null" || !req.params.rowId) {
+    return res.status(400).json({ error: "Invalid table ID or row ID" });
+  }
+  const table = await Table.findById(req.params.id);
+  if (!table || !table.owners.includes(req.user.id)) {
+    return res.status(403).json({ error: 'Not authorized or not found' });
+  }
+  const rowIndex = table.rows.findIndex(r => r._id && r._id.toString() === req.params.rowId);
+  if (rowIndex === -1) {
+    return res.status(404).json({ error: 'Row not found' });
+  }
+  // Update fields
+  table.rows[rowIndex] = { ...table.rows[rowIndex]._doc, ...req.body, _id: table.rows[rowIndex]._id };
+  await table.save();
+  notifyDataChange('crewChanged', null, req.params.id);
+  notifyDataChange('tableUpdated', null, req.params.id);
+  res.json({ message: 'Row updated' });
+});
+
+app.delete('/api/tables/:id/rows-by-id/:rowId', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === "null" || !req.params.rowId) {
+    return res.status(400).json({ error: "Invalid table ID or row ID" });
+  }
+  const table = await Table.findById(req.params.id);
+  if (!table || !table.owners.includes(req.user.id)) {
+    return res.status(403).json({ error: 'Not authorized or not found' });
+  }
+  const rowIndex = table.rows.findIndex(r => r._id && r._id.toString() === req.params.rowId);
+  if (rowIndex === -1) {
+    return res.status(404).json({ error: 'Row not found' });
+  }
+  table.rows.splice(rowIndex, 1);
+  await table.save();
+  notifyDataChange('crewChanged', null, req.params.id);
+  notifyDataChange('tableUpdated', null, req.params.id);
+  res.json({ message: 'Row deleted' });
+});
