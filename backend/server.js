@@ -386,60 +386,162 @@ app.put('/api/tables/:id', authenticate, async (req, res) => {
   res.json({ message: 'Table updated' });
 });
 
-// NEW ✨ Save card log per event
+// Helper to ensure _id is a valid ObjectId
+function ensureObjectId(id) {
+  if (!id) return new mongoose.Types.ObjectId();
+  if (mongoose.Types.ObjectId.isValid(id) && (typeof id !== 'string' || id.length === 24)) {
+    return new mongoose.Types.ObjectId(id);
+  }
+  return new mongoose.Types.ObjectId();
+}
+
+function sanitizeCardLog(cardLog) {
+  return (Array.isArray(cardLog) ? cardLog : []).map(day => ({
+    _id: ensureObjectId(day._id),
+    date: day.date,
+    entries: Array.isArray(day.entries)
+      ? day.entries.map(entry => ({
+          _id: ensureObjectId(entry._id),
+          camera: entry.camera || '',
+          card1: entry.card1 || '',
+          card2: entry.card2 || '',
+          user: entry.user || ''
+        }))
+      : []
+  }));
+}
+
+// ✅ Save card log data
 app.put('/api/tables/:id/cardlog', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === "null") {
     return res.status(400).json({ error: "Invalid table ID" });
   }
   
   try {
-    // Get the old card log for diffing
-    const oldTable = await Table.findById(req.params.id);
-    const oldCardLog = oldTable ? (oldTable.cardLog || []) : [];
-    // Use findOneAndUpdate instead of findById + save to avoid version conflicts
-    const result = await Table.findOneAndUpdate(
-      { 
-        _id: req.params.id,
-        $or: [
-          { owners: req.user.id },
-          { sharedWith: req.user.id }
-        ]
-      },
-      { $set: { cardLog: req.body.cardLog || [] } },
-      { new: true, runValidators: true }
-    );
+    console.log(`[CARDLOG] Received PUT request for card log, table ID: ${req.params.id}`);
     
-    if (!result) {
-    return res.status(403).json({ error: 'Not authorized or not found' });
-  }
-    // --- Partial update events for card log ---
-    const newCardLog = req.body.cardLog || [];
-    // Build maps for fast lookup
-    const oldMap = new Map(oldCardLog.map(e => [e._id?.toString?.(), e]));
-    const newMap = new Map(newCardLog.map(e => [e._id?.toString?.(), e]));
-    // Added
-    for (const e of newCardLog) {
-      if (!oldMap.has(e._id?.toString?.())) {
-        notifyDataChange('cardLogAdded', { cardLog: e }, req.params.id);
+    // Safely extract the card log data
+    let newCardLog = [];
+    try {
+      newCardLog = Array.isArray(req.body.cardLog) ? req.body.cardLog : [];
+      console.log(`[CARDLOG] Received ${newCardLog.length} entries`);
+      
+      // Basic validation - log date presence
+      const entriesWithoutDates = newCardLog.filter(entry => !entry || !entry.date).length;
+      if (entriesWithoutDates > 0) {
+        console.warn(`[CARDLOG] Warning: ${entriesWithoutDates} entries are missing dates`);
+      }
+    } catch (err) {
+      console.error('[CARDLOG] Error parsing card log data:', err);
+      return res.status(400).json({ error: "Invalid card log data format" });
+    }
+    
+    // Sanitize card log to ensure all _id fields are ObjectId
+    const sanitizedCardLog = sanitizeCardLog(newCardLog);
+    
+    // Get the current card log for comparison
+    const oldTable = await Table.findById(req.params.id);
+    if (!oldTable) {
+      console.error(`[CARDLOG] Table not found: ${req.params.id}`);
+      return res.status(404).json({ error: "Table not found" });
+    }
+    
+    // Check permissions
+    if (!oldTable.owners.includes(req.user.id) && !oldTable.sharedWith.includes(req.user.id)) {
+      console.error(`[CARDLOG] Unauthorized access: ${req.user.id}`);
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    // Safely extract old card log
+    const oldCardLog = Array.isArray(oldTable.cardLog) ? oldTable.cardLog : [];
+    console.log(`[CARDLOG] Current card log has ${oldCardLog.length} entries`);
+    
+    // Get dates from both logs for basic diffing
+    const oldDates = new Set(oldCardLog.filter(entry => entry && entry.date).map(entry => entry.date));
+    const newDates = new Set(sanitizedCardLog.filter(entry => entry && entry.date).map(entry => entry.date));
+    
+    console.log(`[CARDLOG] Old dates: ${Array.from(oldDates).join(', ')}`);
+    console.log(`[CARDLOG] New dates: ${Array.from(newDates).join(', ')}`);
+    
+    // Simple diffing for notifications
+    const addedDates = Array.from(newDates).filter(date => !oldDates.has(date));
+    const deletedDates = Array.from(oldDates).filter(date => !newDates.has(date));
+    
+    console.log(`[CARDLOG] Added dates: ${addedDates.join(', ')}`);
+    console.log(`[CARDLOG] Deleted dates: ${deletedDates.join(', ')}`);
+    
+    // Update with retry logic
+    let updateSuccessful = false;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (!updateSuccessful && retryCount < maxRetries) {
+      try {
+        // Use findOneAndUpdate to avoid race conditions
+        const result = await Table.findOneAndUpdate(
+          { 
+            _id: req.params.id,
+            $or: [
+              { owners: req.user.id },
+              { sharedWith: req.user.id }
+            ]
+          },
+          { $set: { cardLog: sanitizedCardLog } },
+          { new: true }
+        );
+        
+        if (!result) {
+          console.error(`[CARDLOG] Update failed: No document returned`);
+          return res.status(404).json({ error: "Update failed - table not found or permissions changed" });
+        }
+        
+        updateSuccessful = true;
+        console.log(`[CARDLOG] Update successful on attempt ${retryCount + 1}`);
+        
+        // Emit basic events
+        try {
+          // Emit events for added dates
+          for (const date of addedDates) {
+            const entry = sanitizedCardLog.find(e => e && e.date === date);
+            if (entry) {
+              console.log(`[CARDLOG] Emitting cardLogAdded for date: ${date}`);
+              notifyDataChange('cardLogAdded', { cardLog: entry }, req.params.id);
+            }
+          }
+          
+          // Emit events for deleted dates
+          for (const date of deletedDates) {
+            const entry = oldCardLog.find(e => e && e.date === date);
+            if (entry) {
+              console.log(`[CARDLOG] Emitting cardLogDeleted for date: ${date}`);
+              notifyDataChange('cardLogDeleted', { cardLog: entry }, req.params.id);
+            }
+          }
+        } catch (err) {
+          console.error('[CARDLOG] Error emitting events:', err);
+          // Continue - the save was successful even if notifications fail
+        }
+        
+      } catch (err) {
+        console.error(`[CARDLOG] Update attempt ${retryCount + 1} failed:`, err);
+        retryCount++;
+        
+        if (retryCount >= maxRetries) {
+          return res.status(500).json({ 
+            error: "Failed to update card log after multiple attempts",
+            details: err.message
+          });
+        }
+        
+        // Wait a bit before retry
+        await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
       }
     }
-    // Updated
-    for (const e of newCardLog) {
-      const old = oldMap.get(e._id?.toString?.());
-      if (old && JSON.stringify(e) !== JSON.stringify(old)) {
-        notifyDataChange('cardLogUpdated', { cardLog: e }, req.params.id);
-      }
-    }
-    // Deleted
-    for (const e of oldCardLog) {
-      if (!newMap.has(e._id?.toString?.())) {
-        notifyDataChange('cardLogDeleted', { cardLog: e }, req.params.id);
-      }
-    }
-  res.json({ message: 'Card log saved' });
+    
+    return res.json({ message: 'Card log saved successfully' });
   } catch (err) {
-    console.error('Error updating card log:', err);
-    res.status(500).json({ error: 'Failed to update card log' });
+    console.error('[CARDLOG] Unhandled error in card log update:', err);
+    return res.status(500).json({ error: 'Failed to update card log', details: err.message });
   }
 });
 

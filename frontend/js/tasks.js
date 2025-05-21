@@ -35,7 +35,17 @@ async function fetchTasks() {
 function renderTasks() {
   const list = document.getElementById('tasksList');
   list.innerHTML = '';
-  tasks.sort((a, b) => new Date(a.deadline) - new Date(b.deadline));
+  // Sort by deadline (oldest to newest), then by ObjectId timestamp if equal
+  tasks.sort((a, b) => {
+    const dateA = new Date(a.deadline);
+    const dateB = new Date(b.deadline);
+    if (dateA - dateB !== 0) return dateA - dateB;
+    // If deadlines are equal, sort by ObjectId timestamp (older first)
+    if (a._id && b._id) {
+      return a._id.localeCompare(b._id);
+    }
+    return 0;
+  });
   tasks.forEach(task => {
     const li = document.createElement('li');
     li.className = 'task-item' + (task.completed ? ' completed' : '');

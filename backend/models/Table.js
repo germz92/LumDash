@@ -112,6 +112,7 @@ const tableSchema = new mongoose.Schema({
       date: String,
       entries: [
         {
+          _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
           camera: String,
           card1: String,
           card2: String,
