@@ -111,8 +111,8 @@
   
   <script>
     // Dynamically load Socket.IO from the correct source based on environment
-    // Using API_BASE from config.js which is already loaded
-    const socketIoSrc = API_BASE + '/socket.io/socket.io.js';
+    // Use CDN to avoid CORS issues
+    const socketIoSrc = 'https://cdn.socket.io/4.7.2/socket.io.min.js';
     
     const socketScript = document.createElement('script');
     socketScript.src = socketIoSrc;

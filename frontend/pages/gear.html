@@ -124,7 +124,21 @@
     .gear-page .checkout-btn, .gear-page .add-btn { background-color: #CC0007; color: white; border: none; border-radius: 6px; padding: 0 16px; cursor: pointer; font-weight: 500; font-size: 14px; transition: background-color 0.2s, transform 0.2s; box-shadow: 0 2px 6px rgba(204,0,7,0.2); height: 36px; min-width: 140px; max-width: 160px; flex: 1; white-space: nowrap; display: flex; align-items: center; justify-content: center; text-align: center; }
     .gear-page .checkout-btn:hover, .gear-page .add-btn:hover { background-color: #a50006; transform: translateY(-2px); }
     .gear-page .modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); overflow: auto; }
-    .gear-page .modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; border-radius: 12px; padding: 25px 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; }
+    .gear-page .modal-content { 
+      position: fixed !important; 
+      top: 50% !important; 
+      left: 50% !important; 
+      transform: translate(-50%, -50%) !important; 
+      background: #fff !important; 
+      border-radius: 12px !important; 
+      padding: 25px 20px !important; 
+      box-shadow: 0 5px 15px rgba(0,0,0,0.2) !important; 
+      width: 90% !important; 
+      max-width: 500px !important; 
+      max-height: 80vh !important; 
+      overflow-y: auto !important;
+      margin: 0 !important;
+    }
     .gear-page .modal-content h3 { margin-top: 0; margin-bottom: 18px; font-size: 20px; color: #222; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 10px; }
     .gear-page #checkoutModal .modal-item-btn, .gear-page #packagesModal .modal-item-btn, .gear-page .modal-item-btn { display: block !important; width: 100% !important; margin: 8px 0 !important; padding: 12px !important; background: #f7f7f7 !important; border: 1px solid #eaeaea !important; border-radius: 6px !important; font-size: 16px !important; text-align: left !important; cursor: pointer !important; transition: background 0.15s !important; color: #333 !important; }
     .gear-page #checkoutModal .modal-item-btn:hover, .gear-page #packagesModal .modal-item-btn:hover, .gear-page .modal-item-btn:hover { background: #f0f0f0 !important; }
@@ -137,12 +151,25 @@
     .gear-page #closeModalBtn { display: block; margin: 15px auto 0; min-width: 120px; background: #f7f7f7; color: #333; border: 1px solid #eaeaea; padding: 10px 16px; border-radius: 6px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
     .gear-page #closeModalBtn:hover { background: #f0f0f0; }
     .gear-page #packagesModal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
-    .gear-page #packagesModal .modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: #fefefe; padding: 20px; border-radius: 12px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; }
+    .gear-page #packagesModal .modal-content { 
+      position: fixed !important; 
+      top: 50% !important; 
+      left: 50% !important; 
+      transform: translate(-50%, -50%) !important; 
+      background-color: #fefefe !important; 
+      padding: 20px !important; 
+      border-radius: 12px !important; 
+      width: 90% !important; 
+      max-width: 600px !important; 
+      max-height: 80vh !important; 
+      overflow-y: auto !important;
+      margin: 0 !important;
+    }
     .gear-page #packagesModalList { margin: 15px 0; max-height: 50vh; overflow-y: auto; }
     .gear-page .package-item { margin-bottom: 10px; }
     .gear-page .package-item small { display: block; color: #666; margin-top: 3px; padding-left: 5px; font-size: 13px; }
     @media (max-width: 1260px) { .gear-page .category { flex: 1 1 calc(50% - 24px); min-width: 280px; } }
-    @media (max-width: 768px) { .gear-page .gear-controls { flex-direction: column; align-items: flex-start; gap: 12px; width: 100%; padding: 0; } .gear-page .date-row, .gear-page .gear-list-row, .gear-page .list-action-row, .gear-page .package-controls-row, .gear-page .filter-row, .gear-page .admin-row { display: flex; width: 100%; margin-bottom: 8px; flex-wrap: wrap; } .gear-page input, .gear-page select, .gear-page button { max-width: 100%; } .gear-page .gear-list-row .control-group { width: 100%; } .gear-page .gear-list-row select { width: 100%; } .gear-page .date-row { justify-content: space-between; } .gear-page .date-row .control-group { width: 48%; } .gear-page .date-row .control-group input { width: 100%; } .gear-page .list-action-row { justify-content: space-between; } .gear-page .package-controls-row { justify-content: space-between; } .gear-page .package-controls-row button { width: 48%; } .gear-page .filter-row .filter-group { width: 100%; margin-left: 0; display: flex; flex-wrap: wrap; } .gear-page .filter-row .filter-group label { flex: 0 0 auto; margin-right: 8px; } .gear-page .filter-row .filter-group select { flex: 1 1 auto; min-width: 0; } .gear-page .admin-row { justify-content: center; } .gear-page #adminGearLink { flex-shrink: 0; white-space: nowrap; margin: 0 !important; width: 100%; text-align: center; } .gear-page .modal-content { max-width: calc(100% - 30px); width: 95%; padding: 15px; overflow-x: hidden; } .gear-page #gearContainer { padding: 0; width: 100%; max-width: 100%; } .gear-page .category { width: 100%; min-width: 0; max-width: 100%; padding: 15px 10px; } }
+    @media (max-width: 768px) { .gear-page .gear-controls { flex-direction: column; align-items: flex-start; gap: 12px; width: 100%; padding: 0; } .gear-page .date-row, .gear-page .gear-list-row, .gear-page .list-action-row, .gear-page .package-controls-row, .gear-page .filter-row, .gear-page .admin-row { display: flex; width: 100%; margin-bottom: 8px; flex-wrap: wrap; } .gear-page input, .gear-page select, .gear-page button { max-width: 100%; } .gear-page .gear-list-row .control-group { width: 100%; } .gear-page .gear-list-row select { width: 100%; } .gear-page .date-row { justify-content: space-between; } .gear-page .date-row .control-group { width: 48%; } .gear-page .date-row .control-group input { width: 100%; } .gear-page .list-action-row { justify-content: space-between; } .gear-page .package-controls-row { justify-content: space-between; } .gear-page .package-controls-row button { width: 48%; } .gear-page .filter-row .filter-group { width: 100%; margin-left: 0; display: flex; flex-wrap: wrap; } .gear-page .filter-row .filter-group label { flex: 0 0 auto; margin-right: 8px; } .gear-page .filter-row .filter-group select { flex: 1 1 auto; min-width: 0; } .gear-page .admin-row { justify-content: center; } .gear-page #adminGearLink { flex-shrink: 0; white-space: nowrap; margin: 0 !important; width: 100%; text-align: center; } .gear-page .modal-content { max-width: calc(100% - 30px) !important; width: 95% !important; padding: 15px !important; overflow-x: hidden !important; position: fixed !important; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) !important; } .gear-page #gearContainer { padding: 0; width: 100%; max-width: 100%; } .gear-page .category { width: 100%; min-width: 0; max-width: 100%; padding: 15px 10px; } }
     @media (max-width: 480px) { .gear-page .category { min-width: 100%; } .gear-page .new-list-btn, .gear-page .save-btn, .gear-page .delete-btn, .gear-page .package-btn { padding: 8px 10px; font-size: 14px; white-space: nowrap; } .gear-page .filter-group label { font-size: 14px; white-space: nowrap; } .gear-page .filter-group select { font-size: 14px; padding: 6px 8px; } .gear-page .button-row { justify-content: space-between; width: 100%; } .gear-page .checkout-btn, .gear-page .add-btn { min-width: 48%; max-width: 48%; padding: 0 8px; } .gear-page .modal-content, .gear-page #packagesModal .modal-content { width: 95%; padding: 15px; max-height: 90vh; } @media (max-height: 500px) { .gear-page .modal-content, .gear-page #packagesModal .modal-content { top: 10px; transform: translateX(-50%); max-height: calc(100vh - 20px); } } }
 
     /* Styles for text fitting in modals */
@@ -222,7 +249,7 @@
     
     // Load in this specific order
     loadScriptsSequentially([
-      API_BASE + '/socket.io/socket.io.js', 
+      'https://cdn.socket.io/4.7.2/socket.io.min.js', 
       '../js/socket.js',
       '../js/gear.js'
     ]);
