@@ -1223,22 +1223,57 @@ function createCategory(name) {
         const random = Math.random().toString(36).substring(7);
         
         try {
+          console.log(`[Checkout Button] Attempting to fetch from: ${window.API_BASE}/api/gear-inventory`);
+          console.log(`[Checkout Button] Token available: ${!!localStorage.getItem('token')}`);
+          
           const res = await fetch(`${window.API_BASE}/api/gear-inventory?_t=${timestamp}&_r=${random}`, {
             headers: { 
-              Authorization: localStorage.getItem('token'),
-              'Cache-Control': 'no-cache, no-store, must-revalidate',
-              'Pragma': 'no-cache',
-              'Expires': '0'
+              Authorization: localStorage.getItem('token')
             }
           });
           
-          if (!res.ok) throw new Error(`Status ${res.status}`);
+          console.log(`[Checkout Button] Response status: ${res.status}`);
+          console.log(`[Checkout Button] Response ok: ${res.ok}`);
+          
+          if (!res.ok) {
+            const errorText = await res.text();
+            console.error(`[Checkout Button] Error response: ${errorText}`);
+            throw new Error(`Status ${res.status}: ${errorText}`);
+          }
+          
           gearInventory = await res.json();
           console.log(`[Checkout Button] Successfully loaded ${gearInventory.length} fresh inventory items`);
         } catch (err) {
           console.error('Failed to refresh gear inventory:', err);
-          alert('Failed to load inventory data. Please try again.');
-          return;
+          console.error('Error details:', {
+            message: err.message,
+            stack: err.stack,
+            name: err.name
+          });
+          
+          // More specific error messages
+          if (err.name === 'TypeError' && err.message.includes('Failed to fetch')) {
+            console.warn('Network error occurred, checking for existing inventory data...');
+            
+            // If we have existing inventory data, use it as fallback
+            if (gearInventory && gearInventory.length > 0) {
+              console.log(`[Checkout Button] Using existing inventory data (${gearInventory.length} items) as fallback`);
+              // Show a warning but continue with existing data
+              alert('Warning: Unable to refresh inventory data. Using cached data which may not be current.');
+            } else {
+              alert('Network error: Unable to connect to the server and no cached inventory data available. Please check your internet connection and try again.');
+              return;
+            }
+          } else if (err.message.includes('401')) {
+            alert('Authentication error: Please log out and log back in.');
+            return;
+          } else if (err.message.includes('403')) {
+            alert('Permission error: You do not have access to this resource.');
+            return;
+          } else {
+            alert(`Failed to load inventory data: ${err.message}. Please try again.`);
+            return;
+          }
         } finally {
           // Restore button state
           checkoutBtn.disabled = false;

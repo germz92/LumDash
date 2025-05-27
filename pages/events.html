@@ -114,17 +114,13 @@
     }
     
     // Load the Socket.IO libraries in order
-    document.addEventListener('DOMContentLoaded', function() {
-      // Wait for config.js to be loaded first (assuming it's included in the main page)
-      setTimeout(() => {
-        if (typeof API_BASE !== 'undefined') {
-          loadScriptsSequentially([
-            API_BASE + '/socket.io/socket.io.js',
-            '../js/socket.js'
-          ]);
-        } else {
-          console.error('API_BASE not defined, cannot load Socket.IO');
-        }
-      }, 100);
-    });
+    if (typeof API_BASE !== 'undefined') {
+      loadScriptsSequentially([
+        'https://cdn.socket.io/4.7.2/socket.io.min.js',
+        '../js/socket.js',
+        '../js/events.js'
+      ]);
+    } else {
+      console.error('API_BASE not defined, cannot load Socket.IO');
+    }
   </script>
