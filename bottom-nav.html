@@ -1,10 +1,29 @@
-<nav class="bottom-nav">
-  <a href="#" id="navHome" data-page="events"><i data-lucide="home"></i><span>Home</span></a>
-  <a href="#" id="navGeneral" data-page="general"><i data-lucide="info"></i><span>General</span></a>
-  <a href="#" id="navCrew" data-page="crew"><i data-lucide="users"></i><span>Crew</span></a>
-  <a href="#" id="navTravel" data-page="travel-accommodation"><i data-lucide="plane"></i><span>Travel</span></a>
-  <a href="#" id="navGear" data-page="gear"><i data-lucide="camera"></i><span>Gear</span></a>
-  <a href="#" id="navCard" data-page="card-log"><i data-lucide="memory-stick"></i><span>Cards</span></a>
-  <a href="#" id="navSchedule" data-page="schedule"><i data-lucide="calendar"></i><span>Schedule</span></a>
-</nav>
+<!-- Bottom nav -->
+<nav class="bottom-nav-material" id="bottomNav">
+  <a href="#" id="navHome" data-page="events"><span class="material-symbols-outlined">home</span><span>Home</span></a>
+  <a href="#" id="navGeneral" data-page="general"><span class="material-symbols-outlined">info</span><span>General</span></a>
+  <a href="#" id="navCrew" data-page="crew"><span class="material-symbols-outlined">group</span><span>Crew</span></a>
+  <a href="#" id="navSchedule" data-page="schedule"><span class="material-symbols-outlined">calendar_today</span><span>Schedule</span></a>
   
+  <!-- Dropdown menu for Travel, Gear, Cards -->
+  <div class="nav-dropdown" id="navMore">
+    <a href="#" class="dropdown-toggle">
+      <span class="material-symbols-outlined">more_horiz</span>
+      <span>More</span>
+    </a>
+    <div class="dropdown-menu" id="dropdownMenu">
+      <a href="#" data-page="travel-accommodation">
+        <span class="material-symbols-outlined">flight_takeoff</span>
+        <span>Travel</span>
+      </a>
+      <a href="#" data-page="gear">
+        <span class="material-symbols-outlined">photo_camera</span>
+        <span>Gear</span>
+      </a>
+      <a href="#" data-page="card-log">
+        <span class="material-symbols-outlined">sd_card</span>
+        <span>Cards</span>
+      </a>
+    </div>
+  </div>
+</nav> 
