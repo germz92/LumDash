@@ -323,7 +323,8 @@ window.initPage = async function(id) {
       alert('Event ID missing.');
       return;
     }
-    localStorage.setItem('eventId', tableId);
+    // Removed redundant localStorage.setItem('eventId', tableId) to prevent overwriting with potentially stale data
+    // The navigation system should already have set this correctly
 
     // Load event name
     try {
@@ -343,22 +344,26 @@ window.initPage = async function(id) {
   await loadCardLog();
 
     // Load bottom nav HTML
-  const navContainer = document.createElement('div');
-  navContainer.id = 'bottomNavPlaceholder';
+  let navContainer = document.getElementById('bottomNav');
+  if (!navContainer) {
+    navContainer = document.createElement('nav');
+    navContainer.className = 'bottom-nav';
+    navContainer.id = 'bottomNav';
+    document.body.appendChild(navContainer);
+  }
     const navRes = await fetch('bottom-nav.html');
     const navHTML = await navRes.text();
-    navContainer.innerHTML = navHTML;
-  document.body.appendChild(navContainer);
+  
+  // Extract just the nav content (without the outer nav tag)
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = navHTML;
+  const navContent = tempDiv.querySelector('nav').innerHTML;
+  navContainer.innerHTML = navContent;
 
-  // Add SPA navigation to nav links
-  const navLinks = navContainer.querySelectorAll('a[data-page]');
-  navLinks.forEach(link => {
-    link.addEventListener('click', function(e) {
-      e.preventDefault();
-      const page = link.getAttribute('data-page');
-      window.navigate(page, getTableId && getTableId());
-    });
-  });
+  // Set up navigation using the centralized function from app.js
+  if (window.setupBottomNavigation) {
+    window.setupBottomNavigation(navContainer, tableId, 'card-log');
+  }
 
     // Inject hrefs with ?id=...
     const links = [
@@ -482,7 +487,7 @@ function addDaySection(date, entries = []) {
   dayDiv.innerHTML = `
     <div style="display: flex; align-items: center; justify-content: center;">
       <h3 style="margin: 0;">${date}</h3>
-      ${isOwner ? `<button class="delete-day-btn" data-date="${date}" title="Delete Day" style="background: transparent; border: none; font-size: 20px; cursor: pointer;">🗑️</button>` : ''}
+      ${isOwner ? `<button class="delete-day-btn" data-date="${date}" title="Delete Day"><span class="material-symbols-outlined">delete</span></button>` : ''}
     </div>
     <table>
       <colgroup>
@@ -503,9 +508,7 @@ function addDaySection(date, entries = []) {
       </thead>
       <tbody id="tbody-${date}"></tbody>
     </table>
-    <div style="text-align: center; margin-top: 10px;">
-      <button class="add-row-btn" data-date="${date}">Add Row</button>
-    </div>
+    <button class="add-row-btn" data-date="${date}">Add Row</button>
   `;
   container.appendChild(dayDiv);
   
@@ -553,7 +556,7 @@ function addRow(date, entry = {}) {
       </select>
     </td>
     <td style="text-align:center;">
-    ${isOwner ? '<button class="delete-row-btn" title="Delete Row" style="background: transparent; border: none; font-size: 18px; cursor: pointer; color: #d11a2a;">🗑️</button>' : ''}
+    ${isOwner ? '<button class="delete-row-btn" title="Delete Row"><span class="material-symbols-outlined">delete</span></button>' : ''}
     </td>
   `;
 

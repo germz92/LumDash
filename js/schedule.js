@@ -13,6 +13,46 @@ let filterDate = 'all';
 let allNotesVisible = false;
 let isOwner = false;
 
+// Store the intended event ID at module level to prevent external interference
+let currentEventId = null;
+
+// Add logging utility for event ID tracking
+function logEventIdState(location) {
+  const timestamp = new Date().toISOString();
+  const stored = localStorage.getItem('eventId');
+  const module = currentEventId;
+  console.log(`[${timestamp}] EVENT_ID_TRACE [${location}]: module=${module}, localStorage=${stored}, match=${module === stored}`);
+  return { timestamp, stored, module, match: module === stored };
+}
+
+// Add a localStorage monitor to detect external changes
+let lastKnownEventId = null;
+function startEventIdMonitoring() {
+  if (window.eventIdMonitorInterval) {
+    clearInterval(window.eventIdMonitorInterval);
+  }
+  lastKnownEventId = localStorage.getItem('eventId');
+  console.log(`[MONITOR] Starting event ID monitoring. Initial value: ${lastKnownEventId}`);
+  
+  window.eventIdMonitorInterval = setInterval(() => {
+    const current = localStorage.getItem('eventId');
+    if (current !== lastKnownEventId) {
+      const timestamp = new Date().toISOString();
+      console.warn(`[${timestamp}] EVENT_ID_MONITOR: External change detected! Old: ${lastKnownEventId}, New: ${current}`);
+      console.trace('Event ID changed by external code');
+      lastKnownEventId = current;
+    }
+  }, 100); // Check every 100ms
+}
+
+function stopEventIdMonitoring() {
+  if (window.eventIdMonitorInterval) {
+    clearInterval(window.eventIdMonitorInterval);
+    window.eventIdMonitorInterval = null;
+    console.log(`[MONITOR] Stopped event ID monitoring`);
+  }
+}
+
 // Add a global variable to track if scroll position should be restored
 let pendingScrollRestore = null;
 
@@ -25,8 +65,12 @@ function getScrollContainer() {
 
 // Store filter settings in sessionStorage
 function saveFilterSettings() {
-  const tableId = localStorage.getItem('eventId');
-  if (!tableId) return;
+  // Use the module-level currentEventId first, then fall back to localStorage
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) {
+    console.warn('No event ID available for saving filter settings');
+    return;
+  }
   
   // Get current scroll position from the container instead of window
   const scrollContainer = getScrollContainer();
@@ -79,8 +123,12 @@ function createScrollListener() {
 
 // Restore filter settings from sessionStorage
 function restoreFilterSettings() {
-  const tableId = localStorage.getItem('eventId');
-  if (!tableId) return;
+  // Use the module-level currentEventId first, then fall back to localStorage
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) {
+    console.warn('No event ID available for restoring filter settings');
+    return;
+  }
   
   const settingsJson = sessionStorage.getItem(`schedule_${tableId}_settings`);
   if (!settingsJson) {
@@ -135,25 +183,47 @@ function formatTo12Hour(time) {
 }
 
 window.initPage = async function(id) {
-  const tableId = id || (window.getTableId && window.getTableId());
+  console.log(`\n=== SCHEDULE INITPAGE START ===`);
+  const startTime = Date.now();
+  
+  // CRITICAL FIX: Only use the explicit id parameter passed from navigation
+  // Don't fall back to getTableId() which could return stale data
+  const tableId = id;
   if (!tableId) {
+    console.error('Event ID missing in schedule initPage - id parameter required.');
     alert('Event ID missing.');
     return;
   }
   
-  // Check if we're switching to a different event
+  console.log(`[INIT] Called with explicit tableId: ${tableId}`);
+  logEventIdState('INIT_START');
+  
+  // Store the intended event ID at module level to prevent external interference
+  // Make this assignment more defensive
+  currentEventId = tableId;
+  console.log(`[INIT] Set module currentEventId to: ${currentEventId}`);
+  
+  // CRITICAL: Trust the navigation system to have already set the correct eventId
+  // Don't override localStorage here as it could persist wrong event IDs
   const previousEventId = localStorage.getItem('eventId');
   const isEventChange = previousEventId && previousEventId !== tableId;
   
-  console.log(`Schedule page init: ${isEventChange ? 'Switching events' : 'Same event'} (previous: ${previousEventId}, current: ${tableId})`);
+  console.log(`[INIT] Previous event ID: ${previousEventId}, isEventChange: ${isEventChange}`);
   
-  // Store the current event ID
-  localStorage.setItem('eventId', tableId);
+  // CRITICAL FIX: Don't override localStorage - trust the navigation system
+  // localStorage.setItem('eventId', tableId); // REMOVED - causes wrong event persistence
+  console.log(`[INIT] Using localStorage eventId set by navigation system: ${previousEventId}`);
+  logEventIdState('AFTER_NAVIGATION_TRUST');
+
+  // Start monitoring for external changes (but don't defensively overwrite)
+  startEventIdMonitoring();
 
   // Add schedule-page class to body
   document.body.classList.add('schedule-page');
+  logEventIdState('AFTER_BODY_CLASS');
 
   // Load event title
+  console.log(`[INIT] Starting event title fetch...`);
   try {
     const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
       headers: { Authorization: localStorage.getItem('token') }
@@ -161,38 +231,65 @@ window.initPage = async function(id) {
     const table = await res.json();
     const eventTitleEl = document.getElementById('eventTitle');
     if (eventTitleEl) eventTitleEl.textContent = table.title || 'Program Schedule';
+    console.log(`[INIT] Event title loaded successfully`);
+    logEventIdState('AFTER_EVENT_TITLE_FETCH');
   } catch (err) {
     console.error('Error loading event title:', err);
     const eventTitleEl = document.getElementById('eventTitle');
     if (eventTitleEl) eventTitleEl.textContent = 'Event Not Found';
+    logEventIdState('AFTER_EVENT_TITLE_ERROR');
   }
 
-  // Inject bottom nav
+  // Load bottom nav HTML
+  console.log(`[INIT] Starting bottom nav setup...`);
   try {
-    let navContainer = document.getElementById('bottomNavPlaceholder');
+    let navContainer = document.getElementById('bottomNav');
     if (!navContainer) {
-      navContainer = document.createElement('div');
-      navContainer.id = 'bottomNavPlaceholder';
+      navContainer = document.createElement('nav');
+      navContainer.className = 'bottom-nav';
+      navContainer.id = 'bottomNav';
       document.body.appendChild(navContainer);
     }
+    logEventIdState('AFTER_NAV_CONTAINER_SETUP');
+    
+    console.log(`[INIT] Fetching bottom-nav.html...`);
     const navRes = await fetch('bottom-nav.html');
     const navHTML = await navRes.text();
-    navContainer.innerHTML = navHTML;
-    // Add SPA navigation to nav links
-    const navLinks = navContainer.querySelectorAll('a[data-page]');
-    navLinks.forEach(link => {
-      link.addEventListener('click', function(e) {
-        e.preventDefault();
-        const page = link.getAttribute('data-page');
-        window.navigate(page, tableId);
-      });
-    });
-    if (window.lucide) lucide.createIcons();
+    logEventIdState('AFTER_NAV_HTML_FETCH');
+    
+    // Extract just the nav content (without the outer nav tag)
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = navHTML;
+    const navContent = tempDiv.querySelector('nav').innerHTML;
+    navContainer.innerHTML = navContent;
+    logEventIdState('AFTER_NAV_HTML_SET');
+    
+    // Set up navigation using the centralized function from app.js
+    // IMPORTANT: Pass the current tableId to ensure navigation stays within this event
+    console.log(`[INIT] About to call setupBottomNavigation with event: ${tableId}`);
+    logEventIdState('BEFORE_SETUP_BOTTOM_NAV');
+    
+    if (window.setupBottomNavigation) {
+      console.log(`[INIT] Calling setupBottomNavigation(navContainer, ${tableId}, 'schedule')`);
+      window.setupBottomNavigation(navContainer, tableId, 'schedule');
+      console.log(`[INIT] setupBottomNavigation completed`);
+      logEventIdState('AFTER_SETUP_BOTTOM_NAV');
+    } else {
+      console.warn(`[INIT] window.setupBottomNavigation not available`);
+    }
+    
+    if (window.lucide) {
+      console.log(`[INIT] Creating lucide icons...`);
+      lucide.createIcons();
+      logEventIdState('AFTER_LUCIDE_ICONS');
+    }
   } catch (err) {
     console.error('Failed to load bottom nav:', err);
+    logEventIdState('AFTER_NAV_ERROR');
   }
 
   // Setup event listeners for schedule page controls
+  console.log(`[INIT] Setting up event listeners...`);
   const newDateInput = document.getElementById('newDate');
   const addDateBtn = document.querySelector('button.add-btn');
   if (addDateBtn) addDateBtn.onclick = () => addDateSection();
@@ -218,57 +315,215 @@ window.initPage = async function(id) {
     
     fileInput.addEventListener('change', handleFileImport);
   }
+  
+  console.log(`[INIT] Event listeners setup complete`);
+  logEventIdState('AFTER_EVENT_LISTENERS');
 
+  // Monitor for external changes to eventId during loadPrograms
+  console.log(`[INIT] About to call loadPrograms with tableId: ${tableId}...`);
+  logEventIdState('BEFORE_LOAD_PROGRAMS');
+  
   // Load programs (this sets isOwner/hasScheduleAccess and calls renderProgramSections)
+  // Pass the tableId directly to ensure no confusion
   await loadPrograms(tableId);
+  
+  console.log(`[INIT] loadPrograms completed`);
+  logEventIdState('AFTER_LOAD_PROGRAMS');
+
+  // Check for interference after loadPrograms - but only warn, don't override
+  const eventIdAfterLoad = localStorage.getItem('eventId');
+  
+  // Verify that the event ID is still correct after loadPrograms
+  if (eventIdAfterLoad !== tableId) {
+    console.warn(`[INIT] Event ID changed during loadPrograms! Expected: ${tableId}, Current: ${eventIdAfterLoad}. This indicates interference from external code.`);
+    // Only update the module variable, don't force localStorage changes
+    currentEventId = tableId;
+    logEventIdState('AFTER_DETECTION');
+  }
 
   // Only restore filter settings after loadPrograms, and do not call renderProgramSections in restoreFilterSettings
   if (isEventChange) {
-    console.log('Event changed, resetting filters and scroll position');
+    console.log('[INIT] Event changed, resetting filters and scroll position');
     resetFilterSettings();
   } else {
+    console.log('[INIT] Same event, restoring filter settings');
     restoreFilterSettings(); // This should only update filter/search UI, not re-render
   }
+  
+  logEventIdState('INIT_COMPLETE');
+  const endTime = Date.now();
+  console.log(`=== SCHEDULE INITPAGE COMPLETE (${endTime - startTime}ms) ===\n`);
+  
+  // Stop monitoring after a delay to catch any post-init changes
+  setTimeout(() => {
+    stopEventIdMonitoring();
+  }, 2000);
 };
 
-async function loadPrograms(tableId) {
-  try {
-    const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
-      headers: { Authorization: localStorage.getItem('token') },
-    });
-    const data = await res.json();
-    tableData.programs = data.programSchedule || [];
-    const userId = getUserIdFromToken();
-    const isOwnerRaw = Array.isArray(data.owners) && data.owners.includes(userId);
-    const isLead = Array.isArray(data.leads) && data.leads.includes(userId);
-    isOwner = isOwnerRaw || isLead; // Treat leads as owners for this page
-    const hasScheduleAccess = isOwner;
-    // 🔒 Hide controls for non-owners and non-leads
-    if (!hasScheduleAccess) {
-      // Hide date adding controls
-      const newDateInput = document.getElementById('newDate');
-      const addDateBtn = document.querySelector('button.add-btn');
-      if (newDateInput) newDateInput.style.display = 'none';
-      if (addDateBtn) addDateBtn.style.display = 'none';
-      // Hide import schedule button and download template link
-      const importBtn = document.getElementById('importBtn');
-      const downloadTemplateBtn = document.getElementById('downloadTemplateBtn');
-      if (importBtn) importBtn.style.display = 'none';
-      if (downloadTemplateBtn) downloadTemplateBtn.style.display = 'none';
-    }
-    renderProgramSections(hasScheduleAccess);
-  } catch (err) {
-    console.error('Failed to load programs:', err);
-    tableData.programs = [];
-    renderProgramSections(false);
+async function loadPrograms(tableId = null, retryCount = 0) {
+  console.log(`\n--- LOAD PROGRAMS START (retry: ${retryCount}) ---`);
+  const loadStartTime = Date.now();
+  
+  // Prioritize the passed tableId parameter - this is the intended event ID
+  // Only fall back to other sources if no explicit tableId is provided
+  let eventId;
+  if (tableId) {
+    eventId = tableId;
+    console.log(`[LOAD] Using explicit tableId parameter: ${eventId}`);
+  } else {
+    eventId = currentEventId || localStorage.getItem('eventId');
+    console.log(`[LOAD] No explicit tableId, using fallback: ${eventId}`);
   }
+  
+  console.log(`[LOAD] Parameters: tableId=${tableId}, currentEventId=${currentEventId}, localStorage=${localStorage.getItem('eventId')}`);
+  console.log(`[LOAD] Final eventId decision: ${eventId}`);
+  logEventIdState('LOAD_START');
+  
+  if (!eventId) {
+    console.error('[LOAD] No event ID available');
+    return;
+  }
+
+  // Update the module variable to match what we're actually loading
+  currentEventId = eventId;
+  console.log(`[LOAD] Updated currentEventId to match what we're loading: ${currentEventId}`);
+
+  const maxRetries = 5;
+  const retryDelay = 250;
+
+  try {
+    console.log(`[LOAD] Getting user ID from token (attempt ${retryCount + 1}/${maxRetries + 1})...`);
+    const userId = await getUserIdFromToken();
+    console.log(`[LOAD] User ID obtained: ${userId}`);
+    logEventIdState('AFTER_GET_USER_ID');
+    
+    if (!userId) {
+      if (retryCount < maxRetries) {
+        console.warn(`[LOAD] No userId available, retrying in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries + 1})`);
+        setTimeout(() => {
+          loadPrograms(eventId, retryCount + 1);
+        }, retryDelay);
+        return;
+      } else {
+        console.error('[LOAD] Failed to get user ID after maximum retries');
+        return;
+      }
+    }
+
+    console.log(`[LOAD] Fetching event data for: ${eventId}...`);
+    logEventIdState('BEFORE_EVENT_FETCH');
+    
+    // Use the original API endpoint that was working
+    const response = await fetch(`${API_BASE}/api/tables/${eventId}`, {
+      headers: { Authorization: localStorage.getItem('token') }
+    });
+    
+    console.log(`[LOAD] Event fetch response status: ${response.status}`);
+    logEventIdState('AFTER_EVENT_FETCH');
+
+    if (!response.ok) {
+      throw new Error(`Failed to fetch event data: ${response.status}`);
+    }
+
+    const data = await response.json();
+    console.log(`[LOAD] Event data received for event: ${eventId}`);
+    logEventIdState('AFTER_EVENT_PARSE');
+
+    // Use the original data structure
+    tableData.programs = data.programSchedule || [];
+    console.log(`[LOAD] Programs loaded for event ${eventId}, count: ${tableData.programs.length}`);
+    
+    console.log(`[LOAD] Checking access permissions for userId: ${userId}...`);
+    // Check permissions using the data we just fetched
+    const isOwnerRaw = userId && Array.isArray(data.owners) && data.owners.includes(userId);
+    const isLead = userId && Array.isArray(data.leads) && data.leads.includes(userId);
+    const hasScheduleAccess = isOwnerRaw || isLead;
+    
+    console.log(`[LOAD] Access check - isOwner: ${isOwnerRaw}, isLead: ${isLead}, hasAccess: ${hasScheduleAccess}`);
+    logEventIdState('AFTER_ACCESS_CHECK');
+    
+    // Set global variables
+    isOwner = hasScheduleAccess;
+    
+    // Add body class for CSS targeting
+    if (hasScheduleAccess) {
+      document.body.classList.add('has-owner-controls');
+      document.body.classList.remove('no-owner-controls');
+      console.log('[LOAD] Added has-owner-controls body class');
+    } else {
+      document.body.classList.add('no-owner-controls');
+      document.body.classList.remove('has-owner-controls');
+      console.log('[LOAD] Added no-owner-controls body class');
+    }
+    logEventIdState('AFTER_BODY_CLASS_UPDATE');
+
+    console.log(`[LOAD] Calling renderProgramSections with hasScheduleAccess: ${hasScheduleAccess}...`);
+    renderProgramSections(hasScheduleAccess);
+    console.log(`[LOAD] renderProgramSections completed`);
+    logEventIdState('AFTER_RENDER_PROGRAMS');
+
+    console.log(`[LOAD] Setting up date filter options...`);
+    setupDateFilterOptions();
+    console.log(`[LOAD] Date filter options setup complete`);
+    logEventIdState('AFTER_DATE_FILTER_SETUP');
+
+    // Final verification that event ID hasn't changed
+    const finalEventId = localStorage.getItem('eventId');
+    if (finalEventId !== eventId) {
+      console.warn(`[LOAD] Event ID changed during loadPrograms! Expected: ${eventId}, Final: ${finalEventId}`);
+      logEventIdState('FINAL_ID_MISMATCH');
+    } else {
+      console.log(`[LOAD] Event ID verification passed: ${finalEventId}`);
+      logEventIdState('FINAL_ID_VERIFIED');
+    }
+    
+  } catch (error) {
+    console.error('[LOAD] Error in loadPrograms:', error);
+    logEventIdState('LOAD_ERROR');
+    
+    if (retryCount < maxRetries) {
+      console.warn(`[LOAD] Retrying loadPrograms in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries + 1})`);
+      setTimeout(() => {
+        loadPrograms(eventId, retryCount + 1);
+      }, retryDelay);
+    } else {
+      console.error('[LOAD] Failed to load programs after maximum retries');
+      // Show error message to user
+      const programList = document.getElementById('programList');
+      if (programList) {
+        programList.innerHTML = '<p>Error loading schedule. Please try again.</p>';
+      }
+      isOwner = false; // Reset on error
+      document.body.classList.remove('has-owner-controls');
+      document.body.classList.add('no-owner-controls');
+      renderProgramSections(false); // Render without access on error
+    }
+  }
+  
+  const loadEndTime = Date.now();
+  console.log(`--- LOAD PROGRAMS COMPLETE (${loadEndTime - loadStartTime}ms) ---\n`);
 }
 
-function getUserIdFromToken() {
+// Enhanced getUserIdFromToken with proper async handling and logging
+async function getUserIdFromToken() {
+  console.log(`[TOKEN] Getting user ID from token...`);
+  
   const token = localStorage.getItem('token');
-  if (!token) return null;
-  const payload = JSON.parse(atob(token.split('.')[1]));
-  return payload.id;
+  if (!token) {
+    console.log(`[TOKEN] No token found in localStorage`);
+    return null;
+  }
+  
+  try {
+    console.log(`[TOKEN] Token found, decoding...`);
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const userId = payload.userId || payload.id || payload.sub;
+    console.log(`[TOKEN] User ID decoded: ${userId}`);
+    return userId;
+  } catch (error) {
+    console.error('[TOKEN] Error decoding token:', error);
+    return null;
+  }
 }
 
 function getUserRoleFromToken() {
@@ -311,6 +566,12 @@ function scheduleSave() {
 }
 
 function renderProgramSections(hasScheduleAccess) {
+  // If hasScheduleAccess is not explicitly provided, default to the global isOwner status.
+  if (typeof hasScheduleAccess === 'undefined') {
+    console.warn('renderProgramSections called without explicit access status, defaulting to global isOwner:', isOwner);
+    hasScheduleAccess = isOwner;
+  }
+
   const container = document.getElementById('programSections');
   if (!container) {
     console.error('Missing #programSections div!');
@@ -381,7 +642,7 @@ function renderProgramSections(hasScheduleAccess) {
     headerWrapper.className = 'date-header';
     headerWrapper.innerHTML = `
       <div class="date-title">${formatDate(date)}</div>
-      ${hasScheduleAccess ? `<button class="delete-date-btn" onclick="deleteDate('${date}')">🗑️</button>` : ''}
+      ${hasScheduleAccess ? `<button class="delete-date-btn" onclick="deleteDate('${date}')"><span class="material-symbols-outlined">delete</span></button>` : ''}
     `;
     section.appendChild(headerWrapper);
 
@@ -423,7 +684,7 @@ function renderProgramSections(hasScheduleAccess) {
         </div>
         <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
           <div style="display: flex; align-items: center; flex: 1;">
-            <span style="margin-right: 4px;">📍</span>
+            <span class="material-symbols-outlined" style="margin-right: 4px; font-size: 18px;">location_on</span>
             <textarea style="flex: 1; resize: none;"
               placeholder="Location"
               ${!hasScheduleAccess ? 'readonly' : ''}
@@ -432,7 +693,7 @@ function renderProgramSections(hasScheduleAccess) {
               onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'location')` : ''}">${program.location || ''}</textarea>
           </div>
           <div style="display: flex; align-items: center; flex: 1;">
-            <span style="margin-right: 4px;">👤</span>
+            <span class="material-symbols-outlined" style="margin-right: 4px; font-size: 18px;">photo_camera</span>
             <textarea style="flex: 1; resize: none;"
               placeholder="Photographer"
               ${!hasScheduleAccess ? 'readonly' : ''}
@@ -443,7 +704,7 @@ function renderProgramSections(hasScheduleAccess) {
         </div>
         <div class="entry-actions">
         <button class="show-notes-btn" onclick="toggleNotes(this)">Show Notes</button>
-          ${hasScheduleAccess ? `<button class="delete-btn" onclick="deleteProgram(this)">🗑️</button>` : ''}
+          ${hasScheduleAccess ? `<button class="delete-btn" onclick="deleteProgram(this)"><span class="material-symbols-outlined">delete</span></button>` : ''}
         </div>
         <div class="notes-field" style="display: none;">
           <textarea
@@ -540,7 +801,7 @@ function applyScrollRestore() {
           scrollContainer.scrollTop = scrollValue;
         }
       } else {
-        console.log(`Scroll position maintained at ${currentScrollY} at ${delay}ms check`);
+        // console.log(`Scroll position maintained at ${currentScrollY} at ${delay}ms check`); // Commented out to reduce log noise
       }
       
       // Clear after final check
@@ -723,14 +984,14 @@ function addDateSection() {
   captureCurrentPrograms();
   tableData.programs.push({ date, name: '', startTime: '', endTime: '', location: '', photographer: '', notes: '' });
   document.getElementById('newDate').value = '';
-  renderProgramSections();
+  renderProgramSections(isOwner);
   scheduleSave();
 }
 
 function addProgram(date) {
   captureCurrentPrograms();
   tableData.programs.push({ date, name: '', startTime: '', endTime: '', location: '', photographer: '', notes: '' });
-  renderProgramSections();
+  renderProgramSections(isOwner);
   scheduleSave();
 }
 
@@ -738,7 +999,7 @@ function deleteProgram(button) {
   const index = parseInt(button.closest('.program-entry').getAttribute('data-program-index'), 10);
   if (!isNaN(index)) {
     tableData.programs.splice(index, 1);
-    renderProgramSections();
+    renderProgramSections(isOwner);
     scheduleSave();
   }
 }
@@ -746,19 +1007,28 @@ function deleteProgram(button) {
 function deleteDate(date) {
   if (confirm('Delete all programs for this date?')) {
     tableData.programs = tableData.programs.filter(p => p.date !== date);
-    renderProgramSections();
+    renderProgramSections(isOwner);
     scheduleSave();
   }
 }
 
 function goBack() {
-  window.location.href = `event.html?id=${tableId}`;
+  // Use the module-level currentEventId first, then fall back to localStorage
+  const eventIdToUse = currentEventId || localStorage.getItem('eventId');
+  if (!eventIdToUse) {
+    console.error('No current event ID found for goBack navigation');
+    // Fallback to dashboard
+    window.location.href = 'dashboard.html';
+    return;
+  }
+  console.log(`Navigating back to event: ${eventIdToUse}`);
+  window.location.href = `event.html?id=${eventIdToUse}`;
 }
 
 function handleSearchInput(e) {
   searchQuery = e.target.value.toLowerCase();
-  renderProgramSections();
-  saveFilterSettings(); // Save search query
+  renderProgramSections(isOwner);
+  saveFilterSettings();
 }
 
 window.loadPrograms = loadPrograms;
@@ -790,7 +1060,7 @@ function cleanupSchedulePage() {
   document.body.classList.remove('schedule-page');
 
   // Remove event listeners
-  const navLinks = document.querySelectorAll('#bottomNavPlaceholder a[data-page]');
+  const navLinks = document.querySelectorAll('#bottomNav a[data-page]');
   navLinks.forEach(link => {
     link.removeEventListener('click', handleNavClick);
   });
@@ -803,7 +1073,7 @@ function cleanupSchedulePage() {
   });
 
   // Clear injected elements
-  const navContainer = document.getElementById('bottomNavPlaceholder');
+  const navContainer = document.getElementById('bottomNav');
   if (navContainer) {
     navContainer.innerHTML = '';
   }
@@ -847,7 +1117,18 @@ function cleanupSchedulePage() {
 function handleNavClick(e) {
   e.preventDefault();
   const page = e.currentTarget.getAttribute('data-page');
-  window.navigate(page, getTableId());
+  
+  // Use the module-level currentEventId first, then fall back to localStorage
+  const eventIdToUse = currentEventId || localStorage.getItem('eventId');
+  if (!eventIdToUse) {
+    console.error('No current event ID found for navigation');
+    // Fallback to dashboard if no event ID
+    window.navigate('dashboard');
+    return;
+  }
+  
+  console.log(`Navigating to page: ${page} within event: ${eventIdToUse}`);
+  window.navigate(page, eventIdToUse);
 }
 
 // Call cleanupSchedulePage before navigating away
@@ -1194,76 +1475,44 @@ window.formatTimeValue = formatTimeValue;
 window.showImportModal = showImportModal;
 
 // --- Socket.IO real-time updates ---
-if (window.socket) {
-  // Listen for schedule-specific updates
-  window.socket.on('scheduleChanged', (data) => {
-    console.log('Schedule changed, checking if relevant...');
-    const tableId = localStorage.getItem('eventId');
-    // Only reload if it's for the current table
-    if (data && data.tableId && data.tableId !== tableId) {
-      console.log('Update was for a different table, ignoring');
-      return;
+if (typeof io !== 'undefined') {
+  const socket = io();
+  
+  // Listen for program updates
+  socket.on('programUpdate', (data) => {
+    console.log(`[SOCKET] Program update received:`, data);
+    logEventIdState('SOCKET_PROGRAM_UPDATE');
+    
+    const currentEvent = localStorage.getItem('eventId');
+    
+    // Only update if this update is for the current event
+    if (data.eventId === currentEvent) {
+      console.log(`[SOCKET] Update is for current event (${currentEvent}), refreshing...`);
+      loadPrograms(); // Reload programs
+    } else {
+      console.log(`[SOCKET] Update is for different event (${data.eventId}), current: ${currentEvent}, ignoring`);
     }
-    if (window.isActiveEditing) {
-      console.log('User is editing, deferring schedule reload');
-      window.pendingReload = true;
-      return;
-    }
-    console.log('Reloading schedule for current table');
-    if (tableId) loadPrograms(tableId);
   });
   
-  // Also listen for general table updates
-  window.socket.on('tableUpdated', (data) => {
-    console.log('Table updated, checking if relevant...');
-    const tableId = localStorage.getItem('eventId');
-    // Only reload if it's for the current table
-    if (data && data.tableId && data.tableId !== tableId) {
-      console.log('Update was for a different table, ignoring');
-      return;
-    }
-    if (window.isActiveEditing) {
-      console.log('User is editing, deferring table reload');
-      window.pendingReload = true;
-      return;
-    }
-    console.log('Reloading schedule for current table');
-    if (tableId) loadPrograms(tableId);
-  });
-
-  // --- Partial update events ---
-  window.socket.on('programAdded', (data) => {
-    const tableId = localStorage.getItem('eventId');
-    if (!data || data.tableId !== tableId || !data.program) return;
-    // Only add if not already present
-    if (!tableData.programs.some(p => p._id === data.program._id)) {
-      tableData.programs.push(data.program);
-      renderProgramSections(isOwner);
+  // Listen for event/table updates that might affect ownership
+  socket.on('tableUpdate', (data) => {
+    console.log(`[SOCKET] Table update received:`, data);
+    logEventIdState('SOCKET_TABLE_UPDATE');
+    
+    const currentEvent = localStorage.getItem('eventId');
+    
+    // Only update if this update is for the current event
+    if (data.tableId === currentEvent) {
+      console.log(`[SOCKET] Table update is for current event (${currentEvent}), reloading...`);
+      loadPrograms(); // Reload to get updated permissions
+    } else {
+      console.log(`[SOCKET] Table update is for different event (${data.tableId}), current: ${currentEvent}, ignoring`);
     }
   });
-  window.socket.on('programUpdated', (data) => {
-    const tableId = localStorage.getItem('eventId');
-    if (!data || data.tableId !== tableId || !data.program) return;
-    // Editing guard: if user is editing this program/field, defer update
-    if (window.currentlyEditing && window.currentlyEditing.programId === data.program._id) {
-      window.currentlyEditing.pendingUpdate = { program: data.program, field: window.currentlyEditing.field };
-      return;
-    }
-    const idx = tableData.programs.findIndex(p => p._id === data.program._id);
-    if (idx !== -1) {
-      tableData.programs[idx] = data.program;
-      updateProgramRow(data.program, isOwner);
-    }
-  });
-  window.socket.on('programDeleted', (data) => {
-    const tableId = localStorage.getItem('eventId');
-    if (!data || data.tableId !== tableId || !data.program) return;
-    const idx = tableData.programs.findIndex(p => p._id === data.program._id);
-    if (idx !== -1) {
-      tableData.programs.splice(idx, 1);
-      renderProgramSections(isOwner);
-    }
-  });
+  
+  console.log('[SOCKET] Socket.IO event handlers registered');
+} else {
+  console.warn('[SOCKET] Socket.IO not available');
 }
 
 // Create and store the scroll handler when page loads
@@ -1286,7 +1535,7 @@ function resetFilterSettings() {
   pendingScrollRestore = null;
   
   // Apply the reset filters
-  renderProgramSections();
+  renderProgramSections(isOwner);
 }
 
 // --- Editing guard for real-time updates ---
@@ -1366,7 +1615,7 @@ function updateProgramRow(program, hasScheduleAccess) {
     </div>
     <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
       <div style="display: flex; align-items: center; flex: 1;">
-        <span style="margin-right: 4px;">📍</span>
+        <span class="material-symbols-outlined" style="margin-right: 4px; font-size: 18px;">location_on</span>
         <textarea style="flex: 1; resize: none;"
           placeholder="Location"
           ${!hasScheduleAccess ? 'readonly' : ''}
@@ -1375,7 +1624,7 @@ function updateProgramRow(program, hasScheduleAccess) {
           onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${programIndex}, 'location')` : ''}">${program.location || ''}</textarea>
       </div>
       <div style="display: flex; align-items: center; flex: 1;">
-        <span style="margin-right: 4px;">👤</span>
+        <span class="material-symbols-outlined" style="margin-right: 4px; font-size: 18px;">photo_camera</span>
         <textarea style="flex: 1; resize: none;"
           placeholder="Photographer"
           ${!hasScheduleAccess ? 'readonly' : ''}
@@ -1386,7 +1635,7 @@ function updateProgramRow(program, hasScheduleAccess) {
     </div>
     <div class="entry-actions">
     <button class="show-notes-btn" onclick="toggleNotes(this)">Show Notes</button>
-      ${hasScheduleAccess ? `<button class="delete-btn" onclick="deleteProgram(this)">🗑️</button>` : ''}
+      ${hasScheduleAccess ? `<button class="delete-btn" onclick="deleteProgram(this)"><span class="material-symbols-outlined">delete</span></button>` : ''}
     </div>
     <div class="notes-field" style="display: none;">
       <textarea
@@ -1400,6 +1649,43 @@ function updateProgramRow(program, hasScheduleAccess) {
   `;
   // Re-attach listeners and auto-resize
   entry.querySelectorAll('textarea').forEach(setupTextareaResize);
+}
+
+// Add missing setupDateFilterOptions function and fix programs reference
+function setupDateFilterOptions() {
+  const filterDropdown = document.getElementById('filterDateDropdown');
+  if (filterDropdown && tableData.programs) {
+    const allDates = [...new Set(tableData.programs.map(p => p.date))].sort((a, b) => a.localeCompare(b));
+    const currentSelection = filterDate || 'all';
+    filterDropdown.innerHTML = `<option value="all">All Dates</option>`;
+    allDates.forEach(date => {
+      const option = document.createElement('option');
+      option.value = date;
+      option.textContent = formatDate(date);
+      filterDropdown.appendChild(option);
+    });
+    filterDropdown.value = currentSelection;
+    console.log(`[FILTER] Setup ${allDates.length} date filter options, current: ${currentSelection}`);
+  }
+}
+
+// Monitor setupBottomNavigation calls
+const originalSetupBottomNavigation = window.setupBottomNavigation;
+if (originalSetupBottomNavigation) {
+  window.setupBottomNavigation = function(...args) {
+    console.log(`[MONITOR] setupBottomNavigation called with args:`, args);
+    logEventIdState('BEFORE_SETUP_BOTTOM_NAV_CALL');
+    
+    const result = originalSetupBottomNavigation.apply(this, args);
+    
+    logEventIdState('AFTER_SETUP_BOTTOM_NAV_CALL');
+    console.log(`[MONITOR] setupBottomNavigation completed`);
+    
+    return result;
+  };
+  console.log(`[MONITOR] setupBottomNavigation monitoring installed`);
+} else {
+  console.warn(`[MONITOR] setupBottomNavigation not found for monitoring`);
 }
 
 })();

@@ -32,14 +32,14 @@
     <!-- List action buttons row -->
     <div class="list-action-row">
       <button onclick="createNewGearList()" class="new-list-btn">+ New List</button>
-      <button onclick="deleteGearList()" class="delete-btn">🗑 Delete</button>
-      <button onclick="saveGearList()" class="save-btn">💾 Save</button>
+      <button onclick="deleteGearList()" class="delete-btn"><span class="material-symbols-outlined">delete</span> Delete</button>
+      <button onclick="saveGearList()" class="save-btn"><span class="material-symbols-outlined">save</span> Save</button>
     </div>
     
     <!-- Package controls row -->
     <div class="package-controls-row">
-      <button id="savePackageBtn" onclick="saveGearPackage()" class="package-btn">💾 Save Package</button>
-      <button id="loadPackageBtn" onclick="openPackagesModal()" class="package-btn">📦 Load Package</button>
+      <button id="savePackageBtn" onclick="saveGearPackage()" class="package-btn"><span class="material-symbols-outlined">save</span> Save Package</button>
+      <button id="loadPackageBtn" onclick="openPackagesModal()" class="package-btn"><span class="material-symbols-outlined">inventory_2</span> Load Package</button>
     </div>
     
     <!-- Filter row -->
@@ -86,587 +86,117 @@
   </div>
 
   <style>
-    /* Global fixes for mobile */
-    * {
-      box-sizing: border-box;
-    }
+    /* Scope all styles to the gear page to prevent layout conflicts */
+    .gear-page * { box-sizing: border-box; }
     
-    html, body {
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      overflow-x: hidden;
-    }
-    
-    /* Main layout */
-    body {
-      background-color: #f5f7fa;
-    }
-    
-    .gear-controls {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 15px;
-      margin-bottom: 20px;
-      max-width: 1200px;
-      margin-left: auto;
-      margin-right: auto;
-    }
-    
-    .control-group {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-    }
-    
-    .control-group.full-width {
-      width: 100%;
-    }
-    
-    .control-group.full-width select {
-      flex: 1;
-      min-width: 200px;
-    }
-    
-    .filter-group {
-      margin-left: auto;
-    }
-    
-    /* Row styles for desktop */
-    .date-row, .gear-list-row, .list-action-row, 
-    .package-controls-row, .filter-row, .admin-row {
-      display: flex;
-      gap: 10px;
-      align-items: center;
-    }
-    
-    /* For desktop, distribute space better */
+    .gear-page { padding-bottom: 20px; background-color: #f5f7fa; }
+    .gear-page .gear-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 15px; margin-bottom: 20px; max-width: 1200px; margin-left: auto; margin-right: auto; }
+    .gear-page .control-group { display: flex; align-items: center; gap: 8px; }
+    .gear-page .control-group.full-width { width: 100%; }
+    .gear-page .control-group.full-width select { flex: 1; min-width: 200px; }
+    .gear-page .filter-group { margin-left: auto; }
+    .gear-page .date-row, .gear-page .gear-list-row, .gear-page .list-action-row, .gear-page .package-controls-row, .gear-page .filter-row, .gear-page .admin-row { display: flex; gap: 10px; align-items: center; }
     @media (min-width: 769px) {
-      .gear-controls {
-        justify-content: space-between;
-      }
-      
-      .date-row {
-        width: 40%;
-      }
-      
-      .gear-list-row {
-        width: 30%;
-      }
-      
-      .list-action-row {
-        width: 25%;
-        justify-content: flex-end;
-      }
-      
-      .package-controls-row {
-        width: 30%;
-      }
-      
-      .filter-row {
-        width: 30%;
-      }
-      
-      .admin-row {
-        width: 30%;
-        justify-content: flex-end;
-      }
+      .gear-page .gear-controls { justify-content: space-between; }
+      .gear-page .date-row { width: 40%; }
+      .gear-page .gear-list-row { width: 30%; }
+      .gear-page .list-action-row { width: 25%; justify-content: flex-end; }
+      .gear-page .package-controls-row { width: 30%; }
+      .gear-page .filter-row { width: 30%; }
+      .gear-page .admin-row { width: 30%; justify-content: flex-end; }
     }
-    
-    /* Buttons */
-    .new-list-btn, .save-btn {
-      background-color: #CC0007;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      padding: 6px 12px;
-      cursor: pointer;
-      font-weight: bold;
+    .gear-page .new-list-btn, .gear-page .save-btn { background-color: #CC0007; color: white; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; font-weight: bold; }
+    .gear-page .delete-btn { background-color: #888; color: white; border: none; border-radius: 4px; padding: 6px 12px; cursor: pointer; }
+    .gear-page .package-btn { background-color: #f7f7f7; border: 1px solid #eaeaea; border-radius: 6px; padding: 12px 14px; cursor: pointer; text-align: left; width: 100%; display: block; transition: background-color 0.15s; color: #333; }
+    .gear-page .package-btn:hover { background-color: #f0f0f0; }
+    .gear-page #gearContainer { display: flex; flex-wrap: wrap; gap: 24px; justify-content: center; margin: 0 auto; max-width: 1200px; padding: 10px; width: 100%; }
+    .gear-page .category { background: white; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.08); padding: 18px; flex: 1 1 300px; box-sizing: border-box; margin-bottom: 20px; transition: transform 0.2s, box-shadow 0.2s; border: 1px solid #eaeaea; min-width: 300px; }
+    .gear-page .category:hover { transform: translateY(-5px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+    .gear-page .category h3 { margin-top: 0; padding-bottom: 12px; border-bottom: 1px solid #eee; text-align: center; font-size: 18px; color: #333; font-weight: 700; }
+    .gear-page .item-list { padding: 10px 0; }
+    .gear-page .item { display: flex; align-items: center; padding: 8px; margin-bottom: 8px; border: 1px solid #eee; border-radius: 4px; background-color: white; max-width: 100%; overflow: hidden; }
+    .gear-page .item input[type="text"] { flex: 1; padding: 6px 8px; margin: 0 5px; border: 1px solid #ddd; border-radius: 4px; background-color: white; min-width: 0; width: 100%; }
+    .gear-page .item input[type="checkbox"] { margin-right: 8px; }
+    .gear-page .item button { color: #CC0007; background: transparent; border: none; font-size: 18px; cursor: pointer; padding: 0 5px; }
+    .gear-page .button-row { display: flex; justify-content: center; gap: 10px; margin-top: 15px; align-items: center; flex-wrap: nowrap; }
+    .gear-page .checkout-btn, .gear-page .add-btn { background-color: #CC0007; color: white; border: none; border-radius: 6px; padding: 0 16px; cursor: pointer; font-weight: 500; font-size: 14px; transition: background-color 0.2s, transform 0.2s; box-shadow: 0 2px 6px rgba(204,0,7,0.2); height: 36px; min-width: 140px; max-width: 160px; flex: 1; white-space: nowrap; display: flex; align-items: center; justify-content: center; text-align: center; }
+    .gear-page .checkout-btn:hover, .gear-page .add-btn:hover { background-color: #a50006; transform: translateY(-2px); }
+    .gear-page .modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); overflow: auto; }
+    .gear-page .modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background: #fff; border-radius: 12px; padding: 25px 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.2); width: 90%; max-width: 500px; max-height: 80vh; overflow-y: auto; }
+    .gear-page .modal-content h3 { margin-top: 0; margin-bottom: 18px; font-size: 20px; color: #222; text-align: center; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+    .gear-page #checkoutModal .modal-item-btn, .gear-page #packagesModal .modal-item-btn, .gear-page .modal-item-btn { display: block !important; width: 100% !important; margin: 8px 0 !important; padding: 12px !important; background: #f7f7f7 !important; border: 1px solid #eaeaea !important; border-radius: 6px !important; font-size: 16px !important; text-align: left !important; cursor: pointer !important; transition: background 0.15s !important; color: #333 !important; }
+    .gear-page #checkoutModal .modal-item-btn:hover, .gear-page #packagesModal .modal-item-btn:hover, .gear-page .modal-item-btn:hover { background: #f0f0f0 !important; }
+    .gear-page .proceed-btn, .gear-page .cancel-btn { min-width: 120px; font-weight: 500; padding: 10px 16px; border-radius: 6px; border: none; cursor: pointer; transition: background 0.15s; }
+    .gear-page .proceed-btn { background: #f7f7f7; color: #333; border: 1px solid #eaeaea; }
+    .gear-page .proceed-btn:hover { background: #f0f0f0; }
+    .gear-page .cancel-btn { background: #f7f7f7; color: #333; border: 1px solid #eaeaea; }
+    .gear-page .cancel-btn:hover { background: #f0f0f0; }
+    .gear-page .modal-buttons { display: flex; justify-content: center; gap: 15px; margin-top: 20px; }
+    .gear-page #closeModalBtn { display: block; margin: 15px auto 0; min-width: 120px; background: #f7f7f7; color: #333; border: 1px solid #eaeaea; padding: 10px 16px; border-radius: 6px; font-weight: 500; cursor: pointer; transition: background 0.15s; }
+    .gear-page #closeModalBtn:hover { background: #f0f0f0; }
+    .gear-page #packagesModal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.5); }
+    .gear-page #packagesModal .modal-content { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); background-color: #fefefe; padding: 20px; border-radius: 12px; width: 90%; max-width: 600px; max-height: 80vh; overflow-y: auto; }
+    .gear-page #packagesModalList { margin: 15px 0; max-height: 50vh; overflow-y: auto; }
+    .gear-page .package-item { margin-bottom: 10px; }
+    .gear-page .package-item small { display: block; color: #666; margin-top: 3px; padding-left: 5px; font-size: 13px; }
+    @media (max-width: 1260px) { .gear-page .category { flex: 1 1 calc(50% - 24px); min-width: 280px; } }
+    @media (max-width: 768px) { .gear-page .gear-controls { flex-direction: column; align-items: flex-start; gap: 12px; width: 100%; padding: 0; } .gear-page .date-row, .gear-page .gear-list-row, .gear-page .list-action-row, .gear-page .package-controls-row, .gear-page .filter-row, .gear-page .admin-row { display: flex; width: 100%; margin-bottom: 8px; flex-wrap: wrap; } .gear-page input, .gear-page select, .gear-page button { max-width: 100%; } .gear-page .gear-list-row .control-group { width: 100%; } .gear-page .gear-list-row select { width: 100%; } .gear-page .date-row { justify-content: space-between; } .gear-page .date-row .control-group { width: 48%; } .gear-page .date-row .control-group input { width: 100%; } .gear-page .list-action-row { justify-content: space-between; } .gear-page .package-controls-row { justify-content: space-between; } .gear-page .package-controls-row button { width: 48%; } .gear-page .filter-row .filter-group { width: 100%; margin-left: 0; display: flex; flex-wrap: wrap; } .gear-page .filter-row .filter-group label { flex: 0 0 auto; margin-right: 8px; } .gear-page .filter-row .filter-group select { flex: 1 1 auto; min-width: 0; } .gear-page .admin-row { justify-content: center; } .gear-page #adminGearLink { flex-shrink: 0; white-space: nowrap; margin: 0 !important; width: 100%; text-align: center; } .gear-page .modal-content { max-width: calc(100% - 30px); width: 95%; padding: 15px; overflow-x: hidden; } .gear-page #gearContainer { padding: 0; width: 100%; max-width: 100%; } .gear-page .category { width: 100%; min-width: 0; max-width: 100%; padding: 15px 10px; } }
+    @media (max-width: 480px) { .gear-page .category { min-width: 100%; } .gear-page .new-list-btn, .gear-page .save-btn, .gear-page .delete-btn, .gear-page .package-btn { padding: 8px 10px; font-size: 14px; white-space: nowrap; } .gear-page .filter-group label { font-size: 14px; white-space: nowrap; } .gear-page .filter-group select { font-size: 14px; padding: 6px 8px; } .gear-page .button-row { justify-content: space-between; width: 100%; } .gear-page .checkout-btn, .gear-page .add-btn { min-width: 48%; max-width: 48%; padding: 0 8px; } .gear-page .modal-content, .gear-page #packagesModal .modal-content { width: 95%; padding: 15px; max-height: 90vh; } @media (max-height: 500px) { .gear-page .modal-content, .gear-page #packagesModal .modal-content { top: 10px; transform: translateX(-50%); max-height: calc(100vh - 20px); } } }
+
+    /* Styles for text fitting in modals */
+    .gear-page .modal-item-btn div > div > span, /* Targets ${unit.label} in checkoutModal */
+    .gear-page .modal-item-btn > span:first-child /* Targets ${pkg.name} in packagesModal */ {
+      display: block; 
+      white-space: normal; 
+      word-wrap: break-word; 
+      overflow-wrap: break-word; 
+      hyphens: auto; 
     }
-    
-    .delete-btn {
-      background-color: #888;
-      color: white;
-      border: none;
-      border-radius: 4px;
-      padding: 6px 12px;
-      cursor: pointer;
+
+    .gear-page .modal-item-btn div div div, /* Targets ${availabilityInfo} container */
+    .gear-page .modal-item-btn > span:nth-of-type(2) /* Targets package description */ {
+      white-space: normal;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
     }
-    
-    .package-btn {
-      background-color: #f7f7f7;
-      border: 1px solid #eaeaea;
-      border-radius: 6px;
-      padding: 12px 14px;
-      cursor: pointer;
-      text-align: left;
-      width: 100%;
-      display: block;
-      transition: background-color 0.15s;
-      color: #333;
-    }
-    
-    .package-btn:hover {
-      background-color: #f0f0f0;
-    }
-    
-    /* Category cards */
-    #gearContainer {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 24px;
-      justify-content: center;
-      margin: 0 auto;
-      max-width: 1200px;
-      padding: 10px;
-      width: 100%;
-    }
-    
-    .category {
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.08);
-      padding: 18px;
-      flex: 1 1 300px;
-      box-sizing: border-box;
-      margin-bottom: 20px;
-      transition: transform 0.2s, box-shadow 0.2s;
-      border: 1px solid #eaeaea;
-      min-width: 300px;
-    }
-    
-    .category:hover {
-      transform: translateY(-5px);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.12);
-    }
-    
-    .category h3 {
-      margin-top: 0;
-      padding-bottom: 12px;
-      border-bottom: 1px solid #eee;
-      text-align: center;
-      font-size: 18px;
-      color: #333;
-      font-weight: 700;
-    }
-    
-    .item-list {
-      padding: 10px 0;
-    }
-    
-    /* Item styling */
-    .item {
-      display: flex;
-      align-items: center;
-      padding: 8px;
-      margin-bottom: 8px;
-      border: 1px solid #eee;
-      border-radius: 4px;
-      background-color: white;
-      max-width: 100%;
-      overflow: hidden;
-    }
-    
-    .item input[type="text"] {
-      flex: 1;
-      padding: 6px 8px;
-      margin: 0 5px;
-      border: 1px solid #ddd;
-      border-radius: 4px;
-      background-color: white;
-      min-width: 0; /* Allows flex items to shrink below content size */
-      width: 100%;
-    }
-    
-    .item input[type="checkbox"] {
-      margin-right: 8px;
-    }
-    
-    .item button {
-      color: #CC0007;
-      background: transparent;
-      border: none;
-      font-size: 18px;
-      cursor: pointer;
-      padding: 0 5px;
-    }
-    
-    /* Action buttons */
-    .button-row {
-      display: flex;
-      justify-content: center;
-      gap: 10px;
-      margin-top: 15px;
-      align-items: center;
-      flex-wrap: nowrap;
-    }
-    
-    .checkout-btn, .add-btn {
-      background-color: #CC0007;
-      color: white;
-      border: none;
-      border-radius: 6px;
-      padding: 0 16px;
-      cursor: pointer;
-      font-weight: 500;
-      font-size: 14px;
-      transition: background-color 0.2s, transform 0.2s;
-      box-shadow: 0 2px 6px rgba(204,0,7,0.2);
-      height: 36px;
-      min-width: 140px;
-      max-width: 160px;
-      flex: 1;
-      white-space: nowrap;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      text-align: center;
-    }
-    
-    .checkout-btn:hover, .add-btn:hover {
-      background-color: #a50006;
-      transform: translateY(-2px);
-    }
-    
-    /* Modal styles */
-    .modal {
-      display: none;
-      position: fixed;
-      z-index: 9999;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      background: rgba(0,0,0,0.5);
-      overflow: auto;
-    }
-    
-    .modal-content {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background: #fff;
-      border-radius: 12px;
-      padding: 25px 20px;
-      box-shadow: 0 5px 15px rgba(0,0,0,0.2);
-      width: 90%;
-      max-width: 500px;
-      max-height: 80vh;
-      overflow-y: auto;
-    }
-    
-    .modal-content h3 {
-      margin-top: 0;
-      margin-bottom: 18px;
-      font-size: 20px;
-      color: #222;
-      text-align: center;
-      border-bottom: 1px solid #eee;
-      padding-bottom: 10px;
-    }
-    
-    /* Modal buttons */
-    #checkoutModal .modal-item-btn,
-    #packagesModal .modal-item-btn,
-    .modal-item-btn {
-      display: block !important;
-      width: 100% !important;
-      margin: 8px 0 !important;
-      padding: 12px !important;
-      background: #f7f7f7 !important;
-      border: 1px solid #eaeaea !important;
-      border-radius: 6px !important;
-      font-size: 16px !important;
-      text-align: left !important;
-      cursor: pointer !important;
-      transition: background 0.15s !important;
-      color: #333 !important;
-    }
-    
-    #checkoutModal .modal-item-btn:hover,
-    #packagesModal .modal-item-btn:hover,
-    .modal-item-btn:hover {
-      background: #f0f0f0 !important;
-    }
-    
-    .proceed-btn, .cancel-btn {
-      min-width: 120px;
-      font-weight: 500;
-      padding: 10px 16px;
-      border-radius: 6px;
-      border: none;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    
-    .proceed-btn {
-      background: #f7f7f7;
-      color: #333;
-      border: 1px solid #eaeaea;
-    }
-    
-    .proceed-btn:hover {
-      background: #f0f0f0;
-    }
-    
-    .cancel-btn {
-      background: #f7f7f7;
-      color: #333;
-      border: 1px solid #eaeaea;
-    }
-    
-    .cancel-btn:hover {
-      background: #f0f0f0;
-    }
-    
-    .modal-buttons {
-      display: flex;
-      justify-content: center;
-      gap: 15px;
-      margin-top: 20px;
-    }
-    
-    #closeModalBtn {
-      display: block;
-      margin: 15px auto 0;
-      min-width: 120px;
-      background: #f7f7f7; 
-      color: #333;
-      border: 1px solid #eaeaea;
-      padding: 10px 16px;
-      border-radius: 6px;
-      font-weight: 500;
-      cursor: pointer;
-      transition: background 0.15s;
-    }
-    
-    #closeModalBtn:hover {
-      background: #f0f0f0;
-    }
-    
-    /* Package modal */
-    #packagesModal {
-      display: none;
-      position: fixed;
-      z-index: 9999;
-      left: 0;
-      top: 0;
-      width: 100%;
-      height: 100%;
-      overflow: auto;
-      background-color: rgba(0,0,0,0.5);
-    }
-    
-    #packagesModal .modal-content {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      background-color: #fefefe;
-      padding: 20px;
-      border-radius: 12px;
-      width: 90%;
-      max-width: 600px;
-      max-height: 80vh;
-      overflow-y: auto;
-    }
-    
-    #packagesModalList {
-      margin: 15px 0;
-      max-height: 50vh;
-      overflow-y: auto;
-    }
-    
-    .package-item {
-      margin-bottom: 10px;
-    }
-    
-    .package-item small {
-      display: block;
-      color: #666;
-      margin-top: 3px;
-      padding-left: 5px;
-      font-size: 13px;
-    }
-    
-    /* Responsive */
-    @media (max-width: 1260px) {
-      .category {
-        flex: 1 1 calc(50% - 24px);
-        min-width: 280px;
-      }
-    }
-    
-    @media (max-width: 768px) {
-      .gear-controls {
-        flex-direction: column;
-        align-items: flex-start;
-        gap: 12px;
-        width: 100%;
-        padding: 0;
-      }
-      
-      /* Create row for date controls */
-      .date-row, .gear-list-row, .list-action-row, 
-      .package-controls-row, .filter-row, .admin-row {
-        display: flex;
-        width: 100%;
-        margin-bottom: 8px;
-        flex-wrap: wrap;
-      }
-      
-      /* Make controls more mobile-friendly */
-      input, select, button {
-        max-width: 100%;
-      }
-      
-      /* Make the gear list dropdown take full width */
-      .gear-list-row .control-group {
-        width: 100%;
-      }
-      
-      .gear-list-row select {
-        width: 100%;
-      }
-      
-      /* Date controls side by side */
-      .date-row {
-        justify-content: space-between;
-      }
-      
-      .date-row .control-group {
-        width: 48%;
-      }
-      
-      .date-row .control-group input {
-        width: 100%;
-      }
-      
-      /* List action buttons in a row */
-      .list-action-row {
-        justify-content: space-between;
-      }
-      
-      /* Package controls side by side */
-      .package-controls-row {
-        justify-content: space-between;
-      }
-      
-      .package-controls-row button {
-        width: 48%;
-      }
-      
-      /* Filter takes full width */
-      .filter-row .filter-group {
-        width: 100%;
-        margin-left: 0;
-        display: flex;
-        flex-wrap: wrap;
-      }
-      
-      .filter-row .filter-group label {
-        flex: 0 0 auto;
-        margin-right: 8px;
-      }
-      
-      .filter-row .filter-group select {
-        flex: 1 1 auto;
-        min-width: 0;
-      }
-      
-      /* Admin link centered */
-      .admin-row {
-        justify-content: center;
-      }
-      
-      #adminGearLink {
-        flex-shrink: 0;
-        white-space: nowrap;
-        margin: 0 !important;
-        width: 100%;
-        text-align: center;
-      }
-      
-      /* Fix scrollbars on modals */
-      .modal-content {
-        max-width: calc(100% - 30px);
-        width: 95%;
-        padding: 15px;
-        overflow-x: hidden;
-      }
-      
-      /* Ensuring cards don't overflow */
-      #gearContainer {
-        padding: 0;
-        width: 100%;
-        max-width: 100%;
-      }
-      
-      .category {
-        width: 100%;
-        min-width: 0;
-        max-width: 100%;
-        padding: 15px 10px;
-      }
-    }
-    
-    @media (max-width: 480px) {
-      .category {
-        min-width: 100%;
-      }
-      
-      /* Make buttons more mobile-friendly */
-      .new-list-btn, .save-btn, .delete-btn, .package-btn {
-        padding: 8px 10px;
-        font-size: 14px;
-        white-space: nowrap;
-      }
-      
-      /* Better spacing for filter group on mobile */
-      .filter-group label {
-        font-size: 14px;
-        white-space: nowrap;
-      }
-      
-      .filter-group select {
-        font-size: 14px;
-        padding: 6px 8px;
-      }
-      
-      /* Ensure button row is properly aligned on mobile */
-      .button-row {
-        justify-content: space-between;
-        width: 100%;
-      }
-      
-      .checkout-btn, .add-btn {
-        min-width: 48%;
-        max-width: 48%;
-        padding: 0 8px;
-      }
-      
-      /* Adjust modals for better mobile display */
-      .modal-content, #packagesModal .modal-content {
-        width: 95%;
-        padding: 15px;
-        max-height: 90vh;
-      }
-      
-      /* On very small screens, adjust position to leave a little more top space */
-      @media (max-height: 500px) {
-        .modal-content, #packagesModal .modal-content {
-          top: 10px;
-          transform: translateX(-50%);
-          max-height: calc(100vh - 20px);
-        }
-      }
+
+    .gear-page .modal-item-btn {
+      height: auto; 
+      min-height: 48px; 
     }
   </style>
 
   <!-- Load config first -->
   <script src="../js/config.js"></script>
+
+  <!-- Date validation script -->
+  <script>
+    // Set up date constraints when the page loads
+    document.addEventListener('DOMContentLoaded', function() {
+      const checkoutInput = document.getElementById('checkoutDate');
+      const checkinInput = document.getElementById('checkinDate');
+      
+      // Function to update check-in date minimum
+      function updateCheckinMin() {
+        if (checkoutInput.value) {
+          checkinInput.min = checkoutInput.value;
+          
+          // If check-in date is now invalid (before check-out), clear it
+          if (checkinInput.value && checkinInput.value < checkoutInput.value) {
+            checkinInput.value = checkoutInput.value;
+          }
+        } else {
+          checkinInput.removeAttribute('min');
+        }
+      }
+      
+      // Update constraints when check-out date changes
+      checkoutInput.addEventListener('change', updateCheckinMin);
+      
+      // Initial setup
+      updateCheckinMin();
+    });
+  </script>
 
   <!-- Load scripts in sequence -->
   <script>
@@ -695,6 +225,4 @@
       '../js/gear.js'
     ]);
   </script>
-
-  <div id="bottomNavPlaceholder"></div>
 </div>

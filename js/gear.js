@@ -214,7 +214,7 @@ const eventContext = {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: token
+          Authorization: localStorage.getItem('token')
         },
         body: JSON.stringify(payload)
       });
@@ -236,7 +236,7 @@ const eventContext = {
   async load() {
     try {
       const res = await fetch(`${window.API_BASE}/api/tables/${this.tableId}/gear`, {
-        headers: { Authorization: token }
+        headers: { Authorization: localStorage.getItem('token') }
       });
       
       if (!res.ok) {
@@ -314,6 +314,17 @@ const eventContext = {
         if (!text) return null;
         const item = { label: text, checked };
         if (inventoryId) item.inventoryId = inventoryId;
+        
+        // Find existing item to preserve checkout dates
+        const existingItems = this.lists[this.activeList].categories[categoryName] || [];
+        const existingItem = existingItems.find(existing => existing.label === text);
+        if (existingItem) {
+          // Preserve checkout dates if they exist
+          if (existingItem.checkOutDate) item.checkOutDate = existingItem.checkOutDate;
+          if (existingItem.checkInDate) item.checkInDate = existingItem.checkInDate;
+          if (existingItem.quantity) item.quantity = existingItem.quantity;
+        }
+        
         return item;
       }).filter(Boolean);
       
@@ -451,7 +462,7 @@ function deleteGearList() {
 async function loadEventTitle() {
     try {
     const res = await fetch(`${window.API_BASE}/api/tables/${eventContext.tableId}`, {
-        headers: { Authorization: token }
+        headers: { Authorization: localStorage.getItem('token') }
       });
   
       if (!res.ok) throw new Error("Failed to fetch table");
@@ -577,138 +588,201 @@ function getSelectedDates() {
 }
 
 function isUnitAvailableForDates(unit, checkOut, checkIn) {
-  // Must have both dates to check availability
-  if (!checkOut || !checkIn) return false;
+  if (!checkOut || !checkIn) return unit.status === 'available';
   
-  // Add debug information
-  console.log("Checking availability for: ", unit.label);
-  console.log("Requested dates:", { checkOut, checkIn });
-  console.log("Unit status:", unit.status);
-  console.log("Unit history:", JSON.stringify(unit.history, null, 2));
-  console.log("Current event ID:", eventContext.tableId);
-  
-  // Normalize dates to midnight for consistent comparison
   const normalizeDate = (dateStr) => {
-    if (!dateStr) return null;
     const date = new Date(dateStr);
-    // Reset time part to midnight
     date.setUTCHours(0, 0, 0, 0);
     return date;
   };
   
-  // Create normalized dates for the requested period
   const reqStart = normalizeDate(checkOut);
   const reqEnd = normalizeDate(checkIn);
   const now = new Date();
   now.setUTCHours(0, 0, 0, 0);
   
-  // First check status - if already checked out, only consider it available
-  // if it's checked out to THIS event
-  if (unit.status === 'checked_out') {
-    // IMPORTANT: Compare as strings since MongoDB IDs are objects
-    const unitEventId = unit.checkedOutEvent ? unit.checkedOutEvent.toString() : unit.checkedOutEvent;
-    
-    // If the item is checked out to this event, it's available for use
-    if (unitEventId === eventContext.tableId) {
-      console.log("✅ Available: checked out to this event");
-      return true;
-    }
-    
-    // If it's checked out to another event, we need to check dates
-    // Get current reservation dates
-    const existingCheckOut = normalizeDate(unit.checkOutDate);
-    const existingCheckIn = normalizeDate(unit.checkInDate);
-    
-    if (existingCheckOut && existingCheckIn) {
-      // Case 1: Our requested dates end BEFORE the existing checkout starts
-      if (reqEnd < existingCheckOut) {
-        console.log("✅ Available: requested dates end before existing reservation starts");
-        console.log(`Requested: ${reqStart.toISOString()} to ${reqEnd.toISOString()}`);
-        console.log(`Existing: ${existingCheckOut.toISOString()} to ${existingCheckIn.toISOString()}`);
-        return true;
-      }
-      
-      // Case 2: Our requested dates start AFTER the existing checkin ends
-      if (reqStart > existingCheckIn) {
-        console.log("✅ Available: requested dates start after existing reservation ends");
-        console.log(`Requested: ${reqStart.toISOString()} to ${reqEnd.toISOString()}`);
-        console.log(`Existing: ${existingCheckOut.toISOString()} to ${existingCheckIn.toISOString()}`);
-        return true;
-      }
-      
-      console.log("❌ Not available: dates overlap with existing reservation");
-      console.log(`Requested: ${reqStart.toISOString()} to ${reqEnd.toISOString()}`);
-      console.log(`Existing: ${existingCheckOut.toISOString()} to ${existingCheckIn.toISOString()}`);
-      return false;
-    }
-    
-    // No valid dates on the current checkout, so it's not available
-    console.log("❌ Not available: checked out to another event");
-    return false;
-  }
-  
-  // For available items, check history for conflicts
-  console.log("Looking for conflicts in history entries...");
-  
-  // Check if there are any conflicting future reservations
-  const hasConflict = (unit.history || []).some((entry, index) => {
-    console.log(`Examining history entry ${index}:`, entry);
-    
-    // IMPORTANT: Compare event IDs properly, ensuring both are strings
-    const entryEventId = entry.event ? entry.event.toString() : null;
-    
-    // Skip entries for this event - they've been cancelled/checked in
-    if (entryEventId === eventContext.tableId) {
-      console.log(`Entry ${index}: Skipping - belongs to this event (${entryEventId} === ${eventContext.tableId})`);
-      return false;
-    }
-    
-    if (!entry.checkOutDate || !entry.checkInDate) {
-      console.log(`Entry ${index}: Skipping - missing dates`);
-      return false;
-    }
-    
-    const entryStart = normalizeDate(entry.checkOutDate);
-    const entryEnd = normalizeDate(entry.checkInDate);
-    
-    // Skip if the reservation is in the past
-    if (entryEnd < now) {
-      console.log(`Entry ${index}: Skipping - past reservation (end: ${entryEnd.toISOString()}, now: ${now.toISOString()})`);
-      return false;
-    }
-    
-    // Check if the requested dates are completely before this reservation
-    if (reqEnd < entryStart) {
-      console.log(`Entry ${index}: No conflict - requested dates end before reservation starts`);
-      console.log(`Requested: ${reqStart.toISOString()} to ${reqEnd.toISOString()}`);
-      console.log(`Entry: ${entryStart.toISOString()} to ${entryEnd.toISOString()}`);
-      return false;
-    }
-    
-    // Check if the requested dates are completely after this reservation
-    if (reqStart > entryEnd) {
-      console.log(`Entry ${index}: No conflict - requested dates start after reservation ends`);
-      console.log(`Requested: ${reqStart.toISOString()} to ${reqEnd.toISOString()}`);
-      console.log(`Entry: ${entryStart.toISOString()} to ${entryEnd.toISOString()}`);
-      return false;
-    }
-    
-    // If neither of the above, there is an overlap
-    console.log(`❌ Entry ${index}: CONFLICT FOUND!`);
-    console.log("Conflict details:", { 
-      reqStart: reqStart.toISOString(),
-      reqEnd: reqEnd.toISOString(),
-      entryStart: entryStart.toISOString(),
-      entryEnd: entryEnd.toISOString()
+  // Debug logging for items that might have issues
+  if (unit.label && unit.label.includes('Sony A7IV-D')) {
+    console.log(`[AVAILABILITY DEBUG] Checking ${unit.label} for dates ${checkOut} to ${checkIn}`);
+    console.log(`[AVAILABILITY DEBUG] Unit data:`, {
+      status: unit.status,
+      quantity: unit.quantity,
+      reservations: unit.reservations,
+      history: unit.history
     });
-    return true;
-  });
-  
-  // No conflicts means it's available
-  if (!hasConflict) {
-    console.log("✅ Available: No conflicts found in history");
   }
-  return !hasConflict;
+  
+  // For quantity items, check if any units are available
+  if (unit.quantity > 1) {
+    return calculateAvailableQuantity(unit, checkOut, checkIn) > 0;
+  }
+  
+  // For single items, check actual conflicts in reservations/history, not just status
+  // Check reservations array first (this is where active reservations are stored)
+  if (unit.reservations && unit.reservations.length > 0) {
+    for (const reservation of unit.reservations) {
+      if (!reservation.checkOutDate || !reservation.checkInDate) continue;
+      
+      const resStart = normalizeDate(reservation.checkOutDate);
+      const resEnd = normalizeDate(reservation.checkInDate);
+      
+      // Skip if the reservation is in the past
+      if (resEnd < now) continue;
+      
+      // Check for overlap: (startA <= endB) && (endA >= startB)
+      if (reqStart <= resEnd && reqEnd >= resStart) {
+        if (unit.label && unit.label.includes('Sony A7IV-D')) {
+          console.log(`[AVAILABILITY DEBUG] ${unit.label} conflicts with reservation:`, {
+            requestedStart: checkOut,
+            requestedEnd: checkIn,
+            reservationStart: reservation.checkOutDate,
+            reservationEnd: reservation.checkInDate,
+            overlap: true
+          });
+        }
+        return false; // Overlap found
+      }
+    }
+  }
+  
+  // Also check history array for any additional conflicts
+  if (unit.history && unit.history.length > 0) {
+    for (const entry of unit.history) {
+      if (!entry.checkOutDate || !entry.checkInDate) continue;
+      
+      const entryStart = normalizeDate(entry.checkOutDate);
+      const entryEnd = normalizeDate(entry.checkInDate);
+      
+      // Skip if the reservation is in the past
+      if (entryEnd < now) continue;
+      
+      // Check for overlap: (startA <= endB) && (endA >= startB)
+      if (reqStart <= entryEnd && reqEnd >= entryStart) {
+        if (unit.label && unit.label.includes('Sony A7IV-D')) {
+          console.log(`[AVAILABILITY DEBUG] ${unit.label} conflicts with history entry:`, {
+            requestedStart: checkOut,
+            requestedEnd: checkIn,
+            historyStart: entry.checkOutDate,
+            historyEnd: entry.checkInDate,
+            overlap: true
+          });
+        }
+        return false; // Overlap found
+      }
+    }
+  }
+  
+  if (unit.label && unit.label.includes('Sony A7IV-D')) {
+    console.log(`[AVAILABILITY DEBUG] ${unit.label} is available for ${checkOut} to ${checkIn} (ignoring status: ${unit.status})`);
+  }
+  
+  return true;
+}
+
+// Calculate available quantity for multi-unit items
+function calculateAvailableQuantity(unit, checkOutDate, checkInDate) {
+  // Debug logging for Sony A7IV-D
+  if (unit.label && unit.label.includes('Sony A7IV-D')) {
+    console.log(`[CALC AVAILABILITY DEBUG] calculateAvailableQuantity for ${unit.label}`);
+    console.log(`[CALC AVAILABILITY DEBUG] Requested dates: ${checkOutDate} to ${checkInDate}`);
+    console.log(`[CALC AVAILABILITY DEBUG] Unit quantity: ${unit.quantity}`);
+  }
+  
+  if (unit.quantity === 1) {
+    // For single items, check actual conflicts in history/reservations, not just status
+    const normalizeDate = (dateStr) => {
+      const date = new Date(dateStr);
+      date.setUTCHours(0, 0, 0, 0);
+      return date;
+    };
+
+    const reqStart = normalizeDate(checkOutDate);
+    const reqEnd = normalizeDate(checkInDate);
+    const now = new Date();
+    now.setUTCHours(0, 0, 0, 0);
+
+    // Check reservations array first
+    if (unit.reservations && unit.reservations.length > 0) {
+      for (const reservation of unit.reservations) {
+        if (!reservation.checkOutDate || !reservation.checkInDate) continue;
+        
+        const resStart = normalizeDate(reservation.checkOutDate);
+        const resEnd = normalizeDate(reservation.checkInDate);
+        
+        // Skip if the reservation is in the past
+        if (resEnd < now) continue;
+        
+        // Check for overlap: (startA <= endB) && (endA >= startB)
+        if (reqStart <= resEnd && reqEnd >= resStart) {
+          if (unit.label && unit.label.includes('Sony A7IV-D')) {
+            console.log(`[CALC AVAILABILITY DEBUG] Single item blocked by reservation overlap`);
+          }
+          return 0; // Overlap found
+        }
+      }
+    }
+
+    // Also check history array
+    if (unit.history && unit.history.length > 0) {
+      for (const entry of unit.history) {
+        if (!entry.checkOutDate || !entry.checkInDate) continue;
+        
+        const entryStart = normalizeDate(entry.checkOutDate);
+        const entryEnd = normalizeDate(entry.checkInDate);
+        
+        // Skip if the reservation is in the past
+        if (entryEnd < now) continue;
+        
+        // Check for overlap: (startA <= endB) && (endA >= startB)
+        if (reqStart <= entryEnd && reqEnd >= entryStart) {
+          if (unit.label && unit.label.includes('Sony A7IV-D')) {
+            console.log(`[CALC AVAILABILITY DEBUG] Single item blocked by history overlap:`, {
+              requestedStart: checkOutDate,
+              requestedEnd: checkInDate,
+              historyStart: entry.checkOutDate,
+              historyEnd: entry.checkInDate
+            });
+          }
+          return 0; // Overlap found
+        }
+      }
+    }
+
+    const result = 1; // Available if no conflicts found
+    if (unit.label && unit.label.includes('Sony A7IV-D')) {
+      console.log(`[CALC AVAILABILITY DEBUG] Single item result: ${result} (no conflicts found, ignoring status: ${unit.status})`);
+    }
+    return result;
+  }
+  
+  const normalizeDate = (dateStr) => {
+    const date = new Date(dateStr);
+    date.setUTCHours(0, 0, 0, 0);
+    return date;
+  };
+  
+  const reqStart = normalizeDate(checkOutDate);
+  const reqEnd = normalizeDate(checkInDate);
+  
+  let reservedQuantity = 0;
+  
+  // Only check reservations array for quantity items (matches backend logic)
+  if (unit.reservations && unit.reservations.length > 0) {
+    unit.reservations.forEach(reservation => {
+      const resStart = normalizeDate(reservation.checkOutDate);
+      const resEnd = normalizeDate(reservation.checkInDate);
+      
+      // Check for overlap: (startA <= endB) && (endA >= startB)
+      if (reqStart <= resEnd && reqEnd >= resStart) {
+        reservedQuantity += reservation.quantity || 1;
+      }
+    });
+  }
+  
+  // Note: We don't check history for quantity items to avoid double-counting
+  // since reservations are already tracked in the reservations array
+  
+  return Math.max(0, unit.quantity - reservedQuantity);
 }
 
 function createRow(item, isNewRow = false) {
@@ -779,61 +853,172 @@ function createRow(item, isNewRow = false) {
   if (isOwner) {
     // Add delete button
     const deleteBtn = document.createElement('button');
-    deleteBtn.textContent = '🗑️';
+    deleteBtn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
     deleteBtn.title = 'Delete item';
     deleteBtn.className = 'delete-btn';
     deleteBtn.style.marginLeft = '8px';
-    deleteBtn.style.color = '#CC0007'; // Add red color for visibility
-    deleteBtn.style.fontSize = '18px'; // Increase font size
-    deleteBtn.style.background = '#f8f8f8'; // Light background for contrast
-    deleteBtn.style.border = '1px solid #ddd'; // Add border
-    deleteBtn.style.borderRadius = '4px'; // Rounded corners
-    deleteBtn.style.padding = '2px 6px'; // Add padding
-    deleteBtn.style.cursor = 'pointer'; // Show pointer cursor on hover
-    deleteBtn.style.opacity = '1'; // Ensure full opacity
-    deleteBtn.style.flexShrink = '0'; // Prevent button from shrinking
+    deleteBtn.style.background = 'transparent';
+    deleteBtn.style.border = 'none';
+    deleteBtn.style.padding = '0';
+    deleteBtn.style.lineHeight = '1';
+    deleteBtn.style.cursor = 'pointer';
+    deleteBtn.style.opacity = '1';
+    deleteBtn.style.flexShrink = '0';
     
-    // Add hover effect
-    deleteBtn.onmouseover = () => {
-      deleteBtn.style.background = '#ffeeee';
-      deleteBtn.style.borderColor = '#CC0007';
-    };
-    deleteBtn.onmouseout = () => {
-      deleteBtn.style.background = '#f8f8f8';
-      deleteBtn.style.borderColor = '#ddd';
-    };
+    // Remove hover effect that changes background
+    deleteBtn.onmouseover = null;
+    deleteBtn.onmouseout = null;
     
     deleteBtn.onclick = async () => {
-      // If this item is a reserved inventory item, check it in
-      const reserved = gearInventory.find(g => g.label === item.label && g.checkedOutEvent === eventContext.tableId);
-      if (reserved && reserved.status === 'checked_out') {
+      // Get current dates for checking reservations
+      const checkOutDate = document.getElementById('checkoutDate')?.value;
+      const checkInDate = document.getElementById('checkinDate')?.value;
+      
+      console.log(`[DELETE DEBUG] Starting delete process for item:`, item);
+      console.log(`[DELETE DEBUG] Current form dates: ${checkOutDate} to ${checkInDate}`);
+      
+      // Find the inventory item by inventoryId (preferred) or label as fallback
+      let inventoryItem = null;
+      if (item.inventoryId) {
+        inventoryItem = gearInventory.find(g => g._id === item.inventoryId);
+        console.log(`[DELETE DEBUG] Found inventory item by ID:`, inventoryItem);
+      } else {
+        // Fallback: try to find by label, but strip quantity info first
+        const baseLabel = item.label.replace(/\s*\(\d+\s*units?\)$/, '');
+        inventoryItem = gearInventory.find(g => g.label === baseLabel);
+        console.log(`[DELETE DEBUG] Found inventory item by base label "${baseLabel}":`, inventoryItem);
+      }
+      
+      // If this is an inventory item, check it in
+      if (inventoryItem && checkOutDate && checkInDate) {
         try {
-          await fetch(`${window.API_BASE}/api/gear-inventory/checkin`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: token
-            },
-            body: JSON.stringify({
-              gearId: reserved._id,
+          // For quantity items (quantity > 1), extract quantity from label or use default
+          if (inventoryItem.quantity > 1) {
+            // Use the actual quantity stored in the item object, or extract from label
+            let quantityToRelease = item.quantity;
+            
+            // If not available, try to extract from the label
+            if (!quantityToRelease || quantityToRelease === 1) {
+              const labelMatch = item.label.match(/\((\d+)\s*units?\)$/);
+              if (labelMatch) {
+                quantityToRelease = parseInt(labelMatch[1]);
+              } else {
+                quantityToRelease = 1; // Default fallback
+              }
+            }
+            
+            console.log(`[DELETE DEBUG] Item data:`, item);
+            console.log(`[DELETE DEBUG] Inventory item:`, inventoryItem);
+            console.log(`[DELETE DEBUG] Quantity extraction: item.quantity=${item.quantity}, label="${item.label}", final=${quantityToRelease}`);
+            console.log(`[DELETE DEBUG] Attempting to release ${quantityToRelease} units of ${inventoryItem.label}`);
+            
+            // Use the stored checkout dates from the item, not the current form dates
+            const itemCheckOutDate = item.checkOutDate || checkOutDate;
+            const itemCheckInDate = item.checkInDate || checkInDate;
+            
+            // Debug the reservation matching
+            console.log(`[DELETE DEBUG] Current event ID: ${eventContext.tableId}`);
+            console.log(`[DELETE DEBUG] Item stored dates: ${item.checkOutDate} to ${item.checkInDate}`);
+            console.log(`[DELETE DEBUG] Current form dates: ${checkOutDate} to ${checkInDate}`);
+            console.log(`[DELETE DEBUG] Using dates for API call: ${itemCheckOutDate} to ${itemCheckInDate}`);
+            
+            // If we don't have stored dates, we need to use the form dates
+            if (!item.checkOutDate || !item.checkInDate) {
+              console.log(`[DELETE DEBUG] ⚠️  Item missing stored dates - using form dates as fallback`);
+              console.log(`[DELETE DEBUG] This typically happens after page refresh`);
+            }
+            
+            // Make the API call to release the quantity
+            console.log(`[DELETE DEBUG] Making API call to /api/gear-inventory/checkin with:`, {
+              gearId: inventoryItem._id,
               eventId: eventContext.tableId,
-              checkOutDate: reserved.checkOutDate,
-              checkInDate: reserved.checkInDate
-            })
-          });
-          await loadGearInventory();
+              checkOutDate: itemCheckOutDate,
+              checkInDate: itemCheckInDate,
+              quantity: quantityToRelease
+            });
+            
+            console.log(`[DELETE DEBUG] API_BASE:`, window.API_BASE);
+            console.log(`[DELETE DEBUG] Full URL:`, `${window.API_BASE}/api/gear-inventory/checkin`);
+            console.log(`[DELETE DEBUG] Authorization token:`, localStorage.getItem('token') ? 'Present' : 'Missing');
+            
+            try {
+              const res = await fetch(`${window.API_BASE}/api/gear-inventory/checkin`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: localStorage.getItem('token')
+                },
+                body: JSON.stringify({
+                  gearId: inventoryItem._id,
+                  eventId: eventContext.tableId,
+                  checkOutDate: itemCheckOutDate,
+                  checkInDate: itemCheckInDate,
+                  quantity: quantityToRelease
+                })
+              });
+              
+              console.log(`[DELETE DEBUG] API response status:`, res.status);
+              console.log(`[DELETE DEBUG] API response headers:`, res.headers);
+              
+              if (res.ok) {
+                const result = await res.json();
+                console.log(`[DELETE DEBUG] Successfully released ${quantityToRelease} units:`, result);
+              } else {
+                const errorText = await res.text();
+                console.error(`[DELETE DEBUG] Failed to release reservation: ${errorText}`);
+                console.error(`[DELETE DEBUG] Response status: ${res.status}`);
+              }
+            } catch (fetchError) {
+              console.error(`[DELETE DEBUG] Network error during fetch:`, fetchError);
+              console.error(`[DELETE DEBUG] Error details:`, {
+                message: fetchError.message,
+                stack: fetchError.stack,
+                name: fetchError.name
+              });
+            }
+          } else {
+            // For single items, use the existing logic
+            console.log(`[DELETE DEBUG] Processing single item deletion`);
+            if (inventoryItem.status === 'checked_out' && inventoryItem.checkedOutEvent === eventContext.tableId) {
+              console.log(`[DELETE DEBUG] Making API call for single item checkin`);
+              await fetch(`${window.API_BASE}/api/gear-inventory/checkin`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  Authorization: localStorage.getItem('token')
+                },
+                body: JSON.stringify({
+                  gearId: inventoryItem._id,
+                  eventId: eventContext.tableId,
+                  checkOutDate: inventoryItem.checkOutDate,
+                  checkInDate: inventoryItem.checkInDate
+                })
+              });
+              await loadGearInventory();
+            }
+          }
         } catch (err) {
-          console.error('Failed to check in gear:', err);
+          console.error('[DELETE DEBUG] Failed to check in gear:', err);
         }
+      } else {
+        console.log(`[DELETE DEBUG] Skipping API call - missing data:`, {
+          hasInventoryItem: !!inventoryItem,
+          hasCheckOutDate: !!checkOutDate,
+          hasCheckInDate: !!checkInDate
+        });
       }
       
       // Remove the row from the DOM
+      console.log(`[DELETE DEBUG] Removing item from DOM`);
       el.remove();
       
-      // Trigger save unless it's a new blank row
+      // Use direct save that bypasses all validation unless it's a new blank row
       if (!isNewRow) {
-        triggerAutosave();
+        console.log(`[DELETE DEBUG] Saving gear data`);
+        await saveGearDirect();
       }
+      
+      console.log(`[DELETE DEBUG] Delete process completed`);
     };
     
     el.appendChild(deleteBtn);
@@ -936,38 +1121,56 @@ function createRow(item, isNewRow = false) {
   const input = textInput;
   if (input) {
     input.focus();
-    
-    // Add validation on blur to ensure the field isn't empty
-    input.addEventListener('blur', async (e) => {
-      try {
-        // Don't process this event if we're blurring due to page navigation or reload
-        if (document.visibilityState === 'hidden' || document.readyState !== 'complete') {
-          return;
+    if (isNewRow) {
+      // Only attach the custom blur handler for new rows
+      input.addEventListener('blur', async (e) => {
+        try {
+          if (document.visibilityState === 'hidden' || document.readyState !== 'complete') {
+            return;
+          }
+          if (input.value.trim() === '') {
+            el.remove();
+          } else {
+            // No availability check for custom items
+            el.removeAttribute('data-new-row');
+            eventContext.updateFromDOM();
+            const checkOutDate = document.getElementById('checkoutDate')?.value || '';
+            const checkInDate = document.getElementById('checkinDate')?.value || '';
+            await eventContext.save(checkOutDate, checkInDate);
+            setTimeout(() => {
+              window.isActiveEditing = false;
+              console.log('Item saved and editing completed');
+            }, 200);
+          }
+        } catch (err) {
+          console.error('Error saving new item:', err);
         }
-        
-        if (input.value.trim() === '') {
-          // If left empty and user moves away, remove the row
-          el.remove();
-        } else {
-          // Valid input, trigger IMMEDIATE save and remove the new row marker
-          el.removeAttribute('data-new-row');
-          
-          // IMMEDIATELY save to database to prevent data loss on refresh
-          eventContext.updateFromDOM();
-          const checkOutDate = document.getElementById('checkoutDate')?.value || '';
-          const checkInDate = document.getElementById('checkinDate')?.value || '';
-          await eventContext.save(checkOutDate, checkInDate);
-          
-          // Now allow refreshes to resume after successful save
-          setTimeout(() => {
-            window.isActiveEditing = false;
-            console.log('Item saved and editing completed');
-          }, 200);
+      });
+    } else {
+      // Existing row: keep the original blur handler
+      input.addEventListener('blur', async (e) => {
+        try {
+          if (document.visibilityState === 'hidden' || document.readyState !== 'complete') {
+            return;
+          }
+          if (input.value.trim() === '') {
+            el.remove();
+          } else {
+            el.removeAttribute('data-new-row');
+            eventContext.updateFromDOM();
+            const checkOutDate = document.getElementById('checkoutDate')?.value || '';
+            const checkInDate = document.getElementById('checkinDate')?.value || '';
+            await eventContext.save(checkOutDate, checkInDate);
+            setTimeout(() => {
+              window.isActiveEditing = false;
+              console.log('Item saved and editing completed');
+            }, 200);
+          }
+        } catch (err) {
+          console.error('Error saving item:', err);
         }
-      } catch (err) {
-        console.error('Error saving new item:', err);
-      }
-    });
+      });
+    }
   }
   
   return el;
@@ -995,7 +1198,7 @@ function createCategory(name) {
     // Add inventory button for checkouts
     const checkoutBtn = document.createElement("button");
     checkoutBtn.className = "checkout-btn";
-    checkoutBtn.textContent = "📋 Use Inventory";
+    checkoutBtn.innerHTML = '<span class="material-symbols-outlined">list_alt</span> Use Inventory'; // Changed textContent to innerHTML and added icon
     checkoutBtn.title = "Check out from inventory";
 
     const dates = getSelectedDates();
@@ -1008,7 +1211,41 @@ function createCategory(name) {
           return;
         }
         
-        // Get available units from inventory
+        // Show immediate feedback that we're loading fresh data
+        checkoutBtn.disabled = true;
+        checkoutBtn.innerHTML = '<span class="material-symbols-outlined">refresh</span> Loading...';
+        
+        // Force refresh inventory data to ensure maximum accuracy
+        console.log('[Checkout Button] Force refreshing inventory before opening modal...');
+        
+        // Use a stronger cache-busting mechanism with timestamp + random component
+        const timestamp = Date.now();
+        const random = Math.random().toString(36).substring(7);
+        
+        try {
+          const res = await fetch(`${window.API_BASE}/api/gear-inventory?_t=${timestamp}&_r=${random}`, {
+            headers: { 
+              Authorization: localStorage.getItem('token'),
+              'Cache-Control': 'no-cache, no-store, must-revalidate',
+              'Pragma': 'no-cache',
+              'Expires': '0'
+            }
+          });
+          
+          if (!res.ok) throw new Error(`Status ${res.status}`);
+          gearInventory = await res.json();
+          console.log(`[Checkout Button] Successfully loaded ${gearInventory.length} fresh inventory items`);
+        } catch (err) {
+          console.error('Failed to refresh gear inventory:', err);
+          alert('Failed to load inventory data. Please try again.');
+          return;
+        } finally {
+          // Restore button state
+          checkoutBtn.disabled = false;
+          checkoutBtn.innerHTML = '<span class="material-symbols-outlined">list_alt</span> Use Inventory';
+        }
+        
+        // Get available units from inventory with fresh data
         const availableUnits = gearInventory
           .filter(unit => {
             // Check category match
@@ -1019,9 +1256,16 @@ function createCategory(name) {
             return isUnitAvailableForDates(unit, dates.checkOut, dates.checkIn);
           });
         
-        openCheckoutModal(name, availableUnits, dates.checkOut, dates.checkIn, list);
+        console.log(`[Checkout Button] Found ${availableUnits.length} available units for category ${name}`);
+        
+        await openCheckoutModal(name, availableUnits, dates.checkOut, dates.checkIn, list);
       } catch (err) {
         console.error("Error opening checkout modal:", err);
+        alert('Error loading inventory. Please try again.');
+        
+        // Restore button state in case of error
+        checkoutBtn.disabled = false;
+        checkoutBtn.innerHTML = '<span class="material-symbols-outlined">list_alt</span> Use Inventory';
       }
     };
 
@@ -1030,51 +1274,26 @@ function createCategory(name) {
     addRowBtn.className = "add-btn";
     addRowBtn.textContent = "Add Item";
     addRowBtn.title = "Add a custom row";
-    addRowBtn.onclick = () => {
-      // Set active editing flag to prevent Socket.IO updates
-      window.isActiveEditing = true;
-      
-      // Create a blank row instead of showing a prompt
-      const newItem = { label: "", checked: false };
-      const row = createRow(newItem, true); // Add true parameter to indicate it's a new blank row
+    addRowBtn.onclick = async () => {
+      // Create a new row for custom item
+      const row = createRow({ label: "", checked: false }, true);
       list.appendChild(row);
-      
-      // Focus on the input field for immediate editing
-      const input = row.querySelector('input[type="text"]');
+      const input = row.querySelector("input[type='text']");
       if (input) {
         input.focus();
-        
-        // Add validation on blur to ensure the field isn't empty
+        // Patch: Only check the new item for availability on blur
         input.addEventListener('blur', async (e) => {
-          try {
-            // Don't process this event if we're blurring due to page navigation or reload
-            if (document.visibilityState === 'hidden' || document.readyState !== 'complete') {
-              return;
-            }
-            
-            if (input.value.trim() === '') {
-              // If left empty and user moves away, remove the row
-              row.remove();
-            } else {
-              // Valid input, trigger IMMEDIATE save and remove the new row marker
-              row.removeAttribute('data-new-row');
-                
-              // IMMEDIATELY save to database to prevent data loss on refresh
-              eventContext.updateFromDOM();
-              const checkOutDate = document.getElementById('checkoutDate')?.value || '';
-              const checkInDate = document.getElementById('checkinDate')?.value || '';
-              await eventContext.save(checkOutDate, checkInDate);
-              
-              // Now allow refreshes to resume after successful save
-              setTimeout(() => {
-                window.isActiveEditing = false;
-                console.log('Item saved and editing completed');
-              }, 200);
-            }
-          } catch (err) {
-            console.error('Error saving new item:', err);
+          const label = input.value.trim();
+          if (!label) return;
+          const { checkOut, checkIn } = getSelectedDates();
+          if (!isGearItemAvailable(label, checkOut, checkIn)) {
+            // Show warning for this item only
+            showUnavailableWarningModal([label], () => {
+              // Proceed: allow adding, but highlight as unavailable
+              highlightUnavailableItems([label]);
+            });
           }
-        });
+        }, { once: true });
       }
     };
     
@@ -1167,7 +1386,7 @@ function showUnavailableWarningModal(unavailable, onProceed) {
 }
 
 // Update checkUnavailableItemsAndWarn to use modal
-function checkUnavailableItemsAndWarn() {
+function checkUnavailableItemsAndWarn(itemsToCheck = null) {
   // Validate date range first
   if (!validateDateRange()) {
     return; // Don't proceed if dates are invalid
@@ -1175,18 +1394,113 @@ function checkUnavailableItemsAndWarn() {
   
   const { checkOut, checkIn } = getSelectedDates();
   const unavailable = [];
-  document.querySelectorAll('.item input[type="text"]').forEach(input => {
-    const label = input.value.trim();
-    if (!isGearItemAvailable(label, checkOut, checkIn)) {
-      unavailable.push(label);
-    }
-  });
+  
+  // If specific items are provided, only check those
+  if (itemsToCheck) {
+    itemsToCheck.forEach(item => {
+      if (!isGearItemAvailable(item, checkOut, checkIn)) {
+        unavailable.push(item);
+      }
+    });
+  } else {
+    // Only check all items when explicitly requested (e.g., date changes)
+    document.querySelectorAll('.item input[type="text"]').forEach(input => {
+      const label = input.value.trim();
+      if (!isGearItemAvailable(label, checkOut, checkIn)) {
+        unavailable.push(label);
+      }
+    });
+  }
+  
   highlightUnavailableItems(unavailable);
   if (unavailable.length) {
-    showUnavailableWarningModal(unavailable, () => {
+    showUnavailableWarningModal(unavailable, async () => {
+      // Get current dates
+      const currentDates = getSelectedDates();
+      
+      // First, release inventory reservations for items that will be removed
+      console.log('Releasing inventory reservations for unavailable items:', unavailable);
+      
+      const itemsToRelease = [];
+      
+      // Find and collect items that need reservation release
+      document.querySelectorAll('.item input[type="text"]').forEach(input => {
+        const label = input.value.trim();
+        if (unavailable.includes(label)) {
+          const row = input.closest('.item');
+          if (row) {
+            // Get the item data from the current list
+            const categoryElement = row.closest('.category');
+            const categoryName = categoryElement.querySelector('h3').textContent;
+            const items = eventContext.getItems(categoryName);
+            const item = items.find(i => i.label === label);
+            
+            if (item) {
+              itemsToRelease.push(item);
+            }
+          }
+        }
+      });
+      
+      // Release reservations for all items
+      const releasePromises = itemsToRelease.map(item => 
+        releaseInventoryReservation(item, currentDates.checkOut, currentDates.checkIn)
+      );
+      
+      try {
+        const releaseResults = await Promise.all(releasePromises);
+        const failedReleases = releaseResults.filter(result => !result).length;
+        
+        if (failedReleases > 0) {
+          console.warn(`Failed to release ${failedReleases} inventory reservations`);
+        } else {
+          console.log('All inventory reservations released successfully');
+        }
+        
+        // Refresh inventory data after releasing reservations
+        await loadGearInventory();
+        
+      } catch (err) {
+        console.error('Error releasing inventory reservations:', err);
+      }
+      
+      // Now remove the unavailable items from the DOM
+      console.log('Removing unavailable items from DOM:', unavailable);
+      
+      document.querySelectorAll('.item input[type="text"]').forEach(input => {
+        const label = input.value.trim();
+        if (unavailable.includes(label)) {
+          // Find the parent row and remove it
+          const row = input.closest('.item');
+          if (row) {
+            console.log('Removing row for item:', label);
+            row.remove();
+          }
+        }
+      });
+      
+      // Clear the highlighting since items are removed
+      highlightUnavailableItems([]);
+      
+      // Now save the updated state
       pendingProceed = true;
       saveGear();
       pendingProceed = false;
+      
+      // Show success message
+      const statusMessage = document.getElementById('gearStatusMessage');
+      if (statusMessage) {
+        statusMessage.innerHTML = `
+          <div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+            <strong>Items Removed:</strong> ${unavailable.join(', ')} were removed due to date conflicts and their reservations have been released.
+          </div>
+        `;
+        
+        // Clear message after 5 seconds
+        setTimeout(() => {
+          statusMessage.innerHTML = '';
+        }, 5000);
+      }
     });
   } else {
     document.getElementById('gearStatusMessage').textContent = '';
@@ -1214,38 +1528,32 @@ async function saveGear() {
   }
 }
 
-// Patch saveGear to respect confirmation (must run after saveGear is defined)
-if (typeof saveGear === 'function') {
-  const originalSaveGear = saveGear;
-  saveGear = function() {
-    const { checkOut, checkIn } = getSelectedDates();
-    const unavailable = [];
-    document.querySelectorAll('.item input[type="text"]').forEach(input => {
-      const label = input.value.trim();
-      if (!isGearItemAvailable(label, checkOut, checkIn)) {
-        unavailable.push(label);
-      }
-    });
-    if (unavailable.length && !pendingProceed) {
-      checkUnavailableItemsAndWarn();
-      return; // Wait for user confirmation
+// Direct save function that bypasses all validation - used for delete operations
+async function saveGearDirect() {
+  try {
+    // Update data from DOM
+    eventContext.updateFromDOM();
+    
+    // Get date fields
+    const checkOutDate = document.getElementById('checkoutDate')?.value || '';
+    const checkInDate = document.getElementById('checkinDate')?.value || '';
+    
+    // Save to server directly without any validation
+    const success = await eventContext.save(checkOutDate, checkInDate);
+    
+    if (!success) {
+      throw new Error("Save failed");
     }
-    // Remove unavailable items before saving
-    document.querySelectorAll('.item').forEach(row => {
-      const input = row.querySelector("input[type='text']");
-      if (input && unavailable.includes(input.value.trim())) {
-        row.remove();
-      }
-    });
-    originalSaveGear();
-  };
+  } catch (err) {
+    console.error("Error saving gear:", err.message);
+  }
 }
 
-// Listen for date changes to trigger warning logic
+// Listen for date changes to trigger warning logic for ALL items
 ['checkoutDate', 'checkinDate'].forEach(id => {
   const el = document.getElementById(id);
   if (el) {
-    el.addEventListener('change', checkUnavailableItemsAndWarn);
+    el.addEventListener('change', () => checkUnavailableItemsAndWarn()); // Check all items when dates change
   }
 });
 
@@ -1317,13 +1625,15 @@ function createNewGearList() {
 async function loadGearInventory() {
   try {
     console.log('[gear.js] Loading gear inventory from API');
-    const res = await fetch(`${window.API_BASE}/api/gear-inventory`, {
-      headers: { Authorization: token }
+    // Add cache-busting parameter to ensure fresh data
+    const timestamp = Date.now();
+    const res = await fetch(`${window.API_BASE}/api/gear-inventory?_t=${timestamp}`, {
+      headers: { Authorization: localStorage.getItem('token') }
     });
     
     if (!res.ok) throw new Error(`Status ${res.status}`);
     gearInventory = await res.json();
-    console.log(`[gear.js] Loaded ${gearInventory.length} inventory items`);
+    console.log(`[gear.js] Loaded ${gearInventory.length} inventory items at ${new Date().toISOString()}`);
     renderInventoryStatus();
   } catch (err) {
     console.error('Failed to load gear inventory:', err);
@@ -1338,10 +1648,52 @@ function renderInventoryStatus() {
 }
 
 // Modal logic
-function openCheckoutModal(category, availableUnits, checkOut, checkIn, list) {
+async function openCheckoutModal(category, availableUnits, checkOut, checkIn, list) {
+  console.log('*** DEBUG: openCheckoutModal called with dates:', checkOut, 'to', checkIn, 'TIMESTAMP:', Date.now());
+  
   const modal = document.getElementById('checkoutModal');
   const modalList = document.getElementById('modalItemList');
   const modalTitle = document.getElementById('modalTitle');
+
+  // Show loading state
+  modalTitle.textContent = `Loading ${category} Items...`;
+  modalList.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">🔄 Loading inventory data...</p>';
+  modal.style.display = 'block';
+
+  // The inventory should already be fresh from the button click, but re-filter to be safe
+  const freshAvailableUnits = gearInventory.filter(unit => {
+    return unit.category === category && isUnitAvailableForDates(unit, checkOut, checkIn);
+  });
+  
+  console.log(`[openCheckoutModal] Category: ${category}, Total inventory items: ${gearInventory.length}`);
+  console.log(`[openCheckoutModal] Items in category: ${gearInventory.filter(u => u.category === category).length}`);
+  console.log(`[openCheckoutModal] Available items after date filtering: ${freshAvailableUnits.length}`);
+  
+  // Debug each item in the category
+  gearInventory.filter(u => u.category === category).forEach(unit => {
+    const availableQty = calculateAvailableQuantity(unit, checkOut, checkIn);
+    const isAvailable = isUnitAvailableForDates(unit, checkOut, checkIn);
+    console.log(`[openCheckoutModal] ${unit.label}: total=${unit.quantity}, available=${availableQty}, passes date check=${isAvailable}`);
+    
+    // Extra debug for Sony A7IV-D
+    if (unit.label && unit.label.includes('Sony A7IV-D')) {
+      console.log(`[SONY DEBUG] Full unit data for ${unit.label}:`, {
+        _id: unit._id,
+        status: unit.status,
+        quantity: unit.quantity,
+        reservations: unit.reservations,
+        history: unit.history
+      });
+      console.log(`[SONY DEBUG] Requested dates: ${checkOut} to ${checkIn}`);
+    }
+    
+    if (unit.reservations && unit.reservations.length > 0) {
+      console.log(`[openCheckoutModal] ${unit.label} reservations:`, unit.reservations);
+    }
+  });
+  
+  // Update modal title
+  modalTitle.textContent = `Select ${category} Item to Check Out`;
 
   // Get all inventory IDs already in ANY list for this event
   const allUsedIds = [];
@@ -1353,18 +1705,31 @@ function openCheckoutModal(category, availableUnits, checkOut, checkIn, list) {
     });
   });
 
+  console.log(`[openCheckoutModal] All used inventory IDs for this event:`, allUsedIds);
+
   // Filter out units that are already in ANY list for this event (by _id)
-  const availableUnitsFiltered = availableUnits.filter(unit => {
-    if (allUsedIds.includes(unit._id)) {
+  // BUT: For multi-quantity items, only filter if NO quantity is available
+  const availableUnitsFiltered = freshAvailableUnits.filter(unit => {
+    const isAlreadyUsed = allUsedIds.includes(unit._id);
+    const availableQty = calculateAvailableQuantity(unit, checkOut, checkIn);
+    
+    console.log(`[openCheckoutModal] ${unit.label}: isAlreadyUsed=${isAlreadyUsed}, availableQty=${availableQty}`);
+    
+    // For multi-quantity items, show if there's available quantity even if some units are used
+    if (unit.quantity > 1) {
+      return availableQty > 0;
+    }
+    
+    // For single items, hide if already used
+    if (isAlreadyUsed) {
       return false;
     }
+    
     return isUnitAvailableForDates(unit, checkOut, checkIn);
   });
 
   // Calculate how many items are hidden
-  const hiddenCount = availableUnits.length - availableUnitsFiltered.length;
-
-  modalTitle.textContent = `Select ${category} Item to Check Out`;
+  const hiddenCount = freshAvailableUnits.length - availableUnitsFiltered.length;
 
   let modalContent = '';
 
@@ -1381,15 +1746,54 @@ function openCheckoutModal(category, availableUnits, checkOut, checkIn, list) {
   } else {
     modalContent += availableUnitsFiltered
       .map(unit => {
-        let statusLabel = '';
-        if (isUnitAvailableForDates(unit, checkOut, checkIn)) {
-          statusLabel = '<span style="color: green; font-weight: 500;">Available</span>';
-        } else if (unit.status === 'checked_out' && unit.checkedOutEvent === eventContext.tableId) {
-          statusLabel = '<span style="color: blue; font-weight: 500;">Already checked out to this event</span>';
+        // Calculate available quantity for this unit
+        const availableQty = calculateAvailableQuantity(unit, checkOut, checkIn);
+        
+        // Create quantity input for multi-unit items with availability info
+        let quantityInput = '';
+        let availabilityInfo = '';
+        
+        if (unit.quantity > 1) {
+          availabilityInfo = `
+            <div style="margin-top: 4px; font-size: 12px; color: #666;">
+              <strong>${availableQty}/${unit.quantity}</strong> units available
+            </div>
+          `;
+          
+          quantityInput = `
+            <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+              <label style="font-size: 14px; color: #666;">Quantity:</label>
+              <input type="number" 
+                     id="quantity-${unit._id}" 
+                     min="1" 
+                     max="${availableQty}"
+                     value="1" 
+                     style="width: 60px; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+              <small style="color: #666;">max: ${availableQty}</small>
+            </div>
+          `;
         } else {
-          statusLabel = '<span style="color: red; font-weight: 500;">Checked Out</span>';
+          // For single items, just show "Available"
+          availabilityInfo = `
+            <div style="margin-top: 4px; font-size: 12px; color: #28a745;">
+              <strong>Available</strong>
+            </div>
+          `;
         }
-        return `<button class="modal-item-btn" style="background: #f7f7f7; border: 1px solid #eaeaea; color: #333;" data-id="${unit._id}"><span style="color: #333;">${unit.label}</span> <div style="float: right;">${statusLabel}</div></button>`;
+        
+        return `
+          <div class="modal-item-container" style="background: #f7f7f7; border: 1px solid #eaeaea; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+            <button class="modal-item-btn" style="background: none; border: none; color: #333; width: 100%; text-align: left; cursor: pointer; padding: 0;" data-id="${unit._id}">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                  <span style="color: #333; font-weight: 500;">${unit.label}</span>
+                  ${availabilityInfo}
+                </div>
+              </div>
+            </button>
+            ${quantityInput}
+          </div>
+        `;
       })
       .join('');
     modalList.innerHTML = modalContent;
@@ -1402,12 +1806,22 @@ function openCheckoutModal(category, availableUnits, checkOut, checkIn, list) {
       const checkOutDate = document.getElementById('checkoutDate')?.value;
       const checkInDate = document.getElementById('checkinDate')?.value;
       if (!checkOutDate || !checkInDate) {
-        alert('Please select both check-out and check-in dates before loading a package.');
+        alert('Please select both check-out and check-in dates before checking out items.');
         return;
       }
       const unitId = btn.dataset.id;
       const unit = availableUnitsFiltered.find(u => u._id === unitId);
       if (!unit) return;
+      
+      // Get quantity for multi-unit items
+      let quantity = 1;
+      if (unit.quantity > 1) {
+        const quantityInput = document.getElementById(`quantity-${unitId}`);
+        if (quantityInput) {
+          quantity = parseInt(quantityInput.value) || 1;
+        }
+      }
+      
       // Double-check: prevent adding if already in any list (race condition safety)
       const allUsedIdsNow = [];
       Object.values(eventContext.lists).forEach(listObj => {
@@ -1428,13 +1842,14 @@ function openCheckoutModal(category, availableUnits, checkOut, checkIn, list) {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': token
+            Authorization: localStorage.getItem('token')
           },
           body: JSON.stringify({
             gearId: unit._id,
             eventId: eventContext.tableId,
             checkOutDate: checkOutDate,
-            checkInDate: checkInDate
+            checkInDate: checkInDate,
+            quantity: quantity
           })
         });
         if (!res.ok) {
@@ -1447,22 +1862,44 @@ function openCheckoutModal(category, availableUnits, checkOut, checkIn, list) {
           }
           return;
         }
+        
+        const responseData = await res.json();
+        
         // Only add the checked-out item to the current gear list if checkout succeeded
         const currentListName = eventContext.activeList;
         if (eventContext.lists[currentListName] && eventContext.lists[currentListName].categories[category]) {
+          // For multi-unit items, show quantity in the label
+          const itemLabel = unit.quantity > 1 ? `${unit.label} (${quantity} units)` : unit.label;
+          
           eventContext.lists[currentListName].categories[category].push({
-            label: unit.label,
+            label: itemLabel,
             checked: false,
-            inventoryId: unit._id
+            inventoryId: unit._id,
+            quantity: quantity,
+            checkOutDate: checkOutDate,
+            checkInDate: checkInDate
           });
         }
         // Save the updated gear list to the server
         await eventContext.save(checkOutDate, checkInDate);
         // Reload gear and inventory, then close the modal
         await loadGearInventory();
-        await loadGear();
+        // Don't call loadGear() here as it overwrites the stored checkout dates
+        // Instead, just re-render the gear to show the new item
+        renderGear();
         modal.style.display = 'none';
-        showNotification(`${unit.label} has been checked out for your event.`, 'success');
+        
+        // Force a fresh inventory reload after a short delay to ensure backend has processed
+        setTimeout(async () => {
+          console.log('[Checkout] Force refreshing inventory after checkout to ensure fresh data...');
+          await loadGearInventory();
+        }, 500);
+        
+        // Show appropriate success message
+        const successMessage = unit.quantity > 1 
+          ? `${quantity} units of ${unit.label} have been reserved for your event.`
+          : `${unit.label} has been checked out for your event.`;
+        showNotification(successMessage, 'success');
       } catch (err) {
         console.error("Error checking out item:", err);
         document.getElementById('gearStatusMessage').innerHTML = `
@@ -1478,6 +1915,237 @@ function openCheckoutModal(category, availableUnits, checkOut, checkIn, list) {
   document.getElementById('closeModalBtn').onclick = () => {
     modal.style.display = 'none';
   };
+
+  // Add refresh button functionality
+  const refreshBtn = document.createElement('button');
+  refreshBtn.textContent = '🔄 Refresh';
+  refreshBtn.className = 'refresh-btn';
+  refreshBtn.style.marginRight = '10px';
+  refreshBtn.title = 'Refresh inventory data';
+  refreshBtn.onclick = async () => {
+    // Show loading state
+    modalTitle.textContent = `Refreshing ${category} Items...`;
+    modalList.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">🔄 Refreshing inventory data...</p>';
+    
+    // Refresh inventory data
+    await loadGearInventory();
+    
+    // Re-filter the available units with the fresh inventory data for the SAME category
+    const refreshedAvailableUnits = gearInventory.filter(unit => {
+      return unit.category === category && isUnitAvailableForDates(unit, checkOut, checkIn);
+    });
+    
+    // Get all inventory IDs already in ANY list for this event
+    const allUsedIds = [];
+    Object.values(eventContext.lists).forEach(listObj => {
+      Object.values(listObj.categories).forEach(items => {
+        items.forEach(item => {
+          if (item.inventoryId) allUsedIds.push(item.inventoryId);
+        });
+      });
+    });
+
+    // Filter out units that are already in ANY list for this event (by _id)
+    const availableUnitsFiltered = refreshedAvailableUnits.filter(unit => {
+      if (allUsedIds.includes(unit._id)) {
+        return false;
+      }
+      return isUnitAvailableForDates(unit, checkOut, checkIn);
+    });
+
+    // Calculate how many items are hidden
+    const hiddenCount = refreshedAvailableUnits.length - availableUnitsFiltered.length;
+
+    // Update modal title back to normal
+    modalTitle.textContent = `Select ${category} Item to Check Out`;
+
+    let modalContent = '';
+
+    // Add an explanatory note if any items are hidden
+    if (hiddenCount > 0) {
+      modalContent += `<p style="color: #666; font-size: 14px; margin-bottom: 16px;">
+        Note: ${hiddenCount} item(s) already in use have been hidden.
+      </p>`;
+    }
+
+    if (availableUnitsFiltered.length === 0) {
+      modalContent += `<p style="text-align: center; color: #666;">No available items found.</p>`;
+    } else {
+      modalContent += availableUnitsFiltered
+        .map(unit => {
+          // Calculate available quantity for this unit
+          const availableQty = calculateAvailableQuantity(unit, checkOut, checkIn);
+          
+          // Create quantity input for multi-unit items with availability info
+          let quantityInput = '';
+          let availabilityInfo = '';
+          
+          if (unit.quantity > 1) {
+            availabilityInfo = `
+              <div style="margin-top: 4px; font-size: 12px; color: #666;">
+                <strong>${availableQty}/${unit.quantity}</strong> units available
+              </div>
+            `;
+            
+            quantityInput = `
+              <div style="margin-top: 8px; display: flex; align-items: center; gap: 8px;">
+                <label style="font-size: 14px; color: #666;">Quantity:</label>
+                <input type="number" 
+                       id="quantity-${unit._id}" 
+                       min="1" 
+                       max="${availableQty}"
+                       value="1" 
+                       style="width: 60px; padding: 4px 8px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px;">
+            <small style="color: #666;">max: ${availableQty}</small>
+          </div>
+        `;
+          } else {
+            // For single items, just show "Available"
+            availabilityInfo = `
+              <div style="margin-top: 4px; font-size: 12px; color: #28a745;">
+                <strong>Available</strong>
+              </div>
+            `;
+          }
+          
+          return `
+            <div class="modal-item-container" style="background: #f7f7f7; border: 1px solid #eaeaea; border-radius: 8px; padding: 12px; margin-bottom: 8px;">
+              <button class="modal-item-btn" style="background: none; border: none; color: #333; width: 100%; text-align: left; cursor: pointer; padding: 0;" data-id="${unit._id}">
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                  <div>
+                    <span style="color: #333; font-weight: 500;">${unit.label}</span>
+                    ${availabilityInfo}
+                  </div>
+                </div>
+              </button>
+              ${quantityInput}
+            </div>
+          `;
+        })
+        .join('');
+    }
+
+    // Update the modal content
+    modalList.innerHTML = modalContent;
+
+    // Re-add event listeners for the new item buttons
+    modalList.querySelectorAll('.modal-item-btn').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const checkOutDate = document.getElementById('checkoutDate')?.value;
+        const checkInDate = document.getElementById('checkinDate')?.value;
+        if (!checkOutDate || !checkInDate) {
+          alert('Please select both check-out and check-in dates before checking out items.');
+          return;
+        }
+        const unitId = btn.dataset.id;
+        const unit = availableUnitsFiltered.find(u => u._id === unitId);
+        if (!unit) return;
+        
+        // Get quantity for multi-unit items
+        let quantity = 1;
+        if (unit.quantity > 1) {
+          const quantityInput = document.getElementById(`quantity-${unitId}`);
+          if (quantityInput) {
+            quantity = parseInt(quantityInput.value) || 1;
+          }
+        }
+        
+        // Double-check: prevent adding if already in any list (race condition safety)
+        const allUsedIdsNow = [];
+        Object.values(eventContext.lists).forEach(listObj => {
+          Object.values(listObj.categories).forEach(items => {
+            items.forEach(item => {
+              if (item.inventoryId) allUsedIdsNow.push(item.inventoryId);
+            });
+          });
+        });
+        if (allUsedIdsNow.includes(unit._id)) {
+          showNotification(`${unit.label} is already on a list for this event and cannot be added again.`, 'warning');
+          return;
+        }
+        try {
+          // Call the API to check out this item
+          const res = await fetch(`${window.API_BASE}/api/gear-inventory/checkout`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: localStorage.getItem('token')
+            },
+            body: JSON.stringify({
+              gearId: unit._id,
+              eventId: eventContext.tableId,
+              checkOutDate: checkOutDate,
+              checkInDate: checkInDate,
+              quantity: quantity
+            })
+          });
+          if (!res.ok) {
+            const errorText = await res.text();
+            if (res.status === 409) {
+              // Backend rejected due to overlap
+              showNotification(`Cannot check out ${unit.label}: ${errorText}`, 'warning');
+            } else {
+              showNotification(`Error checking out ${unit.label}: ${errorText}`, 'error');
+            }
+            return;
+          }
+          
+          const responseData = await res.json();
+          
+          // Only add the checked-out item to the current gear list if checkout succeeded
+          const currentListName = eventContext.activeList;
+          if (eventContext.lists[currentListName] && eventContext.lists[currentListName].categories[category]) {
+            // For multi-unit items, show quantity in the label
+            const itemLabel = unit.quantity > 1 ? `${unit.label} (${quantity} units)` : unit.label;
+            
+            eventContext.lists[currentListName].categories[category].push({
+              label: itemLabel,
+              checked: false,
+              inventoryId: unit._id,
+              quantity: quantity,
+              checkOutDate: checkOutDate,
+              checkInDate: checkInDate
+            });
+          }
+          // Save the updated gear list to the server
+          await eventContext.save(checkOutDate, checkInDate);
+          // Reload gear and inventory, then close the modal
+          await loadGearInventory();
+          // Don't call loadGear() here as it overwrites the stored checkout dates
+          // Instead, just re-render the gear to show the new item
+          renderGear();
+          modal.style.display = 'none';
+          
+          // Force a fresh inventory reload after a short delay to ensure backend has processed
+          setTimeout(async () => {
+            console.log('[Checkout] Force refreshing inventory after checkout to ensure fresh data...');
+            await loadGearInventory();
+          }, 500);
+          
+          // Show appropriate success message
+          const successMessage = unit.quantity > 1 
+            ? `${quantity} units of ${unit.label} have been reserved for your event.`
+            : `${unit.label} has been checked out for your event.`;
+          showNotification(successMessage, 'success');
+        } catch (err) {
+          console.error("Error checking out item:", err);
+          document.getElementById('gearStatusMessage').innerHTML = `
+            <div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+              <strong>Error:</strong> ${err.message}
+            </div>
+          `;
+        }
+      });
+    });
+  };
+
+  // Add refresh button to modal if it doesn't exist
+  // const modalContentElement = modal.querySelector('.modal-content');
+  // const existingRefreshBtn = modalContentElement.querySelector('.refresh-btn');
+  // if (!existingRefreshBtn) {
+  //   const closeBtn = document.getElementById('closeModalBtn');
+  //   modalContentElement.insertBefore(refreshBtn, closeBtn);
+  // }
 
   // Show the modal
   modal.style.display = 'block';
@@ -1508,7 +2176,8 @@ window.addEventListener("DOMContentLoaded", async () => {
       let tableId = params.get('id') || localStorage.getItem('eventId');
       if (tableId) {
         eventContext.tableId = tableId;
-        localStorage.setItem('eventId', tableId);
+        // CRITICAL FIX: Commented out to prevent interference with SPA navigation
+        // localStorage.setItem('eventId', tableId);
       }
     }
     await loadGear();
@@ -1520,8 +2189,9 @@ window.addEventListener("DOMContentLoaded", async () => {
       filterSetting = e.target.value;
       renderGear();
     });
-    document.getElementById('checkoutDate').addEventListener('change', triggerAutosave);
-    document.getElementById('checkinDate').addEventListener('change', triggerAutosave);
+    // Duplicate date listeners removed - handled by comprehensive listener below
+    // document.getElementById('checkoutDate').addEventListener('change', triggerAutosave);
+    // document.getElementById('checkinDate').addEventListener('change', triggerAutosave);
   } catch (err) {
     console.error("Error initializing gear page:", err);
   }
@@ -1529,29 +2199,62 @@ window.addEventListener("DOMContentLoaded", async () => {
   
   function initPage(id) {
     try {
-      // Initialize event context
+      // CRITICAL FIX: Only use the explicit id parameter from navigation
+      // Don't fall back to URL params or localStorage which could be stale
+      if (!id) {
+        console.error('Gear page initPage called without event ID parameter');
+        alert("Missing configuration: event ID is required.");
+        throw new Error("Missing event ID");
+      }
+      
+      // Initialize event context with the explicit ID
       if (!eventContext.init(id)) {
         alert("Missing configuration: tableId is not set.");
-      throw new Error("Missing configuration");
-    }
-  
+        throw new Error("Missing configuration");
+      }
+
+      // Load bottom navigation
+      const navContainer = document.getElementById('bottomNav');
+      if (navContainer) {
+        fetch('bottom-nav.html')
+          .then(response => response.text())
+          .then(html => {
+            // Extract the inner content from the fetched HTML
+            const tempDiv = document.createElement('div');
+            tempDiv.innerHTML = html;
+            const bottomNavContent = tempDiv.querySelector('.bottom-nav');
+            
+            if (bottomNavContent) {
+              navContainer.innerHTML = bottomNavContent.innerHTML;
+              
+              // Set up navigation using the centralized function from app.js
+              if (window.setupBottomNavigation) {
+                window.setupBottomNavigation(navContainer, id, 'gear');
+              }
+            }
+          })
+          .catch(error => {
+            console.error('Error loading bottom navigation:', error);
+          });
+      }
+
       // Load data
-    loadGear();
+      loadGear();
       
       // Just call loadEventTitle directly - it will update list controls visibility
-    loadEventTitle();
-  
+      loadEventTitle();
+
       loadGearInventory();
-  
+
       // Set up event listeners
-    document.getElementById('gearContainer').addEventListener('input', triggerAutosave);
-    document.getElementById('gearContainer').addEventListener('change', triggerAutosave);
-    document.getElementById("filterCheckbox").addEventListener("change", e => {
-      filterSetting = e.target.value;
-      renderGear();
-    });
-      document.getElementById('checkoutDate').addEventListener('change', triggerAutosave);
-      document.getElementById('checkinDate').addEventListener('change', triggerAutosave);
+      document.getElementById('gearContainer').addEventListener('input', triggerAutosave);
+      document.getElementById('gearContainer').addEventListener('change', triggerAutosave);
+      document.getElementById("filterCheckbox").addEventListener("change", e => {
+        filterSetting = e.target.value;
+        renderGear();
+      });
+      // document.getElementById('checkoutDate').addEventListener('change', triggerAutosave);
+      // document.getElementById('checkinDate').addEventListener('change', triggerAutosave);
     } catch (err) {
       console.error("Error initializing gear page:", err);
     }
@@ -1574,7 +2277,60 @@ window.addEventListener("DOMContentLoaded", async () => {
   ['checkoutDate', 'checkinDate'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
-      el.addEventListener('change', renderInventoryStatus);
+      el.addEventListener('change', async () => {
+        console.log(`[Date Change] ${id} changed - validating dates and updating inventory...`);
+        
+        // Validate and adjust dates to ensure check-in is never before check-out
+        const checkoutEl = document.getElementById('checkoutDate');
+        const checkinEl = document.getElementById('checkinDate');
+        
+        if (checkoutEl.value && checkinEl.value) {
+          const checkoutDate = new Date(checkoutEl.value);
+          const checkinDate = new Date(checkinEl.value);
+          
+          // If check-in date is before check-out date, adjust it
+          if (checkinDate < checkoutDate) {
+            console.log('Check-in date is before check-out date, adjusting...');
+            checkinEl.value = checkoutEl.value; // Set check-in to same day as check-out
+            
+            // Show user-friendly message
+            const statusMessage = document.getElementById('gearStatusMessage');
+            if (statusMessage) {
+              statusMessage.innerHTML = `
+                <div style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                  <strong>Date Adjusted:</strong> Check-in date cannot be before check-out date. Set to same day.
+                </div>
+              `;
+              
+              // Clear message after 3 seconds
+              setTimeout(() => {
+                statusMessage.innerHTML = '';
+              }, 3000);
+            }
+          }
+        }
+        
+        // Save the date change to the server
+        try {
+          eventContext.updateFromDOM();
+          const checkOutDate = document.getElementById('checkoutDate')?.value || '';
+          const checkInDate = document.getElementById('checkinDate')?.value || '';
+          await eventContext.save(checkOutDate, checkInDate);
+          console.log('Date saved successfully');
+        } catch (err) {
+          console.error('Error saving date:', err);
+        }
+        
+        // Update inventory status without refreshing the page
+        await loadGearInventory();
+        renderInventoryStatus();
+        
+        // Validate dates and check for unavailable items
+        const isValid = validateDateRange();
+        if (isValid) {
+          checkUnavailableItemsAndWarn();
+        }
+      });
     }
   });
   
@@ -1631,18 +2387,18 @@ window.addEventListener("DOMContentLoaded", async () => {
     return true; // Valid date range
   }
   
-  // Call validation on date changes
-  ['checkoutDate', 'checkinDate'].forEach(id => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.addEventListener('change', () => {
-        const isValid = validateDateRange();
-        if (isValid) {
-          checkUnavailableItemsAndWarn();
-        }
-      });
-    }
-  });
+  // Call validation on date changes - now handled in comprehensive listener above
+  // ['checkoutDate', 'checkinDate'].forEach(id => {
+  //   const el = document.getElementById(id);
+  //   if (el) {
+  //     el.addEventListener('change', () => {
+  //       const isValid = validateDateRange();
+  //       if (isValid) {
+  //         checkUnavailableItemsAndWarn();
+  //       }
+  //     });
+  //   }
+  // });
 
   // Save gear list to server
   function saveGearList() {
@@ -1789,20 +2545,13 @@ window.addEventListener("DOMContentLoaded", async () => {
         adminLink = document.createElement('a');
         adminLink.id = 'adminGearLink';
         adminLink.href = '/pages/add-gear.html';
-        adminLink.className = 'admin-gear-link';
-        adminLink.innerHTML = '⚙️ Manage Inventory';
-        adminLink.style.display = 'inline-block';
-        adminLink.style.backgroundColor = '#444';
-        adminLink.style.color = 'white';
-        adminLink.style.padding = '8px 12px';
-        adminLink.style.borderRadius = '8px';
+        adminLink.className = 'admin-gear-link btn-text'; // Add .btn-text for Material styling
+        adminLink.innerHTML = '<span class="material-symbols-outlined">settings</span> Manage Inventory'; // Changed icon and text
+        // Remove most inline styles, rely on CSS classes
+        adminLink.style.display = 'inline-block'; 
         adminLink.style.textDecoration = 'none';
-        adminLink.style.fontWeight = 'bold';
-        adminLink.style.margin = '0';
-        adminLink.style.fontSize = '14px';
-        adminLink.style.boxShadow = '0 2px 8px rgba(0,0,0,0.2)';
+        adminLink.style.margin = '0'; // Keep essential layout styles if needed
         
-        // Add to the admin-row instead of the filter-admin-row
         const adminRow = document.querySelector('.admin-row');
         if (adminRow) {
           adminRow.appendChild(adminLink);
@@ -1904,7 +2653,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token
+          Authorization: localStorage.getItem('token')
         },
         body: JSON.stringify(packageData)
       });
@@ -1961,7 +2710,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       try {
         // Try the primary endpoint first
         const res = await fetch(`${window.API_BASE}/api/gear-packages`, {
-          headers: { 'Authorization': token }
+          headers: { 'Authorization': localStorage.getItem('token') }
         });
         
         console.debug("API response status:", res.status);
@@ -1982,7 +2731,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         console.warn("Primary endpoint failed. Trying fallback...", primaryErr);
         
         const fallbackRes = await fetch(`${window.API_BASE}/api/gear-packages-fallback`, {
-          headers: { 'Authorization': token }
+          headers: { 'Authorization': localStorage.getItem('token') }
         });
         
         console.debug("Fallback API response status:", fallbackRes.status);
@@ -2010,7 +2759,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       
       // Use our simple endpoint that gets all packages without filtering
       const res = await fetch(`${window.API_BASE}/api/gear-packages-all`, {
-        headers: { 'Authorization': token }
+        headers: { 'Authorization': localStorage.getItem('token') }
       });
       
       if (!res.ok) {
@@ -2117,7 +2866,7 @@ window.addEventListener("DOMContentLoaded", async () => {
             try {
               const res = await fetch(`${window.API_BASE}/api/gear-packages/${packageId}`, {
                 method: 'DELETE',
-                headers: { 'Authorization': token }
+                headers: { 'Authorization': localStorage.getItem('token') }
               });
               if (!res.ok) {
                 const text = await res.text();
@@ -2169,7 +2918,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       console.log("Testing primary endpoint...");
       try {
         const res1 = await fetch(`${window.API_BASE}/api/gear-packages`, {
-          headers: { 'Authorization': token }
+          headers: { 'Authorization': localStorage.getItem('token') }
         });
         const data1 = await res1.json();
         console.log("Primary endpoint result:", res1.status, data1);
@@ -2180,7 +2929,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       console.log("Testing fallback endpoint...");
       try {
         const res2 = await fetch(`${window.API_BASE}/api/gear-packages-fallback`, {
-          headers: { 'Authorization': token }
+          headers: { 'Authorization': localStorage.getItem('token') }
         });
         const data2 = await res2.json();
         console.log("Fallback endpoint result:", res2.status, data2);
@@ -2204,7 +2953,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       // First try normal endpoint
       try {
         const res = await fetch(`${window.API_BASE}/api/gear-packages/${packageId}`, {
-          headers: { 'Authorization': token }
+          headers: { 'Authorization': localStorage.getItem('token') }
         });
         
         if (!res.ok) {
@@ -2225,7 +2974,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         
         // Fallback to direct database query (using our new endpoint)
         const allRes = await fetch(`${window.API_BASE}/api/gear-packages-all`, {
-          headers: { 'Authorization': token }
+          headers: { 'Authorization': localStorage.getItem('token') }
         });
         
         if (!allRes.ok) {
@@ -2328,7 +3077,9 @@ window.addEventListener("DOMContentLoaded", async () => {
             eventContext.lists[currentListName].categories[category].push({
               label: inventoryItem.label,
               checked: item.checked,
-              inventoryId: inventoryItem._id
+              inventoryId: inventoryItem._id,
+              checkOutDate: checkOut,
+              checkInDate: checkIn
             });
             if (checkOut && checkIn) {
               checkOutInventoryItem(inventoryItem._id, checkOut, checkIn);
@@ -2362,30 +3113,9 @@ window.addEventListener("DOMContentLoaded", async () => {
   }
 
   // --- PATCH 2: Ensure eventContext.tableId is always set correctly on page load ---
-  window.addEventListener("DOMContentLoaded", async () => {
-    try {
-      // Always set eventContext.tableId from URL or localStorage
-      const params = new URLSearchParams(window.location.search);
-      let tableId = params.get('id') || localStorage.getItem('eventId');
-      if (tableId) {
-        eventContext.tableId = tableId;
-        localStorage.setItem('eventId', tableId);
-      }
-      await loadGear();
-      await loadEventTitle();
-      await loadGearInventory();
-      document.getElementById('gearContainer').addEventListener('input', triggerAutosave);
-      document.getElementById('gearContainer').addEventListener('change', triggerAutosave);
-      document.getElementById("filterCheckbox").addEventListener("change", e => {
-        filterSetting = e.target.value;
-        renderGear();
-      });
-      document.getElementById('checkoutDate').addEventListener('change', triggerAutosave);
-      document.getElementById('checkinDate').addEventListener('change', triggerAutosave);
-    } catch (err) {
-      console.error("Error initializing gear page:", err);
-    }
-  });
+  // REMOVED: This DOMContentLoaded listener was interfering with SPA navigation
+  // by overriding localStorage with potentially stale event IDs.
+  // Event context is now properly set via the initPage function called by the navigation system.
 
   // Helper function to check out an inventory item
   async function checkOutInventoryItem(gearId, checkOut, checkIn) {
@@ -2394,7 +3124,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': token
+          Authorization: localStorage.getItem('token')
         },
         body: JSON.stringify({
           gearId: gearId,
@@ -2492,7 +3222,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       updateStatus('Testing direct database access...');
       try {
         const testRes = await fetch(`${window.API_BASE}/api/gear-packages-test/${userId}`, {
-          headers: { 'Authorization': token }
+          headers: { 'Authorization': localStorage.getItem('token') }
         });
         
         const testData = await testRes.json();
@@ -2511,7 +3241,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       updateStatus('Testing primary API endpoint...');
       try {
         const apiRes = await fetch(`${window.API_BASE}/api/gear-packages`, {
-          headers: { 'Authorization': token }
+          headers: { 'Authorization': localStorage.getItem('token') }
         });
         
         if (!apiRes.ok) {
@@ -2537,7 +3267,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       updateStatus('Testing fallback API endpoint...');
       try {
         const fallbackRes = await fetch(`${window.API_BASE}/api/gear-packages-fallback`, {
-          headers: { 'Authorization': token }
+          headers: { 'Authorization': localStorage.getItem('token') }
         });
         
         if (!fallbackRes.ok) {
@@ -2579,7 +3309,7 @@ window.addEventListener("DOMContentLoaded", async () => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': token
+            Authorization: localStorage.getItem('token')
           },
           body: JSON.stringify(testPackage)
         });
@@ -2636,7 +3366,7 @@ window.addEventListener("DOMContentLoaded", async () => {
         
         // Check packages from server
         fetch(`${window.API_BASE}/api/gear-packages`, {
-          headers: { 'Authorization': token }
+          headers: { 'Authorization': localStorage.getItem('token') }
         })
         .then(res => res.json())
         .then(packages => {
@@ -2667,6 +3397,210 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   // Expose diagnostic function to window for debugging
   window.diagnoseTokenAndUserId = diagnoseTokenAndUserId;
+
+  // These duplicate listeners are removed - handled by comprehensive listener above
+  // document.getElementById('checkoutDate').addEventListener('change', async () => {
+  //   console.log('[Date Change] Checkout date changed, refreshing inventory...');
+  //   await loadGearInventory();
+  //   renderInventoryStatus();
+  //   triggerAutosave();
+  // });
+  // document.getElementById('checkinDate').addEventListener('change', async () => {
+  //   console.log('[Date Change] Checkin date changed, refreshing inventory...');
+  //   await loadGearInventory();
+  //   renderInventoryStatus();
+  //   triggerAutosave();
+  // });
+
+  // Temporary debug function to inspect gear data
+  window.debugGearData = function() {
+    console.log('=== GEAR DATA DEBUG ===');
+    console.log('Active list:', eventContext.activeList);
+    console.log('All lists:', eventContext.lists);
+    
+    if (eventContext.activeList && eventContext.lists[eventContext.activeList]) {
+      const activeList = eventContext.lists[eventContext.activeList];
+      console.log('Active list categories:', activeList.categories);
+      
+      Object.keys(activeList.categories).forEach(category => {
+        const items = activeList.categories[category];
+        console.log(`Category "${category}":`, items);
+        
+        items.forEach((item, index) => {
+          console.log(`  Item ${index + 1}:`, {
+            label: item.label,
+            checked: item.checked,
+            inventoryId: item.inventoryId,
+            checkOutDate: item.checkOutDate,
+            checkInDate: item.checkInDate
+          });
+        });
+      });
+    }
+    
+    console.log('=== INVENTORY DATA DEBUG ===');
+    if (window.gearInventory) {
+      const batteries = window.gearInventory.filter(item => item.label.toLowerCase().includes('battery') || item.label.toLowerCase().includes('np-fz100'));
+      console.log('Battery items in inventory:', batteries);
+      
+      batteries.forEach(battery => {
+        console.log(`Battery: ${battery.label}`);
+        console.log(`  Total quantity: ${battery.quantity}`);
+        console.log(`  Reservations: ${battery.reservations?.length || 0}`);
+        if (battery.reservations) {
+          battery.reservations.forEach((res, i) => {
+            console.log(`    Reservation ${i + 1}: ${res.quantity} units from ${res.checkOutDate} to ${res.checkInDate} for event ${res.eventId}`);
+          });
+        }
+        console.log(`  History entries: ${battery.history?.length || 0}`);
+        if (battery.history) {
+          battery.history.forEach((hist, i) => {
+            console.log(`    History ${i + 1}: ${hist.quantity || 1} units from ${hist.checkOutDate} to ${hist.checkInDate} for event ${hist.event}`);
+          });
+        }
+      });
+    }
+  };
+  
+  // Debug function to test deletion
+  window.debugDeleteItem = function(itemLabel) {
+    console.log('=== DELETE DEBUG ===');
+    const activeList = eventContext.lists[eventContext.activeList];
+    if (!activeList) {
+      console.log('No active list');
+      return;
+    }
+    
+    let foundItem = null;
+    let foundCategory = null;
+    
+    Object.keys(activeList.categories).forEach(category => {
+      const items = activeList.categories[category];
+      const item = items.find(i => i.label === itemLabel);
+      if (item) {
+        foundItem = item;
+        foundCategory = category;
+      }
+    });
+    
+    if (foundItem) {
+      console.log('Found item to delete:', foundItem);
+      console.log('In category:', foundCategory);
+      
+      const inventoryItem = gearInventory.find(g => g._id === foundItem.inventoryId || g.label === foundItem.label);
+      if (inventoryItem) {
+        console.log('Matching inventory item:', inventoryItem);
+      } else {
+        console.log('No matching inventory item found');
+      }
+    } else {
+      console.log('Item not found:', itemLabel);
+    }
+  };
+
+  // Helper function to release inventory reservation for an item
+  async function releaseInventoryReservation(item, checkOutDate, checkInDate) {
+    console.log(`[RELEASE] Starting release process for item:`, item);
+    
+    // Find the inventory item by inventoryId (preferred) or label as fallback
+    let inventoryItem = null;
+    if (item.inventoryId) {
+      inventoryItem = gearInventory.find(g => g._id === item.inventoryId);
+      console.log(`[RELEASE] Found inventory item by ID:`, inventoryItem);
+    } else {
+      // Fallback: try to find by label, but strip quantity info first
+      const baseLabel = item.label.replace(/\s*\(\d+\s*units?\)$/, '');
+      inventoryItem = gearInventory.find(g => g.label === baseLabel);
+      console.log(`[RELEASE] Found inventory item by base label "${baseLabel}":`, inventoryItem);
+    }
+    
+    // If this is an inventory item, check it in
+    if (inventoryItem && checkOutDate && checkInDate) {
+      try {
+        // For quantity items (quantity > 1), extract quantity from label or use default
+        if (inventoryItem.quantity > 1) {
+          // Use the actual quantity stored in the item object, or extract from label
+          let quantityToRelease = item.quantity;
+          
+          // If not available, try to extract from the label
+          if (!quantityToRelease || quantityToRelease === 1) {
+            const labelMatch = item.label.match(/\((\d+)\s*units?\)$/);
+            if (labelMatch) {
+              quantityToRelease = parseInt(labelMatch[1]);
+            } else {
+              quantityToRelease = 1; // Default fallback
+            }
+          }
+          
+          console.log(`[RELEASE] Attempting to release ${quantityToRelease} units of ${inventoryItem.label}`);
+          
+          // Use the stored checkout dates from the item, not the current form dates
+          const itemCheckOutDate = item.checkOutDate || checkOutDate;
+          const itemCheckInDate = item.checkInDate || checkInDate;
+          
+          console.log(`[RELEASE] Using dates for API call: ${itemCheckOutDate} to ${itemCheckInDate}`);
+          
+          // Make the API call to release the quantity
+          const res = await fetch(`${window.API_BASE}/api/gear-inventory/checkin`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: localStorage.getItem('token')
+            },
+            body: JSON.stringify({
+              gearId: inventoryItem._id,
+              eventId: eventContext.tableId,
+              checkOutDate: itemCheckOutDate,
+              checkInDate: itemCheckInDate,
+              quantity: quantityToRelease
+            })
+          });
+          
+          if (res.ok) {
+            const result = await res.json();
+            console.log(`[RELEASE] Successfully released ${quantityToRelease} units:`, result);
+            return true;
+          } else {
+            const errorText = await res.text();
+            console.error(`[RELEASE] Failed to release reservation: ${errorText}`);
+            return false;
+          }
+        } else {
+          // For single items
+          console.log(`[RELEASE] Processing single item release`);
+          
+          const res = await fetch(`${window.API_BASE}/api/gear-inventory/checkin`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: localStorage.getItem('token')
+            },
+            body: JSON.stringify({
+              gearId: inventoryItem._id,
+              eventId: eventContext.tableId,
+              checkOutDate: item.checkOutDate || checkOutDate,
+              checkInDate: item.checkInDate || checkInDate
+            })
+          });
+          
+          if (res.ok) {
+            console.log(`[RELEASE] Successfully released single item`);
+            return true;
+          } else {
+            const errorText = await res.text();
+            console.error(`[RELEASE] Failed to release single item: ${errorText}`);
+            return false;
+          }
+        }
+      } catch (err) {
+        console.error(`[RELEASE] Error releasing inventory reservation:`, err);
+        return false;
+      }
+    } else {
+      console.log(`[RELEASE] Item is not an inventory item or missing dates - no release needed`);
+      return true; // Not an error, just nothing to release
+    }
+  }
 })();
   
   

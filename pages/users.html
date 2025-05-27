@@ -2,10 +2,11 @@
 <link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
 
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="stylesheet" href="../css/styles.css">
 <link rel="stylesheet" href="../css/users.css">
 
 <div class="users-page">
-  <button onclick="window.location.href = '../dashboard.html#events'" class="back-button" style="margin-top: 20px; margin-bottom: 20px;">← Back to Events</button>
+  <button onclick="window.location.href = '../dashboard.html#events'" class="back-button btn-outlined">← Back to Events</button>
   <div class="card">
     <h1>User Management</h1>
     <div id="messageArea"></div>
@@ -52,12 +53,12 @@
         <label for="userPassword">New Password</label>
         <input type="password" id="userPassword" minlength="6">
       </div>
-      <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
-        <button type="button" id="cancelModalBtn" class="btn-delete">Cancel</button>
+      <div class="form-buttons">
+        <button type="button" id="cancelModalBtn" class="btn-outlined">Cancel</button>
         <button type="submit" id="saveUserBtn" class="btn-edit">Save</button>
       </div>
     </form>
-    <button id="resetPasswordBtn" class="btn-reset" style="margin-top: 10px;">Reset Password</button>
+    <button id="resetPasswordBtn" class="btn-reset btn-outlined" style="margin-top: 10px;">Reset Password</button>
   </div>
 </div>
 <!-- Add config.js first to ensure API_BASE is available -->

@@ -1,4 +1,4 @@
-.gear-page { font-family: 'Roboto', Arial, sans-serif; background: linear-gradient(135deg, #f5f7fa 0%, #e9ecf3 100%); color: #333; min-height: 100%; }
+.gear-page { font-family: 'Roboto', Arial, sans-serif; background: linear-gradient(135deg, #f5f7fa 0%, #e9ecf3 100%); color: #333; min-height: 100%; padding-bottom: 100px; }
 .gear-page h1, .gear-page h2 { text-align: center; font-weight: bold; margin-bottom: 10px; font-size: 22px; letter-spacing: 0.01em; }
 .gear-page .gear-controls { display: flex; justify-content: center; align-items: flex-end; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; }
 .gear-page .top-controls { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
@@ -509,5 +509,733 @@
 
 body:not(.owner) .delete-btn {
   display: none !important;
+}
+
+/* Quantity Display Styles */
+.quantity-display {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.quantity-single {
+  background-color: #f8f9fa;
+  color: #6c757d;
+  border: 1px solid #e9ecef;
+}
+
+.quantity-multiple {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  border: 1px solid #bbdefb;
+  font-weight: 600;
+}
+
+.quantity-multiple small {
+  font-size: 0.75em;
+  opacity: 0.8;
+  font-weight: 400;
+}
+
+/* Enhanced help text styling */
+.help-text {
+  font-size: 0.85em;
+  color: #6c757d;
+  margin-top: 4px;
+  line-height: 1.4;
+}
+
+.help-text strong {
+  color: #495057;
+  font-weight: 600;
+}
+
+/* Quantity input field enhancement */
+#quantity {
+  background: linear-gradient(135deg, #fff 0%, #f8f9fa 100%);
+  border: 2px solid #dee2e6;
+  transition: all 0.3s ease;
+}
+
+#quantity:focus {
+  border-color: #cc0007;
+  box-shadow: 0 0 0 3px rgba(204, 0, 7, 0.1);
+  background: #fff;
+}
+
+/* Quantity examples styling */
+.quantity-examples {
+  font-weight: 400;
+  color: #6c757d;
+  margin-left: 8px;
+}
+
+.quantity-examples small {
+  font-size: 0.8em;
+  font-style: italic;
+}
+
+/* Mobile responsiveness for quantity display */
+@media (max-width: 768px) {
+  .quantity-display {
+    padding: 2px 6px;
+    font-size: 0.9em;
+  }
+  
+  .quantity-multiple small {
+    font-size: 0.7em;
+  }
+}
+
+/* Inventory Summary Styles */
+.inventory-summary {
+  margin: 20px 0;
+  padding: 16px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px;
+  border: 1px solid #dee2e6;
+}
+
+.summary-stats {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 12px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  min-width: 80px;
+  transition: all 0.2s;
+}
+
+.stat-item:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.stat-number {
+  font-size: 1.5em;
+  font-weight: 700;
+  color: #495057;
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 0.85em;
+  color: #6c757d;
+  font-weight: 500;
+  text-align: center;
+  margin-top: 4px;
+}
+
+.stat-item.available .stat-number {
+  color: #28a745;
+}
+
+.stat-item.checked-out .stat-number {
+  color: #dc3545;
+}
+
+/* Mobile responsiveness for summary */
+@media (max-width: 768px) {
+  .summary-stats {
+    gap: 8px;
+  }
+  
+  .stat-item {
+    min-width: 60px;
+    padding: 6px 8px;
+  }
+  
+  .stat-number {
+    font-size: 1.2em;
+  }
+  
+  .stat-label {
+    font-size: 0.75em;
+  }
+}
+
+/* Modal Styles */
+.modal {
+  display: none;
+  position: fixed;
+  z-index: 1000;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(2px);
+  animation: fadeIn 0.3s ease;
+}
+
+.modal-content {
+  background-color: #fff;
+  margin: 10% auto;
+  padding: 24px;
+  border-radius: 12px;
+  width: 90%;
+  max-width: 500px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  position: relative;
+  animation: slideIn 0.3s ease;
+}
+
+.close-btn {
+  color: #aaa;
+  float: right;
+  font-size: 28px;
+  font-weight: bold;
+  cursor: pointer;
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  transition: color 0.2s;
+}
+
+.close-btn:hover,
+.close-btn:focus {
+  color: #cc0007;
+  text-decoration: none;
+}
+
+.modal-content h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+  color: #333;
+  font-size: 20px;
+  font-weight: 600;
+}
+
+.modal-content p {
+  margin-bottom: 20px;
+  color: #666;
+  line-height: 1.5;
+}
+
+/* Modal animations */
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes slideIn {
+  from { 
+    opacity: 0;
+    transform: translateY(-50px) scale(0.9);
+  }
+  to { 
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Mobile modal adjustments */
+@media (max-width: 768px) {
+  .modal-content {
+    margin: 20% auto;
+    padding: 20px;
+    width: 95%;
+    max-width: none;
+  }
+  
+  .modal-content h3 {
+    font-size: 18px;
+    margin-bottom: 12px;
+  }
+  
+  .close-btn {
+    font-size: 24px;
+    top: 12px;
+    right: 16px;
+  }
+}
+
+/* Tooltip Styles */
+.reservation-tooltip {
+  position: relative;
+  display: inline-block;
+  margin-left: 8px;
+  cursor: help;
+  font-size: 14px;
+  color: #007bff;
+  transition: color 0.2s;
+}
+
+.reservation-tooltip:hover {
+  color: #0056b3;
+}
+
+.reservation-tooltip .tooltiptext {
+  visibility: hidden;
+  width: 250px;
+  background-color: #333;
+  color: #fff;
+  text-align: left;
+  border-radius: 8px;
+  padding: 12px;
+  position: absolute;
+  z-index: 1001;
+  bottom: 125%;
+  left: 50%;
+  margin-left: -125px;
+  opacity: 0;
+  transition: opacity 0.3s, visibility 0.3s;
+  font-size: 13px;
+  line-height: 1.4;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+}
+
+.reservation-tooltip .tooltiptext::after {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  margin-left: -5px;
+  border-width: 5px;
+  border-style: solid;
+  border-color: #333 transparent transparent transparent;
+}
+
+.reservation-tooltip:hover .tooltiptext {
+  visibility: visible;
+  opacity: 1;
+}
+
+/* Mobile tooltip adjustments */
+@media (max-width: 768px) {
+  .reservation-tooltip .tooltiptext {
+    width: 200px;
+    margin-left: -100px;
+    font-size: 12px;
+    padding: 10px;
+  }
+  
+  /* On mobile, show tooltip on tap */
+  .reservation-tooltip:active .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+  }
+}
+
+/* Table Styles */
+.table-responsive {
+  overflow-x: auto;
+  margin-top: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.inventory-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  font-size: 14px;
+}
+
+.inventory-table th {
+  background: linear-gradient(135deg, #cc0007 0%, #a30006 100%);
+  color: white;
+  padding: 16px 12px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: 0.5px;
+  border: none;
+}
+
+.inventory-table td {
+  padding: 14px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: middle;
+  transition: background-color 0.2s;
+}
+
+.inventory-table tr:hover td {
+  background-color: #f8f9fa;
+}
+
+.inventory-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* Status styling */
+.status-available {
+  color: #28a745;
+  font-weight: 600;
+  padding: 4px 8px;
+  background-color: #d4edda;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.status-checked-out {
+  color: #dc3545;
+  font-weight: 600;
+  padding: 4px 8px;
+  background-color: #f8d7da;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+.status-future-available {
+  color: #fd7e14;
+  font-weight: 600;
+  padding: 4px 8px;
+  background-color: #fff3cd;
+  border-radius: 6px;
+  font-size: 13px;
+}
+
+/* Date filter styles */
+.date-filters {
+  display: flex;
+  align-items: end;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 12px;
+  border: 1px solid #dee2e6;
+  flex-wrap: wrap;
+}
+
+.date-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.date-filter label {
+  font-weight: 500;
+  color: #495057;
+  font-size: 14px;
+}
+
+.date-filter input[type="date"] {
+  padding: 8px 12px;
+  border: 1.5px solid #ced4da;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+
+.date-filter input[type="date"]:focus {
+  border-color: #cc0007;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(204, 0, 7, 0.1);
+}
+
+.date-actions {
+  display: flex;
+  gap: 8px;
+  align-items: end;
+}
+
+.date-actions button {
+  padding: 8px 16px;
+  font-size: 14px;
+  border-radius: 6px;
+  font-weight: 500;
+  min-width: auto;
+}
+
+/* Filters section */
+.filters {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  align-items: end;
+  flex-wrap: wrap;
+}
+
+.search-box,
+.category-filter,
+.status-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 150px;
+}
+
+.search-box input,
+.category-filter select,
+.status-filter select {
+  padding: 8px 12px;
+  border: 1.5px solid #ced4da;
+  border-radius: 6px;
+  font-size: 14px;
+  background: #fff;
+  transition: border-color 0.2s;
+}
+
+.search-box input:focus,
+.category-filter select:focus,
+.status-filter select:focus {
+  border-color: #cc0007;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(204, 0, 7, 0.1);
+}
+
+/* Mobile table responsiveness */
+@media (max-width: 768px) {
+  .date-filters {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  
+  .date-actions {
+    justify-content: stretch;
+  }
+  
+  .date-actions button {
+    flex: 1;
+  }
+  
+  .filters {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .search-box,
+  .category-filter,
+  .status-filter {
+    min-width: auto;
+  }
+  
+  .inventory-table {
+    font-size: 13px;
+  }
+  
+  .inventory-table th,
+  .inventory-table td {
+    padding: 10px 8px;
+  }
+  
+  .action-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  
+  .action-btn {
+    font-size: 12px;
+    padding: 6px 10px;
+    margin: 0;
+  }
+}
+
+/* Enhanced Checkout Modal Styles */
+.modal-item-container {
+  transition: all 0.2s ease;
+}
+
+.modal-item-container:hover {
+  background-color: #f0f0f0 !important;
+  border-color: #cc0007 !important;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 8px rgba(204, 0, 7, 0.1);
+}
+
+.modal-item-btn {
+  transition: all 0.2s ease;
+}
+
+.modal-item-btn:hover {
+  background-color: rgba(204, 0, 7, 0.05) !important;
+}
+
+.modal-item-container input[type="number"] {
+  transition: all 0.2s ease;
+}
+
+.modal-item-container input[type="number"]:focus {
+  border-color: #cc0007;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(204, 0, 7, 0.1);
+}
+
+/* Quantity input styling */
+.quantity-input-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 8px;
+  background-color: rgba(204, 0, 7, 0.02);
+  border-radius: 6px;
+  border: 1px solid rgba(204, 0, 7, 0.1);
+}
+
+.quantity-input-container label {
+  font-weight: 500;
+  color: #495057;
+  margin: 0;
+}
+
+.quantity-input-container input {
+  border: 1.5px solid #ced4da;
+  border-radius: 4px;
+  padding: 4px 8px;
+  font-size: 14px;
+  text-align: center;
+  transition: all 0.2s ease;
+}
+
+.quantity-input-container input:focus {
+  border-color: #cc0007;
+  box-shadow: 0 0 0 2px rgba(204, 0, 7, 0.1);
+}
+
+.quantity-input-container small {
+  color: #6c757d;
+  font-style: italic;
+}
+
+/* Modal content improvements */
+#checkoutModal .modal-content {
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+#modalItemList {
+  max-height: 60vh;
+  overflow-y: auto;
+  padding-right: 8px;
+}
+
+/* Custom scrollbar for modal */
+#modalItemList::-webkit-scrollbar {
+  width: 6px;
+}
+
+#modalItemList::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+#modalItemList::-webkit-scrollbar-thumb {
+  background: #cc0007;
+  border-radius: 3px;
+}
+
+#modalItemList::-webkit-scrollbar-thumb:hover {
+  background: #a30006;
+}
+
+/* Mobile modal adjustments */
+@media (max-width: 768px) {
+  .modal-item-container {
+    padding: 10px;
+    margin-bottom: 6px;
+  }
+  
+  .quantity-input-container {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+  }
+  
+  .quantity-input-container > div {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  
+  .quantity-input-container input {
+    width: 80px;
+  }
+  
+  #modalItemList {
+    max-height: 50vh;
+  }
+}
+
+/* Gear Page Material Symbol Styles */
+.gear-page button .material-symbols-outlined {
+  vertical-align: middle;
+  margin-right: 4px; /* Add a little space between icon and text */
+  font-size: 1.1em; /* Slightly larger icons */
+}
+
+/* Delete Icon Styling (already has .delete-btn class) */
+.gear-page .delete-btn .material-symbols-outlined {
+  color: #fff; /* White */
+}
+.gear-page .delete-btn:hover .material-symbols-outlined {
+  color: #555; /* Darker gray on hover for feedback */
+}
+
+/* Save Icon Styling */
+.gear-page .save-btn .material-symbols-outlined,
+.gear-page .package-btn .material-symbols-outlined[innerHTML='save'] /* Specific for save package */
+{
+  color: #fff; /* White */
+}
+.gear-page .save-btn:hover .material-symbols-outlined,
+.gear-page .package-btn:hover .material-symbols-outlined[innerHTML='save']
+{
+  /* color: #1976D2; */ /* Darker blue on hover - Removed for white icon */
+}
+
+/* Package Load Icon Styling */
+.gear-page .package-btn .material-symbols-outlined[innerHTML='inventory_2'] {
+  color: #009688; /* Teal */
+}
+.gear-page .package-btn:hover .material-symbols-outlined[innerHTML='inventory_2'] {
+  color: #00796B; /* Darker teal on hover */
+}
+
+/* Style for delete icons specifically within item rows */
+.gear-page .item .delete-btn .material-symbols-outlined {
+  color: #888; /* A medium gray color */
+}
+
+.gear-page .item .delete-btn:hover .material-symbols-outlined {
+  color: #555; /* Darker gray on hover for feedback */
+}
+
+/* Style for Use Inventory button icon */
+.gear-page .checkout-btn .material-symbols-outlined {
+  color: #fff; /* White to match button text */
+  /* vertical-align: middle; */ /* Already handled by .gear-page button .material-symbols-outlined */
+  /* margin-right: 4px; */ /* Already handled by .gear-page button .material-symbols-outlined */
+  /* font-size: 1.1em; */ /* Already handled by .gear-page button .material-symbols-outlined */
+}
+
+/* Style for Manage Inventory link icon */
+.gear-page .admin-gear-link .material-symbols-outlined {
+  color: #fff; /* White to match link background */
+  vertical-align: middle;
+  margin-right: 4px;
+  font-size: 1.1em; /* Consistent with other button icons */
+}
+
+/* Ensure item row delete BUTTON has no background/border/padding */
+.gear-page .item .delete-btn {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  margin: 0; /* Reset margin on the button, apply only to icon if needed */
+  line-height: 1; /* Match JS style */
+  outline: none !important; /* Remove focus outline */
+  box-shadow: none !important; /* Remove default shadow */
 }
   

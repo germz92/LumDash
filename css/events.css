@@ -76,12 +76,15 @@
     flex-direction: column;
     gap: 8px;
     padding: 18px 16px;
+    align-items: center;
 }
 
 .events-header-row1 {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;
     align-items: center;
+    width: 100%;
+    gap: 16px;
 }
 
 .events-header-row2 {
@@ -89,7 +92,8 @@
     flex-wrap: wrap;
     gap: 10px;
     align-items: center;
-    justify-content: flex-start;
+    justify-content: center;
+    width: 100%;
 }
 
 .events-header-row2 .sort-search-group {
@@ -97,11 +101,13 @@
     flex-direction: row;
     gap: 10px;
     align-items: center;
+    justify-content: center;
 }
 
 .events-header h2 {
     margin: 0;
     flex: 1 1 auto;
+    text-align: center;
 }
 
 #calendarViewBtn {
@@ -572,6 +578,11 @@
   margin-bottom: 2px;
 }
 #calendarViewContainer .calendar-event-pill {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100%;
+  min-width: 0;
   z-index: 2;
   background: #CC0007;
   color: #fff;
@@ -595,6 +606,9 @@
 #calendarViewContainer .calendar-event-pill:hover {
   background: #a30006;
   opacity: 1;
+}
+#calendarViewContainer .calendar-event-pill[title] {
+  cursor: pointer;
 }
 
 @media (max-width: 600px) {

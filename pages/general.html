@@ -7,10 +7,8 @@
     <div style="display: flex; gap: 12px; align-items: center;">
     <div id="clockIconContainer">
       <button id="clockIconBtn" class="clock-icon-btn" title="Show current time" aria-label="Show current time">
-        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:block;" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="12" cy="12" r="10"/>
-          <polyline points="12 6 12 12 16 14"/>
-        </svg>
+        <!-- Replace SVG with Material Symbol -->
+        <span class="material-symbols-outlined" style="display:block; width: 32px; height: 32px; font-size: 32px;">schedule</span>
       </button>
       <div id="clockPopup" class="clock-popup"></div>
       </div>
@@ -21,43 +19,44 @@
   <form id="generalForm">
     <div class="info-section">
       <div class="info-card">
-        <label for="summary">📝 Event Summary</label>
+        <label for="summary"><span class="material-symbols-outlined">description</span> Event Summary</label>
         <div id="summary" class="read-only"></div>
       </div>
       <div class="info-row">
         <div class="info-card">
-          <label for="location">📍 Location</label>
+          <label for="location"><span class="material-symbols-outlined">place</span> Location</label>
           <div id="location" class="read-only"></div>
         </div>
         <div class="info-card">
-          <label for="weather">☁️ Weather</label>
+          <!-- Weather icon will be set by JS -->
+          <label for="weather">Weather</label> 
           <div id="weather" class="read-only"></div>
         </div>
       </div>
       <div class="info-row">
         <div class="info-card">
-          <label for="start">📅 Start Date</label>
+          <label for="start"><span class="material-symbols-outlined">calendar_month</span> Start Date</label>
           <input type="date" id="start" name="start" placeholder="Select Date">
         </div>
         <div class="info-card">
-          <label for="end">🏁 End Date</label>
+          <label for="end"><span class="material-symbols-outlined">calendar_month</span> End Date</label>
           <input type="date" id="end" name="end" placeholder="Select Date">
         </div>
       </div>
       <div class="info-row">
         <div class="info-card">
-          <label for="attendees">👥 Attendee Count</label>
+          <label for="attendees"><span class="material-symbols-outlined">groups</span> Attendee Count</label>
           <div id="attendees" class="read-only"></div>
         </div>
         <div class="info-card">
-          <label for="budget">💰 Budget</label>
+          <label for="budget"><span class="material-symbols-outlined">payments</span> Budget</label>
           <div id="budget" class="read-only"></div>
         </div>
       </div>
     </div>      
 
     <div class="contacts-container">
-      <h2 style="margin-top: 0;">📞 Point of Contacts</h2>
+      <h2 style="margin-top: 0;"><span class="material-symbols-outlined">contacts</span> Point of Contacts</h2>
       <div class="contacts-scroll-wrapper">
         <table>
           <thead>
@@ -76,7 +75,7 @@
     </div>
 
     <div class="contacts-container">
-      <h2 style="margin-top: 40px;">🏢 Locations</h2>
+      <h2 style="margin-top: 40px;"><span class="material-symbols-outlined">business</span> Locations</h2>
       <div class="contacts-scroll-wrapper">
         <table>
           <thead>
@@ -100,11 +99,13 @@
   </form>
 </div>
 
-<!-- Lucide icon library for folder/task icons -->
+<!-- Lucide icon library for folder/task icons - REMOVE THIS SECTION -->
+<!-- 
 <script src="https://unpkg.com/lucide@latest" defer></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
   if (window.lucide) lucide.createIcons();
 });
 </script>
+-->
 

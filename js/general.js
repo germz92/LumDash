@@ -34,25 +34,24 @@ if (window.socket) {
 
 // Function to get appropriate weather icon based on text description
 function getWeatherIcon(weatherText) {
-  if (!weatherText) return '☁️'; // Default icon
+  if (!weatherText) return 'cloud'; // Default Material Symbol
   
   const text = weatherText.toLowerCase();
   
-  // Check for various weather conditions
-  if (text.includes('sunny') || text.includes('clear')) return '☀️';
-  if (text.includes('partly cloudy') || text.includes('partly sunny')) return '⛅';
-  if (text.includes('cloudy') || text.includes('overcast')) return '☁️';
-  if (text.includes('rain') || text.includes('shower')) return '🌧️';
-  if (text.includes('storm') || text.includes('thunder') || text.includes('lightning')) return '⛈️';
-  if (text.includes('snow') || text.includes('flurrie')) return '❄️';
-  if (text.includes('fog') || text.includes('mist')) return '🌫️';
-  if (text.includes('wind') || text.includes('breez')) return '💨';
-  if (text.includes('hot') || text.includes('heat')) return '🔥';
-  if (text.includes('cold') || text.includes('freez')) return '🥶';
-  if (text.includes('tornado') || text.includes('hurricane')) return '🌪️';
+  // Check for various weather conditions - return Material Symbol names
+  if (text.includes('sunny') || text.includes('clear')) return 'clear_day';
+  if (text.includes('partly cloudy') || text.includes('partly sunny')) return 'partly_cloudy_day';
+  if (text.includes('cloudy') || text.includes('overcast')) return 'cloudy';
+  if (text.includes('rain') || text.includes('shower')) return 'rainy';
+  if (text.includes('storm') || text.includes('thunder') || text.includes('lightning')) return 'thunderstorm';
+  if (text.includes('snow') || text.includes('flurrie')) return 'weather_snowy';
+  if (text.includes('fog') || text.includes('mist')) return 'foggy';
+  if (text.includes('wind') || text.includes('breez')) return 'air';
+  if (text.includes('hot') || text.includes('heat')) return 'local_fire_department';
+  if (text.includes('cold') || text.includes('freez')) return 'ac_unit';
+  if (text.includes('tornado') || text.includes('hurricane')) return 'cyclone';
   
-  // Return default icon if no match
-  return '☁️';
+  return 'cloud'; // Default Material Symbol
 }
 
 // Function to update the weather label icon based on current weather text
@@ -65,9 +64,9 @@ function updateWeatherIcon() {
     ? weatherEl.value.trim() 
     : weatherEl?.textContent.trim() || '';
   
-  // Extract icon and set new one
-  const icon = getWeatherIcon(weatherText);
-  weatherLabel.innerHTML = `${icon} Weather`;
+  const iconName = getWeatherIcon(weatherText);
+  // Ensure the label starts with the icon span, then text
+  weatherLabel.innerHTML = `<span class="material-symbols-outlined">${iconName}</span> Weather`;
 }
 
 function getUserIdFromToken() {
@@ -158,7 +157,7 @@ function renderContactRow(data = {}, readOnly = false) {
   const deleteTd = document.createElement('td');
   if (!readOnly) {
     const btn = document.createElement('button');
-    btn.textContent = '❌';
+    btn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
     btn.onclick = () => row.remove();
     deleteTd.appendChild(btn);
   }
@@ -181,7 +180,7 @@ function renderLocationRow(data = {}, readOnly = false) {
   const deleteTd = document.createElement('td');
   if (!readOnly) {
     const btn = document.createElement('button');
-    btn.textContent = '❌';
+    btn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
     btn.onclick = () => row.remove();
     deleteTd.appendChild(btn);
   }
@@ -273,7 +272,7 @@ function insertAdminNotesBtn(tableId) {
   
   // Add Folder Logs icon button for all users
   const folderBtn = document.createElement('button');
-  folderBtn.innerHTML = '<i data-lucide="folder"></i>';
+  folderBtn.innerHTML = '<span class="material-symbols-outlined">folder</span>';
   folderBtn.className = 'folder-logs-btn';
   folderBtn.style = 'margin-bottom: 18px; margin-left: 8px; background: none; color: #888; border: none; border-radius: 8px; padding: 8px; font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;';
   folderBtn.title = 'Folder Logs';
@@ -285,7 +284,7 @@ function insertAdminNotesBtn(tableId) {
   // Add Task icon button for owners, styled like folder icon, to the right
   if (isOwner) {
     const taskBtn = document.createElement('button');
-    taskBtn.innerHTML = '<i data-lucide="check-square"></i>';
+    taskBtn.innerHTML = '<span class="material-symbols-outlined">task_alt</span>';
     taskBtn.className = 'task-logs-btn';
     taskBtn.style = 'margin-bottom: 18px; margin-left: 8px; background: none; color: #888; border: none; border-radius: 8px; padding: 8px; font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;';
     taskBtn.title = 'To-Do List';
@@ -294,7 +293,6 @@ function insertAdminNotesBtn(tableId) {
     };
     container.appendChild(taskBtn);
   }
-  if (window.lucide) lucide.createIcons();
   console.log('Folder logs button added for all users');
 }
 
@@ -416,8 +414,10 @@ function initPage(id) {
         document.querySelector('.container').appendChild(viewOnlyIndicator);
       }
       
-      // Initialize Lucide icons for the folder button
-      if (window.lucide) lucide.createIcons();
+      // Set up navigation using the centralized function from app.js
+      if (window.setupBottomNavigation) {
+        window.setupBottomNavigation(navContainer, tableId, 'general'); // Changed page to general
+      }
     })
     .catch(err => console.error('Error loading event:', err));
 }

@@ -195,7 +195,7 @@ function renderTableSection() {
 
     if (isOwner) {
       const deleteDateBtn = document.createElement('button');
-      deleteDateBtn.textContent = '🗑️';
+      deleteDateBtn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
       deleteDateBtn.style.background = 'transparent';
       deleteDateBtn.style.border = 'none';
       deleteDateBtn.style.cursor = 'pointer';
@@ -282,9 +282,9 @@ function renderTableSection() {
         <td class="actions-cell" style="text-align: center;">
           ${isOwner ? `
             <div class="icon-buttons">
-              <button class="edit-row-btn" onclick="toggleEditById('${rowId}')" title="Edit">✏️</button>
+              <button class="edit-row-btn" onclick="toggleEditById('${rowId}')" title="Edit"><span class="material-symbols-outlined">edit</span></button>
               <button class="edit-row-btn" onclick="saveEditById('${rowId}')" title="Save" style="display:none;">💾</button>
-              <button class="delete-row-btn" onclick="deleteRowById('${rowId}')" title="Delete">🗑️</button>
+              <button class="delete-row-btn" onclick="deleteRowById('${rowId}')" title="Delete"><span class="material-symbols-outlined">delete</span></button>
             </div>
           ` : ''}
         </td>
