@@ -103,9 +103,8 @@ window.initPage = undefined;
             const name = item.name || '';
             if (airline && ref && name) {
               const btn = document.createElement('button');
-              btn.textContent = 'Open Airline';
+              btn.textContent = 'Open';
               btn.className = 'open-airline-btn';
-              btn.style = 'margin-left:4px; background:#e0e0e0; color:#333; border:1px solid #bbb; border-radius:6px; padding:4px 10px; font-size:13px; cursor:pointer;';
               btn.onclick = () => {
                 // Use first and last word in name for Southwest, last word for others
                 openAirlineSite(airline, ref, name);
@@ -131,7 +130,7 @@ window.initPage = undefined;
               <td class="text"><textarea>${item.name || ''}</textarea></td>
               <td class="text"><textarea>${item.airline || ''}</textarea></td>
               <td class="text"><textarea>${item.ref || ''}</textarea></td>
-              <td class="action"><button type="button" class="delete-btn" style="visibility: visible !important; display: inline-block !important; opacity: 1 !important;">🗑️</button></td>
+              <td class="action"><button type="button" class="delete-btn"><span class="material-symbols-outlined">delete</span></button></td>
             `;
           } else {
             row.innerHTML = `
@@ -140,7 +139,7 @@ window.initPage = undefined;
               <td class="text"><textarea>${item.hotel || ''}</textarea></td>
               <td class="text"><textarea>${item.name || ''}</textarea></td>
               <td class="text"><textarea>${item.ref || ''}</textarea></td>
-              <td class="action"><button type="button" class="delete-btn" style="visibility: visible !important; display: inline-block !important; opacity: 1 !important;">🗑️</button></td>
+              <td class="action"><button type="button" class="delete-btn"><span class="material-symbols-outlined">delete</span></button></td>
             `;
           }
         }
@@ -194,7 +193,7 @@ window.initPage = undefined;
           <td class="text"><textarea></textarea></td>
           <td class="text"><textarea></textarea></td>
           <td class="text"><textarea></textarea></td>
-          <td class="action"><button class="delete-btn" onclick="window.removeRow(this)">🗑️</button></td>
+          <td class="action"><button class="delete-btn" onclick="window.removeRow(this)"><span class="material-symbols-outlined">delete</span></button></td>
         `
         : `
           <td class="date"><input type="date"></td>
@@ -202,7 +201,7 @@ window.initPage = undefined;
           <td class="text"><textarea></textarea></td>
           <td class="text"><textarea></textarea></td>
           <td class="text"><textarea></textarea></td>
-          <td class="action"><button class="delete-btn" onclick="window.removeRow(this)">🗑️</button></td>
+          <td class="action"><button class="delete-btn" onclick="window.removeRow(this)"><span class="material-symbols-outlined">delete</span></button></td>
         `;
 
       table.appendChild(row);
@@ -316,25 +315,25 @@ window.initPage = undefined;
 
       // Bottom Nav
       try {
-      const navContainer = document.getElementById('bottomNavPlaceholder');
-        if (navContainer) {
-      const navRes = await fetch('bottom-nav.html');
-      const navHTML = await navRes.text();
-      navContainer.innerHTML = navHTML;
+        let navContainer = document.getElementById('bottomNav');
+        if (!navContainer) {
+          navContainer = document.createElement('nav');
+          navContainer.className = 'bottom-nav';
+          navContainer.id = 'bottomNav';
+          document.body.appendChild(navContainer);
+        }
+        const navRes = await fetch('bottom-nav.html');
+        const navHTML = await navRes.text();
+        
+        // Extract just the nav content (without the outer nav tag)
+        const tempDiv = document.createElement('div');
+        tempDiv.innerHTML = navHTML;
+        const navContent = tempDiv.querySelector('nav').innerHTML;
+        navContainer.innerHTML = navContent;
 
-      const links = [
-        { id: 'navGeneral', file: 'general.html' },
-        { id: 'navCrew', file: 'crew.html' },
-        { id: 'navTravel', file: 'travel-accommodation.html' },
-        { id: 'navGear', file: 'gear.html' },
-        { id: 'navCard', file: 'card-log.html' },
-        { id: 'navSchedule', file: 'schedule.html' }
-      ];
-
-      links.forEach(({ id, file }) => {
-        const el = document.getElementById(id);
-            if (el) el.href = `${file}?id=${tableIdToUse}`;
-      });
+        // Set up navigation using the centralized function from app.js
+        if (window.setupBottomNavigation) {
+          window.setupBottomNavigation(navContainer, tableIdToUse, 'travel-accommodation');
         }
       } catch (error) {
         console.error('Error loading navigation:', error);

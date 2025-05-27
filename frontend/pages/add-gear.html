@@ -5,7 +5,12 @@
 <link rel="stylesheet" href="../css/gear.css">
 
   <div class="container gear-page">
-    <button onclick="window.history.back()" class="back-button" style="margin-top: 20px; margin-bottom: 20px;">← Back to Gear</button>
+    <button onclick="window.history.back()" class="back-button btn-text" style="margin-top: 20px; margin-bottom: 20px;">
+      <svg class="heroicon heroicon-outline icon-arrow-left" style="width: 20px; height: 20px; margin-right: 8px;" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+      </svg>
+      Back to Gear
+    </button>
     <div class="card">
       <h1>Gear Inventory Management</h1>
       
@@ -36,11 +41,23 @@
               <label for="serial">Serial Number*</label>
               <input type="text" id="serial" name="serial" required>
             </div>
+            <div class="form-group">
+              <label for="quantity">Quantity* 
+                <span class="quantity-examples">
+                  <small>(e.g., 1 for cameras, 10 for batteries)</small>
+                </span>
+              </label>
+              <input type="number" id="quantity" name="quantity" min="1" value="1" required>
+              <small class="help-text">
+                <strong>Single items:</strong> Use quantity 1 (cameras, lenses)<br>
+                <strong>Multiple units:</strong> Enter total available (batteries, memory cards, etc.)
+              </small>
+            </div>
           </div>
           <div class="form-row">
             <div class="form-group">
               <button type="submit" id="submitBtn" class="btn-primary">Add Gear</button>
-              <button type="button" id="cancelBtn" class="btn-secondary" style="display:none">Cancel</button>
+              <button type="button" id="cancelBtn" class="btn-secondary btn-outlined" style="display:none">Cancel</button>
             </div>
           </div>
         </form>
@@ -62,7 +79,7 @@
           </div>
           <div class="date-actions">
             <button id="checkDatesBtn" class="btn-primary">Check Availability</button>
-            <button id="clearDatesBtn" class="btn-secondary">Clear Dates</button>
+            <button id="clearDatesBtn" class="btn-secondary btn-outlined">Clear Dates</button>
           </div>
         </div>
         
@@ -93,6 +110,11 @@
           </div>
         </div>
         
+        <!-- Inventory Summary -->
+        <div id="inventorySummary" class="inventory-summary">
+          <!-- Summary will be populated by JavaScript -->
+        </div>
+        
         <div class="table-responsive">
           <table class="inventory-table">
             <thead>
@@ -100,6 +122,7 @@
                 <th>Label</th>
                 <th class="category-column">Category</th>
                 <th>Serial</th>
+                <th>Quantity</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -123,14 +146,18 @@
       <h3 id="modalTitle">Confirm Action</h3>
       <p id="modalMessage">Are you sure you want to proceed?</p>
       <div style="display: flex; gap: 10px; justify-content: flex-end; margin-top: 20px;">
-        <button id="cancelModalBtn" class="btn-secondary">Cancel</button>
+        <button id="cancelModalBtn" class="btn-secondary btn-outlined">Cancel</button>
         <button id="confirmModalBtn" class="btn-danger">Confirm</button>
       </div>
     </div>
   </div>
   
   <!-- Back to top button -->
-  <button id="backToTopBtn" class="back-to-top-btn" style="display: none;">↑</button>
+  <button id="backToTopBtn" class="btn-icon back-to-top-btn" title="Back to Top" style="display: none;">
+    <svg class="heroicon heroicon-outline icon-arrow-up" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M12 19.5v-15m0 0l-6.75 6.75M12 4.5l6.75 6.75" />
+    </svg>
+  </button>
 
   <script src="../js/config.js"></script>
   <script>
@@ -244,6 +271,26 @@
         };
       }
       
+      // For quantity items, use the new calculation
+      if (item.quantity > 1) {
+        const availableQty = calculateAvailableQuantity(item, checkFromDate.value, checkToDate.value);
+        if (availableQty > 0) {
+          return {
+            status: 'available',
+            availableDate: null,
+            conflictingReservations: [],
+            availableQuantity: availableQty
+          };
+        } else {
+          return {
+            status: 'conflict',
+            availableDate: null,
+            conflictingReservations: [],
+            availableQuantity: 0
+          };
+        }
+      }
+      
       // Normalize dates to remove time component for accurate date comparison
       // Start date at 00:00:00 of the selected day
       const normalizeDate = (dateStr) => {
@@ -353,6 +400,126 @@
       };
     }
     
+    // Calculate available quantity for multi-unit items
+    function calculateAvailableQuantity(item, checkOutDate, checkInDate) {
+      if (item.quantity === 1) {
+        return item.status === 'available' ? 1 : 0;
+      }
+      
+      const normalizeDate = (dateStr) => {
+        const date = new Date(dateStr);
+        date.setUTCHours(0, 0, 0, 0);
+        return date;
+      };
+      
+      const reqStart = normalizeDate(checkOutDate);
+      const reqEnd = normalizeDate(checkInDate);
+      const now = new Date();
+      now.setUTCHours(0, 0, 0, 0);
+      
+      let reservedQuantity = 0;
+      
+      // Check reservations array if it exists (new quantity system)
+      if (item.reservations && item.reservations.length > 0) {
+        item.reservations.forEach(reservation => {
+          const resStart = normalizeDate(reservation.checkOutDate);
+          const resEnd = normalizeDate(reservation.checkInDate);
+          
+          // Check for overlap: (startA <= endB) && (endA >= startB)
+          if (reqStart <= resEnd && reqEnd >= resStart) {
+            reservedQuantity += reservation.quantity || 1;
+          }
+        });
+      }
+      
+      // Also check history for backward compatibility
+      if (item.history && item.history.length > 0) {
+        item.history.forEach(entry => {
+          if (!entry.checkOutDate || !entry.checkInDate) return;
+          
+          const entryStart = normalizeDate(entry.checkOutDate);
+          const entryEnd = normalizeDate(entry.checkInDate);
+          
+          // Skip if the reservation is in the past
+          if (entryEnd < now) return;
+          
+          // Check for overlap
+          if (reqStart <= entryEnd && reqEnd >= entryStart) {
+            reservedQuantity += entry.quantity || 1;
+          }
+        });
+      }
+      
+      return Math.max(0, item.quantity - reservedQuantity);
+    }
+    
+    // Update inventory summary with quantity statistics
+    function updateInventorySummary(items) {
+      const summaryElement = document.getElementById('inventorySummary');
+      
+      if (items.length === 0) {
+        summaryElement.innerHTML = '';
+        return;
+      }
+      
+      const stats = {
+        totalItems: items.length,
+        singleItems: items.filter(item => item.quantity === 1).length,
+        multipleItems: items.filter(item => item.quantity > 1).length,
+        totalUnits: items.reduce((sum, item) => sum + (item.quantity || 1), 0),
+        availableItems: 0,
+        checkedOutItems: 0
+      };
+      
+      // Calculate availability stats
+      items.forEach(item => {
+        if (item.quantity === 1) {
+          if (item.status === 'available') {
+            stats.availableItems++;
+          } else {
+            stats.checkedOutItems++;
+          }
+        } else {
+          // For quantity items, count as available if any units are available
+          const availability = getAvailabilityStatus(item);
+          if (availability.status === 'available' || (availability.availableQuantity && availability.availableQuantity > 0)) {
+            stats.availableItems++;
+          } else {
+            stats.checkedOutItems++;
+          }
+        }
+      });
+      
+      summaryElement.innerHTML = `
+        <div class="summary-stats">
+          <div class="stat-item">
+            <span class="stat-number">${stats.totalItems}</span>
+            <span class="stat-label">Total Items</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number">${stats.totalUnits}</span>
+            <span class="stat-label">Total Units</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number">${stats.singleItems}</span>
+            <span class="stat-label">Single Items</span>
+          </div>
+          <div class="stat-item">
+            <span class="stat-number">${stats.multipleItems}</span>
+            <span class="stat-label">Multi-Unit Items</span>
+          </div>
+          <div class="stat-item available">
+            <span class="stat-number">${stats.availableItems}</span>
+            <span class="stat-label">Available</span>
+          </div>
+          <div class="stat-item checked-out">
+            <span class="stat-number">${stats.checkedOutItems}</span>
+            <span class="stat-label">Checked Out</span>
+          </div>
+        </div>
+      `;
+    }
+    
     // Filter inventory based on search and filters
     function filterInventory() {
       const searchTerm = searchInput.value.toLowerCase();
@@ -411,6 +578,9 @@
         items = inventory;
       }
       
+      // Update inventory summary
+      updateInventorySummary(items);
+      
       // Check if we're on mobile
       const isMobile = window.innerWidth <= 768;
       
@@ -440,13 +610,20 @@
         let availableInfo = '';
         let reservationInfo = '';
         
+        // For quantity items, calculate and show available quantity when dates are selected
+        let quantityInfo = '';
+        if (item.quantity > 1 && checkFromDate.value && checkToDate.value) {
+          const availableQty = calculateAvailableQuantity(item, checkFromDate.value, checkToDate.value);
+          quantityInfo = ` (${availableQty}/${item.quantity} available)`;
+        }
+        
         if (availability.status === 'available') {
           statusClass = 'status-available';
-          statusText = 'Available';
+          statusText = 'Available' + quantityInfo;
         } else if (availability.status === 'future_available') {
           statusClass = 'status-future-available';
           statusText = isMobile ? 'Avail. After ' : 'Available After ';
-          statusText += formatDate(availability.availableDate);
+          statusText += formatDate(availability.availableDate) + quantityInfo;
         } else if (availability.status === 'conflict') {
           statusClass = 'status-checked-out';
           statusText = isMobile ? 'Unavailable' : 'Unavailable - Conflict';
@@ -490,6 +667,12 @@
             <td class="item-label">${escapeHtml(item.label)}${isMobile ? `<div class="mobile-category">${escapeHtml(item.category)}</div>` : ''}</td>
             <td class="item-category">${escapeHtml(item.category)}</td>
             <td class="item-serial">${escapeHtml(item.serial || '')}</td>
+            <td class="item-quantity">
+              <span class="quantity-display ${item.quantity > 1 ? 'quantity-multiple' : 'quantity-single'}">
+                ${item.quantity || 1}
+                ${item.quantity > 1 ? ' <small>units</small>' : ''}
+              </span>
+            </td>
             <td class="item-status">
               <span class="${statusClass}">
                 ${statusText}${availableInfo}
@@ -498,13 +681,17 @@
             </td>
             <td class="action-buttons">
               <button class="action-btn btn-warning" onclick="editGear('${item._id}')" 
-                  ${item.status === 'checked_out' ? 'disabled title="Cannot edit checked out gear"' : ''}>
+                  ${item.status === 'checked_out' && item.quantity === 1 ? 'disabled title="Cannot edit checked out gear"' : ''}>
                 Edit
               </button>
               <button class="action-btn btn-danger" onclick="showDeleteConfirmation('${item._id}')"
-                  ${item.status === 'checked_out' ? 'disabled title="Cannot delete checked out gear"' : ''}>
+                  ${item.status === 'checked_out' && item.quantity === 1 ? 'disabled title="Cannot delete checked out gear"' : ''}>
                 Delete
               </button>
+              ${(item.reservations && item.reservations.length > 0) || (item.history && item.history.length > 0) || item.status === 'checked_out' ? 
+                `<button class="action-btn btn-secondary" onclick="showReleaseAllConfirmation('${item._id}')" title="Release all reservations for this item">
+                  Release All
+                </button>` : ''}
             </td>
           </tr>
         `;
@@ -519,16 +706,23 @@
       const labelValue = document.getElementById('label').value.trim();
       const categoryValue = document.getElementById('category').value;
       const serialValue = document.getElementById('serial').value.trim();
+      const quantityValue = parseInt(document.getElementById('quantity').value) || 1;
       
       // Create form data ensuring empty serials are null
       const formData = {
         label: labelValue,
         category: categoryValue,
-        serial: serialValue.length > 0 ? serialValue : null
+        serial: serialValue.length > 0 ? serialValue : null,
+        quantity: quantityValue
       };
       
       if (!formData.label || !formData.category) {
         showMessage('Label and category are required.', 'error');
+        return;
+      }
+      
+      if (quantityValue < 1) {
+        showMessage('Quantity must be at least 1.', 'error');
         return;
       }
       
@@ -591,6 +785,7 @@
       document.getElementById('label').value = item.label;
       document.getElementById('category').value = item.category;
       document.getElementById('serial').value = item.serial || '';
+      document.getElementById('quantity').value = item.quantity || 1;
       
       // Update UI
       formTitle.textContent = 'Edit Gear';
@@ -615,10 +810,80 @@
       openModal();
     }
     
+    // Release all reservations confirmation
+    function showReleaseAllConfirmation(id) {
+      const item = inventory.find(g => g._id === id);
+      if (!item) return;
+      
+      itemToDelete = id; // Reuse the same variable for simplicity
+      modalTitle.textContent = 'Release All Reservations';
+      
+      // Count total reserved quantity across all reservations
+      let totalReservedQuantity = 0;
+      let reservationEntries = 0;
+      let historyEntries = 0;
+      
+      // For multi-quantity items, count from reservations array
+      if (item.reservations && item.reservations.length > 0) {
+        reservationEntries = item.reservations.length;
+        totalReservedQuantity = item.reservations.reduce((total, reservation) => {
+          return total + (reservation.quantity || 1);
+        }, 0);
+      }
+      
+      // For single-quantity items that are checked out, count from status
+      if (item.quantity === 1 && item.status === 'checked_out') {
+        totalReservedQuantity = 1;
+        reservationEntries = 1;
+      }
+      
+      // Count history entries for additional context
+      if (item.history && item.history.length > 0) {
+        historyEntries = item.history.length;
+        
+        // If we haven't found reservations yet, try to count from future history entries
+        if (totalReservedQuantity === 0) {
+          const now = new Date();
+          now.setUTCHours(0, 0, 0, 0);
+          
+          item.history.forEach(entry => {
+            if (entry.checkInDate) {
+              const entryEnd = new Date(entry.checkInDate);
+              entryEnd.setUTCHours(0, 0, 0, 0);
+              
+              // Only count future reservations
+              if (entryEnd >= now) {
+                totalReservedQuantity += (entry.quantity || 1);
+                reservationEntries++;
+              }
+            }
+          });
+        }
+      }
+      
+      modalMessage.innerHTML = `
+        Are you sure you want to release ALL reservations for "<strong>${item.label}</strong>"?<br><br>
+        This will:<br>
+        • Clear ${totalReservedQuantity} reserved units across ${reservationEntries} reservation(s)<br>
+        • Remove ${historyEntries} history entries<br>
+        • Make the item fully available<br>
+        • Remove this item from ALL gear lists where it appears<br><br>
+        <strong>This action cannot be undone.</strong>
+      `;
+      
+      confirmModalBtn.textContent = 'Release All';
+      confirmModalBtn.className = 'btn-warning'; // Change button color
+      currentAction = 'releaseAll';
+      
+      openModal();
+    }
+    
     // Handle confirm action
     async function handleConfirmAction() {
       if (currentAction === 'delete' && itemToDelete) {
         await deleteGear(itemToDelete);
+      } else if (currentAction === 'releaseAll' && itemToDelete) {
+        await releaseAllReservations(itemToDelete);
       }
       
       closeModal();
@@ -638,6 +903,46 @@
         }
         
         showMessage('Gear deleted successfully!', 'success');
+        await loadInventory();
+      } catch (err) {
+        showMessage(err.message, 'error');
+      }
+    }
+    
+    // Release all reservations
+    async function releaseAllReservations(id) {
+      try {
+        const res = await fetch(`${window.API_BASE}/api/gear-inventory/${id}/release-all`, {
+          method: 'POST',
+          headers: { Authorization: token }
+        });
+        
+        if (!res.ok) {
+          const data = await res.json();
+          throw new Error(data.error || `Error: ${res.status}`);
+        }
+        
+        const result = await res.json();
+        
+        // Show detailed success message with information about what was released
+        let message = 'All reservations released successfully!';
+        
+        if (result.releasedReservations) {
+          message += `\n\nDetails:`;
+          message += `\n• Cleared ${result.reservationCount || 0} reservation entries from inventory`;
+          
+          if (result.removedFromLists > 0) {
+            message += `\n• Removed ${result.removedFromLists} items from ${result.affectedEvents} gear lists`;
+            
+            if (result.affectedEventTitles && result.affectedEventTitles.length > 0) {
+              message += `\n• Affected events: ${result.affectedEventTitles.join(', ')}`;
+            }
+          } else {
+            message += `\n• No items found in gear lists to remove`;
+          }
+        }
+        
+        showMessage(message, 'success');
         await loadInventory();
       } catch (err) {
         showMessage(err.message, 'error');
@@ -672,6 +977,8 @@
       confirmModal.style.display = 'none';
       currentAction = null;
       itemToDelete = null;
+      // Reset button styling
+      confirmModalBtn.className = 'btn-danger';
     }
     
     // Escape HTML to prevent XSS
@@ -688,6 +995,7 @@
     // Expose functions to window
     window.editGear = editGear;
     window.showDeleteConfirmation = showDeleteConfirmation;
+    window.showReleaseAllConfirmation = showReleaseAllConfirmation;
     
     // Add a resize listener to refresh display on window resize
     window.addEventListener('resize', () => {

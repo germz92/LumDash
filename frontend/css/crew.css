@@ -84,6 +84,7 @@
 }
 .crew-page #dateSections {
   padding-top: 210px;
+  padding-bottom: 100px; /* Space for bottom navigation */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -108,6 +109,16 @@
   font-weight: bold;
   letter-spacing: 0.01em;
 }
+
+/* Remove borders from date delete button */
+.crew-page .date-section button {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  cursor: pointer;
+}
+
 .crew-page .table-wrapper {
   width: 100%;
   overflow-x: auto;
@@ -196,7 +207,9 @@
 .crew-page .edit-row-btn {
   background: transparent !important;
   border: none !important;
-  color: #4a5568 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  color: #888 !important;
   padding: 4px !important;
   cursor: pointer;
   font-size: 16px !important;
@@ -204,6 +217,8 @@
 .crew-page .delete-row-btn {
   background: transparent !important;
   border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
   color: #d11a2a !important;
   padding: 4px !important;
   cursor: pointer;
@@ -216,6 +231,9 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
 }
 .crew-page .table-wrapper::-webkit-scrollbar { height: 8px; }
 .crew-page .table-wrapper::-webkit-scrollbar-thumb { background: #ccc; border-radius: 4px; }
@@ -372,5 +390,25 @@
   flex-grow: 1;
   max-width: 300px;
   height: 34px;
+}
+
+/* Style for delete icons */
+.delete-date-btn .material-symbols-outlined,
+.delete-row-btn .material-symbols-outlined {
+  color: #888; /* A medium gray color */
+}
+
+.delete-date-btn:hover .material-symbols-outlined,
+.delete-row-btn:hover .material-symbols-outlined {
+  color: #555; /* Darker gray on hover for feedback */
+}
+
+/* Style for edit icons */
+.edit-row-btn .material-symbols-outlined {
+  color: #888; /* A medium gray color */
+}
+
+.edit-row-btn:hover .material-symbols-outlined {
+  color: #555; /* Darker gray on hover */
 }
   

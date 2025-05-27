@@ -1,108 +1,638 @@
+html {
+  box-sizing: border-box;
+}
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+
+:root {
+  /* Material Design Text Colors (on light surfaces) */
+  --md-sys-color-on-surface: rgba(0, 0, 0, 0.87); /* High emphasis */
+  --md-sys-color-on-surface-variant: rgba(0, 0, 0, 0.6); /* Medium emphasis */
+  --md-sys-color-outline: rgba(0, 0, 0, 0.38); /* Borders, hints, disabled */
+
+  /* Brand Colors */
+  --brand-primary: #CC0007;
+  --brand-on-primary: #FFFFFF;
+  --brand-primary-rgb: 204,0,7; /* For use with alpha, e.g., rgba(var(--brand-primary-rgb), 0.08) */
+}
+
 html, body {
   font-family: 'Roboto', Arial, sans-serif;
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  color: var(--md-sys-color-on-surface); /* Default text color */
 }
 
-.bottom-nav, .bottom-nav a, .bottom-nav span {
-  font-family: 'Roboto', Arial, sans-serif !important;
+/* Basic Material Type Scale (can be expanded) */
+.text-headline-small {
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 32px;
+  letter-spacing: 0px;
 }
 
-.dashboard-page, .gear-page {
-  font-family: 'Roboto', Arial, sans-serif;
+.text-title-large {
+  font-size: 22px;
+  font-weight: 500; /* Medium for titles */
+  line-height: 28px;
+  letter-spacing: 0px;
 }
 
-.dashboard-page { font-family: Arial, sans-serif; margin: 0; padding: 0 5%; background: #f4f4f4; min-height: 100vh; box-sizing: border-box; display: flex; flex-direction: column; justify-content: flex-start; align-items: stretch; }
-.dashboard-page html, .dashboard-page body { max-width: 100%; overflow-x: hidden; }
-.dashboard-page .top-controls { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-top: 20px; }
-.dashboard-page .top-controls .left, .dashboard-page .top-controls .right { display: flex; align-items: center; gap: 10px; }
-.dashboard-page .table-wrapper { overflow-x: auto; width: 100%; }
-.dashboard-page table { border-collapse: collapse; width: 100%; min-width: 950px; margin: 20px 0; table-layout: auto; }
-.dashboard-page table th, .dashboard-page table td { height: 36px; line-height: 1.4; border: 1px solid #ccc; padding: 6px 10px; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.dashboard-page .toggle-link { color: #a1a1a1; }
-.dashboard-page button { padding: 10px 20px; margin: 10px 5px; background-color: #CC0007; color: white; border: none; border-radius: 4px; cursor: pointer; width: auto; max-width: fit-content; }
-.dashboard-page button:hover { background-color: rgb(170, 3, 8); }
-.dashboard-page input[type="date"], .dashboard-page input[type="text"], .dashboard-page input[type="time"], .dashboard-page input#shareEmail { padding: 8px 10px; margin: 8px 5px; border: 1px solid #ccc; border-radius: 4px; display: inline-block; font-size: 16px; width: auto; max-width: 100%; }
-.dashboard-page table input, .dashboard-page table select { height: 30px; font-size: 16px; padding: 4px 6px; box-sizing: border-box; width: 100%; max-width: 100%; }
-.dashboard-page .dashboard-container { max-width: 100%; width: 100%; padding: 30px; margin: 0 auto; box-sizing: border-box; align-items: center; }
-.dashboard-page .event-links { display: flex; flex-direction: column; gap: 15px; margin-top: 30px; }
-.dashboard-page .event-links a { display: inline-block; padding: 10px 16px; margin: 5px; background-color: #CC0007; color: white; text-decoration: none; border-radius: 6px; font-weight: bold; transition: background 0.2s ease-in-out; width: auto; max-width: 200px; text-align: center; }
-.dashboard-page .event-links a:hover { background-color: #cc0007; }
-.dashboard-page .auth-wrapper { display: flex; justify-content: center; align-items: center; height: 100%; }
-.dashboard-page .auth-card { display: flex; flex-direction: column; gap: 15px; background: #ffffff; padding: 40px; border-radius: 10px; box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1); max-width: 400px; width: 100%; }
-.dashboard-page .auth-card h1 { margin-bottom: 10px; font-size: 28px; text-align: center; }
-.dashboard-page .auth-card h2 { font-size: 18px; margin: 10px 0 0; }
-.dashboard-page .auth-card input { padding: 10px; font-size: 16px; border: 1px solid #ccc; border-radius: 5px; }
-.dashboard-page .auth-card button { padding: 10px; background-color: #CC0007; color: white; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; transition: background 0.2s ease-in-out; }
-.dashboard-page .auth-card button:hover { background-color: rgb(170, 3, 8); }
-.dashboard-page .contacts-container { overflow-x: auto; padding-bottom: 10px; }
-.dashboard-page .contacts-container table { width: 100%; border-collapse: separate; border-spacing: 0 6px; min-width: 600px; }
-.dashboard-page #contactRows .contact-row { display: table-row; }
-.dashboard-page #contactRows .contact-row input { padding: 6px 8px; font-size: 16px; border: 1px solid #ccc; border-radius: 6px; min-width: 120px; width: 100%; box-sizing: border-box; }
-.dashboard-page #contactRows .contact-row td { padding: 4px 8px; background: #f9f9f9; }
-.dashboard-page .action-buttons { display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
-@media (max-width: 768px) { .dashboard-page html { width: 100%; overflow-x: hidden; } .dashboard-page body { padding: 5px 8px; } .dashboard-page table { max-width: 100%; font-size: 16px; } .dashboard-page th, .dashboard-page td { padding: 8px; font-size: 16px; } .dashboard-page h2 { font-size: 16px; } .dashboard-page .back-btn { padding: 8px 12px; font-size: 16px; } .dashboard-page button { padding: 5px 8px; font-size: 16px; } .dashboard-page .modal-content { width: 95%; } .dashboard-page select, .dashboard-page input[type="text"] { font-size: 16px; } }
-
-.ptr-spinner {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 48px;
-  margin-top: 8px;
-}
-.ptr-spinner .loader {
-  border: 4px solid #f3f3f3;
-  border-top: 4px solid #cc0007;
-  border-radius: 50%;
-  width: 32px;
-  height: 32px;
-  animation: spin 1s linear infinite;
-}
-@keyframes spin {
-  0% { transform: rotate(0deg); }
-  100% { transform: rotate(360deg); }
+.text-body-large {
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 24px;
+  letter-spacing: 0.5px;
 }
 
-/* Bottom Nav Bar Styles */
+.text-body-medium {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+  letter-spacing: 0.25px;
+}
+
+.text-label-large {
+  font-size: 14px;
+  font-weight: 500; /* Medium for labels/buttons */
+  line-height: 20px;
+  letter-spacing: 0.1px;
+}
+
+/* ===== OLD BOTTOM NAV STYLES (COMMENTED OUT) ===== */
+/*
 .bottom-nav {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  height: 70px; /* increased height */
+  height: 80px; 
   background: #fff;
-  border-top: 1px solid #ccc;
+  box-shadow: 0px -1px 3px rgba(0, 0, 0, 0.1), 0px -2px 2px rgba(0, 0, 0, 0.06), 0px -0px 1px rgba(0,0,0,0.07); 
   display: flex;
   justify-content: space-around;
-  align-items: flex-start; /* top align to allow inner padding */
-  padding-top: 6px;
+  align-items: center; 
   z-index: 1000;
-  padding-bottom: env(safe-area-inset-bottom, 10px); /* support iPhones with notches */
+  padding-bottom: env(safe-area-inset-bottom, 8px); 
+  padding-top: 8px; 
 }
 
 .bottom-nav a {
-  color: #cc0007;
+  color: var(--md-sys-color-on-surface-variant); 
   text-decoration: none;
   font-size: 12px;
   display: flex;
   flex-direction: column;
   align-items: center;
+  justify-content: center; 
   flex: 1;
-  padding-bottom: 12px; /* more space from bottom */
+  padding: 0px 5px 0px 5px; 
+  min-height: 56px; 
+  border-radius: 16px; 
+  transition: background-color 0.3s ease;
 }
 
 .bottom-nav a:hover {
-  background-color: #f0f0f0;
+  background-color: rgba(0,0,0,0.04); 
 }
 
-.bottom-nav i {
-  stroke: #CC0007;
-  width: 20px;
-  height: 20px;
+
+.bottom-nav a.active {
+  color: var(--brand-primary);
+}
+
+.bottom-nav .heroicon {
+  width: 24px;
+  height: 24px;
   margin-bottom: 4px;
 }
 
-#bottomNavPlaceholder {
-  height: 70px; /* Match .bottom-nav height */
-  width: 100%;
-  display: block;
+.nav-dropdown {
+  position: relative;
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center; 
+  min-height: 56px;
 }
+
+.nav-dropdown .dropdown-toggle {
+  color: var(--md-sys-color-on-surface-variant);
+  text-decoration: none;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 0px 5px 0px 5px; 
+  cursor: pointer;
+  width: 100%;
+  height: 100%;
+  border-radius: 16px;
+  transition: background-color 0.3s ease;
+}
+
+.nav-dropdown .dropdown-toggle:hover {
+  background-color: rgba(0,0,0,0.04);
+}
+
+.nav-dropdown .dropdown-toggle.active {
+  color: var(--brand-primary);
+}
+
+.nav-dropdown .dropdown-toggle .heroicon {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 4px;
+}
+
+.dropdown-menu {
+  position: absolute;
+  bottom: 100%; 
+  right: 0; 
+  background: #FFFFFF; 
+  border-radius: 8px; 
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15); 
+  min-width: 180px; 
+  opacity: 0;
+  visibility: hidden;
+  transform: translateY(10px) scale(0.95);
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 1001;
+  margin-bottom: 12px; 
+  padding-top: 8px; 
+  padding-bottom: 8px;
+}
+
+.dropdown-menu.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0) scale(1);
+}
+
+.dropdown-menu a {
+  display: flex;
+  align-items: center;
+  padding: 0 16px; 
+  height: 48px; 
+  color: var(--md-sys-color-on-surface);
+  text-decoration: none;
+  font-size: 14px; 
+  transition: background-color 0.2s;
+}
+
+.dropdown-menu a:last-child {
+  border-bottom: none;
+}
+
+.dropdown-menu a:hover {
+  background-color: rgba(0,0,0,0.04); 
+}
+*/
+
+/* ===== END OLD BOTTOM NAV STYLES ===== */
+
+/* ===== BEGIN MATERIAL DESIGN BOTTOM NAVIGATION STYLES ===== */
+
+/* Variables (assuming :root variables are defined earlier in the file) */
+
+.bottom-nav-material {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  /* height: 80px; Removed to allow content and padding to define height */
+  background: #fff; /* Surface color */
+  box-shadow: 0px -1px 3px rgba(0, 0, 0, 0.1), 0px -2px 2px rgba(0, 0, 0, 0.06), 0px -0px 1px rgba(0,0,0,0.07); /* Subtle top shadow */
+  display: flex;
+  justify-content: space-around;
+  align-items: center; /* Vertically center the items if bar becomes taller than items */
+  z-index: 1000;
+  padding-top: 16px; /* Increased top padding */
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 16px)); /* Symmetrical base padding + safe area (16px fallback) */
+}
+
+.bottom-nav-material a,
+.bottom-nav-material .dropdown-toggle { /* Apply common styles to both direct links and the toggle */
+  color: var(--md-sys-color-on-surface-variant); /* Medium emphasis for inactive */
+  text-decoration: none;
+  font-size: 12px; /* Material label small */
+  font-family: 'Roboto', Arial, sans-serif;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start; /* Move content (icon + text) to the top of the 56px box */
+  flex: 1;
+  padding: 0px 5px; /* Removed specific top/bottom padding here, will control with inner item padding */
+  padding-top: 6px; /* Add a bit of padding at the top of each item to push icon/text down slightly from very top edge */
+  min-height: 56px; /* Maintain minimum tap target height */
+  /* height: 100%; Removed as parent height is now auto */
+  border-radius: 16px; 
+  transition: background-color 0.3s ease, color 0.3s ease;
+  cursor: pointer; /* Ensure toggle is also a pointer */
+  width: 100%; /* Ensure toggle takes up space in flex container */
+}
+
+.bottom-nav-material a:hover,
+.bottom-nav-material .dropdown-toggle:hover {
+  background-color: rgba(var(--brand-primary-rgb), 0.04); /* Primary color with low opacity for hover */
+}
+
+.bottom-nav-material a.active,
+.bottom-nav-material .dropdown-toggle.active {
+  color: var(--brand-primary);
+}
+
+/* Styling for icons within the material nav */
+.bottom-nav-material .heroicon { /* Targets icons in both direct links and dropdown toggle */
+  width: 24px;
+  height: 24px;
+  margin-bottom: 4px; /* Space between icon and label */
+}
+
+/* Specific styling for the .nav-dropdown container itself if needed, beyond flex:1 */
+.bottom-nav-material .nav-dropdown {
+  position: relative; /* For dropdown menu positioning */
+  flex: 1;
+  display: flex; /* already a flex item from .bottom-nav-material */
+  justify-content: center;
+  align-items: center;
+  min-height: 56px;
+}
+
+/* Styles for the dropdown menu, assuming it's a child of .nav-dropdown */
+.bottom-nav-material .dropdown-menu {
+  position: absolute;
+  bottom: calc(100% + 4px); /* Position above the nav bar, with a little space */
+  right: 50%; /* Start from center */
+  transform: translateX(50%); /* Center align the dropdown */
+  background: #FFFFFF; /* Surface color */
+  border-radius: 8px; /* Material corner radius */
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15); /* Elevation 2 */
+  min-width: 90px; /* Adjusted min-width to 90px */
+  width: max-content; /* Allow content to define width up to max-width */
+  max-width: calc(100vw - 40px); /* Adjusted max-width to be responsive, leaving 20px margin on each side */
+  opacity: 0;
+  visibility: hidden;
+  transform-origin: bottom center;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+  z-index: 1001;
+  padding-top: 8px; 
+  padding-bottom: 8px;
+}
+
+.bottom-nav-material .dropdown-menu.show {
+  opacity: 1;
+  visibility: visible;
+  transform: translateX(50%) translateY(0) scale(1);
+}
+
+.bottom-nav-material .dropdown-menu a {
+  display: flex;
+  align-items: center;
+  padding: 0 16px; 
+  height: 48px; 
+  color: var(--md-sys-color-on-surface);
+  text-decoration: none;
+  font-family: 'Roboto', Arial, sans-serif;
+  font-size: 14px; /* Body Medium */
+  transition: background-color 0.2s;
+}
+
+.bottom-nav-material .dropdown-menu a:hover {
+  background-color: rgba(var(--brand-primary-rgb), 0.08); /* Consistent hover with main items */
+}
+
+/* Ensure icons within the dropdown menu also use the on-surface-variant color */
+.bottom-nav-material .dropdown-menu a .material-symbols-outlined {
+  color: var(--md-sys-color-on-surface-variant);
+  margin-right: 8px; /* Add some space between icon and text in dropdown */
+  font-variation-settings: 'FILL' 0; /* Ensure dropdown icons are always outlined */
+}
+
+/* Adjust page container padding for new nav bar height */
+/* This might need dynamic calculation or a more generous fixed value if nav bar height is truly dynamic */
+body:has(.bottom-nav-material) #page-container {
+  padding-bottom: 120px !important; /* Increased to accommodate a taller nav bar (approx 88px + safe area) */
+}
+
+/* ===== END MATERIAL DESIGN BOTTOM NAVIGATION STYLES ===== */
+
+/* ===== RESPONSIVE NAVIGATION FOR DESKTOP ===== */
+
+/* Desktop Navigation: Show all buttons directly on screens 768px and wider */
+@media (min-width: 768px) {
+  /* Ensure the navigation container can accommodate more items */
+  .bottom-nav-material {
+    justify-content: space-evenly; /* Distribute space evenly between all items */
+    padding-left: 8px;
+    padding-right: 8px;
+  }
   
+  /* Style the dynamically added desktop nav items */
+  .bottom-nav-material .desktop-nav-item {
+    color: var(--md-sys-color-on-surface-variant);
+    text-decoration: none;
+    font-size: 12px;
+    font-family: 'Roboto', Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-start;
+    flex: 1;
+    padding: 0px 5px;
+    padding-top: 6px;
+    min-height: 56px;
+    border-radius: 16px;
+    transition: background-color 0.3s ease, color 0.3s ease;
+    cursor: pointer;
+    max-width: 120px; /* Prevent items from getting too wide on very large screens */
+    min-width: 60px; /* Ensure minimum tap target */
+  }
+  
+  .bottom-nav-material .desktop-nav-item:hover {
+    background-color: rgba(var(--brand-primary-rgb), 0.04);
+  }
+  
+  .bottom-nav-material .desktop-nav-item.active {
+    color: var(--brand-primary);
+  }
+  
+  .bottom-nav-material .desktop-nav-item .material-symbols-outlined {
+    width: 24px;
+    height: 24px;
+    margin-bottom: 4px;
+    font-size: 24px;
+    font-variation-settings: 'FILL' 0;
+  }
+  
+  .bottom-nav-material .desktop-nav-item.active .material-symbols-outlined {
+    font-variation-settings: 'FILL' 1;
+  }
+  
+  .bottom-nav-material .desktop-nav-item span:not(.material-symbols-outlined) {
+    font-size: 12px;
+    line-height: 16px;
+    text-align: center;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  
+  /* Adjust existing nav items to work with more buttons */
+  .bottom-nav-material > a {
+    max-width: 120px;
+    min-width: 60px;
+  }
+  
+  /* Hide the dropdown container completely on desktop */
+  .bottom-nav-material .nav-dropdown[style*="display: none"] {
+    display: none !important;
+  }
+}
+
+/* Mobile Navigation: Ensure dropdown works properly on smaller screens */
+@media (max-width: 767px) {
+  .bottom-nav-material .desktop-nav-item {
+    display: none !important; /* Hide any desktop nav items that might exist */
+  }
+  
+  .bottom-nav-material .nav-dropdown {
+    display: flex !important; /* Ensure dropdown is visible on mobile */
+  }
+}
+
+/* ===== END RESPONSIVE NAVIGATION ===== */
+
+/* ===== BEGIN GLOBAL MATERIAL BUTTON STYLES ===== */
+
+/* General Button Styling - Material Contained Button */
+button, .btn, input[type="button"], input[type="submit"] {
+  font-family: 'Roboto', Arial, sans-serif;
+  font-size: 14px; /* Label Large */
+  font-weight: 500;
+  letter-spacing: 0.1px;
+  text-transform: uppercase;
+  padding: 0 24px; /* Increased horizontal padding for Material spec */
+  height: 40px; /* Standard height */
+  border-radius: 20px; /* Fully rounded for Material 3 style pill shape (half of height) */
+  border: none;
+  cursor: pointer;
+  background-color: var(--brand-primary);
+  color: var(--brand-on-primary);
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 1px 3px 1px rgba(0, 0, 0, 0.15); /* Elevation 1 */
+  transition: box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
+  display: inline-flex; 
+  align-items: center;
+  justify-content: center;
+  text-decoration: none; 
+  min-width: 64px; /* Minimum touch target / width */
+  line-height: normal; /* Ensure text is centered vertically */
+}
+
+button:hover, .btn:hover, input[type="button"]:hover, input[type="submit"]:hover {
+  /* background-color: darken(var(--brand-primary), 8%); */ /* darken() is not standard CSS, use a pre-calculated darker shade or an overlay */
+  background-color: #A30005; /* Slightly darker red for hover */
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15); /* Elevation 2 on hover */
+}
+
+button:active, .btn:active, input[type="button"]:active, input[type="submit"]:active {
+  box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.3), 0px 8px 12px 1px rgba(0, 0, 0, 0.15); /* Elevation 4 on press */
+  background-color: #A30005; /* Keep hover color or make slightly darker if desired for press */
+}
+
+/* Outlined Button */
+.btn-outlined {
+  background-color: transparent;
+  color: var(--brand-primary);
+  border: 1px solid var(--md-sys-color-outline); /* Use outline color from variables */
+  box-shadow: none;
+}
+.btn-outlined:hover {
+  background-color: rgba(var(--brand-primary-rgb), 0.08); 
+  border-color: var(--brand-primary);
+  box-shadow: none;
+}
+.btn-outlined:active {
+  background-color: rgba(var(--brand-primary-rgb), 0.12);
+  box-shadow: none;
+}
+
+/* Text Button */
+.btn-text {
+  background-color: transparent;
+  color: var(--brand-primary);
+  box-shadow: none;
+  padding: 0 12px; /* Less padding for text buttons as per Material spec */
+  min-width: auto; /* Text buttons can be smaller */
+}
+.btn-text:hover {
+  background-color: rgba(var(--brand-primary-rgb), 0.08);
+  box-shadow: none;
+}
+.btn-text:active {
+  background-color: rgba(var(--brand-primary-rgb), 0.12);
+  box-shadow: none;
+}
+
+/* Adjustments for dashboard page specific button styles if they exist */
+.dashboard-page button { 
+  /* Resetting some very specific dashboard button styles to align with new global button */
+  margin: 10px 5px; /* Keep original margin if desired */
+  width: auto; 
+  max-width: fit-content; 
+  /* Inherit new global button styles for padding, height, border-radius, etc. */
+}
+
+/* ===== END GLOBAL MATERIAL BUTTON STYLES ===== */
+
+/* Specific style for less prominent archived events button */
+.btn-archived-toggle.btn-outlined,
+.btn-admin.btn-outlined,
+.btn-reset.btn-outlined /* Added for the modal's reset password button */ {
+  color: var(--md-sys-color-on-surface-variant); /* Muted text color */
+  border-color: var(--md-sys-color-outline); /* Lighter gray border */
+  background-color: transparent; /* Ensure outlined buttons are transparent */
+  box-shadow: none;
+}
+
+.btn-archived-toggle.btn-outlined:hover,
+.btn-admin.btn-outlined:hover,
+.btn-reset.btn-outlined:hover {
+  background-color: rgba(0,0,0, 0.08); /* Subtle dark hover */
+  color: var(--md-sys-color-on-surface); /* Slightly darker text on hover */
+  border-color: var(--md-sys-color-on-surface-variant); /* Border matches text on hover */
+}
+
+.btn-archived-toggle.btn-outlined:active,
+.btn-admin.btn-outlined:active,
+.btn-reset.btn-outlined:active {
+  background-color: rgba(0,0,0, 0.12); /* Subtle dark press */
+}
+
+/* Material Icon Button */
+.btn-icon {
+  background-color: var(--brand-primary);
+  color: var(--brand-on-primary);
+  width: 40px; /* Standard touch target size for icon-only buttons */
+  height: 40px;
+  padding: 8px; /* Center the icon */
+  border-radius: 50%; /* Circular */
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 1px 3px 1px rgba(0, 0, 0, 0.15); /* Elevation 1 */
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  transition: box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
+}
+
+.btn-icon .heroicon {
+  width: 24px; /* Icon size within the button */
+  height: 24px;
+  margin-bottom: 0; /* No extra margin for icon-only buttons */
+}
+
+.btn-icon:hover {
+  background-color: #A30005; /* Slightly darker red for hover */
+  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15); /* Elevation 2 on hover */
+}
+
+.btn-icon:active {
+  box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.3), 0px 8px 12px 1px rgba(0, 0, 0, 0.15); /* Elevation 4 on press */
+}
+
+/* Specific styling for back-to-top if needed, e.g., positioning */
+.back-to-top-btn {
+  position: fixed;
+  bottom: 100px; /* Above main nav */
+  right: 20px;
+  z-index: 1010; /* Above nav but below modals */
+}
+
+/* Styling for Admin Console link on Gear page */
+.admin-gear-link.btn-text {
+  color: var(--md-sys-color-on-surface-variant); /* Muted text color */
+  padding: 8px 12px; /* Restore some padding if needed for text button */
+  text-transform: none; /* Admin links don't usually need to be all caps */
+  font-weight: normal; /* Less emphasis than standard buttons */
+}
+
+.admin-gear-link.btn-text:hover {
+  background-color: rgba(0,0,0,0.08); /* Subtle dark hover */
+  color: var(--md-sys-color-on-surface); /* Slightly darker text on hover */
+}
+
+.admin-gear-link.btn-text .heroicon { /* If you add an icon to it later */
+  margin-right: 8px;
+}
+
+/* Styling for Admin Console button on Events page */
+.btn-admin.btn-outlined {
+  color: var(--md-sys-color-on-surface-variant); /* Muted text color */
+  border-color: var(--md-sys-color-outline); /* Lighter gray border */
+  /* Overrides default .btn-outlined which might use brand color for text/border */
+}
+
+.btn-admin.btn-outlined:hover {
+  background-color: rgba(0,0,0, 0.08); /* Subtle dark hover */
+  color: var(--md-sys-color-on-surface); /* Slightly darker text on hover */
+  border-color: var(--md-sys-color-on-surface-variant); /* Border matches text on hover */
+}
+
+.btn-admin.btn-outlined:active {
+  background-color: rgba(0,0,0, 0.12); /* Subtle dark press */
+}
+
+/* Specific styles for action buttons in the users table */
+.users-page .action-btn.btn-text.btn-edit {
+  color: var(--md-sys-color-on-surface-variant); /* Muted gray for edit */
+}
+
+.users-page .action-btn.btn-text.btn-delete {
+  color: var(--brand-primary); /* Keep delete action red */
+}
+
+.users-page .action-btn.btn-text.btn-reset {
+  color: var(--md-sys-color-on-surface-variant); /* Muted gray for reset */
+  /* This rule specifically targets the text buttons in the table. */
+  /* The modal's #resetPasswordBtn now uses .btn-reset.btn-outlined for its styling. */
+}
+
+/* Hover/active states for these specific text buttons if different from default .btn-text */
+.users-page .action-btn.btn-text.btn-edit:hover,
+.users-page .action-btn.btn-text.btn-reset:hover {
+  background-color: rgba(0,0,0,0.08); /* Subtle dark hover */
+}
+
+.users-page .action-btn.btn-text.btn-delete:hover {
+  background-color: rgba(var(--brand-primary-rgb), 0.08); /* Reddish hover for delete */
+}
+
+/* Bottom Navigation Material Style */
+.bottom-nav-material {
+  /* ... existing styles ... */
+}
+
+.bottom-nav-material a {
+  /* ... existing styles ... */
+}
+
+.bottom-nav-material a .material-symbols-outlined {
+  font-size: 24px; /* Or your preferred size */
+  transition: font-variation-settings 0.3s ease-in-out; /* Smooth transition for fill */
+  font-variation-settings: 'FILL' 0; /* Default to not filled */
+}
+
+.bottom-nav-material a.active .material-symbols-outlined {
+  font-variation-settings: 'FILL' 1; /* Active state is filled */
+  /* You might also want to adjust weight or other properties for active state */
+  /* font-variation-settings: 'FILL' 1, 'wght' 700; */
+}
+
+.bottom-nav-material a span:not(.material-symbols-outlined) {
+    /* ... existing styles for text label ... */
+}

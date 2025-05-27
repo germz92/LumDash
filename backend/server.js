@@ -721,12 +721,72 @@ app.delete('/api/tables/:id', authenticate, async (req, res) => {
   if (!table || !table.owners.includes(req.user.id)) {
     return res.status(403).json({ error: 'Not authorized or not found' });
   }
-  await Table.findByIdAndDelete(req.params.id);
   
-  // Notify clients about the table being deleted
-  notifyDataChange('tableDeleted', { tableId: req.params.id });
-  
-  res.json({ success: true });
+  try {
+    // Before deleting the table, release all gear items reserved for this event
+    console.log(`[DELETE EVENT] Releasing all gear items for event ${req.params.id}`);
+    
+    // Find all gear items that have ANY association with this event
+    const gearItems = await GearInventory.find({
+      $or: [
+        { 'reservations.eventId': req.params.id },  // Multi-quantity items with reservations
+        { 'checkedOutEvent': req.params.id },       // Single-quantity items checked out
+        { 'history.event': req.params.id }          // Items with history entries for this event
+      ]
+    });
+    
+    console.log(`[DELETE EVENT] Found ${gearItems.length} gear items associated with this event`);
+    
+    // Release all reservations for this event from each gear item
+    for (const gear of gearItems) {
+      console.log(`[DELETE EVENT] Processing gear item: ${gear.label} (${gear._id})`);
+      
+      const originalReservationCount = gear.reservations?.length || 0;
+      const originalHistoryCount = gear.history?.length || 0;
+      
+      // Remove all reservations for this event
+      if (gear.reservations && gear.reservations.length > 0) {
+        gear.reservations = gear.reservations.filter(reservation => 
+          reservation.eventId.toString() !== req.params.id.toString()
+        );
+        console.log(`[DELETE EVENT] Removed ${originalReservationCount - gear.reservations.length} reservations from ${gear.label}`);
+      }
+      
+      // Remove all history entries for this event
+      if (gear.history && gear.history.length > 0) {
+        gear.history = gear.history.filter(entry => 
+          !entry.event || entry.event.toString() !== req.params.id.toString()
+        );
+        console.log(`[DELETE EVENT] Removed ${originalHistoryCount - gear.history.length} history entries from ${gear.label}`);
+      }
+      
+      // Update status for single-quantity items if they were checked out for this event
+      if (gear.quantity === 1 && gear.checkedOutEvent && gear.checkedOutEvent.toString() === req.params.id.toString()) {
+        gear.status = 'available';
+        gear.checkedOutBy = null;
+        gear.checkedOutEvent = null;
+        gear.checkOutDate = null;
+        gear.checkInDate = null;
+        console.log(`[DELETE EVENT] Reset status to available for ${gear.label}`);
+      }
+      
+      await gear.save();
+      console.log(`[DELETE EVENT] Successfully updated ${gear.label}`);
+    }
+    
+    // Now delete the table
+    await Table.findByIdAndDelete(req.params.id);
+    
+    // Notify clients about the table being deleted
+    notifyDataChange('tableDeleted', { tableId: req.params.id });
+    
+    console.log(`[DELETE EVENT] Successfully deleted event ${req.params.id} and released all associated gear`);
+    res.json({ success: true, message: `Event deleted and ${gearItems.length} gear items released` });
+    
+  } catch (error) {
+    console.error('[DELETE EVENT] Error deleting event and releasing gear:', error);
+    res.status(500).json({ error: 'Failed to delete event and release gear items' });
+  }
 });
 
 app.delete('/api/tables/:id/rows/:index', authenticate, async (req, res) => {
@@ -946,216 +1006,319 @@ app.get('/api/gear-inventory', authenticate, async (req, res) => {
 
 // Check out gear
 app.post('/api/gear-inventory/checkout', authenticate, async (req, res) => {
-  const { gearId, eventId, checkOutDate, checkInDate } = req.body;
+  const { gearId, eventId, checkOutDate, checkInDate, quantity = 1 } = req.body;
   if (!gearId || !eventId || !checkOutDate || !checkInDate) {
     return res.status(400).json({ error: 'Missing required fields' });
   }
   
-  console.log("Checkout request:", { gearId, eventId, checkOutDate, checkInDate });
+  console.log("Checkout request:", { gearId, eventId, checkOutDate, checkInDate, quantity });
   
   const gear = await GearInventory.findById(gearId);
   if (!gear) return res.status(404).json({ error: 'Gear not found' });
 
-  // Log current gear history before processing
-  console.log(`[DEBUG] Gear history before checkout for ${gear.label} (${gear._id}):`, JSON.stringify(gear.history, null, 2));
-
-  // Enforce exclusive reservation by serial (if present)
-  if (gear.serial && gear.serial !== 'N/A') {
-    // Find any other gear with the same serial
-    const otherWithSerial = await GearInventory.findOne({ serial: gear.serial, _id: { $ne: gear._id } });
-    if (otherWithSerial && otherWithSerial.status === 'checked_out') {
-      console.log(`[DEBUG] Serial conflict: another item with serial ${gear.serial} is already checked out.`);
-      return res.status(409).json({ error: 'Another item with this serial is already checked out.' });
-    }
-  }
-
-  // If gear is already checked out to this event, allow updating the dates
-  if (gear.status === 'checked_out' && gear.checkedOutEvent && 
-      gear.checkedOutEvent.toString() === eventId) {
-    console.log("Gear already checked out to this event, updating dates");
-    
-    // Update the dates
-    gear.checkOutDate = checkOutDate;
-    gear.checkInDate = checkInDate;
-    
-    // Update the history entry for this event
-    const historyEntry = gear.history.find(
-      entry => entry.event && entry.event.toString() === eventId
-    );
-    
-    if (historyEntry) {
-      historyEntry.checkOutDate = checkOutDate;
-      historyEntry.checkInDate = checkInDate;
-    }
-    
-    await gear.save();
-    // Log updated gear history
-    console.log(`[DEBUG] Gear history after update for ${gear.label} (${gear._id}):`, JSON.stringify(gear.history, null, 2));
-    return res.json({ message: 'Gear reservation updated', gear });
-  }
-
-  console.log("Found gear:", { 
-    label: gear.label, 
-    status: gear.status, 
-    checkedOutEvent: gear.checkedOutEvent ? gear.checkedOutEvent.toString() : null,
-    checkOutDate: gear.checkOutDate,
-    checkInDate: gear.checkInDate,
-    historyCount: gear.history?.length || 0
+  // Log current gear state before processing
+  console.log(`[DEBUG] Gear before checkout for ${gear.label} (${gear._id}):`, {
+    quantity: gear.quantity,
+    reservations: gear.reservations?.length || 0,
+    status: gear.status
   });
 
-  // Keep date as strings but use helper function for comparison
-  const normalizeDate = (dateStr) => {
-    const date = new Date(dateStr);
-    date.setUTCHours(0, 0, 0, 0);
-    return date;
-  };
-
-  // Prevent overlapping reservations
-  const reqStart = normalizeDate(checkOutDate);
-  const reqEnd = normalizeDate(checkInDate);
-  const now = new Date();
-  now.setUTCHours(0, 0, 0, 0);
-  
-  console.log("Normalized dates:", {
-    reqStart: reqStart.toISOString(),
-    reqEnd: reqEnd.toISOString(),
-    now: now.toISOString()
-  });
-  
-  const overlaps = (entry) => {
-    if (!entry.checkOutDate || !entry.checkInDate) return false;
-    
-    // Always compare event IDs as strings
-    const entryEventId = entry.event ? entry.event.toString() : null;
-    
-    // Skip entries for this event
-    if (entryEventId === eventId) {
-      console.log(`[DEBUG] Skipping entry for current event: ${entryEventId}`);
-      return false;
-    }
-    
-    const entryStart = normalizeDate(entry.checkOutDate);
-    const entryEnd = normalizeDate(entry.checkInDate);
-    
-    console.log(`[DEBUG] Checking entry:`, {
-      event: entryEventId,
-      entryStart: entryStart.toISOString(),
-      entryEnd: entryEnd.toISOString()
-    });
-    
-    // Only consider reservations that are not fully in the past
-    if (entryEnd < now) {
-      console.log("[DEBUG] Skipping past reservation (end < now)");
-      return false;
-    }
-    
-    // Overlap if: (startA <= endB) && (endA >= startB)
-    const isOverlap = reqStart <= entryEnd && reqEnd >= entryStart;
-    if (isOverlap) {
-      console.log("[DEBUG] OVERLAP DETECTED!");
-    }
-    return isOverlap;
-  };
-  
-  if (gear.history && gear.history.some(overlaps)) {
-    console.log("[DEBUG] Reservation rejected: overlapping dates");
-    // Log gear history at rejection
-    console.log(`[DEBUG] Gear history at rejection for ${gear.label} (${gear._id}):`, JSON.stringify(gear.history, null, 2));
-    return res.status(409).json({ error: 'Gear is already reserved for overlapping dates.' });
-  }
-
-  // Also check for other gear with the same serial (if present) for overlapping reservations
-  if (gear.serial && gear.serial !== 'N/A') {
-    const others = await GearInventory.find({ serial: gear.serial, _id: { $ne: gear._id } });
-    for (const other of others) {
-      if (other.history && other.history.some(overlaps)) {
-        console.log(`[DEBUG] Serial overlap detected for other item with serial ${gear.serial}`);
-        return res.status(409).json({ error: 'Another item with this serial has an overlapping reservation.' });
+  try {
+    // NEW: Handle quantity-based items
+    if (gear.quantity > 1) {
+      // Check if this event already has a reservation for these dates
+      const existingReservation = gear.reservations.find(res => 
+        res.eventId.toString() === eventId &&
+        res.checkOutDate.toISOString().split('T')[0] === checkOutDate &&
+        res.checkInDate.toISOString().split('T')[0] === checkInDate
+      );
+      
+      if (existingReservation) {
+        // Update existing reservation quantity
+        const newQuantity = existingReservation.quantity + quantity;
+        
+        existingReservation.quantity = newQuantity;
+        
+        // Update history entry
+        const historyEntry = gear.history.find(entry => 
+          entry.event.toString() === eventId &&
+          entry.checkOutDate.toISOString().split('T')[0] === checkOutDate &&
+          entry.checkInDate.toISOString().split('T')[0] === checkInDate
+        );
+        if (historyEntry) {
+          historyEntry.quantity = newQuantity;
+        }
+        
+        await gear.save();
+        return res.json({ 
+          message: `Reservation updated to ${newQuantity} units`, 
+          gear,
+          reservedQuantity: newQuantity,
+          availableQuantity: gear.getAvailableQuantity(checkOutDate, checkInDate)
+        });
+      } else {
+        // Create new reservation
+        gear.reserveQuantity(eventId, req.user.id, quantity, checkOutDate, checkInDate);
+        await gear.save();
+        
+        return res.json({ 
+          message: `${quantity} units reserved`, 
+          gear,
+          reservedQuantity: quantity,
+          availableQuantity: gear.getAvailableQuantity(checkOutDate, checkInDate)
+        });
       }
     }
-  }
 
-  // Store dates as strings for UI consistency
-  gear.status = 'checked_out';
-  gear.checkedOutBy = req.user.id;
-  gear.checkedOutEvent = eventId;
-  gear.checkOutDate = checkOutDate; // Keep as string
-  gear.checkInDate = checkInDate;   // Keep as string
-  
-  gear.history.push({
-    user: req.user.id,
-    event: eventId,
-    checkOutDate: checkOutDate, // Keep as string
-    checkInDate: checkInDate    // Keep as string
-  });
-  
-  await gear.save();
-  // Log updated gear history
-  console.log(`[DEBUG] Gear history after successful checkout for ${gear.label} (${gear._id}):`, JSON.stringify(gear.history, null, 2));
-  console.log("Reservation successful");
-  res.json({ message: 'Gear checked out', gear });
-});
+    // EXISTING: Handle single-quantity items (backward compatibility)
+    // Enforce exclusive reservation by serial (if present)
+    if (gear.serial && gear.serial !== 'N/A') {
+      // Find any other gear with the same serial
+      const otherWithSerial = await GearInventory.findOne({ serial: gear.serial, _id: { $ne: gear._id } });
+      if (otherWithSerial && otherWithSerial.status === 'checked_out') {
+        console.log(`[DEBUG] Serial conflict: another item with serial ${gear.serial} is already checked out.`);
+        return res.status(409).json({ error: 'Another item with this serial is already checked out.' });
+      }
+    }
 
-// Check in gear
-app.post('/api/gear-inventory/checkin', authenticate, async (req, res) => {
-  const { gearId, eventId, checkOutDate, checkInDate } = req.body;
-  if (!gearId) return res.status(400).json({ error: 'Missing gearId' });
-  const gear = await GearInventory.findById(gearId);
-  if (!gear) return res.status(404).json({ error: 'Gear not found' });
+    // If gear is already checked out to this event, allow updating the dates
+    if (gear.status === 'checked_out' && gear.checkedOutEvent && 
+        gear.checkedOutEvent.toString() === eventId) {
+      console.log("Gear already checked out to this event, updating dates");
+      
+      // Update the dates
+      gear.checkOutDate = checkOutDate;
+      gear.checkInDate = checkInDate;
+      
+      // Update the history entry for this event
+      const historyEntry = gear.history.find(
+        entry => entry.event && entry.event.toString() === eventId
+      );
+      
+      if (historyEntry) {
+        historyEntry.checkOutDate = checkOutDate;
+        historyEntry.checkInDate = checkInDate;
+      }
+      
+      await gear.save();
+      console.log(`[DEBUG] Gear history after update for ${gear.label} (${gear._id}):`, JSON.stringify(gear.history, null, 2));
+      return res.json({ message: 'Gear reservation updated', gear });
+    }
 
-  gear.status = 'available';
-  gear.checkedOutBy = null;
-  gear.checkedOutEvent = null;
-  gear.checkOutDate = null;
-  gear.checkInDate = null;
-
-  // Remove reservation from history if eventId and dates are provided
-  if (eventId && checkOutDate && checkInDate) {
-    // Keep dates as strings but use Date objects for comparison
+    // Keep date as strings but use helper function for comparison
     const normalizeDate = (dateStr) => {
       const date = new Date(dateStr);
       date.setUTCHours(0, 0, 0, 0);
       return date;
     };
-    
-    const requestOutDate = normalizeDate(checkOutDate);
-    const requestInDate = normalizeDate(checkInDate);
-    
-    gear.history = gear.history.filter(entry => {
-      // Skip entries without required data
-      if (!entry.event || !entry.checkOutDate || !entry.checkInDate) return true;
-      
-      // Check if event matches
-      const eventMatches = entry.event.toString() === eventId;
-      if (!eventMatches) return true;
-      
-      // Check if dates match (by comparing just the date parts, not time)
-      const entryOutDate = normalizeDate(entry.checkOutDate);
-      const entryInDate = normalizeDate(entry.checkInDate);
-      
-      const datesMatch = 
-        entryOutDate.getUTCFullYear() === requestOutDate.getUTCFullYear() &&
-        entryOutDate.getUTCMonth() === requestOutDate.getUTCMonth() &&
-        entryOutDate.getUTCDate() === requestOutDate.getUTCDate() &&
-        entryInDate.getUTCFullYear() === requestInDate.getUTCFullYear() &&
-        entryInDate.getUTCMonth() === requestInDate.getUTCMonth() &&
-        entryInDate.getUTCDate() === requestInDate.getUTCDate();
-      
-      // Keep entries that don't match our criteria
-      return !eventMatches || !datesMatch;
-    });
-  }
 
-  await gear.save();
-  res.json({ message: 'Gear checked in', gear });
+    // Prevent overlapping reservations
+    const reqStart = normalizeDate(checkOutDate);
+    const reqEnd = normalizeDate(checkInDate);
+    const now = new Date();
+    now.setUTCHours(0, 0, 0, 0);
+    
+    const overlaps = (entry) => {
+      if (!entry.checkOutDate || !entry.checkInDate) return false;
+      
+      // Always compare event IDs as strings
+      const entryEventId = entry.event ? entry.event.toString() : null;
+      
+      // Skip entries for this event
+      if (entryEventId === eventId) {
+        console.log(`[DEBUG] Skipping entry for current event: ${entryEventId}`);
+        return false;
+      }
+      
+      const entryStart = normalizeDate(entry.checkOutDate);
+      const entryEnd = normalizeDate(entry.checkInDate);
+      
+      // Only consider reservations that are not fully in the past
+      if (entryEnd < now) {
+        console.log("[DEBUG] Skipping past reservation (end < now)");
+        return false;
+      }
+      
+      // Overlap if: (startA <= endB) && (endA >= startB)
+      const isOverlap = reqStart <= entryEnd && reqEnd >= entryStart;
+      if (isOverlap) {
+        console.log("[DEBUG] OVERLAP DETECTED!");
+      }
+      return isOverlap;
+    };
+    
+    if (gear.history && gear.history.some(overlaps)) {
+      console.log("[DEBUG] Reservation rejected: overlapping dates");
+      return res.status(409).json({ error: 'Gear is already reserved for overlapping dates.' });
+    }
+
+    // Also check for other gear with the same serial (if present) for overlapping reservations
+    if (gear.serial && gear.serial !== 'N/A') {
+      const others = await GearInventory.find({ serial: gear.serial, _id: { $ne: gear._id } });
+      for (const other of others) {
+        if (other.history && other.history.some(overlaps)) {
+          console.log(`[DEBUG] Serial overlap detected for other item with serial ${gear.serial}`);
+          return res.status(409).json({ error: 'Another item with this serial has an overlapping reservation.' });
+        }
+      }
+    }
+
+    // Store dates as strings for UI consistency
+    gear.status = 'checked_out';
+    gear.checkedOutBy = req.user.id;
+    gear.checkedOutEvent = eventId;
+    gear.checkOutDate = checkOutDate;
+    gear.checkInDate = checkInDate;
+    
+    gear.history.push({
+      user: req.user.id,
+      event: eventId,
+      checkOutDate: checkOutDate,
+      checkInDate: checkInDate,
+      quantity: 1
+    });
+    
+    await gear.save();
+    console.log("Single item reservation successful");
+    res.json({ message: 'Gear checked out', gear });
+    
+  } catch (error) {
+    console.error('Error during checkout:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Check in gear
+app.post('/api/gear-inventory/checkin', authenticate, async (req, res) => {
+  const { gearId, eventId, checkOutDate, checkInDate, quantity } = req.body;
+  if (!gearId) return res.status(400).json({ error: 'Missing gearId' });
+  
+  console.log(`[CHECKIN DEBUG] Request:`, { gearId, eventId, checkOutDate, checkInDate, quantity });
+  console.log(`[CHECKIN DEBUG] Quantity type:`, typeof quantity, `Value:`, quantity);
+  
+  const gear = await GearInventory.findById(gearId);
+  if (!gear) return res.status(404).json({ error: 'Gear not found' });
+
+  console.log(`[CHECKIN DEBUG] Gear found:`, { 
+    label: gear.label, 
+    quantity: gear.quantity, 
+    reservationsCount: gear.reservations?.length || 0 
+  });
+
+  try {
+    // NEW: Handle quantity-based items
+    if (gear.quantity > 1) {
+      if (!eventId || !checkOutDate || !checkInDate) {
+        return res.status(400).json({ error: 'Event ID and dates required for quantity items' });
+      }
+      
+      // Release the quantity reservation
+      gear.releaseQuantity(eventId, checkOutDate, checkInDate, quantity);
+      
+      // Remove from history - only the specific quantity
+      const normalizeDate = (dateStr) => {
+        const date = new Date(dateStr);
+        date.setUTCHours(0, 0, 0, 0);
+        return date;
+      };
+      
+      const requestOutDate = normalizeDate(checkOutDate);
+      const requestInDate = normalizeDate(checkInDate);
+      
+      // Remove specific quantity from history using overlap logic
+      let remainingToRemove = quantity || 1; // Default to 1 if quantity is undefined
+      const newHistory = [];
+      const rangesOverlap = (startA, endA, startB, endB) => (startA <= endB && endA >= startB);
+      for (const entry of gear.history) {
+        if (!entry.event || !entry.checkOutDate || !entry.checkInDate || remainingToRemove <= 0) {
+          newHistory.push(entry);
+          continue;
+        }
+        const eventMatches = entry.event.toString() === eventId;
+        if (!eventMatches) {
+          newHistory.push(entry);
+          continue;
+        }
+        const entryOutDate = normalizeDate(entry.checkOutDate);
+        const entryInDate = normalizeDate(entry.checkInDate);
+        // Use overlap logic
+        if (rangesOverlap(entryOutDate, entryInDate, requestOutDate, requestInDate)) {
+          const entryQuantity = entry.quantity || 1;
+          if (entryQuantity <= remainingToRemove) {
+            remainingToRemove -= entryQuantity;
+          } else {
+            const modifiedEntry = { ...entry.toObject() };
+            modifiedEntry.quantity = entryQuantity - remainingToRemove;
+            remainingToRemove = 0;
+            newHistory.push(modifiedEntry);
+          }
+        } else {
+          newHistory.push(entry);
+        }
+      }
+      gear.history = newHistory;
+      
+      await gear.save();
+      
+      const availableQty = gear.getAvailableQuantity(checkOutDate, checkInDate);
+      return res.json({ 
+        message: 'Quantity reservation released', 
+        gear,
+        availableQuantity: availableQty
+      });
+    }
+
+    // EXISTING: Handle single-quantity items (backward compatibility)
+    gear.status = 'available';
+    gear.checkedOutBy = null;
+    gear.checkedOutEvent = null;
+    gear.checkOutDate = null;
+    gear.checkInDate = null;
+
+    // Remove reservation from history if eventId and dates are provided
+    if (eventId && checkOutDate && checkInDate) {
+      const normalizeDate = (dateStr) => {
+        const date = new Date(dateStr);
+        date.setUTCHours(0, 0, 0, 0);
+        return date;
+      };
+      
+      const requestOutDate = normalizeDate(checkOutDate);
+      const requestInDate = normalizeDate(checkInDate);
+      
+      gear.history = gear.history.filter(entry => {
+        if (!entry.event || !entry.checkOutDate || !entry.checkInDate) return true;
+        const eventMatches = entry.event.toString() === eventId;
+        if (!eventMatches) return true;
+        const entryOutDate = normalizeDate(entry.checkOutDate);
+        const entryInDate = normalizeDate(entry.checkInDate);
+        // Use overlap logic
+        const rangesOverlap = (startA, endA, startB, endB) => (startA <= endB && endA >= startB);
+        return !rangesOverlap(entryOutDate, entryInDate, requestOutDate, requestInDate);
+      });
+    }
+
+    await gear.save();
+    res.json({ message: 'Gear checked in', gear });
+    
+  } catch (error) {
+    console.error('Error during checkin:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
 
 // Add new gear to inventory
 app.post('/api/gear-inventory', authenticate, async (req, res) => {
-  const { label, category, serial } = req.body;
+  const { label, category, serial, quantity = 1 } = req.body;
   if (!label || !category) {
     return res.status(400).json({ error: 'Label and category are required' });
   }
+  
+  // Validate quantity
+  if (quantity < 1 || !Number.isInteger(quantity)) {
+    return res.status(400).json({ error: 'Quantity must be a positive integer' });
+  }
+  
   try {
     // Convert empty strings to "N/A"
     const serialValue = serial && typeof serial === 'string' && serial.trim() !== '' ? serial.trim() : 'N/A';
@@ -1179,7 +1342,8 @@ app.post('/api/gear-inventory', authenticate, async (req, res) => {
     const gear = new GearInventory({ 
       label, 
       category, 
-      serial: serialValue 
+      serial: serialValue,
+      quantity
     });
     await gear.save();
     res.json({ message: 'Gear added', gear });
@@ -1215,16 +1379,21 @@ app.delete('/api/gear-inventory/:id', authenticate, async (req, res) => {
 app.put('/api/gear-inventory/:id', authenticate, async (req, res) => {
   try {
     const gearId = req.params.id;
-    const { label, category, serial } = req.body;
+    const { label, category, serial, quantity = 1 } = req.body;
     
     if (!gearId) return res.status(400).json({ error: 'Missing gear ID' });
     if (!label || !category) return res.status(400).json({ error: 'Label and category are required' });
     
+    // Validate quantity
+    if (quantity < 1 || !Number.isInteger(quantity)) {
+      return res.status(400).json({ error: 'Quantity must be a positive integer' });
+    }
+    
     const gear = await GearInventory.findById(gearId);
     if (!gear) return res.status(404).json({ error: 'Gear not found' });
     
-    // Don't allow editing of checked out gear
-    if (gear.status === 'checked_out') {
+    // Don't allow editing of checked out gear (for single-quantity items)
+    if (gear.quantity === 1 && gear.status === 'checked_out') {
       return res.status(400).json({ error: 'Cannot edit gear that is currently checked out' });
     }
     
@@ -1260,6 +1429,7 @@ app.put('/api/gear-inventory/:id', authenticate, async (req, res) => {
     gear.label = label;
     gear.category = category;
     gear.serial = serialValue;
+    gear.quantity = quantity;
     
     await gear.save();
     res.json({ message: 'Gear updated successfully', gear });
@@ -1359,6 +1529,187 @@ app.post('/api/gear-inventory/repair', authenticate, async (req, res) => {
   } catch (err) {
     console.error("Error during repair:", err);
     res.status(500).json({ error: 'Repair failed: ' + err.message });
+  }
+});
+
+// Release all reservations for a gear item
+app.post('/api/gear-inventory/:id/release-all', authenticate, async (req, res) => {
+  try {
+    const gearId = req.params.id;
+    if (!gearId) return res.status(400).json({ error: 'Missing gear ID' });
+    
+    const gear = await GearInventory.findById(gearId);
+    if (!gear) return res.status(404).json({ error: 'Gear not found' });
+    
+    console.log(`[Release All] Starting release for gear: ${gear.label} (${gear._id})`);
+    console.log(`[Release All] Current reservations: ${gear.reservations?.length || 0}`);
+    console.log(`[Release All] Current history entries: ${gear.history?.length || 0}`);
+    
+    // Step 1: Clear all reservations and history from the gear item
+    gear.reservations = [];
+    gear.history = [];
+    
+    // Reset status for single-quantity items
+    if (gear.quantity === 1) {
+      gear.status = 'available';
+      gear.checkedOutBy = null;
+      gear.checkedOutEvent = null;
+      gear.checkOutDate = null;
+      gear.checkInDate = null;
+    }
+    
+    await gear.save();
+    
+    // Step 2: Remove this gear item from all gear lists in all events
+    console.log(`[Release All] Removing ${gear.label} from all gear lists...`);
+    console.log(`[Release All] Looking for gear with ID: ${gearId} and label: "${gear.label}"`);
+    
+    // Find all tables that might have this gear item in their gear lists
+    const allTables = await Table.find({
+      'gear.lists': { $exists: true }
+    });
+    
+    console.log(`[Release All] Found ${allTables.length} tables with gear lists to check`);
+    
+    let removedFromEvents = 0;
+    let totalItemsRemoved = 0;
+    const affectedEventTitles = [];
+    
+    for (const table of allTables) {
+      let tableModified = false;
+      const lists = table.gear?.lists || new Map();
+      
+      console.log(`[Release All] Checking table: ${table.title} (${table._id})`);
+      console.log(`[Release All] Lists type: ${lists.constructor.name}, size: ${lists instanceof Map ? lists.size : Object.keys(lists).length}`);
+      
+      // Convert Map to Object if needed for consistent iteration
+      let listsObj;
+      if (lists instanceof Map) {
+        listsObj = Object.fromEntries(lists);
+      } else if (lists && lists._doc) {
+        // Handle Mongoose Map - the actual data is in _doc
+        listsObj = lists._doc;
+      } else {
+        listsObj = lists;
+      }
+      
+      // Log the structure of the gear lists for debugging
+      console.log(`[Release All] Gear lists structure for ${table.title}:`, Object.keys(listsObj));
+      
+      // Iterate through each list in the table
+      for (const [listName, listData] of Object.entries(listsObj)) {
+        if (!listData || typeof listData !== 'object') {
+          console.log(`[Release All] Skipping invalid list data for ${listName}`);
+          continue;
+        }
+        
+        console.log(`[Release All] Checking list: ${listName}`);
+        
+        // Handle the case where listData might also be a Mongoose document
+        let actualListData = listData;
+        if (listData._doc) {
+          actualListData = listData._doc;
+        }
+        
+        console.log(`[Release All] List data structure:`, Object.keys(actualListData));
+        
+        // Iterate through each category in the list
+        let categoriesToCheck = actualListData;
+        
+        // Check if the list has a 'categories' property (new structure)
+        if (actualListData.categories && typeof actualListData.categories === 'object') {
+          console.log(`[Release All] Found categories structure in ${listName}`);
+          categoriesToCheck = actualListData.categories;
+          
+          // Handle case where categories might also be a Mongoose document
+          if (categoriesToCheck._doc) {
+            categoriesToCheck = categoriesToCheck._doc;
+          }
+        }
+        
+        console.log(`[Release All] Categories to check:`, Object.keys(categoriesToCheck));
+        
+        for (const [categoryName, items] of Object.entries(categoriesToCheck)) {
+          if (!Array.isArray(items)) {
+            console.log(`[Release All] Skipping non-array category: ${categoryName}`);
+            continue;
+          }
+          
+          console.log(`[Release All] Checking category: ${categoryName} with ${items.length} items`);
+          
+          // Log all items in this category for debugging
+          items.forEach((item, index) => {
+            console.log(`[Release All] Item ${index}: inventoryId="${item.inventoryId}", label="${item.label}"`);
+          });
+          
+          // Filter out items that match this gear (by inventoryId or label)
+          const originalLength = items.length;
+          const filteredItems = items.filter(item => {
+            // Match by inventoryId (primary) or label (fallback)
+            const matchesId = item.inventoryId && item.inventoryId.toString() === gearId.toString();
+            const matchesLabel = item.label && (
+              item.label === gear.label || 
+              item.label.startsWith(gear.label + ' (') // Handle quantity labels like "Sony NP-FZ100 (5 units)"
+            );
+            
+            console.log(`[Release All] Comparing item: inventoryId="${item.inventoryId}" vs "${gearId}", label="${item.label}" vs "${gear.label}"`);
+            console.log(`[Release All] Match results: matchesId=${matchesId}, matchesLabel=${matchesLabel}`);
+            
+            if (matchesId || matchesLabel) {
+              console.log(`[Release All] MATCH FOUND! Removing item from ${table.title} -> ${listName} -> ${categoryName}: ${item.label || item.inventoryId}`);
+              return false; // Remove this item
+            }
+            return true; // Keep this item
+          });
+          
+          if (filteredItems.length !== originalLength) {
+            categoriesToCheck[categoryName] = filteredItems;
+            tableModified = true;
+            totalItemsRemoved += (originalLength - filteredItems.length);
+            console.log(`[Release All] Removed ${originalLength - filteredItems.length} items from ${categoryName}`);
+          }
+        }
+      }
+      
+      // Save the table if it was modified
+      if (tableModified) {
+        // Convert back to Map if the original was a Map
+        if (lists instanceof Map) {
+          table.gear.lists = new Map(Object.entries(listsObj));
+        } else {
+          table.gear.lists = listsObj;
+        }
+        
+        await table.save();
+        removedFromEvents++;
+        affectedEventTitles.push(table.title);
+        console.log(`[Release All] Updated gear lists for event: ${table.title}`);
+        
+        // Notify clients about the gear list change
+        notifyDataChange('gearListUpdated', { 
+          message: `${gear.label} removed from all lists due to release all` 
+        }, table._id.toString());
+      } else {
+        console.log(`[Release All] No modifications needed for table: ${table.title}`);
+      }
+    }
+    
+    console.log(`[Release All] Successfully released all reservations for ${gear.label}`);
+    console.log(`[Release All] Removed from ${removedFromEvents} events, total ${totalItemsRemoved} items removed from gear lists`);
+    
+    res.json({ 
+      message: `All reservations released for ${gear.label}. Removed from ${removedFromEvents} event(s).`,
+      gear: gear,
+      releasedReservations: true,
+      removedFromLists: totalItemsRemoved,
+      affectedEvents: removedFromEvents,
+      affectedEventTitles: affectedEventTitles,
+      reservationCount: gear.reservations?.length || 0
+    });
+    
+  } catch (error) {
+    console.error('[Release All] Error:', error);
+    res.status(500).json({ error: 'Failed to release reservations: ' + error.message });
   }
 });
 

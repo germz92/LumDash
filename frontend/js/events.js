@@ -170,11 +170,27 @@ async function loadTables() {
     deleteBtn.className = 'btn-delete';
     deleteBtn.textContent = 'Delete';
     deleteBtn.onclick = async () => {
-      if (confirm('Are you sure you want to delete this table?')) {
-        await fetch(`${API_BASE}/api/tables/${table._id}`, {
+      if (confirm('Are you sure you want to delete this event?\n\nThis will also release all gear items reserved for this event back to inventory.')) {
+        try {
+          const response = await fetch(`${API_BASE}/api/tables/${table._id}`, {
           method: 'DELETE',
           headers: { Authorization: token }
         });
+          
+          if (response.ok) {
+            const result = await response.json();
+            // Show success message with gear release info
+            if (result.message) {
+              alert(`Event deleted successfully!\n${result.message}`);
+            }
+          } else {
+            const error = await response.json();
+            alert(`Error deleting event: ${error.error || 'Unknown error'}`);
+          }
+        } catch (err) {
+          console.error('Error deleting event:', err);
+          alert('Error deleting event. Please try again.');
+        }
         loadTables();
       }
     };
@@ -375,6 +391,7 @@ function renderCalendar(events) {
         const pill = document.createElement('div');
         pill.textContent = ev.title;
         pill.className = 'calendar-event-pill';
+        pill.title = ev.title;
         pill.style.background = ev.color;
         pill.style.color = '#fff';
         pill.style.position = 'absolute';
@@ -703,7 +720,7 @@ window.initPage = function(id) {
         if (!adminBtn) {
           adminBtn = document.createElement('button');
           adminBtn.id = 'adminConsoleBtn';
-          adminBtn.className = 'btn-admin';
+          adminBtn.className = 'btn-admin btn-outlined';
           adminBtn.textContent = 'Admin Console';
           adminBtn.onclick = () => {
             window.location.href = '/pages/users.html';

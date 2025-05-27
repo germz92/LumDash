@@ -16,6 +16,9 @@
   <link rel="shortcut icon" type="image/x-icon" href="assets/favicon.png">
   
   <link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
+  <!-- Add Material Symbols -->
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+  <link rel="stylesheet" href="css/styles.css">
   
   <style>
     html, body {
@@ -23,58 +26,20 @@
       margin: 0;
       padding: 0;
       overflow-x: hidden;
+      font-family: 'Roboto', Arial, sans-serif;
     }
 
     body {
-      font-family: sans-serif;
       display: flex;
       flex-direction: column;
-    }
-
-    .bottom-nav {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      right: 0;
-      height: 70px;
-      background: #fff;
-      border-top: 1px solid #ccc;
-      display: flex;
-      justify-content: space-around;
-      align-items: flex-start;
-      padding-top: 6px;
-      z-index: 1000;
-      padding-bottom: env(safe-area-inset-bottom, 10px);
-    }
-
-    .bottom-nav a {
-      color: #cc0007;
-      text-decoration: none;
-      font-size: 12px;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      flex: 1;
-      padding-bottom: 12px;
-    }
-
-    .bottom-nav a:hover {
-      background-color: #f0f0f0;
-    }
-
-    .bottom-nav i {
-      stroke: #CC0007;
-      width: 20px;
-      height: 20px;
-      margin-bottom: 4px;
     }
 
     #page-container {
       flex: 1;
-      padding: 20px;
-      padding-bottom: 90px; /* Space for bottom nav */
+      padding: 20px 20px 0;
       overflow-y: auto;
       -webkit-overflow-scrolling: touch;
+      position: relative;
     }
 
     /* Add offline indicator styles */
@@ -103,21 +68,43 @@
   <div class="offline-indicator">You are currently offline. Some features may be limited.</div>
 
   <!-- Page content gets injected here -->
-  <div id="page-container"></div>
+  <div id="page-container">
+    <!-- Individual page content will be injected here -->
+  </div>
 
   <!-- Bottom nav -->
-  <nav class="bottom-nav" id="bottomNav">
-    <a href="#" id="navHome" data-page="events"><i data-lucide="home"></i><span>Home</span></a>
-    <a href="#" id="navGeneral" data-page="general"><i data-lucide="info"></i><span>General</span></a>
-    <a href="#" id="navCrew" data-page="crew"><i data-lucide="users"></i><span>Crew</span></a>
-    <a href="#" id="navTravel" data-page="travel-accommodation"><i data-lucide="plane"></i><span>Travel</span></a>
-    <a href="#" id="navGear" data-page="gear"><i data-lucide="camera"></i><span>Gear</span></a>
-    <a href="#" id="navCard" data-page="card-log"><i data-lucide="memory-stick"></i><span>Cards</span></a>
-    <a href="#" id="navSchedule" data-page="schedule"><i data-lucide="calendar"></i><span>Schedule</span></a>
+  <nav class="bottom-nav-material" id="bottomNav">
+    <a href="#" id="navHome" data-page="events"><span class="material-symbols-outlined">home</span><span>Home</span></a>
+    <a href="#" id="navGeneral" data-page="general"><span class="material-symbols-outlined">info</span><span>General</span></a>
+    <a href="#" id="navCrew" data-page="crew"><span class="material-symbols-outlined">group</span><span>Crew</span></a>
+    <a href="#" id="navSchedule" data-page="schedule"><span class="material-symbols-outlined">calendar_today</span><span>Schedule</span></a>
+    
+    <!-- Dropdown menu for Travel, Gear, Cards -->
+    <div class="nav-dropdown" id="navMore">
+      <a href="#" class="dropdown-toggle">
+        <span class="material-symbols-outlined">more_horiz</span>
+        <span>More</span>
+      </a>
+      <div class="dropdown-menu" id="dropdownMenu">
+        <a href="#" data-page="travel-accommodation">
+          <span class="material-symbols-outlined">flight_takeoff</span>
+          <span>Travel</span>
+        </a>
+        <a href="#" data-page="gear">
+          <span class="material-symbols-outlined">photo_camera</span>
+          <span>Gear</span>
+        </a>
+        <a href="#" data-page="card-log">
+          <span class="material-symbols-outlined">sd_card</span>
+          <span>Cards</span>
+        </a>
+      </div>
+    </div>
   </nav>
 
   <!-- Load icons and app logic -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <!-- Remove Lucide script -->
+  <!-- <script src="https://unpkg.com/lucide@latest"></script> -->
   
   <!-- Load config.js first to define API_BASE -->
   <script src="js/config.js"></script>

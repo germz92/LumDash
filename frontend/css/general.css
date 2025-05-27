@@ -13,6 +13,7 @@
   width: 100%;
   max-width: none;
   padding: 1.5rem;
+  padding-bottom: 120px; /* Extra space for bottom navigation */
   border-radius: 1rem;
   box-shadow: 0 2px 16px rgba(0,0,0,0.08);
   margin: 0 auto;
@@ -37,32 +38,35 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
+  margin-bottom: 30px;
 }
 
 .general-page .info-row {
   display: flex;
-  gap: 24px;
+  gap: 16px;
+  margin-bottom: 16px;
 }
 
 .general-page .info-card {
-  background: #fafbfc;
-  border-radius: 10px;
-  box-shadow: 0 1px 6px rgba(0,0,0,0.06);
-  padding: 18px 20px 12px 20px;
-  flex: 1;
-  min-width: 180px;
-  margin-bottom: 0;
+  background-color: #f9f9f9;
   border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 16px;
+  margin-bottom: 16px;
 }
 
 .general-page .info-card label {
-  font-weight: 600;
-  margin-bottom: 6px;
-  display: block;
-  color: #222;
   display: flex;
   align-items: center;
-  gap: 5px;
+  gap: 8px;
+  font-weight: 500;
+  margin-bottom: 8px;
+  color: #333;
+}
+
+.general-page .info-card label .material-symbols-outlined {
+  font-size: 20px;
+  color: var(--brand-primary);
 }
 
 .general-page .info-card .read-only,
@@ -77,11 +81,11 @@
 .general-page .info-section textarea {
   width: 100%;
   font-size: 1rem;
-  padding: 0.5rem 0.75rem;
+  padding: 8px;
   font-family: inherit;
   box-sizing: border-box;
   border: 1px solid #ccc;
-  border-radius: 0.5rem;
+  border-radius: 4px;
   background: #fff;
   color: #333;
   min-height: 2.25rem;
@@ -102,8 +106,8 @@
   min-height: 48px;
   font-size: 1rem;
   line-height: 1.4;
-  padding: 0.5rem 0.75rem;
-  border-radius: 0.5rem;
+  padding: 8px;
+  border-radius: 4px;
   box-sizing: border-box;
   resize: vertical;
   overflow-y: auto;
@@ -124,12 +128,17 @@
   box-sizing: border-box;
   box-shadow: 0 2px 12px rgba(0,0,0,0.06);
   overflow-x: auto;
+  margin-bottom: 30px;
 }
 
 .general-page .contacts-scroll-wrapper {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
+  max-height: 400px;
+  overflow-y: auto;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
 }
 
 .general-page .contacts-container table {
@@ -153,8 +162,11 @@
   box-sizing: border-box;
   overflow-wrap: break-word;
   word-break: break-word;
-  padding: 12px 16px;
+  padding: 8px;
   font-size: 0.95em;
+  border: 1px solid #e0e0e0;
+  text-align: left;
+  vertical-align: top;
 }
 
 .general-page .contacts-container th {
@@ -165,6 +177,9 @@
   border-radius: 0.5em 0.5em 0 0;
   border-bottom: 2.5px solid #e0e0e0;
   letter-spacing: 0.01em;
+  position: sticky;
+  top: 0;
+  z-index: 1;
 }
 
 .general-page .contacts-container td {
@@ -585,4 +600,91 @@
 #adminNotesBtnContainer {
   display: inline-block;
   margin-right: 8px;
+}
+
+.general-page .contacts-container td button,
+.general-page .contacts-container td button:hover,
+.general-page .contacts-container td button:focus {
+  background: transparent !important;
+  color: #333 !important; /* Dark gray for the icon */
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 4px;
+  margin: 0;
+  font-weight: normal;
+  font-size: 1.2rem; /* Adjust icon size if needed */
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%; /* Ensure it takes full cell width for centering */
+  height: 100%; /* Ensure it takes full cell height for centering */
+}
+
+/* Ensure the table cell itself allows for centering */
+.general-page .contacts-container td:last-child {
+  padding: 0 !important; /* Remove padding to allow button to fill for centering */
+  text-align: center;
+  vertical-align: middle;
+}
+
+/* Styles for tables in contacts-container on general page */
+.general-page .contacts-container table th,
+.general-page .contacts-container table td {
+  /* Assuming some default padding might be here or inherited */
+  /* Add to existing padding or set new padding to increase height */
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.general-page .contacts-container table td textarea {
+  /* Ensure textareas align well within the now taller cells */
+  vertical-align: top; 
+}
+
+/* Style for delete icons in tables */
+.contacts-container table button .material-symbols-outlined {
+  color: #888; /* A medium gray color */
+  vertical-align: middle; /* Align icon nicely with button text if any */
+}
+
+.contacts-container table button:hover .material-symbols-outlined {
+  color: #555; /* Darker gray on hover for feedback */
+}
+
+/* Desktop layout for info section */
+@media (min-width: 769px) {
+  .general-page .info-section {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: space-between; /* Or space-around, depending on desired spacing */
+    gap: 16px; /* Add some gap between items */
+  }
+
+  .general-page .info-section > .info-card, /* Direct info-card (like Event Summary) */
+  .general-page .info-section > .info-row {
+    flex-grow: 1;
+    flex-basis: calc(33.333% - 16px); /* Aim for 3 items per row, adjust gap as needed */
+    /* If you prefer 2 items per row for the paired cards, use calc(50% - 16px) for .info-row */
+    /* Event Summary might need its own flex-basis if it's wider, e.g., calc(50% - 16px) or 100% */
+    min-width: 280px; /* Ensure cards don't get too squished */
+  }
+
+  /* Optional: If Event Summary card should span more width or full width */
+  .general-page .info-section > .info-card:first-child { /* Assuming Event Summary is the first direct card */
+    /* flex-basis: 100%; */ /* Example: Full width for summary */
+    /* Or, if you want it to be wider but not full: */
+    /* flex-basis: calc(50% - 16px); */ 
+  }
+
+  /* Ensure info-rows themselves also use flex for their internal cards if not already */
+  .general-page .info-row {
+    display: flex;
+    gap: 16px; /* Gap between the two cards within an info-row */
+  }
+
+  .general-page .info-row .info-card {
+    flex: 1; /* Make cards within an info-row share space equally */
+  }
 }
