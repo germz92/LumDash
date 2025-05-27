@@ -252,8 +252,8 @@ window.initPage = async function(id) {
     }
     logEventIdState('AFTER_NAV_CONTAINER_SETUP');
     
-    console.log(`[INIT] Fetching bottom-nav.html...`);
-    const navRes = await fetch('bottom-nav.html');
+    console.log(`[INIT] Fetching ../bottom-nav.html...`);
+    const navRes = await fetch('../bottom-nav.html');
     const navHTML = await navRes.text();
     logEventIdState('AFTER_NAV_HTML_FETCH');
     

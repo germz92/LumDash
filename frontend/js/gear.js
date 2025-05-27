@@ -2216,7 +2216,7 @@ window.addEventListener("DOMContentLoaded", async () => {
       // Load bottom navigation
       const navContainer = document.getElementById('bottomNav');
       if (navContainer) {
-        fetch('bottom-nav.html')
+        fetch('../bottom-nav.html')
           .then(response => response.text())
           .then(html => {
             // Extract the inner content from the fetched HTML
