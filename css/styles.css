@@ -210,7 +210,7 @@ html, body {
   justify-content: space-around;
   align-items: center; /* Vertically center the items if bar becomes taller than items */
   z-index: 1000;
-  padding-top: 16px; /* Increased top padding */
+  padding-top: 8px; /* Reduced from 16px to 8px to move icons higher */
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 16px)); /* Symmetrical base padding + safe area (16px fallback) */
 }
 
@@ -226,7 +226,7 @@ html, body {
   justify-content: flex-start; /* Move content (icon + text) to the top of the 56px box */
   flex: 1;
   padding: 0px 5px; /* Removed specific top/bottom padding here, will control with inner item padding */
-  padding-top: 6px; /* Add a bit of padding at the top of each item to push icon/text down slightly from very top edge */
+  padding-top: 2px; /* Reduced from 6px to 2px to move icons higher */
   min-height: 56px; /* Maintain minimum tap target height */
   /* height: 100%; Removed as parent height is now auto */
   border-radius: 16px; 
@@ -343,7 +343,7 @@ body:has(.bottom-nav-material) #page-container {
     justify-content: flex-start;
     flex: 1;
     padding: 0px 5px;
-    padding-top: 6px;
+    padding-top: 2px; /* Reduced from 6px to 2px to match mobile navigation */
     min-height: 56px;
     border-radius: 16px;
     transition: background-color 0.3s ease, color 0.3s ease;
