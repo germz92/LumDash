@@ -601,8 +601,8 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
   const now = new Date();
   now.setUTCHours(0, 0, 0, 0);
   
-  // Debug logging for items that might have issues
-  if (unit.label && unit.label.includes('Sony A7IV-D')) {
+  // Debug logging for Sony FX3-A specifically
+  if (unit.label && unit.label.includes('Sony FX3-A')) {
     console.log(`[AVAILABILITY DEBUG] Checking ${unit.label} for dates ${checkOut} to ${checkIn}`);
     console.log(`[AVAILABILITY DEBUG] Unit data:`, {
       status: unit.status,
@@ -610,16 +610,28 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
       reservations: unit.reservations,
       history: unit.history
     });
+    console.log(`[AVAILABILITY DEBUG] Normalized dates:`, {
+      reqStart: reqStart.toISOString(),
+      reqEnd: reqEnd.toISOString(),
+      now: now.toISOString()
+    });
   }
   
   // For quantity items, check if any units are available
   if (unit.quantity > 1) {
-    return calculateAvailableQuantity(unit, checkOut, checkIn) > 0;
+    const availableQty = calculateAvailableQuantity(unit, checkOut, checkIn);
+    if (unit.label && unit.label.includes('Sony FX3-A')) {
+      console.log(`[AVAILABILITY DEBUG] ${unit.label} quantity check: ${availableQty} > 0 = ${availableQty > 0}`);
+    }
+    return availableQty > 0;
   }
   
   // For single items, check actual conflicts in reservations/history, not just status
   // Check reservations array first (this is where active reservations are stored)
   if (unit.reservations && unit.reservations.length > 0) {
+    if (unit.label && unit.label.includes('Sony FX3-A')) {
+      console.log(`[AVAILABILITY DEBUG] ${unit.label} checking ${unit.reservations.length} reservations...`);
+    }
     for (const reservation of unit.reservations) {
       if (!reservation.checkOutDate || !reservation.checkInDate) continue;
       
@@ -627,18 +639,34 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
       const resEnd = normalizeDate(reservation.checkInDate);
       
       // Skip if the reservation is in the past
-      if (resEnd < now) continue;
+      if (resEnd < now) {
+        if (unit.label && unit.label.includes('Sony FX3-A')) {
+          console.log(`[AVAILABILITY DEBUG] ${unit.label} skipping past reservation:`, reservation);
+        }
+        continue;
+      }
       
       // Check for overlap: (startA <= endB) && (endA >= startB)
-      if (reqStart <= resEnd && reqEnd >= resStart) {
-        if (unit.label && unit.label.includes('Sony A7IV-D')) {
-          console.log(`[AVAILABILITY DEBUG] ${unit.label} conflicts with reservation:`, {
-            requestedStart: checkOut,
-            requestedEnd: checkIn,
-            reservationStart: reservation.checkOutDate,
-            reservationEnd: reservation.checkInDate,
-            overlap: true
-          });
+      const hasOverlap = reqStart <= resEnd && reqEnd >= resStart;
+      if (unit.label && unit.label.includes('Sony FX3-A')) {
+        console.log(`[AVAILABILITY DEBUG] ${unit.label} reservation overlap check:`, {
+          requestedStart: checkOut,
+          requestedEnd: checkIn,
+          reservationStart: reservation.checkOutDate,
+          reservationEnd: reservation.checkInDate,
+          reqStart: reqStart.toISOString(),
+          reqEnd: reqEnd.toISOString(),
+          resStart: resStart.toISOString(),
+          resEnd: resEnd.toISOString(),
+          overlap: hasOverlap,
+          condition1: `reqStart <= resEnd: ${reqStart.toISOString()} <= ${resEnd.toISOString()} = ${reqStart <= resEnd}`,
+          condition2: `reqEnd >= resStart: ${reqEnd.toISOString()} >= ${resStart.toISOString()} = ${reqEnd >= resStart}`
+        });
+      }
+      
+      if (hasOverlap) {
+        if (unit.label && unit.label.includes('Sony FX3-A')) {
+          console.log(`[AVAILABILITY DEBUG] ${unit.label} BLOCKED by reservation overlap`);
         }
         return false; // Overlap found
       }
@@ -647,6 +675,9 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
   
   // Also check history array for any additional conflicts
   if (unit.history && unit.history.length > 0) {
+    if (unit.label && unit.label.includes('Sony FX3-A')) {
+      console.log(`[AVAILABILITY DEBUG] ${unit.label} checking ${unit.history.length} history entries...`);
+    }
     for (const entry of unit.history) {
       if (!entry.checkOutDate || !entry.checkInDate) continue;
       
@@ -654,26 +685,36 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
       const entryEnd = normalizeDate(entry.checkInDate);
       
       // Skip if the reservation is in the past
-      if (entryEnd < now) continue;
+      if (entryEnd < now) {
+        if (unit.label && unit.label.includes('Sony FX3-A')) {
+          console.log(`[AVAILABILITY DEBUG] ${unit.label} skipping past history entry:`, entry);
+        }
+        continue;
+      }
       
       // Check for overlap: (startA <= endB) && (endA >= startB)
-      if (reqStart <= entryEnd && reqEnd >= entryStart) {
-        if (unit.label && unit.label.includes('Sony A7IV-D')) {
-          console.log(`[AVAILABILITY DEBUG] ${unit.label} conflicts with history entry:`, {
-            requestedStart: checkOut,
-            requestedEnd: checkIn,
-            historyStart: entry.checkOutDate,
-            historyEnd: entry.checkInDate,
-            overlap: true
-          });
+      const hasOverlap = reqStart <= entryEnd && reqEnd >= entryStart;
+      if (unit.label && unit.label.includes('Sony FX3-A')) {
+        console.log(`[AVAILABILITY DEBUG] ${unit.label} history overlap check:`, {
+          requestedStart: checkOut,
+          requestedEnd: checkIn,
+          historyStart: entry.checkOutDate,
+          historyEnd: entry.checkInDate,
+          overlap: hasOverlap
+        });
+      }
+      
+      if (hasOverlap) {
+        if (unit.label && unit.label.includes('Sony FX3-A')) {
+          console.log(`[AVAILABILITY DEBUG] ${unit.label} BLOCKED by history overlap`);
         }
         return false; // Overlap found
       }
     }
   }
   
-  if (unit.label && unit.label.includes('Sony A7IV-D')) {
-    console.log(`[AVAILABILITY DEBUG] ${unit.label} is available for ${checkOut} to ${checkIn} (ignoring status: ${unit.status})`);
+  if (unit.label && unit.label.includes('Sony FX3-A')) {
+    console.log(`[AVAILABILITY DEBUG] ${unit.label} is AVAILABLE for ${checkOut} to ${checkIn} (no conflicts found, ignoring status: ${unit.status})`);
   }
   
   return true;
@@ -1201,10 +1242,11 @@ function createCategory(name) {
     checkoutBtn.innerHTML = '<span class="material-symbols-outlined">list_alt</span> Use Inventory'; // Changed textContent to innerHTML and added icon
     checkoutBtn.title = "Check out from inventory";
 
-    const dates = getSelectedDates();
-    
     checkoutBtn.onclick = async () => {
       try {
+        // Get fresh dates when button is clicked, not when category is created
+        const dates = getSelectedDates();
+        
         // Check for dates
         if (!dates.checkOut || !dates.checkIn) {
           alert("Please set the check-out and check-in dates first.");
@@ -1428,27 +1470,93 @@ function checkUnavailableItemsAndWarn(itemsToCheck = null) {
   }
   
   const { checkOut, checkIn } = getSelectedDates();
+  console.log(`[Conflict Check] Checking availability for dates: ${checkOut} to ${checkIn}`);
+  console.log(`[Conflict Check] Inventory data available: ${gearInventory ? gearInventory.length : 0} items`);
+  
+  // If inventory data is not loaded, skip the check
+  if (!gearInventory || gearInventory.length === 0) {
+    console.log(`[Conflict Check] No inventory data available, skipping conflict check`);
+    return;
+  }
+  
   const unavailable = [];
+  const allItems = [];
   
   // If specific items are provided, only check those
   if (itemsToCheck) {
     itemsToCheck.forEach(item => {
-      if (!isGearItemAvailable(item, checkOut, checkIn)) {
+      allItems.push(item);
+      const gear = gearInventory.find(g => g.label === item);
+      if (!gear) {
+        console.log(`[Conflict Check] Item "${item}": AVAILABLE (custom/manual item, not in inventory)`);
+        return; // Custom item, always available
+      }
+      
+      const isAvailable = isUnitAvailableForDates(gear, checkOut, checkIn);
+      console.log(`[Conflict Check] Item "${item}": ${isAvailable ? 'AVAILABLE' : 'UNAVAILABLE'}`, {
+        gearData: {
+          label: gear.label,
+          status: gear.status,
+          quantity: gear.quantity,
+          reservations: gear.reservations?.length || 0,
+          history: gear.history?.length || 0
+        }
+      });
+      console.log(`[Conflict Check] Full gear data for "${item}":`, JSON.stringify({
+        label: gear.label,
+        status: gear.status,
+        quantity: gear.quantity,
+        reservations: gear.reservations,
+        history: gear.history
+      }, null, 2));
+      if (!isAvailable) {
         unavailable.push(item);
       }
     });
   } else {
-    // Only check all items when explicitly requested (e.g., date changes)
+    // Check all items in the current list
     document.querySelectorAll('.item input[type="text"]').forEach(input => {
       const label = input.value.trim();
-      if (!isGearItemAvailable(label, checkOut, checkIn)) {
-        unavailable.push(label);
+      if (label) { // Only check non-empty items
+        allItems.push(label);
+        const gear = gearInventory.find(g => g.label === label);
+        if (!gear) {
+          console.log(`[Conflict Check] Item "${label}": AVAILABLE (custom/manual item, not in inventory)`);
+          return; // Custom item, always available
+        }
+        
+        const isAvailable = isUnitAvailableForDates(gear, checkOut, checkIn);
+        console.log(`[Conflict Check] Item "${label}": ${isAvailable ? 'AVAILABLE' : 'UNAVAILABLE'}`, {
+          gearData: {
+            label: gear.label,
+            status: gear.status,
+            quantity: gear.quantity,
+            reservations: gear.reservations?.length || 0,
+            history: gear.history?.length || 0
+          }
+        });
+        console.log(`[Conflict Check] Full gear data for "${label}":`, JSON.stringify({
+          label: gear.label,
+          status: gear.status,
+          quantity: gear.quantity,
+          reservations: gear.reservations,
+          history: gear.history
+        }, null, 2));
+        if (!isAvailable) {
+          unavailable.push(label);
+        }
       }
     });
   }
   
+  console.log(`[Conflict Check] Summary: ${allItems.length} total items, ${unavailable.length} unavailable`);
+  
+  // Always update highlighting based on current availability
   highlightUnavailableItems(unavailable);
-  if (unavailable.length) {
+  
+  // Only show warning modal if there are actual conflicts
+  if (unavailable.length > 0) {
+    console.log(`[Conflict Check] Showing warning for unavailable items: ${unavailable.join(', ')}`);
     showUnavailableWarningModal(unavailable, async () => {
       // Get current dates
       const currentDates = getSelectedDates();
@@ -1538,7 +1646,12 @@ function checkUnavailableItemsAndWarn(itemsToCheck = null) {
       }
     });
   } else {
-    document.getElementById('gearStatusMessage').textContent = '';
+    console.log(`[Conflict Check] No conflicts found - all items are available for the selected dates`);
+    // Clear any existing status messages since there are no conflicts
+    const statusMessage = document.getElementById('gearStatusMessage');
+    if (statusMessage) {
+      statusMessage.innerHTML = '';
+    }
   }
 }
 
@@ -1585,12 +1698,13 @@ async function saveGearDirect() {
 }
 
 // Listen for date changes to trigger warning logic for ALL items
-['checkoutDate', 'checkinDate'].forEach(id => {
-  const el = document.getElementById(id);
-  if (el) {
-    el.addEventListener('change', () => checkUnavailableItemsAndWarn()); // Check all items when dates change
-  }
-});
+// COMMENTED OUT: Duplicate event listeners - now handled by comprehensive listener above
+// ['checkoutDate', 'checkinDate'].forEach(id => {
+//   const el = document.getElementById(id);
+//   if (el) {
+//     el.addEventListener('change', () => checkUnavailableItemsAndWarn()); // Check all items when dates change
+//   }
+// });
 
 function triggerAutosave() {
   // Set flag to indicate editing
@@ -2360,10 +2474,27 @@ window.addEventListener("DOMContentLoaded", async () => {
         await loadGearInventory();
         renderInventoryStatus();
         
-        // Validate dates and check for unavailable items
+        // Re-render gear items to update their availability status and checkout buttons
+        renderGear();
+        
+        // Validate dates and check for unavailable items ONLY if there are existing items
         const isValid = validateDateRange();
         if (isValid) {
-          checkUnavailableItemsAndWarn();
+          // Only check for conflicts if there are existing gear items in the list
+          const existingItems = document.querySelectorAll('.item input[type="text"]');
+          const hasItems = Array.from(existingItems).some(input => input.value.trim() !== '');
+          
+          if (hasItems) {
+            console.log('[Date Change] Checking for inventory conflicts with existing items...');
+            checkUnavailableItemsAndWarn();
+          } else {
+            console.log('[Date Change] No existing items to check, skipping conflict check');
+            // Clear any existing status messages since there are no conflicts
+            const statusMessage = document.getElementById('gearStatusMessage');
+            if (statusMessage) {
+              statusMessage.innerHTML = '';
+            }
+          }
         }
       });
     }
