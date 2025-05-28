@@ -186,15 +186,15 @@
 }
 .crew-page .add-row-btn {
   margin-left: 0;
-  background: #CC0007;
-  color: #fff;
+  background: #6c757d;
+  color: gray;
   border-radius: 6px;
   font-weight: bold;
   padding: 5px 12px;
   font-size: 14px;
 }
 .crew-page .add-row-btn:hover {
-  background: #a30006;
+  background: #5a6268;
 }
 .crew-page .icon-buttons {
   display: flex;
