@@ -2474,6 +2474,23 @@ window.addEventListener("DOMContentLoaded", async () => {
         await loadGearInventory();
         renderInventoryStatus();
         
+        // Ensure isOwner is properly set before re-rendering gear
+        try {
+          const res = await fetch(`${window.API_BASE}/api/tables/${eventContext.tableId}`, {
+            headers: { Authorization: localStorage.getItem('token') }
+          });
+          
+          if (res.ok) {
+            const table = await res.json();
+            const userId = getUserIdFromToken();
+            isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
+            console.log(`[Date Change] isOwner status verified: ${isOwner}`);
+          }
+        } catch (err) {
+          console.warn('Could not verify owner status during date change:', err);
+          // Keep existing isOwner value as fallback
+        }
+        
         // Re-render gear items to update their availability status and checkout buttons
         renderGear();
         
