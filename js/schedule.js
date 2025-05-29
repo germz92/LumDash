@@ -873,22 +873,42 @@ function autoSave(field, date, ignoredIndex, key) {
     const program = tableData.programs[programIndex];
     const newValue = field.value.trim();
     
-    // Track this edit with a timestamp to protect it from socket overwrites
-    if (program && program._id) {
-      const fieldKey = `${program._id}-${key}`;
-      window.recentlyEditedFields.set(fieldKey, {
-        value: newValue,
-        timestamp: Date.now()
-      });
-      
-      // Clear the tracking after 3 seconds (enough time for save to complete)
-      setTimeout(() => {
-        window.recentlyEditedFields.delete(fieldKey);
-      }, 3000);
+    // Ensure we have the correct key for textarea fields
+    let fieldKey = key;
+    if (!fieldKey) {
+      const placeholder = field.getAttribute('placeholder');
+      if (placeholder) {
+        fieldKey = placeholder.toLowerCase();
+      } else if (field.className.includes('program-name')) {
+        fieldKey = 'name';
+      }
     }
     
-    tableData.programs[programIndex][key] = newValue;
-    scheduleSave();
+    console.log(`[AUTOSAVE] Saving field: ${fieldKey} = "${newValue}" for program ${program?._id}`);
+    
+    // Track this edit with a timestamp to protect it from socket overwrites
+    if (program && program._id && fieldKey) {
+      const protectionKey = `${program._id}-${fieldKey}`;
+      window.recentlyEditedFields.set(protectionKey, {
+        value: newValue,
+        timestamp: Date.now(),
+        field: fieldKey
+      });
+      
+      console.log(`[AUTOSAVE] Protected field ${fieldKey} for 5 seconds`);
+      
+      // Clear the tracking after 5 seconds (increased from 3 for better protection)
+      setTimeout(() => {
+        window.recentlyEditedFields.delete(protectionKey);
+        console.log(`[AUTOSAVE] Protection expired for field ${fieldKey}`);
+      }, 5000);
+    }
+    
+    // Update the data
+    if (fieldKey) {
+      tableData.programs[programIndex][fieldKey] = newValue;
+      scheduleSave();
+    }
   }
   // If there was a pending update for this program/field, apply it now
   if (window.currentlyEditing && window.currentlyEditing.pendingUpdate) {
@@ -913,9 +933,23 @@ function optimisticInputHandler(e) {
   if (!entry) return;
   const programIndex = parseInt(entry.getAttribute('data-program-index'), 10);
   if (isNaN(programIndex)) return;
-  const key = field.getAttribute('placeholder') || field.className;
+  
+  // Determine the correct field key
+  let key = field.getAttribute('placeholder');
+  if (key) {
+    key = key.toLowerCase();
+  } else if (field.className.includes('program-name')) {
+    key = 'name';
+  } else if (field.className.includes('done-checkbox')) {
+    key = 'done';
+  }
+  
   if (key && tableData.programs[programIndex]) {
-    tableData.programs[programIndex][key] = field.value;
+    // For checkbox, use checked property, otherwise use value
+    const value = field.type === 'checkbox' ? field.checked : field.value;
+    tableData.programs[programIndex][key] = value;
+    
+    console.log(`[OPTIMISTIC] Updated ${key} = ${value} for program ${programIndex}`);
   }
 }
 
@@ -1667,9 +1701,17 @@ if (window.socket) {
             const fieldKey = `${data.program._id}-${key}`;
             const recentEdit = window.recentlyEditedFields.get(fieldKey);
             
-            // Skip this field if it was recently edited and hasn't changed
-            if (recentEdit && Date.now() - recentEdit.timestamp < 3000) {
-              console.log(`[SOCKET] Skipping field ${key} - recently edited by user`);
+            // Also check if this specific field is currently being edited
+            const currentlyEditing = window.currentlyEditingField === fieldKey;
+            
+            // Skip this field if it was recently edited or is currently being edited
+            if (recentEdit && Date.now() - recentEdit.timestamp < 5000) {
+              console.log(`[SOCKET] Skipping field ${key} - recently edited by user (${Date.now() - recentEdit.timestamp}ms ago)`);
+              continue;
+            }
+            
+            if (currentlyEditing) {
+              console.log(`[SOCKET] Skipping field ${key} - currently being edited by user`);
               continue;
             }
             
@@ -1732,24 +1774,70 @@ window.pendingReload = false;
 function setEditingListeners() {
   // Attach to all inputs and textareas in the schedule page
   document.querySelectorAll('input, textarea').forEach(el => {
-    el.addEventListener('focus', () => {
-      window.isActiveEditing = true;
-    });
-    el.addEventListener('blur', () => {
-      window.isActiveEditing = false;
-      // Add a delay before processing pending updates to allow autoSave to complete
-      if (window.pendingReload) {
-        setTimeout(() => {
-          // Check again if still not editing (in case user quickly focused another field)
-          if (!window.isActiveEditing && window.pendingReload) {
-            window.pendingReload = false;
-            const tableId = localStorage.getItem('eventId');
-            if (tableId && typeof loadPrograms === 'function') loadPrograms(tableId);
-          }
-        }, 500); // Wait 500ms for autoSave to complete
-      }
-    });
+    // Remove existing listeners to prevent duplicates
+    el.removeEventListener('focus', handleFocus);
+    el.removeEventListener('blur', handleBlur);
+    el.removeEventListener('input', handleInput);
+    
+    // Add new listeners
+    el.addEventListener('focus', handleFocus);
+    el.addEventListener('blur', handleBlur);
+    el.addEventListener('input', handleInput);
   });
+}
+
+// Separate handler functions for better control
+function handleFocus(e) {
+  const field = e.target;
+  window.isActiveEditing = true;
+  
+  // Mark the specific field being edited
+  const entry = field.closest('.program-entry');
+  if (entry) {
+    const programId = entry.getAttribute('data-program-id');
+    let fieldKey = field.getAttribute('placeholder');
+    if (fieldKey) {
+      fieldKey = fieldKey.toLowerCase();
+    } else if (field.className.includes('program-name')) {
+      fieldKey = 'name';
+    }
+    
+    if (programId && fieldKey) {
+      console.log(`[FOCUS] Editing ${fieldKey} in program ${programId}`);
+      window.currentlyEditingField = `${programId}-${fieldKey}`;
+    }
+  }
+}
+
+function handleBlur(e) {
+  const field = e.target;
+  window.isActiveEditing = false;
+  window.currentlyEditingField = null;
+  
+  // Add a delay before processing pending updates to allow autoSave to complete
+  if (window.pendingReload) {
+    setTimeout(() => {
+      // Check again if still not editing (in case user quickly focused another field)
+      if (!window.isActiveEditing && window.pendingReload) {
+        window.pendingReload = false;
+        const tableId = localStorage.getItem('eventId');
+        if (tableId && typeof loadPrograms === 'function') {
+          console.log('[BLUR] Processing pending reload after edit completion');
+          loadPrograms(tableId);
+        }
+      }
+    }, 1000); // Increased delay for textarea fields
+  }
+}
+
+function handleInput(e) {
+  // Immediately update optimistic UI
+  optimisticInputHandler(e);
+  
+  // For textareas, also trigger auto-resize
+  if (e.target.tagName === 'TEXTAREA') {
+    autoResizeTextarea(e.target);
+  }
 }
 
 // Call this after rendering program sections
@@ -1799,9 +1887,17 @@ function updateProgramRow(program, hasScheduleAccess) {
     const fieldKey = `${program._id}-${key}`;
     const recentEdit = window.recentlyEditedFields.get(fieldKey);
     
-    // Skip this field if it was recently edited
-    if (recentEdit && Date.now() - recentEdit.timestamp < 3000) {
-      console.log(`[UPDATE] Preserving recently edited field: ${key}`);
+    // Also check if this specific field is currently being edited
+    const currentlyEditing = window.currentlyEditingField === fieldKey;
+    
+    // Skip this field if it was recently edited or is currently being edited
+    if (recentEdit && Date.now() - recentEdit.timestamp < 5000) {
+      console.log(`[UPDATE] Preserving recently edited field: ${key} (${Date.now() - recentEdit.timestamp}ms ago)`);
+      continue;
+    }
+    
+    if (currentlyEditing) {
+      console.log(`[UPDATE] Preserving currently editing field: ${key}`);
       continue;
     }
     
