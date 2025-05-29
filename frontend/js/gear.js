@@ -6,16 +6,33 @@ const token = window.token || (window.token = localStorage.getItem('token'));
 const params = new URLSearchParams(window.location.search);
 let tableId = params.get('id') || localStorage.getItem('eventId');
 
-// Socket.IO real-time updates - IMPROVED IMPLEMENTATION
+// Socket.IO real-time updates - IMPROVED IMPLEMENTATION with better state management
 if (window.socket) {
   // Track if the user is currently editing a field
   window.isActiveEditing = false;
   // Track pending reloads with their tableId
   window.pendingReload = false;
   window.pendingReloadTableId = null;
+  // Track if we should suppress Socket.IO updates temporarily
+  window.suppressSocketUpdates = false;
+  
+  // Function to temporarily suppress Socket.IO updates during critical operations
+  window.suppressSocketIOUpdates = (duration = 10000) => {
+    window.suppressSocketUpdates = true;
+    console.log(`[Socket.IO] Suppressing updates for ${duration}ms`);
+    setTimeout(() => {
+      window.suppressSocketUpdates = false;
+      console.log('[Socket.IO] Updates re-enabled');
+    }, duration);
+  };
   
   // Listen for gear-specific updates
   window.socket.on('gearChanged', (data) => {
+    if (window.suppressSocketUpdates) {
+      console.log('[Socket.IO] Updates suppressed, ignoring gearChanged event');
+      return;
+    }
+    
     console.log('Gear data changed, checking if relevant...', data);
     // Get the current table ID from localStorage (more reliable than params)
     const currentTableId = localStorage.getItem('eventId');
@@ -26,12 +43,12 @@ if (window.socket) {
       return;
     }
     
-    // Don't reload if the user is actively editing
-    if (!window.isActiveEditing) {
+    // Don't reload if the user is actively editing or during critical operations
+    if (!window.isActiveEditing && !window.isActiveCheckout && !window.isProcessingDateChange) {
       console.log('Reloading gear data for current table');
       loadGear();
     } else {
-      console.log('Skipping reload while user is editing');
+      console.log('Skipping reload while user is editing or during critical operations');
       // Set a flag to reload when user finishes editing
       window.pendingReload = true;
       window.pendingReloadTableId = data?.tableId || currentTableId;
@@ -40,6 +57,11 @@ if (window.socket) {
   
   // Also listen for general table updates
   window.socket.on('tableUpdated', (data) => {
+    if (window.suppressSocketUpdates) {
+      console.log('[Socket.IO] Updates suppressed, ignoring tableUpdated event');
+      return;
+    }
+    
     console.log('Table updated, checking if relevant...', data);
     // Get the current table ID from localStorage (more reliable than params)
     const currentTableId = localStorage.getItem('eventId');
@@ -50,12 +72,12 @@ if (window.socket) {
       return;
     }
     
-    // Don't reload if the user is actively editing
-    if (!window.isActiveEditing) {
+    // Don't reload if the user is actively editing or during critical operations
+    if (!window.isActiveEditing && !window.isActiveCheckout && !window.isProcessingDateChange) {
       console.log('Reloading gear data for current table');
       loadGear();
     } else {
-      console.log('Skipping reload while user is editing');
+      console.log('Skipping reload while user is editing or during critical operations');
       // Set a flag to reload when user finishes editing
       window.pendingReload = true;
       window.pendingReloadTableId = data?.tableId || currentTableId;
@@ -71,8 +93,14 @@ if (window.socket) {
     console.log('Socket.IO disconnected - Gear page live updates paused');
   });
 
-  // --- Granular gear list events ---
+  // --- Granular gear list events with better state management ---
   window.socket.on('gearListAdded', (data) => {
+    // Don't process during critical operations
+    if (window.isActiveCheckout || window.suppressSocketUpdates) {
+      console.log('[Socket.IO] Deferring gearListAdded during critical operation');
+      return;
+    }
+    
     const currentTableId = localStorage.getItem('eventId');
     if (!data || data.tableId !== currentTableId || !data.listName || !data.list) return;
     // Add the new list to eventContext and update UI
@@ -80,7 +108,14 @@ if (window.socket) {
     populateGearListDropdown();
     renderGear();
   });
+  
   window.socket.on('gearListUpdated', (data) => {
+    // Don't process during critical operations
+    if (window.isActiveCheckout || window.suppressSocketUpdates) {
+      console.log('[Socket.IO] Deferring gearListUpdated during critical operation');
+      return;
+    }
+    
     const currentTableId = localStorage.getItem('eventId');
     if (!data || data.tableId !== currentTableId || !data.listName || !data.list) return;
     // Update the list in eventContext and update UI
@@ -90,7 +125,14 @@ if (window.socket) {
       renderGear();
     }
   });
+  
   window.socket.on('gearListDeleted', (data) => {
+    // Don't process during critical operations
+    if (window.isActiveCheckout || window.suppressSocketUpdates) {
+      console.log('[Socket.IO] Deferring gearListDeleted during critical operation');
+      return;
+    }
+    
     const currentTableId = localStorage.getItem('eventId');
     if (!data || data.tableId !== currentTableId || !data.listName) return;
     // Remove the list from eventContext and update UI
@@ -102,8 +144,6 @@ if (window.socket) {
     populateGearListDropdown();
     renderGear();
   });
-  // Remove old gearChanged event listener
-  // window.socket.on('gearChanged', ...); // Remove or comment out
 }
 
 // ✨ New centralized event context
@@ -301,6 +341,11 @@ const eventContext = {
   updateFromDOM() {
     if (!this.activeList || !this.lists[this.activeList]) return;
     
+    // Add debugging during checkout operations
+    if (window.isActiveCheckout) {
+      console.log('[updateFromDOM] Called during checkout operation - this might override in-memory data');
+    }
+    
     document.querySelectorAll(".category").forEach(section => {
       const categoryName = section.querySelector("h3").textContent;
       
@@ -315,18 +360,42 @@ const eventContext = {
         const item = { label: text, checked };
         if (inventoryId) item.inventoryId = inventoryId;
         
-        // Find existing item to preserve checkout dates
+        // Find existing item to preserve checkout dates and other metadata
         const existingItems = this.lists[this.activeList].categories[categoryName] || [];
-        const existingItem = existingItems.find(existing => existing.label === text);
+        const existingItem = existingItems.find(existing => {
+          // Match by inventoryId first (most reliable), then by label
+          if (inventoryId && existing.inventoryId) {
+            return existing.inventoryId === inventoryId;
+          }
+          return existing.label === text;
+        });
+        
         if (existingItem) {
-          // Preserve checkout dates if they exist
+          // Preserve all existing metadata
           if (existingItem.checkOutDate) item.checkOutDate = existingItem.checkOutDate;
           if (existingItem.checkInDate) item.checkInDate = existingItem.checkInDate;
           if (existingItem.quantity) item.quantity = existingItem.quantity;
+          if (existingItem.inventoryId) item.inventoryId = existingItem.inventoryId;
+          
+          console.log(`[updateFromDOM] Preserved metadata for ${text}:`, {
+            checkOutDate: item.checkOutDate,
+            checkInDate: item.checkInDate,
+            quantity: item.quantity,
+            inventoryId: item.inventoryId
+          });
+        } else {
+          console.log(`[updateFromDOM] No existing item found for ${text}, no metadata to preserve`);
         }
         
         return item;
       }).filter(Boolean);
+      
+      // Add debugging for checkout operations
+      if (window.isActiveCheckout && items.length !== this.lists[this.activeList].categories[categoryName].length) {
+        console.log(`[updateFromDOM] WARNING: Category ${categoryName} item count changed during checkout`);
+        console.log(`[updateFromDOM] DOM items:`, items.length, items);
+        console.log(`[updateFromDOM] Memory items:`, this.lists[this.activeList].categories[categoryName].length, this.lists[this.activeList].categories[categoryName]);
+      }
       
       this.lists[this.activeList].categories[categoryName] = items;
     });
@@ -398,6 +467,18 @@ function goBack() {
 }
 
 async function loadGear() {
+  // Prevent loading during active checkout operations to avoid interference
+  if (window.isActiveCheckout) {
+    console.log('[loadGear] Checkout operation in progress, deferring load...');
+    return;
+  }
+  
+  // Prevent loading during date change processing
+  if (window.isProcessingDateChange) {
+    console.log('[loadGear] Date change processing in progress, deferring load...');
+    return;
+  }
+  
   console.log("Token:", token);
   console.log("Table ID:", eventContext.tableId);
   console.log("API_BASE:", window.API_BASE);
@@ -563,6 +644,18 @@ function populateGearListDropdown() {
 }
 
 function renderGear() {
+  // Prevent rendering during active checkout operations to avoid DOM conflicts
+  if (window.isActiveCheckout) {
+    console.log('[renderGear] Checkout operation in progress, deferring render...');
+    return;
+  }
+  
+  // Prevent rendering during date change processing
+  if (window.isProcessingDateChange) {
+    console.log('[renderGear] Date change processing in progress, deferring render...');
+    return;
+  }
+  
   const container = document.getElementById("gearContainer");
   container.innerHTML = "";
   categories.forEach(createCategory);
@@ -587,6 +680,10 @@ function getSelectedDates() {
   return { checkOut, checkIn };
 }
 
+// Store previous date values for reversion
+let previousDates = { checkOut: '', checkIn: '' };
+
+// Update the isUnitAvailableForDates function to exclude current event reservations
 function isUnitAvailableForDates(unit, checkOut, checkIn) {
   if (!checkOut || !checkIn) return unit.status === 'available';
   
@@ -601,9 +698,37 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
   const now = new Date();
   now.setUTCHours(0, 0, 0, 0);
   
+  // Get current event ID for filtering
+  const currentEventId = eventContext.tableId;
+  
+  // Helper function to determine if an entry belongs to the current event
+  const belongsToCurrentEvent = (entry) => {
+    // Direct eventId match
+    if (entry.eventId === currentEventId) return true;
+    
+    // For items that are currently checked out to this event (fallback for missing eventId)
+    if (unit.status === 'checked_out' && unit.checkedOutEvent === currentEventId) {
+      return true;
+    }
+    
+    // Additional fallback: if eventId is missing/undefined,
+    // and the item appears in our current gear list, assume it belongs to current event
+    if ((!entry.eventId || entry.eventId === undefined)) {
+      const isInCurrentList = eventContext.getAllItems().some(item => 
+        item.inventoryId === unit._id || item.label === unit.label
+      );
+      if (isInCurrentList) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+  
   // Debug logging for Sony FX3-A specifically
   if (unit.label && unit.label.includes('Sony FX3-A')) {
     console.log(`[AVAILABILITY DEBUG] Checking ${unit.label} for dates ${checkOut} to ${checkIn}`);
+    console.log(`[AVAILABILITY DEBUG] Current event ID: ${currentEventId}`);
     console.log(`[AVAILABILITY DEBUG] Unit data:`, {
       status: unit.status,
       quantity: unit.quantity,
@@ -626,7 +751,7 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
     return availableQty > 0;
   }
   
-  // For single items, check actual conflicts in reservations/history, not just status
+  // For single items, check actual conflicts in reservations/history, but EXCLUDE current event
   // Check reservations array first (this is where active reservations are stored)
   if (unit.reservations && unit.reservations.length > 0) {
     if (unit.label && unit.label.includes('Sony FX3-A')) {
@@ -634,6 +759,15 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
     }
     for (const reservation of unit.reservations) {
       if (!reservation.checkOutDate || !reservation.checkInDate) continue;
+      
+      // Check if this reservation belongs to the current event
+      const isCurrentEvent = belongsToCurrentEvent(reservation);
+      if (isCurrentEvent) {
+        if (unit.label && unit.label.includes('Sony FX3-A')) {
+          console.log(`[AVAILABILITY DEBUG] ${unit.label} skipping reservation for current event:`, reservation);
+        }
+        continue;
+      }
       
       const resStart = normalizeDate(reservation.checkOutDate);
       const resEnd = normalizeDate(reservation.checkInDate);
@@ -654,6 +788,8 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
           requestedEnd: checkIn,
           reservationStart: reservation.checkOutDate,
           reservationEnd: reservation.checkInDate,
+          eventId: reservation.eventId,
+          identifiedAsCurrentEvent: isCurrentEvent,
           reqStart: reqStart.toISOString(),
           reqEnd: reqEnd.toISOString(),
           resStart: resStart.toISOString(),
@@ -666,20 +802,29 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
       
       if (hasOverlap) {
         if (unit.label && unit.label.includes('Sony FX3-A')) {
-          console.log(`[AVAILABILITY DEBUG] ${unit.label} BLOCKED by reservation overlap`);
+          console.log(`[AVAILABILITY DEBUG] ${unit.label} BLOCKED by reservation overlap from different event`);
         }
         return false; // Overlap found
       }
     }
   }
   
-  // Also check history array for any additional conflicts
+  // Also check history array for any additional conflicts, but EXCLUDE current event
   if (unit.history && unit.history.length > 0) {
     if (unit.label && unit.label.includes('Sony FX3-A')) {
       console.log(`[AVAILABILITY DEBUG] ${unit.label} checking ${unit.history.length} history entries...`);
     }
     for (const entry of unit.history) {
       if (!entry.checkOutDate || !entry.checkInDate) continue;
+      
+      // Check if this history entry belongs to the current event
+      const isCurrentEvent = belongsToCurrentEvent(entry);
+      if (isCurrentEvent) {
+        if (unit.label && unit.label.includes('Sony FX3-A')) {
+          console.log(`[AVAILABILITY DEBUG] ${unit.label} skipping history entry for current event:`, entry);
+        }
+        continue;
+      }
       
       const entryStart = normalizeDate(entry.checkOutDate);
       const entryEnd = normalizeDate(entry.checkInDate);
@@ -700,13 +845,15 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
           requestedEnd: checkIn,
           historyStart: entry.checkOutDate,
           historyEnd: entry.checkInDate,
+          eventId: entry.eventId,
+          identifiedAsCurrentEvent: isCurrentEvent,
           overlap: hasOverlap
         });
       }
       
       if (hasOverlap) {
         if (unit.label && unit.label.includes('Sony FX3-A')) {
-          console.log(`[AVAILABILITY DEBUG] ${unit.label} BLOCKED by history overlap`);
+          console.log(`[AVAILABILITY DEBUG] ${unit.label} BLOCKED by history overlap from different event`);
         }
         return false; // Overlap found
       }
@@ -714,7 +861,7 @@ function isUnitAvailableForDates(unit, checkOut, checkIn) {
   }
   
   if (unit.label && unit.label.includes('Sony FX3-A')) {
-    console.log(`[AVAILABILITY DEBUG] ${unit.label} is AVAILABLE for ${checkOut} to ${checkIn} (no conflicts found, ignoring status: ${unit.status})`);
+    console.log(`[AVAILABILITY DEBUG] ${unit.label} is AVAILABLE for ${checkOut} to ${checkIn} (no conflicts found with other events, ignoring status: ${unit.status})`);
   }
   
   return true;
@@ -729,8 +876,35 @@ function calculateAvailableQuantity(unit, checkOutDate, checkInDate) {
     console.log(`[CALC AVAILABILITY DEBUG] Unit quantity: ${unit.quantity}`);
   }
   
+  // Get current event ID for filtering
+  const currentEventId = eventContext.tableId;
+  
+  // Helper function to determine if an entry belongs to the current event
+  const belongsToCurrentEvent = (entry) => {
+    // Direct eventId match
+    if (entry.eventId === currentEventId) return true;
+    
+    // For items that are currently checked out to this event (fallback for missing eventId)
+    if (unit.status === 'checked_out' && unit.checkedOutEvent === currentEventId) {
+      return true;
+    }
+    
+    // Additional fallback: if eventId is missing/undefined,
+    // and the item appears in our current gear list, assume it belongs to current event
+    if ((!entry.eventId || entry.eventId === undefined)) {
+      const isInCurrentList = eventContext.getAllItems().some(item => 
+        item.inventoryId === unit._id || item.label === unit.label
+      );
+      if (isInCurrentList) {
+        return true;
+      }
+    }
+    
+    return false;
+  };
+  
   if (unit.quantity === 1) {
-    // For single items, check actual conflicts in history/reservations, not just status
+    // For single items, check actual conflicts in history/reservations, but EXCLUDE current event
     const normalizeDate = (dateStr) => {
       const date = new Date(dateStr);
       date.setUTCHours(0, 0, 0, 0);
@@ -742,10 +916,19 @@ function calculateAvailableQuantity(unit, checkOutDate, checkInDate) {
     const now = new Date();
     now.setUTCHours(0, 0, 0, 0);
 
-    // Check reservations array first
+    // Check reservations array first, but EXCLUDE current event
     if (unit.reservations && unit.reservations.length > 0) {
       for (const reservation of unit.reservations) {
         if (!reservation.checkOutDate || !reservation.checkInDate) continue;
+        
+        // Check if this reservation belongs to the current event
+        const isCurrentEvent = belongsToCurrentEvent(reservation);
+        if (isCurrentEvent) {
+          if (unit.label && unit.label.includes('Sony A7IV-D')) {
+            console.log(`[CALC AVAILABILITY DEBUG] Skipping reservation for current event:`, reservation);
+          }
+          continue;
+        }
         
         const resStart = normalizeDate(reservation.checkOutDate);
         const resEnd = normalizeDate(reservation.checkInDate);
@@ -756,17 +939,26 @@ function calculateAvailableQuantity(unit, checkOutDate, checkInDate) {
         // Check for overlap: (startA <= endB) && (endA >= startB)
         if (reqStart <= resEnd && reqEnd >= resStart) {
           if (unit.label && unit.label.includes('Sony A7IV-D')) {
-            console.log(`[CALC AVAILABILITY DEBUG] Single item blocked by reservation overlap`);
+            console.log(`[CALC AVAILABILITY DEBUG] Single item blocked by reservation overlap from different event`);
           }
           return 0; // Overlap found
         }
       }
     }
 
-    // Also check history array
+    // Also check history array, but EXCLUDE current event
     if (unit.history && unit.history.length > 0) {
       for (const entry of unit.history) {
         if (!entry.checkOutDate || !entry.checkInDate) continue;
+        
+        // Check if this history entry belongs to the current event
+        const isCurrentEvent = belongsToCurrentEvent(entry);
+        if (isCurrentEvent) {
+          if (unit.label && unit.label.includes('Sony A7IV-D')) {
+            console.log(`[CALC AVAILABILITY DEBUG] Skipping history entry for current event:`, entry);
+          }
+          continue;
+        }
         
         const entryStart = normalizeDate(entry.checkOutDate);
         const entryEnd = normalizeDate(entry.checkInDate);
@@ -777,11 +969,13 @@ function calculateAvailableQuantity(unit, checkOutDate, checkInDate) {
         // Check for overlap: (startA <= endB) && (endA >= startB)
         if (reqStart <= entryEnd && reqEnd >= entryStart) {
           if (unit.label && unit.label.includes('Sony A7IV-D')) {
-            console.log(`[CALC AVAILABILITY DEBUG] Single item blocked by history overlap:`, {
+            console.log(`[CALC AVAILABILITY DEBUG] Single item blocked by history overlap from different event:`, {
               requestedStart: checkOutDate,
               requestedEnd: checkInDate,
               historyStart: entry.checkOutDate,
-              historyEnd: entry.checkInDate
+              historyEnd: entry.checkInDate,
+              eventId: entry.eventId,
+              identifiedAsCurrentEvent: isCurrentEvent
             });
           }
           return 0; // Overlap found
@@ -791,7 +985,7 @@ function calculateAvailableQuantity(unit, checkOutDate, checkInDate) {
 
     const result = 1; // Available if no conflicts found
     if (unit.label && unit.label.includes('Sony A7IV-D')) {
-      console.log(`[CALC AVAILABILITY DEBUG] Single item result: ${result} (no conflicts found, ignoring status: ${unit.status})`);
+      console.log(`[CALC AVAILABILITY DEBUG] Single item result: ${result} (no conflicts found with other events, ignoring status: ${unit.status})`);
     }
     return result;
   }
@@ -807,15 +1001,27 @@ function calculateAvailableQuantity(unit, checkOutDate, checkInDate) {
   
   let reservedQuantity = 0;
   
-  // Only check reservations array for quantity items (matches backend logic)
+  // Only check reservations array for quantity items, but EXCLUDE current event
   if (unit.reservations && unit.reservations.length > 0) {
     unit.reservations.forEach(reservation => {
+      // Check if this reservation belongs to the current event
+      const isCurrentEvent = belongsToCurrentEvent(reservation);
+      if (isCurrentEvent) {
+        if (unit.label && unit.label.includes('Sony A7IV-D')) {
+          console.log(`[CALC AVAILABILITY DEBUG] Skipping quantity reservation for current event:`, reservation);
+        }
+        return;
+      }
+      
       const resStart = normalizeDate(reservation.checkOutDate);
       const resEnd = normalizeDate(reservation.checkInDate);
       
       // Check for overlap: (startA <= endB) && (endA >= startB)
       if (reqStart <= resEnd && reqEnd >= resStart) {
         reservedQuantity += reservation.quantity || 1;
+        if (unit.label && unit.label.includes('Sony A7IV-D')) {
+          console.log(`[CALC AVAILABILITY DEBUG] Adding ${reservation.quantity || 1} to reserved quantity from different event`);
+        }
       }
     });
   }
@@ -823,7 +1029,12 @@ function calculateAvailableQuantity(unit, checkOutDate, checkInDate) {
   // Note: We don't check history for quantity items to avoid double-counting
   // since reservations are already tracked in the reservations array
   
-  return Math.max(0, unit.quantity - reservedQuantity);
+  const result = Math.max(0, unit.quantity - reservedQuantity);
+  if (unit.label && unit.label.includes('Sony A7IV-D')) {
+    console.log(`[CALC AVAILABILITY DEBUG] Final result: ${unit.quantity} total - ${reservedQuantity} reserved = ${result} available`);
+  }
+  
+  return result;
 }
 
 function createRow(item, isNewRow = false) {
@@ -1424,13 +1635,15 @@ function collectGearData() {
 }
 
 // Utility to check if a gear item is available for selected dates
-function isGearItemAvailable(label, checkOut, checkIn) {
+function isGearItemAvailable(label, checkOut, checkIn, isDateChangeCheck = false) {
   const gear = gearInventory.find(g => g.label === label);
   if (!gear) return true; // custom/manual item
   if (!checkOut || !checkIn) return true;
   
-  // Use the same function for consistency
-  return isUnitAvailableForDates(gear, checkOut, checkIn);
+  // Use enhanced availability check for date changes, regular check otherwise
+  return isDateChangeCheck 
+    ? isUnitAvailableForDatesWithExtension(gear, checkOut, checkIn, true)
+    : isUnitAvailableForDates(gear, checkOut, checkIn);
 }
 
 // Highlight unavailable items
@@ -1447,8 +1660,8 @@ function highlightUnavailableItems(unavailableLabels) {
   });
 }
 
-// Show/hide unavailable warning modal
-function showUnavailableWarningModal(unavailable, onProceed) {
+// Show/hide unavailable warning modal with date reversion support
+function showUnavailableWarningModal(unavailable, onProceed, onCancel = null) {
   const modal = document.getElementById('unavailableWarningModal');
   const content = document.getElementById('unavailableWarningContent');
   content.innerHTML = `⚠️ The following items will be removed if you proceed with these dates:<br><b>${unavailable.join(', ')}</b>`;
@@ -1459,11 +1672,20 @@ function showUnavailableWarningModal(unavailable, onProceed) {
   };
   document.getElementById('unavailableCancelBtn').onclick = () => {
     modal.style.display = 'none';
+    if (onCancel) {
+      onCancel();
+    }
   };
 }
 
-// Update checkUnavailableItemsAndWarn to use modal
+// Update checkUnavailableItemsAndWarn to use enhanced availability checking for date changes
 function checkUnavailableItemsAndWarn(itemsToCheck = null) {
+  // Only defer if the checkout modal is actually open (user is actively selecting items)
+  if (document.getElementById('checkoutModal')?.style.display === 'block') {
+    console.log('[Conflict Check] Checkout modal is open, deferring conflict check...');
+    return;
+  }
+  
   // Validate date range first
   if (!validateDateRange()) {
     return; // Don't proceed if dates are invalid
@@ -1482,6 +1704,10 @@ function checkUnavailableItemsAndWarn(itemsToCheck = null) {
   const unavailable = [];
   const allItems = [];
   
+  // Determine if this is a date change check (vs. initial load or other operations)
+  const isDateChangeCheck = window.isProcessingDateChange || false;
+  console.log(`[Conflict Check] Is date change check: ${isDateChangeCheck}`);
+  
   // If specific items are provided, only check those
   if (itemsToCheck) {
     itemsToCheck.forEach(item => {
@@ -1492,7 +1718,11 @@ function checkUnavailableItemsAndWarn(itemsToCheck = null) {
         return; // Custom item, always available
       }
       
-      const isAvailable = isUnitAvailableForDates(gear, checkOut, checkIn);
+      // Use enhanced availability check for date changes
+      const isAvailable = isDateChangeCheck 
+        ? isUnitAvailableForDatesWithExtension(gear, checkOut, checkIn, true)
+        : isUnitAvailableForDates(gear, checkOut, checkIn);
+        
       console.log(`[Conflict Check] Item "${item}": ${isAvailable ? 'AVAILABLE' : 'UNAVAILABLE'}`, {
         gearData: {
           label: gear.label,
@@ -1500,15 +1730,10 @@ function checkUnavailableItemsAndWarn(itemsToCheck = null) {
           quantity: gear.quantity,
           reservations: gear.reservations?.length || 0,
           history: gear.history?.length || 0
-        }
+        },
+        isDateChangeCheck: isDateChangeCheck
       });
-      console.log(`[Conflict Check] Full gear data for "${item}":`, JSON.stringify({
-        label: gear.label,
-        status: gear.status,
-        quantity: gear.quantity,
-        reservations: gear.reservations,
-        history: gear.history
-      }, null, 2));
+      
       if (!isAvailable) {
         unavailable.push(item);
       }
@@ -1525,7 +1750,11 @@ function checkUnavailableItemsAndWarn(itemsToCheck = null) {
           return; // Custom item, always available
         }
         
-        const isAvailable = isUnitAvailableForDates(gear, checkOut, checkIn);
+        // Use enhanced availability check for date changes
+        const isAvailable = isDateChangeCheck 
+          ? isUnitAvailableForDatesWithExtension(gear, checkOut, checkIn, true)
+          : isUnitAvailableForDates(gear, checkOut, checkIn);
+          
         console.log(`[Conflict Check] Item "${label}": ${isAvailable ? 'AVAILABLE' : 'UNAVAILABLE'}`, {
           gearData: {
             label: gear.label,
@@ -1533,15 +1762,10 @@ function checkUnavailableItemsAndWarn(itemsToCheck = null) {
             quantity: gear.quantity,
             reservations: gear.reservations?.length || 0,
             history: gear.history?.length || 0
-          }
+          },
+          isDateChangeCheck: isDateChangeCheck
         });
-        console.log(`[Conflict Check] Full gear data for "${label}":`, JSON.stringify({
-          label: gear.label,
-          status: gear.status,
-          quantity: gear.quantity,
-          reservations: gear.reservations,
-          history: gear.history
-        }, null, 2));
+        
         if (!isAvailable) {
           unavailable.push(label);
         }
@@ -1644,6 +1868,35 @@ function checkUnavailableItemsAndWarn(itemsToCheck = null) {
           statusMessage.innerHTML = '';
         }, 5000);
       }
+    }, () => {
+      // Cancel callback - revert dates to previous values
+      console.log('[Date Reversion] User cancelled, reverting dates to previous values:', previousDates);
+      
+      const checkoutEl = document.getElementById('checkoutDate');
+      const checkinEl = document.getElementById('checkinDate');
+      
+      if (checkoutEl && previousDates.checkOut) {
+        checkoutEl.value = previousDates.checkOut;
+      }
+      if (checkinEl && previousDates.checkIn) {
+        checkinEl.value = previousDates.checkIn;
+      }
+      
+      // Clear highlighting since we reverted
+      highlightUnavailableItems([]);
+      
+      // Clear any status messages
+      const statusMessage = document.getElementById('gearStatusMessage');
+      if (statusMessage) {
+        statusMessage.innerHTML = '';
+      }
+      
+      // Save the reverted dates
+      const revertedCheckOut = checkoutEl?.value || '';
+      const revertedCheckIn = checkinEl?.value || '';
+      eventContext.save(revertedCheckOut, revertedCheckIn).catch(err => {
+        console.error('Error saving reverted dates:', err);
+      });
     });
   } else {
     console.log(`[Conflict Check] No conflicts found - all items are available for the selected dates`);
@@ -1655,10 +1908,80 @@ function checkUnavailableItemsAndWarn(itemsToCheck = null) {
   }
 }
 
+// Lightweight conflict check that only updates highlighting without rebuilding UI
+function checkUnavailableItemsLightweight() {
+  // Validate date range first
+  if (!validateDateRange()) {
+    return; // Don't proceed if dates are invalid
+  }
+  
+  const { checkOut, checkIn } = getSelectedDates();
+  console.log(`[Lightweight Conflict Check] Checking availability for dates: ${checkOut} to ${checkIn}`);
+  
+  // If inventory data is not loaded, skip the check
+  if (!gearInventory || gearInventory.length === 0) {
+    console.log(`[Lightweight Conflict Check] No inventory data available, skipping conflict check`);
+    return;
+  }
+  
+  const unavailable = [];
+  
+  // Determine if this is a date change check
+  const isDateChangeCheck = window.isProcessingDateChange || false;
+  console.log(`[Lightweight Conflict Check] Is date change check: ${isDateChangeCheck}`);
+  
+  // Check all items in the current list
+  document.querySelectorAll('.item input[type="text"]').forEach(input => {
+    const label = input.value.trim();
+    if (label) { // Only check non-empty items
+      const gear = gearInventory.find(g => g.label === label);
+      if (!gear) {
+        return; // Custom item, always available
+      }
+      
+      // Use enhanced availability check for date changes
+      const isAvailable = isDateChangeCheck 
+        ? isUnitAvailableForDatesWithExtension(gear, checkOut, checkIn, true)
+        : isUnitAvailableForDates(gear, checkOut, checkIn);
+        
+      if (!isAvailable) {
+        unavailable.push(label);
+      }
+    }
+  });
+  
+  console.log(`[Lightweight Conflict Check] Found ${unavailable.length} unavailable items`);
+  
+  // Only update highlighting, don't show modals or rebuild UI
+  highlightUnavailableItems(unavailable);
+  
+  // Show a simple status message if there are conflicts
+  if (unavailable.length > 0) {
+    const statusMessage = document.getElementById('gearStatusMessage');
+    if (statusMessage) {
+      statusMessage.innerHTML = `
+        <div style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+          <strong>Date Conflict:</strong> ${unavailable.length} item(s) are highlighted as unavailable for the selected dates.
+        </div>
+      `;
+    }
+  } else {
+    // Clear any existing status messages since there are no conflicts
+    const statusMessage = document.getElementById('gearStatusMessage');
+    if (statusMessage) {
+      statusMessage.innerHTML = '';
+    }
+  }
+}
+
 async function saveGear() {
   try {
-    // Update data from DOM
+    // Only update data from DOM if we're not in the middle of a checkout operation
+    if (!window.isActiveCheckout) {
     eventContext.updateFromDOM();
+    } else {
+      console.log('[saveGear] Skipping updateFromDOM during checkout operation');
+    }
     
     // Get date fields
     const checkOutDate = document.getElementById('checkoutDate')?.value || '';
@@ -1717,7 +2040,13 @@ function triggerAutosave() {
     try {
       // Don't load from eventContext.update until this timeout because
       // it needs time for data to enter DOM
+      // Also skip during checkout operations to avoid overriding in-memory data
+      if (!window.isActiveCheckout) {
       eventContext.updateFromDOM();
+      } else {
+        console.log('[triggerAutosave] Skipping updateFromDOM during checkout operation');
+      }
+      
       await saveGear();
       
       // Clear the editing flag when save completes
@@ -1951,6 +2280,13 @@ async function openCheckoutModal(category, availableUnits, checkOut, checkIn, li
   // Add event listeners for item buttons
   modalList.querySelectorAll('.modal-item-btn').forEach(btn => {
     btn.addEventListener('click', async () => {
+      // Prevent processing if date changes are happening
+      if (window.isProcessingDateChange) {
+        console.log('[Checkout] Date change in progress, deferring checkout...');
+        setTimeout(() => btn.click(), 500); // Retry after 500ms
+        return;
+      }
+      
       // Declare these variables ONCE at the top
       const checkOutDate = document.getElementById('checkoutDate')?.value;
       const checkInDate = document.getElementById('checkinDate')?.value;
@@ -1984,6 +2320,16 @@ async function openCheckoutModal(category, availableUnits, checkOut, checkIn, li
         showNotification(`${unit.label} is already on a list for this event and cannot be added again.`, 'warning');
         return;
       }
+      
+      // Set a flag to prevent interference during checkout
+      window.isActiveCheckout = true;
+      window.lastCheckoutTime = Date.now();
+      
+      // Suppress Socket.IO updates during checkout to prevent conflicts
+      if (window.suppressSocketIOUpdates) {
+        window.suppressSocketIOUpdates(10000); // Suppress for 10 seconds during checkout
+      }
+      
       try {
         // Do NOT redeclare checkOutDate/checkInDate here
         // Call the API to check out this item
@@ -2020,27 +2366,76 @@ async function openCheckoutModal(category, availableUnits, checkOut, checkIn, li
           // For multi-unit items, show quantity in the label
           const itemLabel = unit.quantity > 1 ? `${unit.label} (${quantity} units)` : unit.label;
           
-          eventContext.lists[currentListName].categories[category].push({
+          // Get the current form dates at the time of checkout
+          const currentCheckOutDate = document.getElementById('checkoutDate')?.value;
+          const currentCheckInDate = document.getElementById('checkinDate')?.value;
+          
+          // Add item to the in-memory list FIRST
+          const newItem = {
             label: itemLabel,
             checked: false,
             inventoryId: unit._id,
             quantity: quantity,
-            checkOutDate: checkOutDate,
-            checkInDate: checkInDate
+            checkOutDate: currentCheckOutDate,
+            checkInDate: currentCheckInDate
+          };
+          
+          console.log(`[Checkout] Adding item to gear list with dates:`, {
+            label: itemLabel,
+            inventoryId: unit._id,
+            checkOutDate: currentCheckOutDate,
+            checkInDate: currentCheckInDate,
+            quantity: quantity
           });
+          
+          eventContext.lists[currentListName].categories[category].push(newItem);
+          
+          // Immediately update the DOM to show the new item
+          // Find category by text content
+          const categorySections = document.querySelectorAll('.category h3');
+          for (const section of categorySections) {
+            if (section.textContent === category) {
+              const itemList = section.parentElement.querySelector('.item-list');
+              if (itemList) {
+                const newRow = createRow(newItem);
+                itemList.appendChild(newRow);
+              }
+              break;
+            }
+          }
+          
+          // Save the updated gear list to the server (this should now include the new item)
+          console.log(`[Checkout] Saving gear list with new item: ${itemLabel} in category: ${category}`);
+          console.log(`[Checkout] Current list state:`, eventContext.lists[currentListName].categories[category]);
+          
+          const saveResult = await eventContext.save(checkOutDate, checkInDate);
+          
+          if (saveResult) {
+            console.log(`[Checkout] Save successful, item should now be in the list`);
+            
+            // Add a small delay to ensure DOM update persists
+            setTimeout(() => {
+              // Verify the item is still in the DOM
+              const itemExists = Array.from(document.querySelectorAll('.item input[type="text"]'))
+                .some(input => input.value.includes(unit.label));
+              console.log(`[Checkout] Item ${unit.label} exists in DOM after save: ${itemExists}`);
+              
+              // Also verify it's in memory
+              const inMemory = eventContext.lists[currentListName].categories[category]
+                .some(item => item.label.includes(unit.label));
+              console.log(`[Checkout] Item ${unit.label} exists in memory after save: ${inMemory}`);
+            }, 100);
+          } else {
+            console.error(`[Checkout] Save failed for item: ${itemLabel}`);
+          }
         }
-        // Save the updated gear list to the server
-        await eventContext.save(checkOutDate, checkInDate);
-        // Reload gear and inventory, then close the modal
-        await loadGearInventory();
-        // Don't call loadGear() here as it overwrites the stored checkout dates
-        // Instead, just re-render the gear to show the new item
-        renderGear();
+        
+        // Close the modal
         modal.style.display = 'none';
         
-        // Force a fresh inventory reload after a short delay to ensure backend has processed
+        // Refresh inventory data in background
         setTimeout(async () => {
-          console.log('[Checkout] Force refreshing inventory after checkout to ensure fresh data...');
+          console.log('[Checkout] Refreshing inventory after checkout...');
           await loadGearInventory();
         }, 500);
         
@@ -2056,6 +2451,9 @@ async function openCheckoutModal(category, availableUnits, checkOut, checkIn, li
             <strong>Error:</strong> ${err.message}
           </div>
         `;
+      } finally {
+        // Always clear the checkout flag
+        window.isActiveCheckout = false;
       }
     });
   });
@@ -2180,6 +2578,13 @@ async function openCheckoutModal(category, availableUnits, checkOut, checkIn, li
     // Re-add event listeners for the new item buttons
     modalList.querySelectorAll('.modal-item-btn').forEach(btn => {
       btn.addEventListener('click', async () => {
+        // Prevent processing if date changes are happening
+        if (window.isProcessingDateChange) {
+          console.log('[Checkout] Date change in progress, deferring checkout...');
+          setTimeout(() => btn.click(), 500); // Retry after 500ms
+          return;
+        }
+        
         const checkOutDate = document.getElementById('checkoutDate')?.value;
         const checkInDate = document.getElementById('checkinDate')?.value;
         if (!checkOutDate || !checkInDate) {
@@ -2212,6 +2617,16 @@ async function openCheckoutModal(category, availableUnits, checkOut, checkIn, li
           showNotification(`${unit.label} is already on a list for this event and cannot be added again.`, 'warning');
           return;
         }
+        
+        // Set a flag to prevent interference during checkout
+        window.isActiveCheckout = true;
+        window.lastCheckoutTime = Date.now();
+        
+        // Suppress Socket.IO updates during checkout to prevent conflicts
+        if (window.suppressSocketIOUpdates) {
+          window.suppressSocketIOUpdates(10000); // Suppress for 10 seconds during checkout
+        }
+        
         try {
           // Call the API to check out this item
           const res = await fetch(`${window.API_BASE}/api/gear-inventory/checkout`, {
@@ -2247,27 +2662,76 @@ async function openCheckoutModal(category, availableUnits, checkOut, checkIn, li
             // For multi-unit items, show quantity in the label
             const itemLabel = unit.quantity > 1 ? `${unit.label} (${quantity} units)` : unit.label;
             
-            eventContext.lists[currentListName].categories[category].push({
+            // Get the current form dates at the time of checkout
+            const currentCheckOutDate = document.getElementById('checkoutDate')?.value;
+            const currentCheckInDate = document.getElementById('checkinDate')?.value;
+            
+            // Add item to the in-memory list FIRST
+            const newItem = {
               label: itemLabel,
               checked: false,
               inventoryId: unit._id,
               quantity: quantity,
-              checkOutDate: checkOutDate,
-              checkInDate: checkInDate
+              checkOutDate: currentCheckOutDate,
+              checkInDate: currentCheckInDate
+            };
+            
+            console.log(`[Checkout] Adding item to gear list with dates:`, {
+              label: itemLabel,
+              inventoryId: unit._id,
+              checkOutDate: currentCheckOutDate,
+              checkInDate: currentCheckInDate,
+              quantity: quantity
             });
+            
+            eventContext.lists[currentListName].categories[category].push(newItem);
+            
+            // Immediately update the DOM to show the new item
+            // Find category by text content
+            const categorySections = document.querySelectorAll('.category h3');
+            for (const section of categorySections) {
+              if (section.textContent === category) {
+                const itemList = section.parentElement.querySelector('.item-list');
+                if (itemList) {
+                  const newRow = createRow(newItem);
+                  itemList.appendChild(newRow);
+                }
+                break;
+              }
+            }
+            
+            // Save the updated gear list to the server (this should now include the new item)
+            console.log(`[Checkout] Saving gear list with new item: ${itemLabel} in category: ${category}`);
+            console.log(`[Checkout] Current list state:`, eventContext.lists[currentListName].categories[category]);
+            
+            const saveResult = await eventContext.save(checkOutDate, checkInDate);
+            
+            if (saveResult) {
+              console.log(`[Checkout] Save successful, item should now be in the list`);
+              
+              // Add a small delay to ensure DOM update persists
+              setTimeout(() => {
+                // Verify the item is still in the DOM
+                const itemExists = Array.from(document.querySelectorAll('.item input[type="text"]'))
+                  .some(input => input.value.includes(unit.label));
+                console.log(`[Checkout] Item ${unit.label} exists in DOM after save: ${itemExists}`);
+                
+                // Also verify it's in memory
+                const inMemory = eventContext.lists[currentListName].categories[category]
+                  .some(item => item.label.includes(unit.label));
+                console.log(`[Checkout] Item ${unit.label} exists in memory after save: ${inMemory}`);
+              }, 100);
+            } else {
+              console.error(`[Checkout] Save failed for item: ${itemLabel}`);
+            }
           }
-          // Save the updated gear list to the server
-          await eventContext.save(checkOutDate, checkInDate);
-          // Reload gear and inventory, then close the modal
-          await loadGearInventory();
-          // Don't call loadGear() here as it overwrites the stored checkout dates
-          // Instead, just re-render the gear to show the new item
-          renderGear();
+          
+          // Close the modal
           modal.style.display = 'none';
           
-          // Force a fresh inventory reload after a short delay to ensure backend has processed
+          // Refresh inventory data in background
           setTimeout(async () => {
-            console.log('[Checkout] Force refreshing inventory after checkout to ensure fresh data...');
+            console.log('[Checkout] Refreshing inventory after checkout...');
             await loadGearInventory();
           }, 500);
           
@@ -2283,6 +2747,9 @@ async function openCheckoutModal(category, availableUnits, checkOut, checkIn, li
               <strong>Error:</strong> ${err.message}
             </div>
           `;
+        } finally {
+          // Always clear the checkout flag
+          window.isActiveCheckout = false;
         }
       });
     });
@@ -2426,8 +2893,56 @@ window.addEventListener("DOMContentLoaded", async () => {
   ['checkoutDate', 'checkinDate'].forEach(id => {
     const el = document.getElementById(id);
     if (el) {
+      // Store initial values when the listener is first set up
+      if (!previousDates.checkOut && !previousDates.checkIn) {
+        previousDates.checkOut = document.getElementById('checkoutDate')?.value || '';
+        previousDates.checkIn = document.getElementById('checkinDate')?.value || '';
+        console.log('[Date Change] Initial previous dates stored:', previousDates);
+      }
+      
+      // Store the current value before any changes
+      el.addEventListener('focus', () => {
+        const currentCheckOut = document.getElementById('checkoutDate')?.value || '';
+        const currentCheckIn = document.getElementById('checkinDate')?.value || '';
+        previousDates.checkOut = currentCheckOut;
+        previousDates.checkIn = currentCheckIn;
+        console.log('[Date Change] Previous dates updated on focus:', previousDates);
+      });
+      
       el.addEventListener('change', async () => {
         console.log(`[Date Change] ${id} changed - validating dates and updating inventory...`);
+        
+        // Prevent interference during active checkout operations
+        if (document.getElementById('checkoutModal')?.style.display === 'block') {
+          console.log('[Date Change] Checkout modal is open, deferring date change processing...');
+          return;
+        }
+        
+        // Prevent interference during active editing
+        if (window.isActiveEditing) {
+          console.log('[Date Change] User is actively editing, deferring date change processing...');
+          return;
+        }
+        
+        // Prevent interference during active checkout API calls (but allow after checkout completes)
+        if (window.isActiveCheckout && window.lastCheckoutTime && (Date.now() - window.lastCheckoutTime < 5000)) {
+          console.log('[Date Change] Recent checkout operation in progress, deferring date change processing...');
+          return;
+        }
+        
+        // Set a flag to prevent other operations during date processing
+        window.isProcessingDateChange = true;
+        window.lastDateChangeTime = Date.now();
+        
+        // Suppress Socket.IO updates during date processing to prevent conflicts
+        if (window.suppressSocketIOUpdates) {
+          window.suppressSocketIOUpdates(15000); // Suppress for 15 seconds during date changes
+        }
+        
+        try {
+          // Store the previous dates for comparison
+          const oldCheckOut = previousDates.checkOut;
+          const oldCheckIn = previousDates.checkIn;
         
         // Validate and adjust dates to ensure check-in is never before check-out
         const checkoutEl = document.getElementById('checkoutDate');
@@ -2459,42 +2974,22 @@ window.addEventListener("DOMContentLoaded", async () => {
           }
         }
         
-        // Save the date change to the server
-        try {
-          eventContext.updateFromDOM();
-          const checkOutDate = document.getElementById('checkoutDate')?.value || '';
-          const checkInDate = document.getElementById('checkinDate')?.value || '';
-          await eventContext.save(checkOutDate, checkInDate);
+          // Get the new dates after validation
+          const newCheckOut = checkoutEl?.value || '';
+          const newCheckIn = checkinEl?.value || '';
+          
+          // Save the date change to the server (but don't update DOM from server data)
+          try {
+            await eventContext.save(newCheckOut, newCheckIn);
           console.log('Date saved successfully');
         } catch (err) {
           console.error('Error saving date:', err);
         }
         
-        // Update inventory status without refreshing the page
+          // Update inventory data in background (don't refresh UI immediately)
         await loadGearInventory();
-        renderInventoryStatus();
-        
-        // Ensure isOwner is properly set before re-rendering gear
-        try {
-          const res = await fetch(`${window.API_BASE}/api/tables/${eventContext.tableId}`, {
-            headers: { Authorization: localStorage.getItem('token') }
-          });
           
-          if (res.ok) {
-            const table = await res.json();
-            const userId = getUserIdFromToken();
-            isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
-            console.log(`[Date Change] isOwner status verified: ${isOwner}`);
-          }
-        } catch (err) {
-          console.warn('Could not verify owner status during date change:', err);
-          // Keep existing isOwner value as fallback
-        }
-        
-        // Re-render gear items to update their availability status and checkout buttons
-        renderGear();
-        
-        // Validate dates and check for unavailable items ONLY if there are existing items
+          // Only validate dates and check for conflicts if there are existing items
         const isValid = validateDateRange();
         if (isValid) {
           // Only check for conflicts if there are existing gear items in the list
@@ -2503,15 +2998,94 @@ window.addEventListener("DOMContentLoaded", async () => {
           
           if (hasItems) {
             console.log('[Date Change] Checking for inventory conflicts with existing items...');
+              
+              // Check for conflicts first
+              const { checkOut, checkIn } = getSelectedDates();
+              const unavailable = [];
+              
+              // Check all items in the current list for conflicts
+              document.querySelectorAll('.item input[type="text"]').forEach(input => {
+                const label = input.value.trim();
+                if (label) {
+                  const gear = gearInventory.find(g => g.label === label);
+                  if (gear) {
+                    const isAvailable = isUnitAvailableForDatesWithExtension(gear, checkOut, checkIn, true);
+                    if (!isAvailable) {
+                      unavailable.push(label);
+                    }
+                  }
+                }
+              });
+              
+              if (unavailable.length > 0) {
+                // Show conflict warning modal
+                console.log(`[Date Change] Found conflicts, showing warning for: ${unavailable.join(', ')}`);
             checkUnavailableItemsAndWarn();
+              } else {
+                // No conflicts - update backend reservations for inventory items
+                console.log('[Date Change] No conflicts found, updating backend reservations...');
+                
+                // Only update reservations if dates actually changed and we have previous dates
+                if (oldCheckOut && oldCheckIn && (oldCheckOut !== newCheckOut || oldCheckIn !== newCheckIn)) {
+                  console.log(`[Date Change] Dates changed from ${oldCheckOut}-${oldCheckIn} to ${newCheckOut}-${newCheckIn}`);
+                  
+                  try {
+                    const updateResult = await updateInventoryReservationsForDateChange(
+                      oldCheckOut, oldCheckIn, newCheckOut, newCheckIn
+                    );
+                    
+                    if (updateResult.successful > 0) {
+                      console.log(`[Date Change] Successfully updated ${updateResult.successful} inventory reservations`);
+                      
+                      // Refresh inventory data to reflect the changes
+                      await loadGearInventory();
+                    }
+                  } catch (err) {
+                    console.error('[Date Change] Error updating inventory reservations:', err);
+                    
+                    // Show error message to user
+                    const statusMessage = document.getElementById('gearStatusMessage');
+                    if (statusMessage) {
+                      statusMessage.innerHTML = `
+                        <div style="background: #f8d7da; color: #721c24; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+                          <strong>Warning:</strong> Dates saved but failed to update inventory reservations. Please check your items manually.
+                        </div>
+                      `;
+                    }
+                  }
+                } else {
+                  console.log('[Date Change] No date change detected or missing previous dates, skipping reservation update');
+                }
+                
+                // Update previous dates since no conflicts and no cancellation
+                previousDates.checkOut = newCheckOut;
+                previousDates.checkIn = newCheckIn;
+                console.log('[Date Change] Updated previous dates (no conflicts):', previousDates);
+                
+                // Clear any existing status messages since there are no conflicts
+                const statusMessage = document.getElementById('gearStatusMessage');
+                if (statusMessage && !statusMessage.innerHTML.includes('Success:') && !statusMessage.innerHTML.includes('Warning:')) {
+                  statusMessage.innerHTML = '';
+                }
+              }
           } else {
             console.log('[Date Change] No existing items to check, skipping conflict check');
+              
+              // Update previous dates since no conflicts and no cancellation
+              previousDates.checkOut = newCheckOut;
+              previousDates.checkIn = newCheckIn;
+              console.log('[Date Change] Updated previous dates (no items):', previousDates);
+              
             // Clear any existing status messages since there are no conflicts
             const statusMessage = document.getElementById('gearStatusMessage');
             if (statusMessage) {
               statusMessage.innerHTML = '';
             }
           }
+          }
+        } finally {
+          // Always clear the processing flag
+          window.isProcessingDateChange = false;
         }
       });
     }
@@ -3014,7 +3588,7 @@ window.addEventListener("DOMContentLoaded", async () => {
                 <span style="font-size: 13px; color: #888;">${pkg.description || 'No description'}</span>
                 <div style="float: right; color: #aaa; font-size: 12px;">${new Date(pkg.createdAt).toLocaleString()}</div>
               </button>
-              <button class="delete-package-btn" data-id="${pkg._id}" title="Delete package" style="margin-left: 10px; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 5px; padding: 6px 12px; font-size: 15px; cursor: pointer;">🗑️</button>
+              <button class="delete-package-btn" data-id="${pkg._id}" title="Delete package" style="margin-left: 10px; background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; border-radius: 5px; padding: 6px 12px; font-size: 15px; cursor: pointer;"><span class="material-symbols-outlined">delete</span></button>
             </div>
           `).join('');
         }
@@ -3369,317 +3943,26 @@ window.addEventListener("DOMContentLoaded", async () => {
   window.saveGearPackage = saveGearPackage;
   window.openPackagesModal = openPackagesModal;
   
-  // Add a fix utility for gear packages
-  window.fixGearPackages = async function() {
-    try {
-      // Create a status display
-      let statusDiv = document.getElementById('packageFixStatus');
-      if (!statusDiv) {
-        statusDiv = document.createElement('div');
-        statusDiv.id = 'packageFixStatus';
-        statusDiv.style.position = 'fixed';
-        statusDiv.style.top = '10px';
-        statusDiv.style.right = '10px';
-        statusDiv.style.padding = '15px';
-        statusDiv.style.background = '#f8f9fa';
-        statusDiv.style.border = '1px solid #ddd';
-        statusDiv.style.borderRadius = '5px';
-        statusDiv.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
-        statusDiv.style.zIndex = '9999';
-        statusDiv.style.maxWidth = '400px';
-        document.body.appendChild(statusDiv);
-      }
-      
-      const updateStatus = (message, isError = false) => {
-        statusDiv.innerHTML += `<div style="margin-bottom: 8px; color: ${isError ? '#cc0007' : '#212529'}">${message}</div>`;
-        statusDiv.scrollTop = statusDiv.scrollHeight;
-      };
-      
-      statusDiv.innerHTML = '<h3>Package Fix Utility</h3>';
-      
-      // 1. Get current user ID
-      const userId = getUserIdFromToken();
-      updateStatus(`User ID from token: ${userId}`);
-      
-      // 2. Check if packages exist in the database
-      updateStatus('Testing direct database access...');
-      try {
-        const testRes = await fetch(`${window.API_BASE}/api/gear-packages-test/${userId}`, {
-          headers: { 'Authorization': localStorage.getItem('token') }
-        });
-        
-        const testData = await testRes.json();
-        updateStatus(`Direct test found ${testData.count || 0} packages`);
-        
-        if (testData.count > 0) {
-          updateStatus('✅ Packages found in database!');
-        } else {
-          updateStatus('⚠️ No packages found in database', true);
-        }
-      } catch (testErr) {
-        updateStatus(`Error in direct test: ${testErr.message}`, true);
-      }
-      
-      // 3. Try normal API endpoint
-      updateStatus('Testing primary API endpoint...');
-      try {
-        const apiRes = await fetch(`${window.API_BASE}/api/gear-packages`, {
-          headers: { 'Authorization': localStorage.getItem('token') }
-        });
-        
-        if (!apiRes.ok) {
-          updateStatus(`Primary API error: ${apiRes.status}`, true);
-          throw new Error(`Status ${apiRes.status}`);
-        }
-        
-        const apiData = await apiRes.json();
-        updateStatus(`Primary API found ${apiData.length || 0} packages`);
-        
-        if (apiData.length > 0) {
-          updateStatus('✅ API endpoint working correctly!');
-          updateStatus('Try loading packages again');
-          return;
-        } else {
-          updateStatus('⚠️ API returned empty result', true);
-        }
-      } catch (apiErr) {
-        updateStatus(`Primary API error: ${apiErr.message}`, true);
-      }
-      
-      // 4. Try fallback endpoint
-      updateStatus('Testing fallback API endpoint...');
-      try {
-        const fallbackRes = await fetch(`${window.API_BASE}/api/gear-packages-fallback`, {
-          headers: { 'Authorization': localStorage.getItem('token') }
-        });
-        
-        if (!fallbackRes.ok) {
-          updateStatus(`Fallback API error: ${fallbackRes.status}`, true);
-          throw new Error(`Status ${fallbackRes.status}`);
-        }
-        
-        const fallbackData = await fallbackRes.json();
-        updateStatus(`Fallback API found ${fallbackData.length || 0} packages`);
-        
-        if (fallbackData.length > 0) {
-          updateStatus('✅ Fallback endpoint working!');
-          updateStatus('Try loading packages again');
-          return;
-        } else {
-          updateStatus('⚠️ Fallback also returned empty result', true);
-        }
-      } catch (fallbackErr) {
-        updateStatus(`Fallback API error: ${fallbackErr.message}`, true);
-      }
-      
-      // 5. Try to add test endpoint
-      updateStatus('Adding test endpoint for package retrieval...');
-      
-      // Create a small test package to verify saving works
-      const testPackage = {
-        name: "Test Package " + new Date().toISOString().substring(0, 10),
-        description: "Created by fix utility",
-        categories: {
-          "Cameras": [
-            { label: "Test Camera", checked: false, isInventory: false }
-          ]
-        },
-        inventoryIds: []
-      };
-      
-      try {
-        const saveRes = await fetch(`${window.API_BASE}/api/gear-packages`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: localStorage.getItem('token')
-          },
-          body: JSON.stringify(testPackage)
-        });
-        
-        if (!saveRes.ok) {
-          updateStatus(`Error saving test package: ${saveRes.status}`, true);
-        } else {
-          const savedData = await saveRes.json();
-          updateStatus(`✅ Test package created: ${savedData._id}`);
-          updateStatus('Try loading packages again');
-        }
-      } catch (saveErr) {
-        updateStatus(`Error creating test package: ${saveErr.message}`, true);
-      }
-      
-      updateStatus('Diagnostic complete. Check console for more details.');
-    } catch (err) {
-      console.error('Fix utility error:', err);
-      alert('Error in fix utility: ' + err.message);
-    }
-  };
-
-  // Diagnostic function to check token and user ID
-  function diagnoseTokenAndUserId() {
-    try {
-      const token = localStorage.getItem('token');
-      console.log("Token available:", !!token);
-      
-      if (!token) {
-        alert("No token found. You may need to log in again.");
-        return;
-      }
-      
-      // Try to decode token
-      try {
-        const parts = token.split('.');
-        console.log("Token has correct format (3 parts):", parts.length === 3);
-        
-        if (parts.length !== 3) {
-          alert("Token format is invalid. Try logging out and back in.");
-          return;
-        }
-        
-        // Decode the payload (middle part)
-        const payload = JSON.parse(atob(parts[1]));
-        console.log("Token payload:", payload);
-        console.log("User ID from token:", payload.id);
-        console.log("User ID type:", typeof payload.id);
-        
-        // Compare with package data
-        const userId = normalizeUserId(payload.id);
-        console.log("Normalized user ID:", userId);
-        console.log("This is the ID that should match MongoDB documents");
-        
-        // Check packages from server
-        fetch(`${window.API_BASE}/api/gear-packages`, {
-          headers: { 'Authorization': localStorage.getItem('token') }
-        })
-        .then(res => res.json())
-        .then(packages => {
-          console.log("Packages from API:", packages);
-          console.log("Number of packages:", packages.length);
-          
-          if (packages.length > 0) {
-            alert(`Found ${packages.length} packages for your account.`);
-          } else {
-            alert("No packages found. This suggests a data mismatch between saved packages and your current user ID.");
-          }
-        })
-        .catch(err => {
-          console.error("Error fetching packages:", err);
-          alert("Error fetching packages: " + err.message);
-        });
-        
-      } catch (decodeErr) {
-        console.error("Error decoding token:", decodeErr);
-        alert("Error decoding JWT token: " + decodeErr.message);
-        return;
-      }
-    } catch (err) {
-      console.error("Diagnostic error:", err);
-      alert("Diagnostic error: " + err.message);
-    }
-  }
-
-  // Expose diagnostic function to window for debugging
-  window.diagnoseTokenAndUserId = diagnoseTokenAndUserId;
-
-  // These duplicate listeners are removed - handled by comprehensive listener above
-  // document.getElementById('checkoutDate').addEventListener('change', async () => {
-  //   console.log('[Date Change] Checkout date changed, refreshing inventory...');
-  //   await loadGearInventory();
-  //   renderInventoryStatus();
-  //   triggerAutosave();
-  // });
-  // document.getElementById('checkinDate').addEventListener('change', async () => {
-  //   console.log('[Date Change] Checkin date changed, refreshing inventory...');
-  //   await loadGearInventory();
-  //   renderInventoryStatus();
-  //   triggerAutosave();
-  // });
-
-  // Temporary debug function to inspect gear data
-  window.debugGearData = function() {
-    console.log('=== GEAR DATA DEBUG ===');
-    console.log('Active list:', eventContext.activeList);
-    console.log('All lists:', eventContext.lists);
-    
-    if (eventContext.activeList && eventContext.lists[eventContext.activeList]) {
-      const activeList = eventContext.lists[eventContext.activeList];
-      console.log('Active list categories:', activeList.categories);
-      
-      Object.keys(activeList.categories).forEach(category => {
-        const items = activeList.categories[category];
-        console.log(`Category "${category}":`, items);
-        
-        items.forEach((item, index) => {
-          console.log(`  Item ${index + 1}:`, {
-            label: item.label,
-            checked: item.checked,
-            inventoryId: item.inventoryId,
-            checkOutDate: item.checkOutDate,
-            checkInDate: item.checkInDate
-          });
-        });
-      });
-    }
-    
-    console.log('=== INVENTORY DATA DEBUG ===');
-    if (window.gearInventory) {
-      const batteries = window.gearInventory.filter(item => item.label.toLowerCase().includes('battery') || item.label.toLowerCase().includes('np-fz100'));
-      console.log('Battery items in inventory:', batteries);
-      
-      batteries.forEach(battery => {
-        console.log(`Battery: ${battery.label}`);
-        console.log(`  Total quantity: ${battery.quantity}`);
-        console.log(`  Reservations: ${battery.reservations?.length || 0}`);
-        if (battery.reservations) {
-          battery.reservations.forEach((res, i) => {
-            console.log(`    Reservation ${i + 1}: ${res.quantity} units from ${res.checkOutDate} to ${res.checkInDate} for event ${res.eventId}`);
-          });
-        }
-        console.log(`  History entries: ${battery.history?.length || 0}`);
-        if (battery.history) {
-          battery.history.forEach((hist, i) => {
-            console.log(`    History ${i + 1}: ${hist.quantity || 1} units from ${hist.checkOutDate} to ${hist.checkInDate} for event ${hist.event}`);
-          });
-        }
-      });
-    }
-  };
+  // Add cleanup mechanism for stuck flags
+  window.addEventListener('beforeunload', () => {
+    window.isActiveCheckout = false;
+    window.isProcessingDateChange = false;
+    window.isActiveEditing = false;
+  });
   
-  // Debug function to test deletion
-  window.debugDeleteItem = function(itemLabel) {
-    console.log('=== DELETE DEBUG ===');
-    const activeList = eventContext.lists[eventContext.activeList];
-    if (!activeList) {
-      console.log('No active list');
-      return;
+  // Add periodic cleanup to prevent stuck flags
+  setInterval(() => {
+    // Reset flags if they've been stuck for too long (30 seconds)
+    if (window.isActiveCheckout && (!window.lastCheckoutTime || Date.now() - window.lastCheckoutTime > 30000)) {
+      console.warn('[Cleanup] Resetting stuck isActiveCheckout flag');
+      window.isActiveCheckout = false;
     }
     
-    let foundItem = null;
-    let foundCategory = null;
-    
-    Object.keys(activeList.categories).forEach(category => {
-      const items = activeList.categories[category];
-      const item = items.find(i => i.label === itemLabel);
-      if (item) {
-        foundItem = item;
-        foundCategory = category;
+    if (window.isProcessingDateChange && (!window.lastDateChangeTime || Date.now() - window.lastDateChangeTime > 30000)) {
+      console.warn('[Cleanup] Resetting stuck isProcessingDateChange flag');
+      window.isProcessingDateChange = false;
       }
-    });
-    
-    if (foundItem) {
-      console.log('Found item to delete:', foundItem);
-      console.log('In category:', foundCategory);
-      
-      const inventoryItem = gearInventory.find(g => g._id === foundItem.inventoryId || g.label === foundItem.label);
-      if (inventoryItem) {
-        console.log('Matching inventory item:', inventoryItem);
-      } else {
-        console.log('No matching inventory item found');
-      }
-    } else {
-      console.log('Item not found:', itemLabel);
-    }
-  };
+  }, 10000); // Check every 10 seconds
 
   // Helper function to release inventory reservation for an item
   async function releaseInventoryReservation(item, checkOutDate, checkInDate) {
@@ -3783,6 +4066,508 @@ window.addEventListener("DOMContentLoaded", async () => {
       console.log(`[RELEASE] Item is not an inventory item or missing dates - no release needed`);
       return true; // Not an error, just nothing to release
     }
+  }
+
+  // Enhanced availability check that considers date range extensions for current event
+  function isUnitAvailableForDatesWithExtension(unit, checkOut, checkIn, isDateChangeCheck = false) {
+    if (!checkOut || !checkIn) return unit.status === 'available';
+    
+    const normalizeDate = (dateStr) => {
+      const date = new Date(dateStr);
+      date.setUTCHours(0, 0, 0, 0);
+      return date;
+    };
+    
+    const reqStart = normalizeDate(checkOut);
+    const reqEnd = normalizeDate(checkIn);
+    const now = new Date();
+    now.setUTCHours(0, 0, 0, 0);
+    
+    // Get current event ID for filtering
+    const currentEventId = eventContext.tableId;
+    
+    // Debug logging for Sony FX3-A specifically
+    if (unit.label && unit.label.includes('Sony FX3-A')) {
+      console.log(`[AVAILABILITY DEBUG] Checking ${unit.label} for dates ${checkOut} to ${checkIn}`);
+      console.log(`[AVAILABILITY DEBUG] Current event ID: ${currentEventId}, isDateChangeCheck: ${isDateChangeCheck}`);
+      console.log(`[AVAILABILITY DEBUG] Unit data:`, {
+        status: unit.status,
+        quantity: unit.quantity,
+        reservations: unit.reservations,
+        history: unit.history
+      });
+    }
+    
+    // Helper function to determine if an entry belongs to the current event
+    const belongsToCurrentEvent = (entry) => {
+      // Direct eventId match
+      if (entry.eventId === currentEventId) return true;
+      
+      // For items that are currently checked out to this event (fallback for missing eventId)
+      if (isDateChangeCheck && unit.status === 'checked_out' && unit.checkedOutEvent === currentEventId) {
+        if (unit.label && unit.label.includes('Sony FX3-A')) {
+          console.log(`[AVAILABILITY DEBUG] ${unit.label} identified as current event item via checkedOutEvent`);
+        }
+        return true;
+      }
+      
+      // Additional fallback: if eventId is missing/undefined and this is a date change check,
+      // and the item appears in our current gear list, assume it belongs to current event
+      if (isDateChangeCheck && (!entry.eventId || entry.eventId === undefined)) {
+        const isInCurrentList = eventContext.getAllItems().some(item => 
+          item.inventoryId === unit._id || item.label === unit.label
+        );
+        if (isInCurrentList) {
+          if (unit.label && unit.label.includes('Sony FX3-A')) {
+            console.log(`[AVAILABILITY DEBUG] ${unit.label} identified as current event item via gear list presence`);
+          }
+          return true;
+        }
+      }
+      
+      return false;
+    };
+    
+    // For quantity items, check if any units are available
+    if (unit.quantity > 1) {
+      const availableQty = calculateAvailableQuantityWithExtension(unit, checkOut, checkIn, isDateChangeCheck);
+      if (unit.label && unit.label.includes('Sony FX3-A')) {
+        console.log(`[AVAILABILITY DEBUG] ${unit.label} quantity check: ${availableQty} > 0 = ${availableQty > 0}`);
+      }
+      return availableQty > 0;
+    }
+    
+    // For single items, check actual conflicts but handle current event specially for date changes
+    if (unit.reservations && unit.reservations.length > 0) {
+      if (unit.label && unit.label.includes('Sony FX3-A')) {
+        console.log(`[AVAILABILITY DEBUG] ${unit.label} checking ${unit.reservations.length} reservations...`);
+      }
+      for (const reservation of unit.reservations) {
+        if (!reservation.checkOutDate || !reservation.checkInDate) continue;
+        
+        const resStart = normalizeDate(reservation.checkOutDate);
+        const resEnd = normalizeDate(reservation.checkInDate);
+        
+        // Skip if the reservation is in the past
+        if (resEnd < now) {
+          if (unit.label && unit.label.includes('Sony FX3-A')) {
+            console.log(`[AVAILABILITY DEBUG] ${unit.label} skipping past reservation:`, reservation);
+          }
+          continue;
+        }
+        
+        // Check if this reservation belongs to the current event
+        const isCurrentEvent = belongsToCurrentEvent(reservation);
+        
+        if (isCurrentEvent && isDateChangeCheck) {
+          // Check if the new date range encompasses the existing reservation
+          const newRangeContainsReservation = reqStart <= resStart && reqEnd >= resEnd;
+          
+          if (unit.label && unit.label.includes('Sony FX3-A')) {
+            console.log(`[AVAILABILITY DEBUG] ${unit.label} current event reservation check:`, {
+              reservationStart: reservation.checkOutDate,
+              reservationEnd: reservation.checkInDate,
+              newStart: checkOut,
+              newEnd: checkIn,
+              newRangeContains: newRangeContainsReservation,
+              eventId: reservation.eventId,
+              identifiedAsCurrentEvent: isCurrentEvent,
+              condition1: `reqStart <= resStart: ${reqStart.toISOString()} <= ${resStart.toISOString()} = ${reqStart <= resStart}`,
+              condition2: `reqEnd >= resEnd: ${reqEnd.toISOString()} >= ${resEnd.toISOString()} = ${reqEnd >= resEnd}`
+            });
+          }
+          
+          if (newRangeContainsReservation) {
+            // New date range contains the existing reservation - this is allowed (date extension)
+            if (unit.label && unit.label.includes('Sony FX3-A')) {
+              console.log(`[AVAILABILITY DEBUG] ${unit.label} allowing date extension for current event`);
+            }
+            continue;
+          } else {
+            // New date range doesn't fully contain the existing reservation - conflict
+            if (unit.label && unit.label.includes('Sony FX3-A')) {
+              console.log(`[AVAILABILITY DEBUG] ${unit.label} BLOCKED - new date range doesn't contain existing reservation`);
+            }
+            return false;
+          }
+        } else if (!isCurrentEvent) {
+          // Different event - check for overlap as before
+          const hasOverlap = reqStart <= resEnd && reqEnd >= resStart;
+          if (unit.label && unit.label.includes('Sony FX3-A')) {
+            console.log(`[AVAILABILITY DEBUG] ${unit.label} different event reservation overlap check:`, {
+              requestedStart: checkOut,
+              requestedEnd: checkIn,
+              reservationStart: reservation.checkOutDate,
+              reservationEnd: reservation.checkInDate,
+              eventId: reservation.eventId,
+              overlap: hasOverlap
+            });
+          }
+          
+          if (hasOverlap) {
+            if (unit.label && unit.label.includes('Sony FX3-A')) {
+              console.log(`[AVAILABILITY DEBUG] ${unit.label} BLOCKED by reservation overlap from different event`);
+            }
+            return false;
+          }
+        }
+        // If it's current event but not a date change check, skip as before
+      }
+    }
+    
+    // Also check history array for conflicts with other events
+    if (unit.history && unit.history.length > 0) {
+      if (unit.label && unit.label.includes('Sony FX3-A')) {
+        console.log(`[AVAILABILITY DEBUG] ${unit.label} checking ${unit.history.length} history entries...`);
+      }
+      for (const entry of unit.history) {
+        if (!entry.checkOutDate || !entry.checkInDate) continue;
+        
+        const entryStart = normalizeDate(entry.checkOutDate);
+        const entryEnd = normalizeDate(entry.checkInDate);
+        
+        // Skip if the entry is in the past
+        if (entryEnd < now) {
+          if (unit.label && unit.label.includes('Sony FX3-A')) {
+            console.log(`[AVAILABILITY DEBUG] ${unit.label} skipping past history entry:`, entry);
+          }
+          continue;
+        }
+        
+        // Check if this history entry belongs to the current event
+        const isCurrentEvent = belongsToCurrentEvent(entry);
+        
+        if (isCurrentEvent && isDateChangeCheck) {
+          // Check if the new date range encompasses the existing history entry
+          const newRangeContainsEntry = reqStart <= entryStart && reqEnd >= entryEnd;
+          
+          if (unit.label && unit.label.includes('Sony FX3-A')) {
+            console.log(`[AVAILABILITY DEBUG] ${unit.label} current event history check:`, {
+              historyStart: entry.checkOutDate,
+              historyEnd: entry.checkInDate,
+              newStart: checkOut,
+              newEnd: checkIn,
+              newRangeContains: newRangeContainsEntry,
+              eventId: entry.eventId,
+              identifiedAsCurrentEvent: isCurrentEvent,
+              condition1: `reqStart <= entryStart: ${reqStart.toISOString()} <= ${entryStart.toISOString()} = ${reqStart <= entryStart}`,
+              condition2: `reqEnd >= entryEnd: ${reqEnd.toISOString()} >= ${entryEnd.toISOString()} = ${reqEnd >= entryEnd}`
+            });
+          }
+          
+          if (newRangeContainsEntry) {
+            // New date range contains the existing history entry - this is allowed (date extension)
+            if (unit.label && unit.label.includes('Sony FX3-A')) {
+              console.log(`[AVAILABILITY DEBUG] ${unit.label} allowing date extension for current event (history)`);
+            }
+            continue;
+          } else {
+            // New date range doesn't fully contain the existing history entry - conflict
+            if (unit.label && unit.label.includes('Sony FX3-A')) {
+              console.log(`[AVAILABILITY DEBUG] ${unit.label} BLOCKED - new date range doesn't contain existing history entry`);
+            }
+            return false;
+          }
+        } else if (!isCurrentEvent) {
+          // Different event - check for overlap as before
+          const hasOverlap = reqStart <= entryEnd && reqEnd >= entryStart;
+          if (unit.label && unit.label.includes('Sony FX3-A')) {
+            console.log(`[AVAILABILITY DEBUG] ${unit.label} history overlap check:`, {
+              requestedStart: checkOut,
+              requestedEnd: checkIn,
+              historyStart: entry.checkOutDate,
+              historyEnd: entry.checkInDate,
+              eventId: entry.eventId,
+              identifiedAsCurrentEvent: isCurrentEvent,
+              overlap: hasOverlap
+            });
+          }
+          
+          if (hasOverlap) {
+            if (unit.label && unit.label.includes('Sony FX3-A')) {
+              console.log(`[AVAILABILITY DEBUG] ${unit.label} BLOCKED by history overlap from different event`);
+            }
+            return false;
+          }
+        }
+        // If it's current event but not a date change check, skip as before
+      }
+    }
+    
+    if (unit.label && unit.label.includes('Sony FX3-A')) {
+      console.log(`[AVAILABILITY DEBUG] ${unit.label} is AVAILABLE for ${checkOut} to ${checkIn} (no conflicts found with other events)`);
+    }
+    
+    return true;
+  }
+
+  // Enhanced quantity calculation that considers date range extensions
+  function calculateAvailableQuantityWithExtension(unit, checkOutDate, checkInDate, isDateChangeCheck = false) {
+    // Debug logging for Sony A7IV-D
+    if (unit.label && unit.label.includes('Sony A7IV-D')) {
+      console.log(`[CALC AVAILABILITY DEBUG] calculateAvailableQuantityWithExtension for ${unit.label}`);
+      console.log(`[CALC AVAILABILITY DEBUG] Requested dates: ${checkOutDate} to ${checkInDate}, isDateChangeCheck: ${isDateChangeCheck}`);
+      console.log(`[CALC AVAILABILITY DEBUG] Unit quantity: ${unit.quantity}`);
+    }
+    
+    // Get current event ID for filtering
+    const currentEventId = eventContext.tableId;
+    
+    // Helper function to determine if an entry belongs to the current event
+    const belongsToCurrentEvent = (entry) => {
+      // Direct eventId match
+      if (entry.eventId === currentEventId) return true;
+      
+      // For items that are currently checked out to this event (fallback for missing eventId)
+      if (isDateChangeCheck && unit.status === 'checked_out' && unit.checkedOutEvent === currentEventId) {
+        return true;
+      }
+      
+      // Additional fallback: if eventId is missing/undefined and this is a date change check,
+      // and the item appears in our current gear list, assume it belongs to current event
+      if (isDateChangeCheck && (!entry.eventId || entry.eventId === undefined)) {
+        const isInCurrentList = eventContext.getAllItems().some(item => 
+          item.inventoryId === unit._id || item.label === unit.label
+        );
+        if (isInCurrentList) {
+          return true;
+        }
+      }
+      
+      return false;
+    };
+    
+    if (unit.quantity === 1) {
+      // For single items, use the enhanced availability check
+      return isUnitAvailableForDatesWithExtension(unit, checkOutDate, checkInDate, isDateChangeCheck) ? 1 : 0;
+    }
+    
+    const normalizeDate = (dateStr) => {
+      const date = new Date(dateStr);
+      date.setUTCHours(0, 0, 0, 0);
+      return date;
+    };
+    
+    const reqStart = normalizeDate(checkOutDate);
+    const reqEnd = normalizeDate(checkInDate);
+    
+    let reservedQuantity = 0;
+    
+    // Check reservations array for quantity items
+    if (unit.reservations && unit.reservations.length > 0) {
+      unit.reservations.forEach(reservation => {
+        const resStart = normalizeDate(reservation.checkOutDate);
+        const resEnd = normalizeDate(reservation.checkInDate);
+        
+        // Check if this reservation belongs to the current event
+        const isCurrentEvent = belongsToCurrentEvent(reservation);
+        
+        if (isCurrentEvent && isDateChangeCheck) {
+          // Check if the new date range encompasses the existing reservation
+          const newRangeContainsReservation = reqStart <= resStart && reqEnd >= resEnd;
+          
+          if (unit.label && unit.label.includes('Sony A7IV-D')) {
+            console.log(`[CALC AVAILABILITY DEBUG] Current event reservation check:`, {
+              reservationQuantity: reservation.quantity || 1,
+              newRangeContains: newRangeContainsReservation,
+              eventId: reservation.eventId,
+              identifiedAsCurrentEvent: isCurrentEvent
+            });
+          }
+          
+          if (!newRangeContainsReservation) {
+            // New date range doesn't contain the existing reservation - count as conflict
+            reservedQuantity += reservation.quantity || 1;
+            if (unit.label && unit.label.includes('Sony A7IV-D')) {
+              console.log(`[CALC AVAILABILITY DEBUG] Adding ${reservation.quantity || 1} to reserved (date range conflict with current event)`);
+            }
+          }
+          // If new range contains reservation, don't count it as reserved (date extension allowed)
+          return;
+        } else if (!isCurrentEvent) {
+          // Different event - check for overlap as before
+          if (reqStart <= resEnd && reqEnd >= resStart) {
+            reservedQuantity += reservation.quantity || 1;
+            if (unit.label && unit.label.includes('Sony A7IV-D')) {
+              console.log(`[CALC AVAILABILITY DEBUG] Adding ${reservation.quantity || 1} to reserved quantity from different event`);
+            }
+          }
+        }
+        // If it's current event but not a date change check, skip as before
+      });
+    }
+    
+    const result = Math.max(0, unit.quantity - reservedQuantity);
+    if (unit.label && unit.label.includes('Sony A7IV-D')) {
+      console.log(`[CALC AVAILABILITY DEBUG] Final result: ${unit.quantity} total - ${reservedQuantity} reserved = ${result} available`);
+    }
+    
+    return result;
+  }
+
+  // Helper function to update inventory reservations when dates change
+  async function updateInventoryReservationsForDateChange(oldCheckOut, oldCheckIn, newCheckOut, newCheckIn) {
+    console.log(`[UPDATE RESERVATIONS] Updating reservations from ${oldCheckOut}-${oldCheckIn} to ${newCheckOut}-${newCheckIn}`);
+    
+    // Get all inventory items in the current gear list
+    const inventoryItems = [];
+    Object.values(eventContext.lists).forEach(listObj => {
+      Object.values(listObj.categories).forEach(items => {
+        items.forEach(item => {
+          if (item.inventoryId) {
+            // Use stored dates if available, otherwise fall back to the old form dates
+            const itemOldCheckOut = item.checkOutDate || oldCheckOut;
+            const itemOldCheckIn = item.checkInDate || oldCheckIn;
+            
+            inventoryItems.push({
+              inventoryId: item.inventoryId,
+              label: item.label,
+              quantity: item.quantity || 1,
+              oldCheckOut: itemOldCheckOut,
+              oldCheckIn: itemOldCheckIn,
+              hasStoredDates: !!(item.checkOutDate && item.checkInDate)
+            });
+            
+            console.log(`[UPDATE RESERVATIONS] Item ${item.label}:`, {
+              inventoryId: item.inventoryId,
+              storedCheckOut: item.checkOutDate,
+              storedCheckIn: item.checkInDate,
+              usingCheckOut: itemOldCheckOut,
+              usingCheckIn: itemOldCheckIn,
+              hasStoredDates: !!(item.checkOutDate && item.checkInDate)
+            });
+          }
+        });
+      });
+    });
+    
+    console.log(`[UPDATE RESERVATIONS] Found ${inventoryItems.length} inventory items to update:`, inventoryItems);
+    
+    // Update each inventory item's reservation
+    const updatePromises = inventoryItems.map(async (item) => {
+      try {
+        console.log(`[UPDATE RESERVATIONS] Updating ${item.label} (${item.inventoryId})`);
+        console.log(`[UPDATE RESERVATIONS] Using old dates: ${item.oldCheckOut} to ${item.oldCheckIn}`);
+        console.log(`[UPDATE RESERVATIONS] Using new dates: ${newCheckOut} to ${newCheckIn}`);
+        
+        // First, check in the old reservation
+        const checkinPayload = {
+          gearId: item.inventoryId,
+          eventId: eventContext.tableId,
+          checkOutDate: item.oldCheckOut,
+          checkInDate: item.oldCheckIn,
+          quantity: item.quantity
+        };
+        
+        console.log(`[UPDATE RESERVATIONS] Check-in payload:`, checkinPayload);
+        
+        const checkinRes = await fetch(`${window.API_BASE}/api/gear-inventory/checkin`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: localStorage.getItem('token')
+          },
+          body: JSON.stringify(checkinPayload)
+        });
+        
+        if (!checkinRes.ok) {
+          const errorText = await checkinRes.text();
+          console.warn(`[UPDATE RESERVATIONS] Failed to check in ${item.label}: ${errorText}`);
+          // Continue anyway - maybe the reservation wasn't properly recorded
+        } else {
+          const checkinResult = await checkinRes.json();
+          console.log(`[UPDATE RESERVATIONS] Successfully checked in ${item.label}:`, checkinResult);
+        }
+        
+        // Then, check out with new dates
+        const checkoutPayload = {
+          gearId: item.inventoryId,
+          eventId: eventContext.tableId,
+          checkOutDate: newCheckOut,
+          checkInDate: newCheckIn,
+          quantity: item.quantity
+        };
+        
+        console.log(`[UPDATE RESERVATIONS] Check-out payload:`, checkoutPayload);
+        
+        const checkoutRes = await fetch(`${window.API_BASE}/api/gear-inventory/checkout`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: localStorage.getItem('token')
+          },
+          body: JSON.stringify(checkoutPayload)
+        });
+        
+        if (!checkoutRes.ok) {
+          const errorText = await checkoutRes.text();
+          console.error(`[UPDATE RESERVATIONS] Failed to check out ${item.label} with new dates: ${errorText}`);
+          return { success: false, item: item.label, error: errorText };
+        } else {
+          const checkoutResult = await checkoutRes.json();
+          console.log(`[UPDATE RESERVATIONS] Successfully checked out ${item.label} with new dates:`, checkoutResult);
+          
+          // Update the item's stored checkout dates in memory
+          Object.values(eventContext.lists).forEach(listObj => {
+            Object.values(listObj.categories).forEach(items => {
+              items.forEach(listItem => {
+                if (listItem.inventoryId === item.inventoryId) {
+                  listItem.checkOutDate = newCheckOut;
+                  listItem.checkInDate = newCheckIn;
+                  console.log(`[UPDATE RESERVATIONS] Updated stored dates for ${listItem.label}:`, {
+                    checkOutDate: listItem.checkOutDate,
+                    checkInDate: listItem.checkInDate
+                  });
+                }
+              });
+            });
+          });
+          
+          return { success: true, item: item.label };
+        }
+      } catch (err) {
+        console.error(`[UPDATE RESERVATIONS] Error updating ${item.label}:`, err);
+        return { success: false, item: item.label, error: err.message };
+      }
+    });
+    
+    // Wait for all updates to complete
+    const results = await Promise.all(updatePromises);
+    const successful = results.filter(r => r.success).length;
+    const failed = results.filter(r => !r.success);
+    
+    console.log(`[UPDATE RESERVATIONS] Update complete: ${successful} successful, ${failed.length} failed`);
+    
+    if (failed.length > 0) {
+      console.warn(`[UPDATE RESERVATIONS] Failed updates:`, failed);
+      
+      // Show warning to user
+      const statusMessage = document.getElementById('gearStatusMessage');
+      if (statusMessage) {
+        statusMessage.innerHTML = `
+          <div style="background: #fff3cd; color: #856404; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+            <strong>Partial Success:</strong> ${successful} item(s) updated successfully. ${failed.length} item(s) failed to update: ${failed.map(f => f.item).join(', ')}
+          </div>
+        `;
+      }
+    } else if (successful > 0) {
+      // Show success message
+      const statusMessage = document.getElementById('gearStatusMessage');
+      if (statusMessage) {
+        statusMessage.innerHTML = `
+          <div style="background: #d4edda; color: #155724; padding: 10px; border-radius: 5px; margin-bottom: 15px;">
+            <strong>Success:</strong> ${successful} inventory reservation(s) updated to new dates.
+          </div>
+        `;
+        
+        // Clear message after 5 seconds
+        setTimeout(() => {
+          statusMessage.innerHTML = '';
+        }, 5000);
+      }
+    }
+    
+    return { successful, failed: failed.length };
   }
 })();
   

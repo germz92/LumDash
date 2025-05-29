@@ -479,7 +479,6 @@ async function saveGeneralInfo() {
     }
     
     console.log('Save successful!');
-    alert("Saved successfully!");
     window.location.reload();
   } catch (err) {
     console.error('Save error:', err);
@@ -490,13 +489,24 @@ async function saveGeneralInfo() {
 function switchToEdit() {
   if (!isOwner) return;
 
+  console.log('[GENERAL] switchToEdit called');
+
   ['eventSummary', 'location', 'weather', 'attendees', 'budget'].forEach(id => {
-    const div = document.getElementById(id === 'eventSummary' ? 'summary' : id);
-    if (!div) return;
+    const element = document.getElementById(id === 'eventSummary' ? 'summary' : id);
+    if (!element) return;
+    
+    // If it's already a textarea, preserve its current value
+    if (element.tagName === 'TEXTAREA') {
+      console.log(`[GENERAL] ${id} is already a textarea, preserving value:`, element.value);
+      return; // Already in edit mode, don't change anything
+    }
+    
+    console.log(`[GENERAL] Converting ${id} from div to textarea`);
+    // Convert div to textarea
     const textarea = document.createElement('textarea');
     textarea.id = id === 'eventSummary' ? 'summary' : id;
-    textarea.value = div.dataset.value || div.textContent || '';
-    div.replaceWith(textarea);
+    textarea.value = element.dataset.value || element.textContent || '';
+    element.replaceWith(textarea);
     autoResizeTextarea(textarea);
     
     // Add input handler for weather field to update icon
@@ -525,12 +535,34 @@ function switchToEdit() {
 }
 
 function addContactRow() {
-  switchToEdit();
+  // Check if we're already in edit mode by looking for textareas
+  const summaryEl = document.getElementById('summary');
+  const isAlreadyInEditMode = summaryEl && summaryEl.tagName === 'TEXTAREA';
+  
+  console.log('[GENERAL] addContactRow called, already in edit mode:', isAlreadyInEditMode);
+  
+  if (!isAlreadyInEditMode) {
+    console.log('[GENERAL] Switching to edit mode before adding contact row');
+    switchToEdit();
+  } else {
+    console.log('[GENERAL] Already in edit mode, preserving existing data');
+  }
   renderContactRow({}, false);
 }
 
 function addLocationRow() {
-  switchToEdit();
+  // Check if we're already in edit mode by looking for textareas
+  const summaryEl = document.getElementById('summary');
+  const isAlreadyInEditMode = summaryEl && summaryEl.tagName === 'TEXTAREA';
+  
+  console.log('[GENERAL] addLocationRow called, already in edit mode:', isAlreadyInEditMode);
+  
+  if (!isAlreadyInEditMode) {
+    console.log('[GENERAL] Switching to edit mode before adding location row');
+    switchToEdit();
+  } else {
+    console.log('[GENERAL] Already in edit mode, preserving existing data');
+  }
   renderLocationRow({}, false);
 }
 

@@ -470,6 +470,43 @@ app.put('/api/tables/:id/cardlog', authenticate, async (req, res) => {
     console.log(`[CARDLOG] Added dates: ${addedDates.join(', ')}`);
     console.log(`[CARDLOG] Deleted dates: ${deletedDates.join(', ')}`);
     
+    // Enhanced diffing: detect row-level changes within existing dates
+    const updatedDates = [];
+    for (const date of newDates) {
+      if (oldDates.has(date)) {
+        // Date exists in both - check if entries changed
+        const oldEntry = oldCardLog.find(e => e && e.date === date);
+        const newEntry = sanitizedCardLog.find(e => e && e.date === date);
+        
+        if (oldEntry && newEntry) {
+          const oldEntriesCount = Array.isArray(oldEntry.entries) ? oldEntry.entries.length : 0;
+          const newEntriesCount = Array.isArray(newEntry.entries) ? newEntry.entries.length : 0;
+          
+          console.log(`[CARDLOG] Comparing entries for date ${date}: old=${oldEntriesCount}, new=${newEntriesCount}`);
+          
+          // Simple check: if entry count changed or content changed
+          const entriesChanged = oldEntriesCount !== newEntriesCount || 
+            JSON.stringify(oldEntry.entries || []) !== JSON.stringify(newEntry.entries || []);
+          
+          if (entriesChanged) {
+            updatedDates.push(date);
+            console.log(`[CARDLOG] Date ${date} has row changes: ${oldEntriesCount} -> ${newEntriesCount} entries`);
+            
+            // Log the actual differences for debugging
+            if (oldEntriesCount !== newEntriesCount) {
+              console.log(`[CARDLOG] Entry count changed for ${date}`);
+            } else {
+              console.log(`[CARDLOG] Entry content changed for ${date}`);
+            }
+          } else {
+            console.log(`[CARDLOG] No changes detected for date ${date}`);
+          }
+        }
+      }
+    }
+    
+    console.log(`[CARDLOG] Updated dates: ${updatedDates.join(', ')}`);
+    
     // Update with retry logic
     let updateSuccessful = false;
     let retryCount = 0;
@@ -506,6 +543,15 @@ app.put('/api/tables/:id/cardlog', authenticate, async (req, res) => {
             if (entry) {
               console.log(`[CARDLOG] Emitting cardLogAdded for date: ${date}`);
               notifyDataChange('cardLogAdded', { cardLog: entry }, req.params.id);
+            }
+          }
+          
+          // Emit events for updated dates (row-level changes)
+          for (const date of updatedDates) {
+            const entry = sanitizedCardLog.find(e => e && e.date === date);
+            if (entry) {
+              console.log(`[CARDLOG] Emitting cardLogUpdated for date: ${date}`);
+              notifyDataChange('cardLogUpdated', { cardLog: entry }, req.params.id);
             }
           }
           
@@ -1260,6 +1306,11 @@ app.post('/api/gear-inventory/checkin', authenticate, async (req, res) => {
       
       await gear.save();
       
+      // Remove from event gear lists if eventId is provided
+      if (eventId) {
+        await removeGearFromEventLists(eventId, gearId, gear.label, quantity);
+      }
+      
       const availableQty = gear.getAvailableQuantity(checkOutDate, checkInDate);
       return res.json({ 
         message: 'Quantity reservation released', 
@@ -1296,6 +1347,9 @@ app.post('/api/gear-inventory/checkin', authenticate, async (req, res) => {
         const rangesOverlap = (startA, endA, startB, endB) => (startA <= endB && endA >= startB);
         return !rangesOverlap(entryOutDate, entryInDate, requestOutDate, requestInDate);
       });
+      
+      // Remove from event gear lists
+      await removeGearFromEventLists(eventId, gearId, gear.label, 1);
     }
 
     await gear.save();
@@ -1306,6 +1360,168 @@ app.post('/api/gear-inventory/checkin', authenticate, async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Helper function to remove gear from event gear lists
+async function removeGearFromEventLists(eventId, gearId, gearLabel, quantityToRemove = 1) {
+  try {
+    console.log(`[REMOVE FROM LISTS] Removing ${gearLabel} (${gearId}) from event ${eventId} gear lists`);
+    
+    // Find the event/table
+    const table = await Table.findById(eventId);
+    if (!table) {
+      console.log(`[REMOVE FROM LISTS] Event ${eventId} not found`);
+      return;
+    }
+    
+    console.log(`[REMOVE FROM LISTS] Found event: ${table.title}`);
+    
+    let tableModified = false;
+    const lists = table.gear?.lists || new Map();
+    
+    // Convert Map to Object if needed for consistent iteration
+    let listsObj;
+    if (lists instanceof Map) {
+      listsObj = Object.fromEntries(lists);
+    } else if (lists && lists._doc) {
+      // Handle Mongoose Map - the actual data is in _doc
+      listsObj = lists._doc;
+    } else {
+      listsObj = lists;
+    }
+    
+    console.log(`[REMOVE FROM LISTS] Processing ${Object.keys(listsObj).length} gear lists`);
+    
+    // Iterate through each list in the table
+    for (const [listName, listData] of Object.entries(listsObj)) {
+      if (!listData || typeof listData !== 'object') {
+        console.log(`[REMOVE FROM LISTS] Skipping invalid list data for ${listName}`);
+        continue;
+      }
+      
+      console.log(`[REMOVE FROM LISTS] Checking list: ${listName}`);
+      
+      // Handle the case where listData might also be a Mongoose document
+      let actualListData = listData;
+      if (listData._doc) {
+        actualListData = listData._doc;
+      }
+      
+      // Iterate through each category in the list
+      let categoriesToCheck = actualListData;
+      
+      // Check if the list has a 'categories' property (new structure)
+      if (actualListData.categories && typeof actualListData.categories === 'object') {
+        console.log(`[REMOVE FROM LISTS] Found categories structure in ${listName}`);
+        categoriesToCheck = actualListData.categories;
+        
+        // Handle case where categories might also be a Mongoose document
+        if (categoriesToCheck._doc) {
+          categoriesToCheck = categoriesToCheck._doc;
+        }
+      }
+      
+      console.log(`[REMOVE FROM LISTS] Categories to check:`, Object.keys(categoriesToCheck));
+      
+      for (const [categoryName, items] of Object.entries(categoriesToCheck)) {
+        if (!Array.isArray(items)) {
+          console.log(`[REMOVE FROM LISTS] Skipping non-array category: ${categoryName}`);
+          continue;
+        }
+        
+        console.log(`[REMOVE FROM LISTS] Checking category: ${categoryName} with ${items.length} items`);
+        
+        // Find and remove/reduce items that match this gear
+        const originalLength = items.length;
+        let removedCount = 0;
+        
+        const filteredItems = [];
+        let remainingToRemove = quantityToRemove;
+        
+        for (const item of items) {
+          // Match by inventoryId (primary) or label (fallback)
+          const matchesId = item.inventoryId && item.inventoryId.toString() === gearId.toString();
+          const matchesLabel = item.label && (
+            item.label === gearLabel || 
+            item.label.startsWith(gearLabel + ' (') // Handle quantity labels like "Sony NP-FZ100 (5 units)"
+          );
+          
+          if ((matchesId || matchesLabel) && remainingToRemove > 0) {
+            console.log(`[REMOVE FROM LISTS] Found matching item: ${item.label || item.inventoryId}`);
+            
+            // For quantity-based items, check if we need to reduce quantity or remove entirely
+            if (item.quantity && item.quantity > 1) {
+              const itemQuantity = parseInt(item.quantity) || 1;
+              
+              if (itemQuantity <= remainingToRemove) {
+                // Remove the entire item
+                console.log(`[REMOVE FROM LISTS] Removing entire item (quantity: ${itemQuantity})`);
+                remainingToRemove -= itemQuantity;
+                removedCount += itemQuantity;
+                // Don't add to filteredItems (effectively removing it)
+              } else {
+                // Reduce the quantity
+                const newQuantity = itemQuantity - remainingToRemove;
+                console.log(`[REMOVE FROM LISTS] Reducing item quantity from ${itemQuantity} to ${newQuantity}`);
+                
+                const updatedItem = { ...item };
+                updatedItem.quantity = newQuantity;
+                
+                // Update the label if it includes quantity info
+                if (updatedItem.label && updatedItem.label.includes('(') && updatedItem.label.includes('units)')) {
+                  const baseName = updatedItem.label.split(' (')[0];
+                  updatedItem.label = newQuantity === 1 ? baseName : `${baseName} (${newQuantity} units)`;
+                }
+                
+                filteredItems.push(updatedItem);
+                removedCount += remainingToRemove;
+                remainingToRemove = 0;
+              }
+            } else {
+              // Single quantity item - remove it entirely
+              console.log(`[REMOVE FROM LISTS] Removing single quantity item`);
+              remainingToRemove -= 1;
+              removedCount += 1;
+              // Don't add to filteredItems (effectively removing it)
+            }
+          } else {
+            // Keep this item
+            filteredItems.push(item);
+          }
+        }
+        
+        if (removedCount > 0) {
+          categoriesToCheck[categoryName] = filteredItems;
+          tableModified = true;
+          console.log(`[REMOVE FROM LISTS] Removed/reduced ${removedCount} units from ${categoryName} in ${listName}`);
+        }
+      }
+    }
+    
+    // Save the table if it was modified
+    if (tableModified) {
+      // Convert back to Map if the original was a Map
+      if (lists instanceof Map) {
+        table.gear.lists = new Map(Object.entries(listsObj));
+      } else {
+        table.gear.lists = listsObj;
+      }
+      
+      await table.save();
+      console.log(`[REMOVE FROM LISTS] Updated gear lists for event: ${table.title}`);
+      
+      // Notify clients about the gear list change
+      notifyDataChange('gearListUpdated', { 
+        message: `${gearLabel} removed from gear lists due to reservation removal` 
+      }, table._id.toString());
+    } else {
+      console.log(`[REMOVE FROM LISTS] No modifications needed for event: ${table.title}`);
+    }
+    
+  } catch (error) {
+    console.error('[REMOVE FROM LISTS] Error:', error);
+    // Don't throw the error - we don't want to fail the check-in if gear list removal fails
+  }
+}
 
 // Add new gear to inventory
 app.post('/api/gear-inventory', authenticate, async (req, res) => {
@@ -1835,6 +2051,316 @@ app.get('/api/gear-packages-all', authenticate, async (req, res) => {
 
 // ========= END GEAR PACKAGES API =========
 
+// Get all events/tables that contain a specific gear item
+app.get('/api/events/by-gear/:gearId', authenticate, async (req, res) => {
+  try {
+    const gearId = req.params.gearId;
+    if (!gearId) {
+      return res.status(400).json({ error: 'Gear ID is required' });
+    }
+
+    // First, get the gear item with populated user references
+    const gearItem = await GearInventory.findById(gearId)
+      .populate('checkedOutBy', 'fullName email')
+      .populate('reservations.userId', 'fullName email')
+      .populate('history.user', 'fullName email');
+      
+    if (!gearItem) {
+      return res.status(404).json({ error: 'Gear item not found' });
+    }
+
+    console.log(`[Events by Gear] Looking for events containing gear: ${gearItem.label} (${gearId})`);
+    console.log(`[Events by Gear] User role: ${req.user.role}, User ID: ${req.user.id}`);
+
+    // Find tables based on user role
+    let tables;
+    if (req.user.role === 'admin') {
+      // Admin can see all tables
+      tables = await Table.find({});
+      console.log(`[Events by Gear] Admin user - found ${tables.length} total tables`);
+    } else {
+      // Regular users can only see tables they own or are shared with
+      tables = await Table.find({
+        $or: [
+          { owners: req.user.id },
+          { sharedWith: req.user.id }
+        ]
+      });
+      console.log(`[Events by Gear] Regular user - found ${tables.length} accessible tables`);
+    }
+
+    console.log(`[Events by Gear] Found ${tables.length} accessible tables:`);
+    tables.forEach(table => {
+      console.log(`[Events by Gear] - Table ID: ${table._id.toString()}, Title: "${table.title}"`);
+    });
+
+    const eventsWithGear = [];
+    const eventIds = new Set(); // To avoid duplicates
+
+    // Method 1: Check gear lists in events
+    for (const table of tables) {
+      if (table.gear && table.gear.lists) {
+        const lists = table.gear.lists instanceof Map ? 
+          Object.fromEntries(table.gear.lists) : table.gear.lists;
+        
+        for (const [listName, listData] of Object.entries(lists)) {
+          if (!listData || !listData.categories) continue;
+          
+          for (const [categoryName, items] of Object.entries(listData.categories)) {
+            if (!Array.isArray(items)) continue;
+            
+            const hasMatchingItem = items.some(item => {
+              if (item.label === gearItem.label) return true;
+              if (item.gearId && item.gearId === gearId) return true;
+              if (item.inventoryId && item.inventoryId === gearId) return true;
+              return false;
+            });
+            
+            if (hasMatchingItem && !eventIds.has(table._id.toString())) {
+              eventIds.add(table._id.toString());
+              console.log(`[Events by Gear] Found ${gearItem.label} in event gear list: ${table.title}`);
+              
+              eventsWithGear.push({
+                _id: table._id,
+                title: table.title,
+                startDate: table.gear?.checkOutDate || table.general?.start,
+                endDate: table.gear?.checkInDate || table.general?.end,
+                location: table.general?.location,
+                client: table.general?.client,
+                isOwner: table.owners.includes(req.user.id),
+                isShared: table.sharedWith.includes(req.user.id),
+                isAdmin: req.user.role === 'admin',
+                associationType: 'gear_list',
+                gearListDetails: {
+                  listName,
+                  categoryName
+                }
+              });
+              break;
+            }
+          }
+        }
+      }
+    }
+
+    // Method 2: Check gear item reservations for event associations
+    if (gearItem.reservations && gearItem.reservations.length > 0) {
+      for (const reservation of gearItem.reservations) {
+        if (reservation.eventId) {
+          console.log(`[Events by Gear] Checking reservation with event ID: ${reservation.eventId}`);
+          
+          const reservationEventId = reservation.eventId.toString();
+          const table = tables.find(t => t._id.toString() === reservationEventId);
+          
+          if (table && !eventIds.has(table._id.toString())) {
+            eventIds.add(table._id.toString());
+            console.log(`[Events by Gear] Found ${gearItem.label} reserved for event: ${table.title}`);
+            
+            eventsWithGear.push({
+              _id: table._id,
+              title: table.title,
+              startDate: reservation.checkOutDate || table.gear?.checkOutDate || table.general?.start,
+              endDate: reservation.checkInDate || table.gear?.checkInDate || table.general?.end,
+              location: table.general?.location,
+              client: table.general?.client,
+              isOwner: table.owners.includes(req.user.id),
+              isShared: table.sharedWith.includes(req.user.id),
+              isAdmin: req.user.role === 'admin',
+              associationType: 'reservation',
+              reservationDetails: {
+                checkOutDate: reservation.checkOutDate,
+                checkInDate: reservation.checkInDate,
+                quantity: reservation.quantity,
+                reservedBy: reservation.userId ? {
+                  _id: reservation.userId._id,
+                  name: reservation.userId.fullName,
+                  email: reservation.userId.email
+                } : null,
+                createdAt: reservation.createdAt
+              }
+            });
+          } else if (!table) {
+            console.log(`[Events by Gear] No accessible table found for reservation event ID: ${reservationEventId}`);
+          }
+        }
+      }
+    }
+
+    // Method 3: Check gear item history for event associations - THIS IS THE KEY FIX
+    if (gearItem.history && gearItem.history.length > 0) {
+      console.log(`[Events by Gear] Checking ${gearItem.history.length} history entries for ${gearItem.label}`);
+      
+      for (const historyEntry of gearItem.history) {
+        if (historyEntry.event) {
+          console.log(`[Events by Gear] Checking history entry with event ObjectId: ${historyEntry.event}`);
+          console.log(`[Events by Gear] Event ObjectId type: ${typeof historyEntry.event}, value: "${historyEntry.event}"`);
+          console.log(`[Events by Gear] Event ObjectId constructor: ${historyEntry.event.constructor.name}`);
+          console.log(`[Events by Gear] Raw event object:`, historyEntry.event);
+          
+          // Convert the ObjectId to string for comparison
+          const historyEventId = historyEntry.event.toString();
+          console.log(`[Events by Gear] Converted to string: "${historyEventId}"`);
+          console.log(`[Events by Gear] String length: ${historyEventId.length}`);
+          
+          // Log all available tables for comparison
+          console.log(`[Events by Gear] Available tables for comparison:`);
+          tables.forEach((table, index) => {
+            const tableId = table._id.toString();
+            console.log(`[Events by Gear]   ${index + 1}. Table ID: "${tableId}" (length: ${tableId.length}), Title: "${table.title}"`);
+            console.log(`[Events by Gear]      Exact match check: "${historyEventId}" === "${tableId}" = ${historyEventId === tableId}`);
+            console.log(`[Events by Gear]      Case-insensitive match: ${historyEventId.toLowerCase() === tableId.toLowerCase()}`);
+            console.log(`[Events by Gear]      Includes check: "${tableId}".includes("${historyEventId}") = ${tableId.includes(historyEventId)}`);
+          });
+          
+          // Find the matching table by comparing _id
+          const table = tables.find(t => {
+            const tableId = t._id.toString();
+            console.log(`[Events by Gear] Comparing history event ID "${historyEventId}" with table ID "${tableId}" for table "${t.title}"`);
+            const isMatch = tableId === historyEventId;
+            console.log(`[Events by Gear] Match result: ${isMatch}`);
+            return isMatch;
+          });
+          
+          if (table && !eventIds.has(table._id.toString())) {
+            eventIds.add(table._id.toString());
+            console.log(`[Events by Gear] ✅ MATCH FOUND! ${gearItem.label} in history for event: ${table.title}`);
+            
+            eventsWithGear.push({
+              _id: table._id,
+              title: table.title,
+              startDate: historyEntry.checkOutDate || table.gear?.checkOutDate || table.general?.start,
+              endDate: historyEntry.checkInDate || table.gear?.checkInDate || table.general?.end,
+              location: table.general?.location,
+              client: table.general?.client,
+              isOwner: table.owners.includes(req.user.id),
+              isShared: table.sharedWith.includes(req.user.id),
+              isAdmin: req.user.role === 'admin',
+              associationType: 'history',
+              historyDetails: {
+                checkOutDate: historyEntry.checkOutDate,
+                checkInDate: historyEntry.checkInDate,
+                quantity: historyEntry.quantity,
+                reservedBy: historyEntry.user ? {
+                  _id: historyEntry.user._id,
+                  name: historyEntry.user.fullName,
+                  email: historyEntry.user.email
+                } : null
+              }
+            });
+          } else if (!table) {
+            console.log(`[Events by Gear] ❌ No accessible table found for history event ID: ${historyEventId}`);
+            console.log(`[Events by Gear] Available table IDs: [${tables.map(t => `"${t._id.toString()}"`).join(', ')}]`);
+            
+            // Additional debugging: Check if the event exists in ALL tables (not just accessible ones)
+            console.log(`[Events by Gear] Checking if event exists in ALL tables (including non-accessible)...`);
+            const allTables = await Table.find({});
+            console.log(`[Events by Gear] Total tables in database: ${allTables.length}`);
+            
+            const matchingTableInAll = allTables.find(t => t._id.toString() === historyEventId);
+            if (matchingTableInAll) {
+              console.log(`[Events by Gear] ⚠️ Event found in database but user doesn't have access: "${matchingTableInAll.title}"`);
+              console.log(`[Events by Gear] Table owners: [${matchingTableInAll.owners.map(o => o.toString()).join(', ')}]`);
+              console.log(`[Events by Gear] Table sharedWith: [${matchingTableInAll.sharedWith.map(s => s.toString()).join(', ')}]`);
+              console.log(`[Events by Gear] Current user ID: ${req.user.id}`);
+              
+              // For non-admin users, add the event with limited access info
+              if (req.user.role !== 'admin' && !eventIds.has(matchingTableInAll._id.toString())) {
+                eventIds.add(matchingTableInAll._id.toString());
+                console.log(`[Events by Gear] Adding limited access event for regular user: ${matchingTableInAll.title}`);
+                
+                eventsWithGear.push({
+                  _id: matchingTableInAll._id,
+                  title: matchingTableInAll.title,
+                  startDate: historyEntry.checkOutDate || matchingTableInAll.gear?.checkOutDate || matchingTableInAll.general?.start,
+                  endDate: historyEntry.checkInDate || matchingTableInAll.gear?.checkInDate || matchingTableInAll.general?.end,
+                  location: matchingTableInAll.general?.location,
+                  client: matchingTableInAll.general?.client,
+                  isOwner: false,
+                  isShared: false,
+                  isAdmin: false,
+                  hasLimitedAccess: true,
+                  associationType: 'history',
+                  historyDetails: {
+                    checkOutDate: historyEntry.checkOutDate,
+                    checkInDate: historyEntry.checkInDate,
+                    quantity: historyEntry.quantity,
+                    reservedBy: historyEntry.user ? {
+                      _id: historyEntry.user._id,
+                      name: historyEntry.user.fullName,
+                      email: historyEntry.user.email
+                    } : null
+                  }
+                });
+              }
+            } else {
+              console.log(`[Events by Gear] ❌ Event not found in database at all - may have been deleted`);
+            }
+          } else {
+            console.log(`[Events by Gear] Table ${table.title} already added to results`);
+          }
+        } else {
+          console.log(`[Events by Gear] History entry has no event field`);
+        }
+      }
+    }
+
+    // Method 4: Check if gear is currently checked out to an event
+    if (gearItem.status === 'checked_out' && gearItem.checkedOutEvent) {
+      console.log(`[Events by Gear] Checking current checkout with event ID: ${gearItem.checkedOutEvent}`);
+      
+      const checkedOutEventId = gearItem.checkedOutEvent.toString();
+      const table = tables.find(t => t._id.toString() === checkedOutEventId);
+      
+      if (table && !eventIds.has(table._id.toString())) {
+        eventIds.add(table._id.toString());
+        console.log(`[Events by Gear] Found ${gearItem.label} currently checked out to event: ${table.title}`);
+        
+        eventsWithGear.push({
+          _id: table._id,
+          title: table.title,
+          startDate: gearItem.checkOutDate || table.gear?.checkOutDate || table.general?.start,
+          endDate: gearItem.checkInDate || table.gear?.checkInDate || table.general?.end,
+          location: table.general?.location,
+          client: table.general?.client,
+          isOwner: table.owners.includes(req.user.id),
+          isShared: table.sharedWith.includes(req.user.id),
+          isAdmin: req.user.role === 'admin',
+          associationType: 'checked_out',
+          checkoutDetails: {
+            checkOutDate: gearItem.checkOutDate,
+            checkInDate: gearItem.checkInDate,
+            checkedOutBy: gearItem.checkedOutBy ? {
+              _id: gearItem.checkedOutBy._id,
+              name: gearItem.checkedOutBy.fullName,
+              email: gearItem.checkedOutBy.email
+            } : null
+          }
+        });
+      } else if (!table) {
+        console.log(`[Events by Gear] No accessible table found for checked out event ID: ${checkedOutEventId}`);
+      }
+    }
+
+    // Sort events by start date (most recent first)
+    eventsWithGear.sort((a, b) => {
+      const dateA = new Date(a.startDate || '1970-01-01');
+      const dateB = new Date(b.startDate || '1970-01-01');
+      return dateB - dateA;
+    });
+
+    console.log(`[Events by Gear] Final result: Found ${eventsWithGear.length} events containing ${gearItem.label}`);
+    eventsWithGear.forEach(event => {
+      console.log(`[Events by Gear] - Event: "${event.title}" (${event.associationType}${event.hasLimitedAccess ? ' - Limited Access' : ''})`);
+    });
+
+    res.json(eventsWithGear);
+
+  } catch (error) {
+    console.error('[Events by Gear] Error:', error);
+    res.status(500).json({ error: 'Failed to fetch events for gear item: ' + error.message });
+  }
+});
+
 // Catch-all for SPA routing (should be last!)
 app.get('/folder-logs.html', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend', 'folder-logs.html'));
@@ -1981,4 +2507,52 @@ app.patch('/api/tables/:id', authenticate, async (req, res) => {
     return res.json({ crewRates: table.crewRates });
   }
   res.status(400).json({ error: 'No valid fields to update' });
+});
+
+// Test endpoint to debug gear item associations
+app.get('/api/debug/gear/:gearId', authenticate, async (req, res) => {
+  try {
+    const gearId = req.params.gearId;
+    const gearItem = await GearInventory.findById(gearId);
+    
+    if (!gearItem) {
+      return res.status(404).json({ error: 'Gear item not found' });
+    }
+    
+    console.log(`[DEBUG] Gear item ${gearItem.label} debug info:`);
+    console.log(`[DEBUG] - Reservations:`, gearItem.reservations);
+    console.log(`[DEBUG] - History:`, gearItem.history);
+    console.log(`[DEBUG] - Status:`, gearItem.status);
+    console.log(`[DEBUG] - Checked out event:`, gearItem.checkedOutEvent);
+    
+    // Find all tables
+    const allTables = await Table.find();
+    console.log(`[DEBUG] - Total tables in database:`, allTables.length);
+    
+    // Find accessible tables
+    const accessibleTables = await Table.find({
+      $or: [
+        { owners: req.user.id },
+        { sharedWith: req.user.id }
+      ]
+    });
+    console.log(`[DEBUG] - Accessible tables:`, accessibleTables.length);
+    
+    res.json({
+      gearItem: {
+        _id: gearItem._id,
+        label: gearItem.label,
+        reservations: gearItem.reservations,
+        history: gearItem.history,
+        status: gearItem.status,
+        checkedOutEvent: gearItem.checkedOutEvent
+      },
+      totalTables: allTables.length,
+      accessibleTables: accessibleTables.length,
+      tableIds: accessibleTables.map(t => ({ id: t._id.toString(), title: t.title }))
+    });
+  } catch (error) {
+    console.error('[DEBUG] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
 });
