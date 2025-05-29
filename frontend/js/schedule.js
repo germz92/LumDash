@@ -839,6 +839,7 @@ function matchesSearch(program) {
 
 // --- Editing guard for partial updates and optimistic UI ---
 window.currentlyEditing = null; // { programId, field, pendingUpdate: null }
+window.recentlyEditedFields = new Map(); // Track recently edited fields to prevent socket overwrites
 
 function enableEdit(field) {
   field.classList.add('editing');
@@ -861,7 +862,24 @@ function autoSave(field, date, ignoredIndex, key) {
   const entry = field.closest('.program-entry');
   const programIndex = parseInt(entry.getAttribute('data-program-index'), 10);
   if (!isNaN(programIndex)) {
-    tableData.programs[programIndex][key] = field.value.trim();
+    const program = tableData.programs[programIndex];
+    const newValue = field.value.trim();
+    
+    // Track this edit with a timestamp to protect it from socket overwrites
+    if (program && program._id) {
+      const fieldKey = `${program._id}-${key}`;
+      window.recentlyEditedFields.set(fieldKey, {
+        value: newValue,
+        timestamp: Date.now()
+      });
+      
+      // Clear the tracking after 3 seconds (enough time for save to complete)
+      setTimeout(() => {
+        window.recentlyEditedFields.delete(fieldKey);
+      }, 3000);
+    }
+    
+    tableData.programs[programIndex][key] = newValue;
     scheduleSave();
   }
   // If there was a pending update for this program/field, apply it now
@@ -1503,11 +1521,32 @@ if (window.socket) {
         // Update the program in our local data
         const programIndex = tableData.programs.findIndex(p => p._id === data.program._id);
         if (programIndex !== -1) {
-          tableData.programs[programIndex] = { ...tableData.programs[programIndex], ...data.program };
+          // Merge data but protect recently edited fields
+          const existingProgram = tableData.programs[programIndex];
+          const mergedProgram = { ...existingProgram };
+          
+          // Check each field in the incoming update
+          for (const [key, value] of Object.entries(data.program)) {
+            const fieldKey = `${data.program._id}-${key}`;
+            const recentEdit = window.recentlyEditedFields.get(fieldKey);
+            
+            // Skip this field if it was recently edited and hasn't changed
+            if (recentEdit && Date.now() - recentEdit.timestamp < 3000) {
+              console.log(`[SOCKET] Skipping field ${key} - recently edited by user`);
+              continue;
+            }
+            
+            mergedProgram[key] = value;
+          }
+          
+          tableData.programs[programIndex] = mergedProgram;
           
           // Update just this row in the UI
-          updateProgramRow(data.program, isOwner);
-          console.log(`[SOCKET] Successfully updated program row for ${data.program.name || 'unnamed program'}`);
+          updateProgramRow(mergedProgram, isOwner);
+          console.log(`[SOCKET] Successfully updated program row for ${mergedProgram.name || 'unnamed program'}`);
+          
+          // Re-attach event listeners to the updated row
+          setEditingListeners();
         } else {
           console.log(`[SOCKET] Program not found in local data, doing full reload`);
           loadPrograms(); // Fallback to full reload
@@ -1589,14 +1628,43 @@ if (window.socket) {
       if (data.program && data.program._id) {
         console.log(`[SOCKET] Updating specific program row: ${data.program._id}`);
         
+        // Check if the user is specifically editing this program
+        const container = document.getElementById('programSections');
+        if (container) {
+          const entry = container.querySelector(`.program-entry[data-program-id='${data.program._id}']`);
+          if (entry && entry.contains(document.activeElement)) {
+            console.log('[SOCKET] User is editing this specific program, deferring update');
+            window.pendingReload = true;
+            return;
+          }
+        }
+        
         // Update the program in our local data
         const programIndex = tableData.programs.findIndex(p => p._id === data.program._id);
         if (programIndex !== -1) {
-          tableData.programs[programIndex] = { ...tableData.programs[programIndex], ...data.program };
+          // Merge data but protect recently edited fields
+          const existingProgram = tableData.programs[programIndex];
+          const mergedProgram = { ...existingProgram };
+          
+          // Check each field in the incoming update
+          for (const [key, value] of Object.entries(data.program)) {
+            const fieldKey = `${data.program._id}-${key}`;
+            const recentEdit = window.recentlyEditedFields.get(fieldKey);
+            
+            // Skip this field if it was recently edited and hasn't changed
+            if (recentEdit && Date.now() - recentEdit.timestamp < 3000) {
+              console.log(`[SOCKET] Skipping field ${key} - recently edited by user`);
+              continue;
+            }
+            
+            mergedProgram[key] = value;
+          }
+          
+          tableData.programs[programIndex] = mergedProgram;
           
           // Update just this row in the UI
-          updateProgramRow(data.program, isOwner);
-          console.log(`[SOCKET] Successfully updated program row for ${data.program.name || 'unnamed program'}`);
+          updateProgramRow(mergedProgram, isOwner);
+          console.log(`[SOCKET] Successfully updated program row for ${mergedProgram.name || 'unnamed program'}`);
           
           // Re-attach event listeners to the updated row
           setEditingListeners();
@@ -1653,11 +1721,16 @@ function setEditingListeners() {
     });
     el.addEventListener('blur', () => {
       window.isActiveEditing = false;
-      // If a reload was pending, do it now
+      // Add a delay before processing pending updates to allow autoSave to complete
       if (window.pendingReload) {
-        window.pendingReload = false;
-        const tableId = localStorage.getItem('eventId');
-        if (tableId && typeof loadPrograms === 'function') loadPrograms(tableId);
+        setTimeout(() => {
+          // Check again if still not editing (in case user quickly focused another field)
+          if (!window.isActiveEditing && window.pendingReload) {
+            window.pendingReload = false;
+            const tableId = localStorage.getItem('eventId');
+            if (tableId && typeof loadPrograms === 'function') loadPrograms(tableId);
+          }
+        }, 500); // Wait 500ms for autoSave to complete
       }
     });
   });
@@ -1686,35 +1759,74 @@ function updateProgramRow(program, hasScheduleAccess) {
   // Rebuild the row's HTML (copy from renderProgramSections)
   const programIndex = tableData.programs.findIndex(p => p._id === program._id);
   if (programIndex === -1) return;
+  
+  // Check if any field in this row is currently focused
+  const activeElement = document.activeElement;
+  const isRowBeingEdited = entry.contains(activeElement) && 
+    (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
+  
+  if (isRowBeingEdited) {
+    console.log('[UPDATE] Skipping row update - user is currently editing this row');
+    // Still update the done-entry class for strikethrough
+    entry.classList.toggle('done-entry', program.done);
+    // Update the data in memory but don't rebuild the HTML
+    tableData.programs[programIndex] = { ...tableData.programs[programIndex], ...program };
+    return;
+  }
+  
+  // Merge the incoming program data with recently edited fields protection
+  const currentProgram = tableData.programs[programIndex];
+  const finalProgram = { ...currentProgram };
+  
+  // Check each field in the incoming update
+  for (const [key, value] of Object.entries(program)) {
+    const fieldKey = `${program._id}-${key}`;
+    const recentEdit = window.recentlyEditedFields.get(fieldKey);
+    
+    // Skip this field if it was recently edited
+    if (recentEdit && Date.now() - recentEdit.timestamp < 3000) {
+      console.log(`[UPDATE] Preserving recently edited field: ${key}`);
+      continue;
+    }
+    
+    finalProgram[key] = value;
+  }
+  
+  // Update the local data
+  tableData.programs[programIndex] = finalProgram;
+  
+  // Toggle the done-entry class based on program.done state
+  entry.classList.toggle('done-entry', finalProgram.done);
+  
   entry.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
       <input class="program-name" type="text"
         ${!hasScheduleAccess ? 'readonly' : ''}
         placeholder="Program Name"
         style="flex: 1;"
-        value="${program.name || ''}" 
+        value="${finalProgram.name || ''}" 
         onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}" 
-        onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${programIndex}, 'name')` : ''}">
+        onblur="${hasScheduleAccess ? `autoSave(this, '${finalProgram.date}', ${programIndex}, 'name')` : ''}">
       <div class="right-actions">
         <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; margin-bottom: 0;">
         <input type="checkbox" class="done-checkbox"
           style="width: 20px; height: 20px;"
-          ${program.done ? 'checked' : ''}
+          ${finalProgram.done ? 'checked' : ''}
           onchange="toggleDone(this, ${programIndex})">
       </label>
     </div>
     </div>
     <div style="display: flex; align-items: center; gap: 3px;">
       <input type="time" placeholder="Start Time" style="flex: 1; min-width: 0; text-align: left;"
-        value="${program.startTime || ''}"
+        value="${finalProgram.startTime || ''}"
         ${!hasScheduleAccess ? 'readonly' : ''}
         onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
-        onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${programIndex}, 'startTime')` : ''}">
+        onblur="${hasScheduleAccess ? `autoSave(this, '${finalProgram.date}', ${programIndex}, 'startTime')` : ''}">
       <input type="time" placeholder="End Time" style="flex: 1; min-width: 0; text-align: left;"
-        value="${program.endTime || ''}"
+        value="${finalProgram.endTime || ''}"
         ${!hasScheduleAccess ? 'readonly' : ''}
         onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
-        onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${programIndex}, 'endTime')` : ''}">
+        onblur="${hasScheduleAccess ? `autoSave(this, '${finalProgram.date}', ${programIndex}, 'endTime')` : ''}">
     </div>
     <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
       <div style="display: flex; align-items: center; flex: 1;">
@@ -1724,7 +1836,7 @@ function updateProgramRow(program, hasScheduleAccess) {
           ${!hasScheduleAccess ? 'readonly' : ''}
           onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
           oninput="${hasScheduleAccess ? 'autoResizeTextarea(this)' : ''}"
-          onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${programIndex}, 'location')` : ''}">${program.location || ''}</textarea>
+          onblur="${hasScheduleAccess ? `autoSave(this, '${finalProgram.date}', ${programIndex}, 'location')` : ''}">${finalProgram.location || ''}</textarea>
       </div>
       <div style="display: flex; align-items: center; flex: 1;">
         <span class="material-symbols-outlined" style="margin-right: 4px; font-size: 18px;">photo_camera</span>
@@ -1733,7 +1845,7 @@ function updateProgramRow(program, hasScheduleAccess) {
           ${!hasScheduleAccess ? 'readonly' : ''}
           onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
           oninput="${hasScheduleAccess ? 'autoResizeTextarea(this)' : ''}"
-          onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${programIndex}, 'photographer')` : ''}">${program.photographer || ''}</textarea>
+          onblur="${hasScheduleAccess ? `autoSave(this, '${finalProgram.date}', ${programIndex}, 'photographer')` : ''}">${finalProgram.photographer || ''}</textarea>
       </div>
     </div>
     <div class="entry-actions">
@@ -1747,7 +1859,7 @@ function updateProgramRow(program, hasScheduleAccess) {
         oninput="autoResizeTextarea(this)"
         ${!hasScheduleAccess ? 'readonly' : ''}
         onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
-        onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${programIndex}, 'notes')` : ''}">${program.notes || ''}</textarea>
+        onblur="${hasScheduleAccess ? `autoSave(this, '${finalProgram.date}', ${programIndex}, 'notes')` : ''}">${finalProgram.notes || ''}</textarea>
     </div>
   `;
   // Re-attach listeners and auto-resize
