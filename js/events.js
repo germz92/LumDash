@@ -246,14 +246,23 @@ function renderCalendar(events) {
   if (!container) return;
   container.innerHTML = '';
 
-  // Get all event date ranges
+  // Get all event date ranges - fix timezone issues by parsing dates as UTC
   const eventObjs = events.map(table => {
     const general = table.general || {};
+    
+    // Parse dates as UTC to prevent timezone shifts
+    const parseUTCDate = (dateStr) => {
+      if (!dateStr) return null;
+      const date = new Date(dateStr);
+      // Create a new date using UTC components to prevent timezone shifts
+      return new Date(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+    };
+    
     return {
       id: table._id,
       title: table.title,
-      start: general.start ? new Date(general.start) : null,
-      end: general.end ? new Date(general.end) : null,
+      start: parseUTCDate(general.start),
+      end: parseUTCDate(general.end),
       color: '#CC0007', // main accent
     };
   }).filter(e => e.start && e.end);

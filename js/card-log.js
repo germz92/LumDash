@@ -15,10 +15,30 @@ let isOwner = false;
 let saveTimeout;
 let eventListenersAttached = false;
 let processingSocketEvent = false; // Flag to prevent multiple socket events processing at once
+let lastEventTime = 0; // Track when the last event started processing
+let isActivelyEditing = false; // Track if user is actively editing
+let lastInputTime = 0; // Track when user last typed
+let deferredUpdate = null; // Store deferred updates
+
+// Add a fallback to reset the processing flag if it gets stuck
+setInterval(() => {
+  if (processingSocketEvent && Date.now() - lastEventTime > 5000) {
+    console.warn('[CARD-LOG] Processing flag stuck for >5s, resetting');
+    processingSocketEvent = false;
+  }
+}, 1000);
 
 // Add Socket.IO real-time updates early in the file, after any variable declarations but before function definitions
 // Socket.IO real-time updates
-if (window.socket) {
+function setupSocketListeners() {
+  if (!window.socket) {
+    console.warn('[CARD-LOG] Socket.IO not available, skipping event listeners');
+    return;
+  }
+  
+  console.log('[CARD-LOG] Setting up Socket.IO event listeners...');
+  console.log('[CARD-LOG] Socket connected:', window.socket.connected);
+  
   // --- Granular card log events ---
   window.socket.on('cardLogAdded', (data) => {
     if (processingSocketEvent) {
@@ -53,26 +73,82 @@ if (window.socket) {
   });
   
   window.socket.on('cardLogUpdated', (data) => {
-    if (processingSocketEvent) return;
+    if (processingSocketEvent) {
+      console.log("Ignoring cardLogUpdated event - already processing another event");
+      return;
+    }
+    
+    // Don't update UI if user is actively editing
+    if (isActivelyEditing && Date.now() - lastInputTime < 2000) {
+      console.log("[CARD-LOG] User is actively editing, deferring update");
+      deferredUpdate = data; // Store the update for later
+      setTimeout(() => {
+        if (!isActivelyEditing && deferredUpdate) {
+          console.log("[CARD-LOG] User finished editing, applying deferred update");
+          const storedData = deferredUpdate;
+          deferredUpdate = null;
+          // Process the stored update
+          processingSocketEvent = true;
+          lastEventTime = Date.now();
+          
+          try {
+            const dayDiv = document.getElementById(`day-${storedData.cardLog.date}`);
+            if (dayDiv) {
+              console.log("[CARD-LOG] Applying deferred day section update");
+              const oldRowCount = dayDiv.querySelectorAll('tbody tr').length;
+              dayDiv.remove();
+              addDaySection(storedData.cardLog.date, storedData.cardLog.entries);
+              console.log(`[CARD-LOG] Deferred update applied: ${oldRowCount} -> ${storedData.cardLog.entries?.length || 0} rows`);
+            }
+          } finally {
+            setTimeout(() => {
+              processingSocketEvent = false;
+            }, 100);
+          }
+        }
+      }, 2000);
+      return;
+    }
+    
     processingSocketEvent = true;
+    lastEventTime = Date.now();
+    console.log('[CARD-LOG] Processing cardLogUpdated event, flag set to true');
     
     try {
       const currentEventId = localStorage.getItem('eventId');
-      if (!data || data.tableId !== currentEventId || !data.cardLog) return;
-      console.log(`Received cardLogUpdated for date: ${data.cardLog.date}`);
+      if (!data || data.tableId !== currentEventId || !data.cardLog) {
+        console.log("Ignoring cardLogUpdated - not for current event or missing data", {
+          hasData: !!data,
+          tableIdMatch: data?.tableId === currentEventId,
+          hasCardLog: !!data?.cardLog,
+          currentEventId,
+          dataTableId: data?.tableId
+        });
+        return;
+      }
+      
+      console.log(`[CARD-LOG] Processing cardLogUpdated for date: ${data.cardLog.date}`, {
+        entriesCount: data.cardLog.entries?.length || 0,
+        entries: data.cardLog.entries
+      });
       
       // Update the day section if it exists
       const dayDiv = document.getElementById(`day-${data.cardLog.date}`);
       if (dayDiv) {
-        console.log("Updating day section in UI");
+        console.log("[CARD-LOG] Updating day section in UI - removing old and adding new");
+        const oldRowCount = dayDiv.querySelectorAll('tbody tr').length;
         dayDiv.remove();
         addDaySection(data.cardLog.date, data.cardLog.entries);
+        console.log(`[CARD-LOG] Day section updated: ${oldRowCount} -> ${data.cardLog.entries?.length || 0} rows`);
       } else {
-        console.log("Day doesn't exist in UI, ignoring update");
+        console.log("[CARD-LOG] Day doesn't exist in UI, ignoring update");
       }
+    } catch (error) {
+      console.error('[CARD-LOG] Error processing cardLogUpdated:', error);
     } finally {
       setTimeout(() => {
         processingSocketEvent = false;
+        console.log('[CARD-LOG] Processing flag reset to false');
       }, 100);
     }
   });
@@ -207,8 +283,30 @@ async function saveToMongoDB() {
 }
 
 function debounceSave() {
+  // Don't save if we're processing a Socket.IO event
+  if (processingSocketEvent) {
+    console.log('[CARD-LOG] Skipping save - processing Socket.IO event');
+    return;
+  }
+  
   clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(saveToMongoDB, 250);
+  
+  // Use longer delay if user is actively typing
+  const now = Date.now();
+  const timeSinceLastInput = now - lastInputTime;
+  const delay = timeSinceLastInput < 1000 ? 1500 : 500; // 1.5s if recently typed, 0.5s otherwise
+  
+  console.log(`[CARD-LOG] Debouncing save with ${delay}ms delay`);
+  
+  saveTimeout = setTimeout(() => {
+    // Double-check we're not processing an event before saving
+    if (!processingSocketEvent) {
+      console.log('[CARD-LOG] Executing debounced save');
+      saveToMongoDB();
+    } else {
+      console.log('[CARD-LOG] Skipping save - Socket.IO event in progress');
+    }
+  }, delay);
 }
 
 function openDateModal() {
@@ -250,7 +348,9 @@ function setupEventListeners() {
     tableContainer.addEventListener('click', async (e) => {
       if (e.target.classList.contains('add-row-btn')) {
         const date = e.target.getAttribute('data-date');
+        console.log(`User clicked "Add Row" for date: ${date}`);
         addRow(date);
+        console.log(`Calling saveToMongoDB after adding row to ${date}`);
         saveToMongoDB();
       }
       if (e.target.classList.contains('delete-row-btn') && isOwner) {
@@ -281,7 +381,66 @@ function setupEventListeners() {
       }
     });
 
-    tableContainer.addEventListener('input', debounceSave);
+    // Track input events with better timing
+    tableContainer.addEventListener('input', (e) => {
+      lastInputTime = Date.now();
+      isActivelyEditing = true;
+      console.log('[CARD-LOG] User input detected, updating lastInputTime');
+      debounceSave();
+    });
+    
+    // Track when user finishes editing (blur events)
+    tableContainer.addEventListener('blur', (e) => {
+      if (e.target.matches('input, select')) {
+        console.log('[CARD-LOG] User finished editing field');
+        isActivelyEditing = false;
+        
+        // Apply any deferred updates immediately when user finishes editing
+        if (deferredUpdate) {
+          console.log('[CARD-LOG] Applying deferred update after user finished editing');
+          const storedData = deferredUpdate;
+          deferredUpdate = null;
+          
+          setTimeout(() => {
+            if (!processingSocketEvent) {
+              processingSocketEvent = true;
+              try {
+                const dayDiv = document.getElementById(`day-${storedData.cardLog.date}`);
+                if (dayDiv) {
+                  console.log("[CARD-LOG] Applying immediate deferred update");
+                  const oldRowCount = dayDiv.querySelectorAll('tbody tr').length;
+                  dayDiv.remove();
+                  addDaySection(storedData.cardLog.date, storedData.cardLog.entries);
+                  console.log(`[CARD-LOG] Immediate deferred update applied: ${oldRowCount} -> ${storedData.cardLog.entries?.length || 0} rows`);
+                }
+              } finally {
+                setTimeout(() => {
+                  processingSocketEvent = false;
+                }, 100);
+              }
+            }
+          }, 100);
+        }
+        
+        // Trigger a save after a short delay when user leaves the field
+        setTimeout(() => {
+          if (!isActivelyEditing) {
+            console.log('[CARD-LOG] User not actively editing, triggering save');
+            debounceSave();
+          }
+        }, 200);
+      }
+    }, true);
+    
+    // Track focus events to know when user starts editing
+    tableContainer.addEventListener('focus', (e) => {
+      if (e.target.matches('input, select')) {
+        console.log('[CARD-LOG] User started editing field');
+        isActivelyEditing = true;
+        lastInputTime = Date.now();
+      }
+    }, true);
+
     tableContainer.addEventListener('change', debounceSave);
   }
   
@@ -326,6 +485,12 @@ window.initPage = async function(id) {
     // Removed redundant localStorage.setItem('eventId', tableId) to prevent overwriting with potentially stale data
     // The navigation system should already have set this correctly
 
+    // Test Socket.IO connection immediately
+    console.log('[CARD-LOG INIT] Testing Socket.IO connection...');
+    console.log('[CARD-LOG INIT] window.socket exists:', !!window.socket);
+    console.log('[CARD-LOG INIT] Socket connected:', window.socket?.connected);
+    console.log('[CARD-LOG INIT] Current event ID:', tableId);
+
     // Load event name
     try {
       const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
@@ -342,6 +507,9 @@ window.initPage = async function(id) {
 
   await loadUsers();
   await loadCardLog();
+
+  // Set up Socket.IO event listeners after everything is loaded
+  setupSocketListeners();
 
     // Load bottom nav HTML
   let navContainer = document.getElementById('bottomNav');
@@ -510,11 +678,32 @@ function addDaySection(date, entries = []) {
     </table>
     <button class="add-row-btn" data-date="${date}">Add Row</button>
   `;
-  container.appendChild(dayDiv);
+  
+  // Insert in the correct position to maintain date order
+  const existingDays = Array.from(container.querySelectorAll('.day-table'));
+  let insertPosition = null;
+  
+  for (let i = 0; i < existingDays.length; i++) {
+    const existingDate = existingDays[i].querySelector('h3').textContent;
+    if (date < existingDate) {
+      insertPosition = existingDays[i];
+      break;
+    }
+  }
+  
+  if (insertPosition) {
+    container.insertBefore(dayDiv, insertPosition);
+    console.log(`Inserted day ${date} before ${insertPosition.querySelector('h3').textContent}`);
+  } else {
+    container.appendChild(dayDiv);
+    console.log(`Appended day ${date} at the end`);
+  }
   
   // Make sure entries is an array
   const entriesArray = Array.isArray(entries) ? entries : [];
   entriesArray.forEach(entry => addRow(date, entry));
+  
+  console.log(`Added day section for ${date} with ${entriesArray.length} entries`);
 }
 
 function addRow(date, entry = {}) {
@@ -523,6 +712,8 @@ function addRow(date, entry = {}) {
     console.error(`Tbody not found for date: ${date}`);
     return;
   }
+  
+  console.log(`Adding row to date ${date}:`, entry);
   
   const row = document.createElement('tr');
   
@@ -599,6 +790,59 @@ window.loadUsers = loadUsers;
 window.loadCardLog = loadCardLog;
 window.getUserIdFromToken = getUserIdFromToken;
 window.getCurrentUserName = getCurrentUserName;
+
+// Add test function for debugging
+window.testCardLogSave = function() {
+  console.log('[TEST] Manually triggering card log save...');
+  saveToMongoDB().then(result => {
+    console.log('[TEST] Save result:', result);
+  }).catch(error => {
+    console.error('[TEST] Save error:', error);
+  });
+};
+
+// Add Socket.IO connection test
+window.testSocketConnection = function() {
+  console.log('[TEST] Socket.IO connection test:');
+  console.log('- window.socket exists:', !!window.socket);
+  console.log('- Socket connected:', window.socket?.connected);
+  console.log('- Current event ID:', localStorage.getItem('eventId'));
+  
+  if (window.socket && window.socket.connected) {
+    console.log('[TEST] ✅ Socket.IO is connected and ready');
+    
+    // Test emitting a custom event
+    window.socket.emit('test-event', { message: 'Frontend test', tableId: localStorage.getItem('eventId') });
+    console.log('[TEST] Sent test event to server');
+  } else {
+    console.log('[TEST] ❌ Socket.IO is not connected');
+  }
+};
+
+// Add test to verify event listeners are set up
+window.testSocketListeners = function() {
+  console.log('[TEST] Testing Socket.IO event listeners...');
+  
+  if (!window.socket) {
+    console.log('[TEST] ❌ Socket.IO not available');
+    return;
+  }
+  
+  // Check if our event listeners are set up by looking at the socket's event names
+  const eventNames = window.socket.eventNames ? window.socket.eventNames() : [];
+  console.log('[TEST] Socket event listeners:', eventNames);
+  
+  const cardLogEvents = ['cardLogAdded', 'cardLogUpdated', 'cardLogDeleted'];
+  const hasCardLogListeners = cardLogEvents.some(event => eventNames.includes(event));
+  
+  if (hasCardLogListeners) {
+    console.log('[TEST] ✅ Card log event listeners are set up');
+  } else {
+    console.log('[TEST] ❌ Card log event listeners are missing');
+    console.log('[TEST] Attempting to set up listeners now...');
+    setupSocketListeners();
+  }
+};
 
 // Add cleanup function to window for the app.js navigation system
 window.cleanupCardLogPage = cleanupCardLogPage;

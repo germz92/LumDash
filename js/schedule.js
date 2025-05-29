@@ -1475,44 +1475,147 @@ window.formatTimeValue = formatTimeValue;
 window.showImportModal = showImportModal;
 
 // --- Socket.IO real-time updates ---
-if (typeof io !== 'undefined') {
-  const socket = io();
+if (window.socket) {
+  console.log('[SOCKET] Using global socket for schedule updates');
   
-  // Listen for program updates
-  socket.on('programUpdate', (data) => {
-    console.log(`[SOCKET] Program update received:`, data);
-    logEventIdState('SOCKET_PROGRAM_UPDATE');
+  // Listen for schedule-specific updates (per-row updates)
+  window.socket.on('scheduleChanged', (data) => {
+    console.log(`[SOCKET] Schedule update received:`, data);
+    logEventIdState('SOCKET_SCHEDULE_UPDATE');
     
-    const currentEvent = localStorage.getItem('eventId');
+    const currentEvent = currentEventId || localStorage.getItem('eventId');
     
     // Only update if this update is for the current event
-    if (data.eventId === currentEvent) {
-      console.log(`[SOCKET] Update is for current event (${currentEvent}), refreshing...`);
-      loadPrograms(); // Reload programs
+    if (data.eventId === currentEvent || data.tableId === currentEvent) {
+      console.log(`[SOCKET] Update is for current event (${currentEvent}), processing...`);
+      
+      // Check if user is actively editing to prevent disruptions
+      if (window.isActiveEditing) {
+        console.log('[SOCKET] User is currently editing, setting pending reload flag');
+        window.pendingReload = true;
+        return;
+      }
+      
+      // If this is a specific program update, try to update just that row
+      if (data.program && data.program._id) {
+        console.log(`[SOCKET] Updating specific program row: ${data.program._id}`);
+        
+        // Update the program in our local data
+        const programIndex = tableData.programs.findIndex(p => p._id === data.program._id);
+        if (programIndex !== -1) {
+          tableData.programs[programIndex] = { ...tableData.programs[programIndex], ...data.program };
+          
+          // Update just this row in the UI
+          updateProgramRow(data.program, isOwner);
+          console.log(`[SOCKET] Successfully updated program row for ${data.program.name || 'unnamed program'}`);
+        } else {
+          console.log(`[SOCKET] Program not found in local data, doing full reload`);
+          loadPrograms(); // Fallback to full reload
+        }
+      } else {
+        console.log(`[SOCKET] General schedule update, doing full reload`);
+        loadPrograms(); // Full reload for general updates
+      }
     } else {
-      console.log(`[SOCKET] Update is for different event (${data.eventId}), current: ${currentEvent}, ignoring`);
+      console.log(`[SOCKET] Update is for different event (${data.eventId || data.tableId}), current: ${currentEvent}, ignoring`);
     }
   });
   
-  // Listen for event/table updates that might affect ownership
-  socket.on('tableUpdate', (data) => {
+  // Listen for general table updates that might affect ownership
+  window.socket.on('tableUpdated', (data) => {
     console.log(`[SOCKET] Table update received:`, data);
     logEventIdState('SOCKET_TABLE_UPDATE');
     
-    const currentEvent = localStorage.getItem('eventId');
+    const currentEvent = currentEventId || localStorage.getItem('eventId');
     
     // Only update if this update is for the current event
     if (data.tableId === currentEvent) {
       console.log(`[SOCKET] Table update is for current event (${currentEvent}), reloading...`);
+      
+      // Check if user is actively editing
+      if (window.isActiveEditing) {
+        console.log('[SOCKET] User is currently editing, setting pending reload flag');
+        window.pendingReload = true;
+        return;
+      }
+      
       loadPrograms(); // Reload to get updated permissions
     } else {
       console.log(`[SOCKET] Table update is for different event (${data.tableId}), current: ${currentEvent}, ignoring`);
     }
   });
   
-  console.log('[SOCKET] Socket.IO event handlers registered');
+  // Also listen for the legacy programUpdate event for backward compatibility
+  window.socket.on('programUpdate', (data) => {
+    console.log(`[SOCKET] Legacy program update received:`, data);
+    logEventIdState('SOCKET_PROGRAM_UPDATE_LEGACY');
+    
+    const currentEvent = currentEventId || localStorage.getItem('eventId');
+    
+    if (data.eventId === currentEvent) {
+      console.log(`[SOCKET] Legacy update is for current event (${currentEvent}), refreshing...`);
+      
+      if (window.isActiveEditing) {
+        console.log('[SOCKET] User is currently editing, setting pending reload flag');
+        window.pendingReload = true;
+        return;
+      }
+      
+      loadPrograms();
+    } else {
+      console.log(`[SOCKET] Legacy update is for different event (${data.eventId}), current: ${currentEvent}, ignoring`);
+    }
+  });
+  
+  // Listen for the actual programUpdated event that the backend emits
+  window.socket.on('programUpdated', (data) => {
+    console.log(`[SOCKET] Program updated event received:`, data);
+    logEventIdState('SOCKET_PROGRAM_UPDATED');
+    
+    const currentEvent = currentEventId || localStorage.getItem('eventId');
+    
+    // Only update if this update is for the current event
+    if (data.eventId === currentEvent || data.tableId === currentEvent) {
+      console.log(`[SOCKET] Program update is for current event (${currentEvent}), processing...`);
+      
+      // Check if user is actively editing to prevent disruptions
+      if (window.isActiveEditing) {
+        console.log('[SOCKET] User is currently editing, setting pending reload flag');
+        window.pendingReload = true;
+        return;
+      }
+      
+      // If this is a specific program update, try to update just that row
+      if (data.program && data.program._id) {
+        console.log(`[SOCKET] Updating specific program row: ${data.program._id}`);
+        
+        // Update the program in our local data
+        const programIndex = tableData.programs.findIndex(p => p._id === data.program._id);
+        if (programIndex !== -1) {
+          tableData.programs[programIndex] = { ...tableData.programs[programIndex], ...data.program };
+          
+          // Update just this row in the UI
+          updateProgramRow(data.program, isOwner);
+          console.log(`[SOCKET] Successfully updated program row for ${data.program.name || 'unnamed program'}`);
+          
+          // Re-attach event listeners to the updated row
+          setEditingListeners();
+        } else {
+          console.log(`[SOCKET] Program not found in local data, doing full reload`);
+          loadPrograms(); // Fallback to full reload
+        }
+      } else {
+        console.log(`[SOCKET] General program update, doing full reload`);
+        loadPrograms(); // Full reload for general updates
+      }
+    } else {
+      console.log(`[SOCKET] Program update is for different event (${data.eventId || data.tableId}), current: ${currentEvent}, ignoring`);
+    }
+  });
+  
+  console.log('[SOCKET] Global socket event handlers registered for schedule');
 } else {
-  console.warn('[SOCKET] Socket.IO not available');
+  console.warn('[SOCKET] Global socket not available, real-time updates disabled');
 }
 
 // Create and store the scroll handler when page loads

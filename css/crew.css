@@ -411,4 +411,39 @@
 .edit-row-btn:hover .material-symbols-outlined {
   color: #555; /* Darker gray on hover */
 }
+
+/* Style for save row button specifically */
+.crew-page .save-row-btn .material-symbols-outlined {
+  color: #888; /* A medium gray color */
+}
+
+.crew-page .save-row-btn:hover .material-symbols-outlined {
+  color: #555; /* Darker gray on hover */
+}
+
+/* Style for add row save button specifically */
+.crew-page .add-row-save-btn {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  color: #888 !important;
+  padding: 4px !important;
+  cursor: pointer;
+  font-size: 16px !important;
+  line-height: 1;
+  height: 28px;
+  min-height: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.crew-page .add-row-save-btn .material-symbols-outlined {
+  color: #888; /* A medium gray color */
+}
+
+.crew-page .add-row-save-btn:hover .material-symbols-outlined {
+  color: #555; /* Darker gray on hover */
+}
   

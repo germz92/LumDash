@@ -283,7 +283,7 @@ function renderTableSection() {
           ${isOwner ? `
             <div class="icon-buttons">
               <button class="edit-row-btn" onclick="toggleEditById('${rowId}')" title="Edit"><span class="material-symbols-outlined">edit</span></button>
-              <button class="edit-row-btn" onclick="saveEditById('${rowId}')" title="Save" style="display:none;">💾</button>
+              <button class="edit-row-btn save-row-btn" onclick="saveEditById('${rowId}')" title="Save" style="display:none;"><span class="material-symbols-outlined">save</span></button>
               <button class="delete-row-btn" onclick="deleteRowById('${rowId}')" title="Delete"><span class="material-symbols-outlined">delete</span></button>
             </div>
           ` : ''}
@@ -595,7 +595,7 @@ function showRowInputs(date, tbody) {
       </select>
     </td>
     <td><input id='${notesId}'></td>
-    <td><button onclick="addRowToDate('${date}')">Save</button></td>
+    <td><button class="add-row-save-btn" onclick="addRowToDate('${date}')" title="Save"><span class="material-symbols-outlined">save</span></button></td>
   `;
   tbody.insertBefore(inputRow, tbody.lastElementChild);
 
