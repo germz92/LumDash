@@ -309,11 +309,19 @@ window.initPage = async function(id) {
   const fileInput = document.getElementById('fileImport');
   
   if (importBtn && fileInput) {
-    importBtn.addEventListener('click', () => {
-      fileInput.click();
+    // Remove any existing event listeners to prevent double attachment
+    const newImportBtn = importBtn.cloneNode(true);
+    importBtn.parentNode.replaceChild(newImportBtn, importBtn);
+    
+    const newFileInput = fileInput.cloneNode(true);
+    fileInput.parentNode.replaceChild(newFileInput, fileInput);
+    
+    // Add event listeners to the fresh elements
+    newImportBtn.addEventListener('click', () => {
+      newFileInput.click();
     });
     
-    fileInput.addEventListener('change', handleFileImport);
+    newFileInput.addEventListener('change', handleFileImport);
   }
   
   console.log(`[INIT] Event listeners setup complete`);
@@ -1243,7 +1251,8 @@ function processImportedData(data) {
     endTime: headers.indexOf('endtime') !== -1 ? headers.indexOf('endtime') : headers.indexOf('end time'),
     location: headers.indexOf('location'),
     photographer: headers.indexOf('photographer'),
-    notes: headers.indexOf('notes')
+    notes: headers.indexOf('notes'),
+    done: headers.indexOf('done') !== -1 ? headers.indexOf('done') : headers.indexOf('completed')
   };
   
   // Process each row
@@ -1291,6 +1300,13 @@ function processImportedData(data) {
       endTime = formatTimeValue(row[columnMap.endTime]);
     }
     
+    // Handle done/completed status
+    let isDone = false;
+    if (columnMap.done !== -1 && row[columnMap.done] !== undefined) {
+      const doneValue = String(row[columnMap.done]).toLowerCase().trim();
+      isDone = doneValue === 'true' || doneValue === '1' || doneValue === 'yes' || doneValue === 'completed' || doneValue === 'done';
+    }
+    
     newPrograms.push({
       date: dateValue,
       name: row[columnMap.name],
@@ -1299,7 +1315,7 @@ function processImportedData(data) {
       location: columnMap.location !== -1 ? (row[columnMap.location] || '') : '',
       photographer: columnMap.photographer !== -1 ? (row[columnMap.photographer] || '') : '',
       notes: columnMap.notes !== -1 ? (row[columnMap.notes] || '') : '',
-      done: false
+      done: isDone
     });
   }
   
@@ -1461,13 +1477,13 @@ function downloadImportTemplate() {
     return;
   }
   
-  const headers = ['Date', 'Name', 'StartTime', 'EndTime', 'Location', 'Photographer', 'Notes'];
+  const headers = ['Date', 'Name', 'StartTime', 'EndTime', 'Location', 'Photographer', 'Notes', 'Done'];
   const csvContent = headers.join(',') + '\n' +
-    '2023-06-01,Main Event,09:00,12:00,Grand Hall,John Smith,VIP guests expected\n' +
-    '2023-06-01,Lunch Break,12:00,13:00,Dining Room,N/A,Catering by LocalFood\n' +
-    '2023-06-01,Panel Discussion,13:30,15:00,Conference Room B,Jane Doe,Q&A session at the end\n' +
-    '2023-06-02,Workshop,10:00,12:30,Training Room,Michael Johnson,Bring extra equipment\n' +
-    '2023-06-02,Closing Event,16:00,18:00,Main Stage,Full Team,Group photo at 17:30';
+    '2023-06-01,Main Event,09:00,12:00,Grand Hall,John Smith,VIP guests expected,FALSE\n' +
+    '2023-06-01,Lunch Break,12:00,13:00,Dining Room,N/A,Catering by LocalFood,FALSE\n' +
+    '2023-06-01,Panel Discussion,13:30,15:00,Conference Room B,Jane Doe,Q&A session at the end,TRUE\n' +
+    '2023-06-02,Workshop,10:00,12:30,Training Room,Michael Johnson,Bring extra equipment,FALSE\n' +
+    '2023-06-02,Closing Event,16:00,18:00,Main Stage,Full Team,Group photo at 17:30,FALSE';
   
   // Create a Blob with the CSV content
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
