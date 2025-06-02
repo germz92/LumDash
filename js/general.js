@@ -297,6 +297,15 @@ function insertAdminNotesBtn(tableId) {
 }
 
 function initPage(id) {
+  // Safeguard: Only run on the general page
+  const currentPage = location.hash.replace('#', '') || 'events';
+  if (currentPage !== 'general') {
+    console.log(`general.js initPage called on wrong page: ${currentPage}, skipping execution`);
+    return;
+  }
+  
+  console.log('[GENERAL] initPage called with id:', id);
+  
   if (!id || !window.token) return;
 
   fetch(`${API_BASE}/api/tables/${id}`, {
