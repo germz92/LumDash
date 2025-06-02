@@ -40,6 +40,16 @@
     <div class="modal-header">
       <h3 id="documentTitle">Document Title</h3>
       <div class="modal-controls">
+        <button class="icon-btn" id="zoomOut" title="Zoom Out" style="display: none;">
+          <span class="material-symbols-outlined">zoom_out</span>
+        </button>
+        <span id="zoomLevel" style="display: none;">100%</span>
+        <button class="icon-btn" id="zoomIn" title="Zoom In" style="display: none;">
+          <span class="material-symbols-outlined">zoom_in</span>
+        </button>
+        <button class="icon-btn" id="resetZoom" title="Reset Zoom" style="display: none;">
+          <span class="material-symbols-outlined">fit_screen</span>
+        </button>
         <button class="icon-btn" id="closeModal" title="Close">
           <span class="material-symbols-outlined">close</span>
         </button>
@@ -541,13 +551,31 @@
   align-items: center;
   justify-content: center;
   min-height: 400px;
+  overflow: auto;
+  position: relative;
 }
 
 .document-viewer img {
-  max-width: 100%;
-  max-height: 100%;
+  max-width: none;
+  max-height: none;
   object-fit: contain;
   display: block;
+  transition: transform 0.3s ease;
+  transform-origin: center;
+  cursor: grab;
+}
+
+.document-viewer img:active {
+  cursor: grabbing;
+}
+
+.document-viewer.zoomed {
+  overflow: auto;
+  cursor: grab;
+}
+
+.document-viewer.zoomed:active {
+  cursor: grabbing;
 }
 
 .document-viewer iframe {
