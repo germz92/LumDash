@@ -765,6 +765,41 @@ class DocumentsPage {
   }
 
   setupImageZoom() {
+    /*
+     * PERFORMANCE-OPTIMIZED IMAGE ZOOM IMPLEMENTATION
+     * 
+     * This implementation includes several optimizations for smooth zoom/pan:
+     * - Hardware acceleration with translate3d and will-change
+     * - RequestAnimationFrame for smooth updates
+     * - Momentum-based panning with velocity calculations
+     * - Optimized touch handling with pinch-to-zoom
+     * - Debounced wheel events to prevent excessive updates
+     * 
+     * For even better performance, consider these alternatives:
+     * 
+     * 1. PhotoSwipe (https://photoswipe.com/) - Best for galleries with zoom
+     *    - Hardware-accelerated, mobile-optimized
+     *    - Built-in pinch-to-zoom and momentum
+     *    - Excellent performance on mobile devices
+     * 
+     * 2. Panzoom (https://github.com/timmywil/panzoom) - Lightweight pan/zoom
+     *    - Only 4KB gzipped, very fast
+     *    - Excellent touch support
+     *    - Framework agnostic
+     * 
+     * 3. wheel-zoom (https://github.com/worka/wheel-zoom) - Minimal zoom library
+     *    - Vanilla JS, no dependencies
+     *    - Optimized for mouse wheel and drag
+     *    - Very lightweight (~2KB)
+     * 
+     * 4. Zoomist.js (https://github.com/cotton123236/zoomist) - Modern zoom library
+     *    - Built for performance with modern APIs
+     *    - Excellent mobile support
+     *    - Custom controls support
+     * 
+     * To implement any of these, replace this function and add the library via CDN or npm.
+     */
+    
     const image = document.getElementById('zoomableImage');
     const viewer = document.getElementById('documentViewer');
     const zoomOut = document.getElementById('zoomOut');
@@ -779,34 +814,72 @@ class DocumentsPage {
     this.imagePosition = { x: 0, y: 0 };
     this.updateZoomDisplay();
     
-    // Zoom functions
-    const zoomImage = (factor) => {
-      const newZoom = Math.max(0.1, Math.min(5, this.zoomLevel * factor));
-      this.zoomLevel = newZoom;
-      this.updateImageTransform();
-      this.updateZoomDisplay();
+    // Performance optimizations
+    let animationId = null;
+    let isTransforming = false;
+    
+    // Optimized transform update with requestAnimationFrame
+    const updateTransform = () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
+      }
       
-      // Add/remove zoomed class for styling
+      animationId = requestAnimationFrame(() => {
+        this.updateImageTransform();
+        isTransforming = false;
+      });
+    };
+    
+    // Smooth zoom function with bounds checking
+    const zoomImage = (factor, centerX = null, centerY = null) => {
+      const oldZoom = this.zoomLevel;
+      const newZoom = Math.max(0.1, Math.min(10, this.zoomLevel * factor));
+      
+      if (newZoom === oldZoom) return; // No change needed
+      
+      // Calculate zoom center point
+      if (centerX !== null && centerY !== null) {
+        const rect = image.getBoundingClientRect();
+        const imageX = centerX - rect.left;
+        const imageY = centerY - rect.top;
+        
+        // Adjust position to zoom towards the center point
+        const zoomRatio = newZoom / oldZoom;
+        this.imagePosition.x = centerX - (imageX * zoomRatio + this.imagePosition.x * (zoomRatio - 1));
+        this.imagePosition.y = centerY - (imageY * zoomRatio + this.imagePosition.y * (zoomRatio - 1));
+      }
+      
+      this.zoomLevel = newZoom;
+      
+      // Update UI state
       if (this.zoomLevel > 1) {
         viewer.classList.add('zoomed');
+        image.style.cursor = 'grab';
       } else {
         viewer.classList.remove('zoomed');
+        image.style.cursor = 'default';
         this.imagePosition = { x: 0, y: 0 }; // Reset position when zoomed out
-        this.updateImageTransform();
       }
+      
+      if (!isTransforming) {
+        isTransforming = true;
+        updateTransform();
+      }
+      this.updateZoomDisplay();
     };
     
     const resetZoomLevel = () => {
       this.zoomLevel = 1;
       this.imagePosition = { x: 0, y: 0 };
-      this.updateImageTransform();
-      this.updateZoomDisplay();
       viewer.classList.remove('zoomed');
+      image.style.cursor = 'default';
+      updateTransform();
+      this.updateZoomDisplay();
     };
     
     // Button event listeners
     if (zoomIn) {
-      zoomIn.addEventListener('click', () => zoomImage(1.2));
+      zoomIn.addEventListener('click', () => zoomImage(1.25));
     }
     if (zoomOut) {
       zoomOut.addEventListener('click', () => zoomImage(0.8));
@@ -815,74 +888,224 @@ class DocumentsPage {
       resetZoom.addEventListener('click', resetZoomLevel);
     }
     
-    // Mouse wheel zoom
+    // Optimized mouse wheel zoom with momentum
+    let wheelTimeout = null;
     viewer.addEventListener('wheel', (e) => {
       e.preventDefault();
-      const factor = e.deltaY > 0 ? 0.9 : 1.1;
-      zoomImage(factor);
-    });
+      
+      // Clear any existing timeout
+      if (wheelTimeout) {
+        clearTimeout(wheelTimeout);
+      }
+      
+      // Get mouse position for zoom center
+      const rect = viewer.getBoundingClientRect();
+      const centerX = e.clientX - rect.left;
+      const centerY = e.clientY - rect.top;
+      
+      // Smooth zoom factor based on wheel delta
+      const delta = e.deltaY || e.detail || e.wheelDelta;
+      const factor = delta > 0 ? 0.9 : 1.1;
+      
+      zoomImage(factor, centerX, centerY);
+      
+      // Debounce to prevent excessive updates
+      wheelTimeout = setTimeout(() => {
+        // Final update after wheel stops
+        updateTransform();
+      }, 50);
+    }, { passive: false });
     
-    // Pan functionality when zoomed
+    // Enhanced pan functionality with momentum
     let isDragging = false;
     let dragStart = { x: 0, y: 0 };
+    let lastMoveTime = 0;
+    let velocity = { x: 0, y: 0 };
     
-    image.addEventListener('mousedown', (e) => {
+    const startDrag = (clientX, clientY) => {
       if (this.zoomLevel > 1) {
         isDragging = true;
-        dragStart = { x: e.clientX, y: e.clientY };
+        dragStart = { x: clientX, y: clientY };
+        lastMoveTime = Date.now();
+        velocity = { x: 0, y: 0 };
         image.style.cursor = 'grabbing';
-        e.preventDefault();
+        viewer.style.cursor = 'grabbing';
       }
-    });
+    };
     
-    document.addEventListener('mousemove', (e) => {
+    const updateDrag = (clientX, clientY) => {
       if (isDragging && this.zoomLevel > 1) {
-        const dx = e.clientX - dragStart.x;
-        const dy = e.clientY - dragStart.y;
+        const now = Date.now();
+        const dt = now - lastMoveTime;
+        
+        const dx = clientX - dragStart.x;
+        const dy = clientY - dragStart.y;
+        
+        // Calculate velocity for momentum
+        if (dt > 0) {
+          velocity.x = dx / dt;
+          velocity.y = dy / dt;
+        }
+        
         this.imagePosition.x += dx;
         this.imagePosition.y += dy;
-        dragStart = { x: e.clientX, y: e.clientY };
-        this.updateImageTransform();
-        e.preventDefault();
+        
+        dragStart = { x: clientX, y: clientY };
+        lastMoveTime = now;
+        
+        if (!isTransforming) {
+          isTransforming = true;
+          updateTransform();
+        }
       }
-    });
+    };
     
-    document.addEventListener('mouseup', () => {
+    const endDrag = () => {
       if (isDragging) {
         isDragging = false;
         image.style.cursor = this.zoomLevel > 1 ? 'grab' : 'default';
+        viewer.style.cursor = 'default';
+        
+        // Apply momentum if velocity is significant
+        if (Math.abs(velocity.x) > 0.1 || Math.abs(velocity.y) > 0.1) {
+          const momentum = () => {
+            velocity.x *= 0.95;
+            velocity.y *= 0.95;
+            
+            if (Math.abs(velocity.x) > 0.01 || Math.abs(velocity.y) > 0.01) {
+              this.imagePosition.x += velocity.x * 10;
+              this.imagePosition.y += velocity.y * 10;
+              updateTransform();
+              requestAnimationFrame(momentum);
+            }
+          };
+          requestAnimationFrame(momentum);
+        }
       }
+    };
+    
+    // Mouse events
+    image.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      startDrag(e.clientX, e.clientY);
     });
     
-    // Touch support for mobile
-    let touchStart = { x: 0, y: 0 };
+    document.addEventListener('mousemove', (e) => {
+      updateDrag(e.clientX, e.clientY);
+    });
+    
+    document.addEventListener('mouseup', endDrag);
+    
+    // Enhanced touch support with pinch-to-zoom
+    let touches = [];
+    let lastTouchDistance = 0;
+    let lastTouchCenter = { x: 0, y: 0 };
+    
+    const getTouchDistance = (touch1, touch2) => {
+      const dx = touch1.clientX - touch2.clientX;
+      const dy = touch1.clientY - touch2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+    
+    const getTouchCenter = (touch1, touch2) => {
+      return {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2
+      };
+    };
     
     image.addEventListener('touchstart', (e) => {
-      if (this.zoomLevel > 1 && e.touches.length === 1) {
-        const touch = e.touches[0];
-        touchStart = { x: touch.clientX, y: touch.clientY };
-        e.preventDefault();
+      e.preventDefault();
+      touches = Array.from(e.touches);
+      
+      if (touches.length === 1) {
+        // Single touch - start pan
+        startDrag(touches[0].clientX, touches[0].clientY);
+      } else if (touches.length === 2) {
+        // Two touches - prepare for pinch zoom
+        isDragging = false; // Stop panning
+        lastTouchDistance = getTouchDistance(touches[0], touches[1]);
+        lastTouchCenter = getTouchCenter(touches[0], touches[1]);
       }
-    });
+    }, { passive: false });
     
     image.addEventListener('touchmove', (e) => {
-      if (this.zoomLevel > 1 && e.touches.length === 1) {
-        const touch = e.touches[0];
-        const dx = touch.clientX - touchStart.x;
-        const dy = touch.clientY - touchStart.y;
-        this.imagePosition.x += dx;
-        this.imagePosition.y += dy;
-        touchStart = { x: touch.clientX, y: touch.clientY };
-        this.updateImageTransform();
-        e.preventDefault();
+      e.preventDefault();
+      touches = Array.from(e.touches);
+      
+      if (touches.length === 1 && isDragging) {
+        // Single touch pan
+        updateDrag(touches[0].clientX, touches[0].clientY);
+      } else if (touches.length === 2) {
+        // Pinch to zoom
+        const currentDistance = getTouchDistance(touches[0], touches[1]);
+        const currentCenter = getTouchCenter(touches[0], touches[1]);
+        
+        if (lastTouchDistance > 0) {
+          const scale = currentDistance / lastTouchDistance;
+          const rect = viewer.getBoundingClientRect();
+          const centerX = currentCenter.x - rect.left;
+          const centerY = currentCenter.y - rect.top;
+          
+          zoomImage(scale, centerX, centerY);
+        }
+        
+        lastTouchDistance = currentDistance;
+        lastTouchCenter = currentCenter;
       }
+    }, { passive: false });
+    
+    image.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      touches = Array.from(e.touches);
+      
+      if (touches.length === 0) {
+        endDrag();
+        lastTouchDistance = 0;
+      } else if (touches.length === 1) {
+        // Switch back to single touch pan
+        lastTouchDistance = 0;
+        startDrag(touches[0].clientX, touches[0].clientY);
+      }
+    }, { passive: false });
+    
+    // Prevent context menu on long press
+    image.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+    });
+    
+    // Double tap to zoom
+    let lastTap = 0;
+    image.addEventListener('touchend', (e) => {
+      const currentTime = new Date().getTime();
+      const tapLength = currentTime - lastTap;
+      
+      if (tapLength < 500 && tapLength > 0 && e.touches.length === 0) {
+        // Double tap detected
+        e.preventDefault();
+        
+        if (this.zoomLevel === 1) {
+          // Zoom in to 2x
+          const rect = viewer.getBoundingClientRect();
+          const touch = e.changedTouches[0];
+          const centerX = touch.clientX - rect.left;
+          const centerY = touch.clientY - rect.top;
+          zoomImage(2, centerX, centerY);
+        } else {
+          // Reset zoom
+          resetZoomLevel();
+        }
+      }
+      lastTap = currentTime;
     });
   }
   
   updateImageTransform() {
     const image = document.getElementById('zoomableImage');
     if (image) {
-      image.style.transform = `translate(${this.imagePosition.x}px, ${this.imagePosition.y}px) scale(${this.zoomLevel})`;
+      // Use transform3d for hardware acceleration
+      image.style.transform = `translate3d(${this.imagePosition.x}px, ${this.imagePosition.y}px, 0) scale(${this.zoomLevel})`;
+      image.style.willChange = this.zoomLevel > 1 ? 'transform' : 'auto';
     }
   }
   

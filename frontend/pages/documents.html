@@ -560,9 +560,32 @@
   max-height: none;
   object-fit: contain;
   display: block;
-  transition: transform 0.3s ease;
   transform-origin: center;
   cursor: grab;
+  /* Performance optimizations */
+  will-change: auto;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translate3d(0, 0, 0);
+  /* Remove transition for smoother real-time updates */
+  transition: none;
+  /* Improve image rendering */
+  image-rendering: -webkit-optimize-contrast;
+  image-rendering: crisp-edges;
+  /* Prevent selection */
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  /* Prevent dragging */
+  -webkit-user-drag: none;
+  -khtml-user-drag: none;
+  -moz-user-drag: none;
+  -o-user-drag: none;
+  user-drag: none;
+  /* Touch optimizations */
+  touch-action: none;
+  -webkit-touch-callout: none;
 }
 
 .document-viewer img:active {
@@ -572,6 +595,8 @@
 .document-viewer.zoomed {
   overflow: auto;
   cursor: grab;
+  /* Smooth scrolling for panning */
+  scroll-behavior: auto;
 }
 
 .document-viewer.zoomed:active {
