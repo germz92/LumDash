@@ -7,11 +7,49 @@ const path = require('path');
 const http = require('http');
 const socketIo = require('socket.io');
 const sgMail = require('@sendgrid/mail');
+const cloudinary = require('cloudinary').v2;
+const multer = require('multer');
 require('dotenv').config();
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 console.log('SENDGRID_API_KEY loaded:', !!process.env.SENDGRID_API_KEY);
 console.log('SENDGRID_FROM_EMAIL:', process.env.SENDGRID_FROM_EMAIL);
 console.log('APP_URL:', process.env.APP_URL);
+
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+  secure: true // Ensure HTTPS URLs
+});
+
+// Debug Cloudinary configuration
+console.log('Cloudinary Environment Variables:');
+console.log('CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME ? 'SET' : 'NOT SET');
+console.log('CLOUDINARY_API_KEY:', process.env.CLOUDINARY_API_KEY ? 'SET' : 'NOT SET');
+console.log('CLOUDINARY_API_SECRET:', process.env.CLOUDINARY_API_SECRET ? 'SET' : 'NOT SET');
+console.log('Cloudinary config:', {
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY ? '***' + process.env.CLOUDINARY_API_KEY.slice(-4) : 'NOT SET',
+  api_secret: process.env.CLOUDINARY_API_SECRET ? '***' + process.env.CLOUDINARY_API_SECRET.slice(-4) : 'NOT SET'
+});
+
+// Configure multer for file uploads
+const storage = multer.memoryStorage();
+const upload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limit
+  },
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'application/pdf'];
+    if (allowedTypes.includes(file.mimetype)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPG, PNG, and PDF files are allowed.'), false);
+    }
+  }
+});
 
 const app = express();
 const server = http.createServer(app);
@@ -78,8 +116,12 @@ mongoose.connect(MONGO_URI)
   });
 
 function authenticate(req, res, next) {
-  const token = req.headers.authorization;
-  if (!token) return res.status(401).json({ error: 'No token' });
+  const authHeader = req.headers.authorization;
+  if (!authHeader) return res.status(401).json({ error: 'No token' });
+  
+  // Extract token from "Bearer <token>" format
+  const token = authHeader.startsWith('Bearer ') ? authHeader.slice(7) : authHeader;
+  
   jwt.verify(token, process.env.JWT_SECRET, (err, user) => {
     if (err) return res.status(403).json({ error: 'Invalid token' });
     req.user = user;
@@ -2361,6 +2403,223 @@ app.get('/api/events/by-gear/:gearId', authenticate, async (req, res) => {
   }
 });
 
+// Test endpoint to debug gear item associations
+app.get('/api/debug/gear/:gearId', authenticate, async (req, res) => {
+  try {
+    const gearId = req.params.gearId;
+    const gearItem = await GearInventory.findById(gearId);
+    
+    if (!gearItem) {
+      return res.status(404).json({ error: 'Gear item not found' });
+    }
+    
+    console.log(`[DEBUG] Gear item ${gearItem.label} debug info:`);
+    console.log(`[DEBUG] - Reservations:`, gearItem.reservations);
+    console.log(`[DEBUG] - History:`, gearItem.history);
+    console.log(`[DEBUG] - Status:`, gearItem.status);
+    console.log(`[DEBUG] - Checked out event:`, gearItem.checkedOutEvent);
+    
+    // Find all tables
+    const allTables = await Table.find();
+    console.log(`[DEBUG] - Total tables in database:`, allTables.length);
+    
+    // Find accessible tables
+    const accessibleTables = await Table.find({
+      $or: [
+        { owners: req.user.id },
+        { sharedWith: req.user.id }
+      ]
+    });
+    console.log(`[DEBUG] - Accessible tables:`, accessibleTables.length);
+    
+    res.json({
+      gearItem: {
+        _id: gearItem._id,
+        label: gearItem.label,
+        reservations: gearItem.reservations,
+        history: gearItem.history,
+        status: gearItem.status,
+        checkedOutEvent: gearItem.checkedOutEvent
+      },
+      totalTables: allTables.length,
+      accessibleTables: accessibleTables.length,
+      tableIds: accessibleTables.map(t => ({ id: t._id.toString(), title: t.title }))
+    });
+  } catch (error) {
+    console.error('[DEBUG] Error:', error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// DOCUMENT MANAGEMENT ENDPOINTS
+
+// Get all documents for an event
+app.get('/api/tables/:id/documents', authenticate, async (req, res) => {
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
+      return res.status(403).json({ error: 'Not authorized or not found' });
+    }
+    
+    res.json(table.documents || []);
+  } catch (err) {
+    console.error('Error fetching documents:', err);
+    res.status(500).json({ error: 'Failed to fetch documents' });
+  }
+});
+
+// Get a specific document
+app.get('/api/tables/:id/documents/:documentId', authenticate, async (req, res) => {
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
+      return res.status(403).json({ error: 'Not authorized or not found' });
+    }
+    
+    const document = table.documents.id(req.params.documentId);
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    
+    res.json(document);
+  } catch (err) {
+    console.error('Error fetching document:', err);
+    res.status(500).json({ error: 'Failed to fetch document' });
+  }
+});
+
+// Upload a new document
+app.post('/api/tables/:id/documents', authenticate, upload.single('file'), async (req, res) => {
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table || !table.owners.includes(req.user.id)) {
+      return res.status(403).json({ error: 'Not authorized or not found' });
+    }
+    
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+    
+    // Upload to Cloudinary
+    const uploadResult = await new Promise((resolve, reject) => {
+      // Clean the filename - remove extension for public_id since Cloudinary adds it automatically
+      const cleanFilename = req.file.originalname.replace(/\.[^/.]+$/, ""); // Remove extension
+      const sanitizedFilename = cleanFilename.replace(/[^a-zA-Z0-9.-]/g, '_');
+      
+      const uploadStream = cloudinary.uploader.upload_stream(
+        {
+          resource_type: 'image', // Use 'image' for all files including PDFs
+          folder: `lumdash/events/${req.params.id}/documents`,
+          public_id: `${Date.now()}_${sanitizedFilename}`, // Don't include extension here
+          use_filename: false, // Don't use original filename to avoid conflicts
+          unique_filename: true,
+          // Ensure files are publicly accessible for viewing (not downloading)
+          type: 'upload',
+          access_mode: 'public',
+          // For PDFs, add flags to prevent download and enable inline viewing
+          ...(req.file.mimetype === 'application/pdf' && {
+            flags: 'attachment:false'
+          })
+        },
+        (error, result) => {
+          if (error) {
+            console.error('Cloudinary upload error:', error);
+            reject(error);
+          } else {
+            // For PDFs, modify the URL to force inline viewing
+            let finalUrl = result.secure_url;
+            if (req.file.mimetype === 'application/pdf') {
+              // For raw PDFs, we need to use a different approach
+              // Replace the /raw/upload/ with /image/upload/ and add fl_attachment:false
+              finalUrl = result.secure_url.replace('/raw/upload/', '/image/upload/fl_attachment:false/');
+            }
+            
+            console.log('Cloudinary upload success:', {
+              public_id: result.public_id,
+              secure_url: result.secure_url,
+              final_url: finalUrl,
+              resource_type: result.resource_type,
+              format: result.format
+            });
+            
+            // Return the modified result
+            resolve({
+              ...result,
+              secure_url: finalUrl
+            });
+          }
+        }
+      );
+      uploadStream.end(req.file.buffer);
+    });
+    
+    // Add document to table
+    const newDocument = {
+      originalName: req.file.originalname,
+      cloudinaryPublicId: uploadResult.public_id,
+      url: uploadResult.secure_url,
+      fileType: req.file.mimetype,
+      size: req.file.size,
+      uploadedBy: req.user.id,
+      uploadedAt: new Date()
+    };
+    
+    table.documents.push(newDocument);
+    await table.save();
+    
+    // Notify clients about the new document
+    notifyDataChange('documentsChanged', null, req.params.id);
+    
+    res.json({
+      message: 'Document uploaded successfully',
+      document: table.documents[table.documents.length - 1]
+    });
+    
+  } catch (err) {
+    console.error('Error uploading document:', err);
+    res.status(500).json({ error: 'Failed to upload document' });
+  }
+});
+
+// Delete a document
+app.delete('/api/tables/:id/documents/:documentId', authenticate, async (req, res) => {
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table || !table.owners.includes(req.user.id)) {
+      return res.status(403).json({ error: 'Not authorized or not found' });
+    }
+    
+    const document = table.documents.id(req.params.documentId);
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+    
+    // Delete from Cloudinary
+    try {
+      // Determine resource type based on file type
+      const resourceType = document.fileType === 'application/pdf' ? 'raw' : 'image';
+      await cloudinary.uploader.destroy(document.cloudinaryPublicId, { resource_type: resourceType });
+      console.log(`Deleted from Cloudinary: ${document.cloudinaryPublicId} (${resourceType})`);
+    } catch (cloudinaryError) {
+      console.error('Error deleting from Cloudinary:', cloudinaryError);
+      // Continue with database deletion even if Cloudinary deletion fails
+    }
+    
+    // Remove from database
+    table.documents.pull(req.params.documentId);
+    await table.save();
+    
+    // Notify clients about the document deletion
+    notifyDataChange('documentsChanged', null, req.params.id);
+    
+    res.json({ message: 'Document deleted successfully' });
+    
+  } catch (err) {
+    console.error('Error deleting document:', err);
+    res.status(500).json({ error: 'Failed to delete document' });
+  }
+});
+
 // Catch-all for SPA routing (should be last!)
 app.get('/folder-logs.html', (req, res) => {
   res.sendFile(path.join(__dirname, '../frontend', 'folder-logs.html'));
@@ -2509,50 +2768,89 @@ app.patch('/api/tables/:id', authenticate, async (req, res) => {
   res.status(400).json({ error: 'No valid fields to update' });
 });
 
-// Test endpoint to debug gear item associations
-app.get('/api/debug/gear/:gearId', authenticate, async (req, res) => {
+// Convert PDF to image
+app.post('/api/tables/:id/documents/:documentId/convert-to-image', authenticate, async (req, res) => {
   try {
-    const gearId = req.params.gearId;
-    const gearItem = await GearInventory.findById(gearId);
-    
-    if (!gearItem) {
-      return res.status(404).json({ error: 'Gear item not found' });
+    const table = await Table.findById(req.params.id);
+    if (!table || !table.owners.includes(req.user.id)) {
+      return res.status(403).json({ error: 'Not authorized or not found' });
     }
     
-    console.log(`[DEBUG] Gear item ${gearItem.label} debug info:`);
-    console.log(`[DEBUG] - Reservations:`, gearItem.reservations);
-    console.log(`[DEBUG] - History:`, gearItem.history);
-    console.log(`[DEBUG] - Status:`, gearItem.status);
-    console.log(`[DEBUG] - Checked out event:`, gearItem.checkedOutEvent);
+    const document = table.documents.id(req.params.documentId);
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
     
-    // Find all tables
-    const allTables = await Table.find();
-    console.log(`[DEBUG] - Total tables in database:`, allTables.length);
+    if (document.fileType !== 'application/pdf') {
+      return res.status(400).json({ error: 'Document is not a PDF' });
+    }
     
-    // Find accessible tables
-    const accessibleTables = await Table.find({
-      $or: [
-        { owners: req.user.id },
-        { sharedWith: req.user.id }
-      ]
+    // Create image URL using Cloudinary transformation
+    const imageUrl = cloudinary.url(document.cloudinaryPublicId, {
+      resource_type: 'image',
+      format: 'jpg',
+      quality: 'auto',
+      width: 1200,
+      crop: 'limit'
     });
-    console.log(`[DEBUG] - Accessible tables:`, accessibleTables.length);
+    
+    console.log('Generated image URL for PDF:', imageUrl);
     
     res.json({
-      gearItem: {
-        _id: gearItem._id,
-        label: gearItem.label,
-        reservations: gearItem.reservations,
-        history: gearItem.history,
-        status: gearItem.status,
-        checkedOutEvent: gearItem.checkedOutEvent
-      },
-      totalTables: allTables.length,
-      accessibleTables: accessibleTables.length,
-      tableIds: accessibleTables.map(t => ({ id: t._id.toString(), title: t.title }))
+      message: 'PDF conversion URL generated',
+      imageUrl: imageUrl,
+      originalDocument: document
     });
+    
+  } catch (err) {
+    console.error('Error converting PDF to image:', err);
+    res.status(500).json({ error: 'Failed to convert PDF to image' });
+  }
+});
+
+// Get specific document
+app.get('/api/tables/:id/documents/:documentId', authenticate, async (req, res) => {
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const document = table.documents.id(req.params.documentId);
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    res.json(document);
   } catch (error) {
-    console.error('[DEBUG] Error:', error);
-    res.status(500).json({ error: error.message });
+    console.error('Get document error:', error);
+    res.status(500).json({ error: 'Failed to get document' });
+  }
+});
+
+// Serve PDF for inline viewing (prevents download)
+app.get('/api/tables/:id/documents/:documentId/view', authenticate, async (req, res) => {
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    const document = table.documents.id(req.params.documentId);
+    if (!document) {
+      return res.status(404).json({ error: 'Document not found' });
+    }
+
+    // For PDFs, redirect to Cloudinary URL with inline viewing parameters
+    if (document.fileType === 'application/pdf') {
+      const inlineUrl = document.url + (document.url.includes('?') ? '&' : '?') + 'inline=true';
+      res.redirect(inlineUrl);
+    } else {
+      // For images, just redirect to the URL
+      res.redirect(document.url);
+    }
+  } catch (error) {
+    console.error('View document error:', error);
+    res.status(500).json({ error: 'Failed to view document' });
   }
 });

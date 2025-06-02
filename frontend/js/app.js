@@ -42,7 +42,18 @@ function getTableId() {
   return result;
 }
 
+// Global navigation state
+let navigationInProgress = false;
+
 function navigate(page, id) {
+  // Prevent double navigation
+  if (navigationInProgress) {
+    console.log(`[NAVIGATE] Navigation already in progress, skipping duplicate call for page: ${page}`);
+    return;
+  }
+  
+  navigationInProgress = true;
+  
   // Only require an ID for pages that need it
   const needsId = !['events', 'dashboard', 'login', 'register', 'users'].includes(page);
   
@@ -120,6 +131,11 @@ function navigate(page, id) {
   
   // CRITICAL: Always pass the finalId (which is guaranteed to be valid for pages that need it)
   loadPage(page, needsId ? finalId : null);
+  
+  // Reset navigation flag after a short delay to allow the page to load
+  setTimeout(() => {
+    navigationInProgress = false;
+  }, 100);
 }
 
 function loadPage(page, id) {
@@ -199,6 +215,12 @@ function injectPageContent(html, page, id) {
   document.querySelectorAll(`script[src=\"js/${page}.js\"]`).forEach(script => {
     script.remove();
   });
+  
+  // Check if script is already being loaded
+  if (document.querySelector(`script[src="js/${page}.js"]`)) {
+    console.log(`[SCRIPT_LOAD] Script js/${page}.js is already being loaded, skipping`);
+    return;
+  }
 
   // Reset page-specific global variables that might have been set by previous scripts
   // Clear any page-specific flags
@@ -214,18 +236,48 @@ function injectPageContent(html, page, id) {
     });
   }
 
+  // Clear global functions that might be set by page scripts to prevent conflicts
+  window.initPage = null;
+  
+  // Clear any page-specific global functions
+  const pageGlobals = [
+    'addContactRow', 'addLocationRow', 'saveGeneralInfo', 'switchToEdit', // general.js
+    'documentsPage', // documents.js
+    // Add other page-specific globals as needed
+  ];
+  
+  pageGlobals.forEach(globalName => {
+    if (window[globalName]) {
+      window[globalName] = null;
+    }
+  });
+
   // Dynamically load JS if it exists
   const script = document.createElement('script');
-  script.src = `js/${page}.js`;
+  script.src = `js/${page}.js?v=${Date.now()}`;
   script.id = 'page-script';
+  
+  console.log(`[SCRIPT_LOAD] Loading script for page: ${page}, src: ${script.src}`);
   
   // Make sure we handle load errors
   script.onerror = (error) => {
     console.error(`Error loading script for ${page}:`, error);
+    console.error(`Script src that failed:`, script.src);
+    console.error(`Script readyState:`, script.readyState);
+    navigationInProgress = false; // Reset flag on error
   };
   
   script.onload = () => {
     console.log(`Script loaded for ${page}, calling window.initPage with id: ${id}`);
+    console.log(`[SCRIPT_LOAD] Script src that just loaded: ${script.src}`);
+    console.log(`[SCRIPT_LOAD] window.initPage exists: ${typeof window.initPage === 'function'}`);
+    
+    // Check if the script actually executed by looking for our debug marker
+    if (window.__documentsJsLoaded) {
+      console.log(`[SCRIPT_LOAD] documents.js execution confirmed via marker`);
+    } else {
+      console.warn(`[SCRIPT_LOAD] documents.js may not have executed properly - no execution marker found`);
+    }
     
     // Small delay to ensure the script has been properly initialized
     setTimeout(() => {
@@ -388,6 +440,12 @@ function loadPageCSS(page) {
 
 // Handle hash changes (back/forward navigation)
 window.addEventListener('hashchange', () => {
+  // Prevent handling hashchange if navigation is already in progress
+  if (navigationInProgress) {
+    console.log(`[HASHCHANGE] Navigation in progress, skipping hashchange handler`);
+    return;
+  }
+  
   const page = location.hash.replace('#', '') || 'events';
   console.log(`[HASHCHANGE] Hash changed to: ${page}`);
   
@@ -450,8 +508,6 @@ window.addEventListener('DOMContentLoaded', () => {
 // Expose navigate globally for nav links
 window.navigate = navigate;
 window.setupBottomNavigation = setupBottomNavigation;
-
-console.log('travel-accommodation.js loaded');
 
 // PullToRefresh.js integration for PWA/mobile
 if (window.PullToRefresh) {
@@ -549,7 +605,8 @@ function setupDesktopNavigation(navContainer, tableId, currentPage) {
   const dropdownItems = [
     { page: 'travel-accommodation', icon: 'flight_takeoff', label: 'Travel' },
     { page: 'gear', icon: 'photo_camera', label: 'Gear' },
-    { page: 'card-log', icon: 'sd_card', label: 'Cards' }
+    { page: 'card-log', icon: 'sd_card', label: 'Cards' },
+    { page: 'documents', icon: 'map', label: 'Map' }
   ];
   
   // Remove any existing desktop nav items we added previously
@@ -668,7 +725,8 @@ function updateActiveNavigation(currentPage) {
     'more-toggle': 'more_horiz',
     'travel-accommodation': 'flight_takeoff',
     'gear': 'photo_camera',
-    'card-log': 'sd_card'
+    'card-log': 'sd_card',
+    'documents': 'map'
   };
 
   // Map: INACTIVE Material Symbol name -> ACTIVE Material Symbol name
