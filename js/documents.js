@@ -39,6 +39,10 @@ class DocumentsPage {
     this.currentDocument = null;
     this.eventId = localStorage.getItem('eventId');
     this.isOwner = false; // Track owner status
+    this.zoomLevel = 1;
+    this.isDragging = false;
+    this.dragStart = { x: 0, y: 0 };
+    this.imagePosition = { x: 0, y: 0 };
     this.init();
   }
 
@@ -104,9 +108,6 @@ class DocumentsPage {
       if (uploadNewButton) {
         uploadNewButton.style.display = 'none';
       }
-      
-      // Add a view-only indicator
-      this.addViewOnlyIndicator();
     } else {
       // Show upload section for owners
       if (uploadSection) {
@@ -117,26 +118,6 @@ class DocumentsPage {
       if (uploadNewButton) {
         uploadNewButton.style.display = 'block';
       }
-    }
-  }
-
-  addViewOnlyIndicator() {
-    // Check if indicator already exists
-    if (document.querySelector('.view-only-indicator')) {
-      return;
-    }
-    
-    const pageContainer = document.getElementById('page-container');
-    if (pageContainer) {
-      const indicator = document.createElement('div');
-      indicator.className = 'view-only-indicator';
-      indicator.innerHTML = `
-        <div style="background: #f0f0f0; border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 20px; text-align: center; color: #666;">
-          <span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 8px;">visibility</span>
-          <strong>View Only</strong> - Only event owners can upload maps
-        </div>
-      `;
-      pageContainer.insertBefore(indicator, pageContainer.firstChild);
     }
   }
 
@@ -501,10 +482,16 @@ class DocumentsPage {
       return;
     }
 
+    // Reset zoom state
+    this.zoomLevel = 1;
+    this.imagePosition = { x: 0, y: 0 };
+    this.isDragging = false;
+
     title.textContent = documentData.originalName;
     
     // Clear previous content
     viewer.innerHTML = '';
+    viewer.classList.remove('zoomed');
     
     console.log('Document type:', documentData.fileType);
     console.log('Document URL:', documentData.url);
@@ -512,14 +499,22 @@ class DocumentsPage {
     if (documentData.fileType.startsWith('image/')) {
       console.log('Displaying image');
       viewer.innerHTML = `
-        <img src="${documentData.url}" 
+        <img id="zoomableImage" 
+             src="${documentData.url}" 
              alt="${documentData.originalName}"
-             style="max-width: 100%; max-height: 100%; object-fit: contain; display: block; margin: auto;"
-             onload="console.log('Image loaded successfully')"
+             style="max-width: 100%; max-height: 100%; object-fit: contain; display: block; margin: auto; transform-origin: center;"
+             onload="console.log('Image loaded successfully'); documentsPage.setupImageZoom();"
              onerror="console.error('Image failed to load'); this.style.display='none'; this.parentNode.innerHTML='<p>Failed to load image</p>';">
       `;
+      
+      // Show zoom controls for images
+      this.showZoomControls(true);
+      
     } else if (documentData.fileType === 'application/pdf') {
       console.log('Displaying PDF');
+      // Hide zoom controls for PDFs
+      this.showZoomControls(false);
+      
       // Use direct URL since backend handles inline viewing configuration
       const pdfUrl = documentData.url;
       
@@ -589,6 +584,9 @@ class DocumentsPage {
       
     } else {
       console.log('Unknown file type, showing generic view');
+      // Hide zoom controls for other file types
+      this.showZoomControls(false);
+      
       viewer.innerHTML = `
         <div style="text-align: center; padding: 40px;">
           <span class="material-symbols-outlined" style="font-size: 64px; color: #666; display: block; margin-bottom: 16px;">description</span>
@@ -614,7 +612,24 @@ class DocumentsPage {
   }
 
   closeModal() {
-    document.getElementById('documentModal').style.display = 'none';
+    const modal = document.getElementById('documentModal');
+    const viewer = document.getElementById('documentViewer');
+    
+    // Reset zoom state
+    this.zoomLevel = 1;
+    this.imagePosition = { x: 0, y: 0 };
+    this.isDragging = false;
+    
+    // Hide zoom controls
+    this.showZoomControls(false);
+    
+    // Remove zoomed class
+    if (viewer) {
+      viewer.classList.remove('zoomed');
+    }
+    
+    // Hide modal
+    modal.style.display = 'none';
     document.body.style.overflow = '';
     this.currentDocument = null;
   }
@@ -727,6 +742,154 @@ class DocumentsPage {
     } catch (error) {
       console.error('Convert PDF to image error:', error);
       this.showError('Failed to convert PDF to image: ' + error.message);
+    }
+  }
+
+  showZoomControls(show) {
+    const zoomOut = document.getElementById('zoomOut');
+    const zoomIn = document.getElementById('zoomIn');
+    const zoomLevel = document.getElementById('zoomLevel');
+    const resetZoom = document.getElementById('resetZoom');
+    
+    if (show) {
+      if (zoomOut) zoomOut.style.display = 'block';
+      if (zoomIn) zoomIn.style.display = 'block';
+      if (zoomLevel) zoomLevel.style.display = 'block';
+      if (resetZoom) resetZoom.style.display = 'block';
+    } else {
+      if (zoomOut) zoomOut.style.display = 'none';
+      if (zoomIn) zoomIn.style.display = 'none';
+      if (zoomLevel) zoomLevel.style.display = 'none';
+      if (resetZoom) resetZoom.style.display = 'none';
+    }
+  }
+
+  setupImageZoom() {
+    const image = document.getElementById('zoomableImage');
+    const viewer = document.getElementById('documentViewer');
+    const zoomOut = document.getElementById('zoomOut');
+    const zoomIn = document.getElementById('zoomIn');
+    const resetZoom = document.getElementById('resetZoom');
+    const zoomLevel = document.getElementById('zoomLevel');
+    
+    if (!image || !viewer) return;
+    
+    // Reset zoom state
+    this.zoomLevel = 1;
+    this.imagePosition = { x: 0, y: 0 };
+    this.updateZoomDisplay();
+    
+    // Zoom functions
+    const zoomImage = (factor) => {
+      const newZoom = Math.max(0.1, Math.min(5, this.zoomLevel * factor));
+      this.zoomLevel = newZoom;
+      this.updateImageTransform();
+      this.updateZoomDisplay();
+      
+      // Add/remove zoomed class for styling
+      if (this.zoomLevel > 1) {
+        viewer.classList.add('zoomed');
+      } else {
+        viewer.classList.remove('zoomed');
+        this.imagePosition = { x: 0, y: 0 }; // Reset position when zoomed out
+        this.updateImageTransform();
+      }
+    };
+    
+    const resetZoomLevel = () => {
+      this.zoomLevel = 1;
+      this.imagePosition = { x: 0, y: 0 };
+      this.updateImageTransform();
+      this.updateZoomDisplay();
+      viewer.classList.remove('zoomed');
+    };
+    
+    // Button event listeners
+    if (zoomIn) {
+      zoomIn.addEventListener('click', () => zoomImage(1.2));
+    }
+    if (zoomOut) {
+      zoomOut.addEventListener('click', () => zoomImage(0.8));
+    }
+    if (resetZoom) {
+      resetZoom.addEventListener('click', resetZoomLevel);
+    }
+    
+    // Mouse wheel zoom
+    viewer.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const factor = e.deltaY > 0 ? 0.9 : 1.1;
+      zoomImage(factor);
+    });
+    
+    // Pan functionality when zoomed
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+    
+    image.addEventListener('mousedown', (e) => {
+      if (this.zoomLevel > 1) {
+        isDragging = true;
+        dragStart = { x: e.clientX, y: e.clientY };
+        image.style.cursor = 'grabbing';
+        e.preventDefault();
+      }
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      if (isDragging && this.zoomLevel > 1) {
+        const dx = e.clientX - dragStart.x;
+        const dy = e.clientY - dragStart.y;
+        this.imagePosition.x += dx;
+        this.imagePosition.y += dy;
+        dragStart = { x: e.clientX, y: e.clientY };
+        this.updateImageTransform();
+        e.preventDefault();
+      }
+    });
+    
+    document.addEventListener('mouseup', () => {
+      if (isDragging) {
+        isDragging = false;
+        image.style.cursor = this.zoomLevel > 1 ? 'grab' : 'default';
+      }
+    });
+    
+    // Touch support for mobile
+    let touchStart = { x: 0, y: 0 };
+    
+    image.addEventListener('touchstart', (e) => {
+      if (this.zoomLevel > 1 && e.touches.length === 1) {
+        const touch = e.touches[0];
+        touchStart = { x: touch.clientX, y: touch.clientY };
+        e.preventDefault();
+      }
+    });
+    
+    image.addEventListener('touchmove', (e) => {
+      if (this.zoomLevel > 1 && e.touches.length === 1) {
+        const touch = e.touches[0];
+        const dx = touch.clientX - touchStart.x;
+        const dy = touch.clientY - touchStart.y;
+        this.imagePosition.x += dx;
+        this.imagePosition.y += dy;
+        touchStart = { x: touch.clientX, y: touch.clientY };
+        this.updateImageTransform();
+        e.preventDefault();
+      }
+    });
+  }
+  
+  updateImageTransform() {
+    const image = document.getElementById('zoomableImage');
+    if (image) {
+      image.style.transform = `translate(${this.imagePosition.x}px, ${this.imagePosition.y}px) scale(${this.zoomLevel})`;
+    }
+  }
+  
+  updateZoomDisplay() {
+    const zoomLevel = document.getElementById('zoomLevel');
+    if (zoomLevel) {
+      zoomLevel.textContent = `${Math.round(this.zoomLevel * 100)}%`;
     }
   }
 }
