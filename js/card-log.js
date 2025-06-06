@@ -92,14 +92,7 @@ function setupSocketListeners() {
           lastEventTime = Date.now();
           
           try {
-            const dayDiv = document.getElementById(`day-${storedData.cardLog.date}`);
-            if (dayDiv) {
-              console.log("[CARD-LOG] Applying deferred day section update");
-              const oldRowCount = dayDiv.querySelectorAll('tbody tr').length;
-              dayDiv.remove();
-              addDaySection(storedData.cardLog.date, storedData.cardLog.entries);
-              console.log(`[CARD-LOG] Deferred update applied: ${oldRowCount} -> ${storedData.cardLog.entries?.length || 0} rows`);
-            }
+            applySmartDayUpdate(storedData.cardLog.date, storedData.cardLog.entries);
           } finally {
             setTimeout(() => {
               processingSocketEvent = false;
@@ -132,17 +125,9 @@ function setupSocketListeners() {
         entries: data.cardLog.entries
       });
       
-      // Update the day section if it exists
-      const dayDiv = document.getElementById(`day-${data.cardLog.date}`);
-      if (dayDiv) {
-        console.log("[CARD-LOG] Updating day section in UI - removing old and adding new");
-        const oldRowCount = dayDiv.querySelectorAll('tbody tr').length;
-        dayDiv.remove();
-        addDaySection(data.cardLog.date, data.cardLog.entries);
-        console.log(`[CARD-LOG] Day section updated: ${oldRowCount} -> ${data.cardLog.entries?.length || 0} rows`);
-      } else {
-        console.log("[CARD-LOG] Day doesn't exist in UI, ignoring update");
-      }
+      // Use smart update instead of removing/recreating the entire day
+      applySmartDayUpdate(data.cardLog.date, data.cardLog.entries);
+      
     } catch (error) {
       console.error('[CARD-LOG] Error processing cardLogUpdated:', error);
     } finally {
@@ -291,20 +276,25 @@ function debounceSave() {
   
   clearTimeout(saveTimeout);
   
-  // Use longer delay if user is actively typing
-  const now = Date.now();
-  const timeSinceLastInput = now - lastInputTime;
-  const delay = timeSinceLastInput < 1000 ? 1500 : 500; // 1.5s if recently typed, 0.5s otherwise
+  // Use shorter, more consistent delay since we have better conflict prevention now
+  const delay = isActivelyEditing ? 1000 : 300;
   
-  console.log(`[CARD-LOG] Debouncing save with ${delay}ms delay`);
+  console.log(`[CARD-LOG] Debouncing save with ${delay}ms delay (actively editing: ${isActivelyEditing})`);
   
   saveTimeout = setTimeout(() => {
-    // Double-check we're not processing an event before saving
-    if (!processingSocketEvent) {
+    // Double-check we're not processing an event and user isn't actively editing
+    if (!processingSocketEvent && !isActivelyEditing) {
       console.log('[CARD-LOG] Executing debounced save');
       saveToMongoDB();
     } else {
-      console.log('[CARD-LOG] Skipping save - Socket.IO event in progress');
+      console.log('[CARD-LOG] Skipping save - conflict detected', {
+        processingSocketEvent,
+        isActivelyEditing
+      });
+      // Retry save in a bit if conditions are temporary
+      if (processingSocketEvent && !isActivelyEditing) {
+        setTimeout(() => debounceSave(), 200);
+      }
     }
   }, delay);
 }
@@ -393,42 +383,42 @@ function setupEventListeners() {
     tableContainer.addEventListener('blur', (e) => {
       if (e.target.matches('input, select')) {
         console.log('[CARD-LOG] User finished editing field');
-        isActivelyEditing = false;
         
-        // Apply any deferred updates immediately when user finishes editing
-        if (deferredUpdate) {
-          console.log('[CARD-LOG] Applying deferred update after user finished editing');
-          const storedData = deferredUpdate;
-          deferredUpdate = null;
+        // Small delay to allow for tab navigation between fields
+        window.cardLogBlurTimeout = setTimeout(() => {
+          const stillEditing = document.activeElement && 
+                              tableContainer.contains(document.activeElement) && 
+                              document.activeElement.matches('input, select');
           
-          setTimeout(() => {
-            if (!processingSocketEvent) {
-              processingSocketEvent = true;
-              try {
-                const dayDiv = document.getElementById(`day-${storedData.cardLog.date}`);
-                if (dayDiv) {
-                  console.log("[CARD-LOG] Applying immediate deferred update");
-                  const oldRowCount = dayDiv.querySelectorAll('tbody tr').length;
-                  dayDiv.remove();
-                  addDaySection(storedData.cardLog.date, storedData.cardLog.entries);
-                  console.log(`[CARD-LOG] Immediate deferred update applied: ${oldRowCount} -> ${storedData.cardLog.entries?.length || 0} rows`);
+          if (!stillEditing) {
+            isActivelyEditing = false;
+            console.log('[CARD-LOG] User completely finished editing, not just moving between fields');
+            
+            // Apply any deferred updates using smart update
+            if (deferredUpdate) {
+              console.log('[CARD-LOG] Applying deferred update after user finished editing');
+              const storedData = deferredUpdate;
+              deferredUpdate = null;
+              
+              if (!processingSocketEvent) {
+                processingSocketEvent = true;
+                try {
+                  applySmartDayUpdate(storedData.cardLog.date, storedData.cardLog.entries);
+                  console.log(`[CARD-LOG] Deferred update applied using smart update`);
+                } finally {
+                  setTimeout(() => {
+                    processingSocketEvent = false;
+                  }, 50);
                 }
-              } finally {
-                setTimeout(() => {
-                  processingSocketEvent = false;
-                }, 100);
               }
             }
-          }, 100);
-        }
-        
-        // Trigger a save after a short delay when user leaves the field
-        setTimeout(() => {
-          if (!isActivelyEditing) {
-            console.log('[CARD-LOG] User not actively editing, triggering save');
+            
+            // Trigger a save
+            console.log('[CARD-LOG] User finished editing, triggering save');
             debounceSave();
           }
-        }, 200);
+          window.cardLogBlurTimeout = null;
+        }, 150);
       }
     }, true);
     
@@ -438,6 +428,11 @@ function setupEventListeners() {
         console.log('[CARD-LOG] User started editing field');
         isActivelyEditing = true;
         lastInputTime = Date.now();
+        
+        // Clear any timeout from blur event that might reset isActivelyEditing
+        if (window.cardLogBlurTimeout) {
+          clearTimeout(window.cardLogBlurTimeout);
+        }
       }
     }, true);
 
@@ -459,9 +454,19 @@ function cleanupCardLogPage() {
     saveTimeout = null;
   }
   
+  if (window.cardLogBlurTimeout) {
+    clearTimeout(window.cardLogBlurTimeout);
+    window.cardLogBlurTimeout = null;
+  }
+  
   // Reset global variables
   users = [];
   isOwner = false;
+  processingSocketEvent = false;
+  isActivelyEditing = false;
+  lastInputTime = 0;
+  lastEventTime = 0;
+  deferredUpdate = null;
   
   // Remove event listeners
   const addDayBtn = document.getElementById('add-day-btn');
@@ -790,6 +795,7 @@ window.loadUsers = loadUsers;
 window.loadCardLog = loadCardLog;
 window.getUserIdFromToken = getUserIdFromToken;
 window.getCurrentUserName = getCurrentUserName;
+window.applySmartDayUpdate = applySmartDayUpdate;
 
 // Add test function for debugging
 window.testCardLogSave = function() {
@@ -799,6 +805,18 @@ window.testCardLogSave = function() {
   }).catch(error => {
     console.error('[TEST] Save error:', error);
   });
+};
+
+// Test smart update functionality
+window.testSmartUpdate = function(date, testEntries) {
+  console.log('[TEST] Testing smart update for date:', date);
+  const mockEntries = testEntries || [
+    { camera: 'A7IV-A', card1: 'Test1', card2: 'Test2', user: 'TestUser' },
+    { camera: 'A7IV-B', card1: 'Test3', card2: 'Test4', user: 'TestUser2' }
+  ];
+  
+  console.log('[TEST] Mock entries:', mockEntries);
+  applySmartDayUpdate(date, mockEntries);
 };
 
 // Add Socket.IO connection test
@@ -849,4 +867,171 @@ window.cleanupCardLogPage = cleanupCardLogPage;
 
 // Export the initPage function
 window.initPage = window.initPage;
+
+// Smart DOM update function that preserves input values and focus states
+function applySmartDayUpdate(date, entries) {
+  const dayDiv = document.getElementById(`day-${date}`);
+  if (!dayDiv) {
+    console.log(`[CARD-LOG] Day section doesn't exist for ${date}, creating new one`);
+    addDaySection(date, entries);
+    return;
+  }
+  
+  console.log(`[CARD-LOG] Smart updating day section for ${date}`);
+  
+  // Preserve current input values and focus state
+  const preservationData = preserveInputStates(dayDiv);
+  
+  // Get current rows
+  const tbody = dayDiv.querySelector('tbody');
+  const currentRows = tbody ? Array.from(tbody.querySelectorAll('tr')) : [];
+  const targetEntries = Array.isArray(entries) ? entries : [];
+  
+  console.log(`[CARD-LOG] Current rows: ${currentRows.length}, Target entries: ${targetEntries.length}`);
+  
+  // Handle row count differences
+  if (targetEntries.length > currentRows.length) {
+    // Add missing rows
+    const rowsToAdd = targetEntries.length - currentRows.length;
+    console.log(`[CARD-LOG] Adding ${rowsToAdd} new rows`);
+    for (let i = 0; i < rowsToAdd; i++) {
+      addRow(date, {});
+    }
+  } else if (targetEntries.length < currentRows.length) {
+    // Remove extra rows (from the end)
+    const rowsToRemove = currentRows.length - targetEntries.length;
+    console.log(`[CARD-LOG] Removing ${rowsToRemove} extra rows`);
+    for (let i = 0; i < rowsToRemove; i++) {
+      const lastRow = tbody.querySelector('tr:last-child');
+      if (lastRow) lastRow.remove();
+    }
+  }
+  
+  // Update existing rows with new data (but preserve user input if they're actively editing)
+  const updatedRows = tbody.querySelectorAll('tr');
+  targetEntries.forEach((entry, index) => {
+    if (updatedRows[index]) {
+      updateRowData(updatedRows[index], entry, preservationData);
+    }
+  });
+  
+  console.log(`[CARD-LOG] Smart update completed for ${date}`);
+}
+
+// Preserve input states before DOM manipulation
+function preserveInputStates(dayDiv) {
+  const preservationData = {
+    focusedElement: null,
+    inputValues: new Map(),
+    selectionStates: new Map()
+  };
+  
+  // Get currently focused element
+  const activeElement = document.activeElement;
+  if (activeElement && dayDiv.contains(activeElement)) {
+    preservationData.focusedElement = {
+      tagName: activeElement.tagName,
+      type: activeElement.type,
+      rowIndex: Array.from(activeElement.closest('tbody').children).indexOf(activeElement.closest('tr')),
+      cellIndex: Array.from(activeElement.closest('tr').children).indexOf(activeElement.closest('td')),
+      selectionStart: activeElement.selectionStart,
+      selectionEnd: activeElement.selectionEnd
+    };
+    console.log('[CARD-LOG] Preserving focus state:', preservationData.focusedElement);
+  }
+  
+  // Preserve all input values and selection states
+  const inputs = dayDiv.querySelectorAll('input, select');
+  inputs.forEach((input, index) => {
+    const row = input.closest('tr');
+    const cell = input.closest('td');
+    if (row && cell) {
+      const rowIndex = Array.from(row.parentNode.children).indexOf(row);
+      const cellIndex = Array.from(row.children).indexOf(cell);
+      const key = `${rowIndex}-${cellIndex}`;
+      
+      preservationData.inputValues.set(key, {
+        value: input.value,
+        tagName: input.tagName,
+        type: input.type
+      });
+      
+      // Preserve selection state for inputs
+      if (input.tagName === 'INPUT' && input.type === 'text') {
+        preservationData.selectionStates.set(key, {
+          selectionStart: input.selectionStart,
+          selectionEnd: input.selectionEnd
+        });
+      }
+    }
+  });
+  
+  return preservationData;
+}
+
+// Update a single row's data while preserving user input
+function updateRowData(row, targetEntry, preservationData) {
+  const cells = row.querySelectorAll('td');
+  if (!cells || cells.length < 4) return;
+  
+  const rowIndex = Array.from(row.parentNode.children).indexOf(row);
+  
+  // Update camera select (cell 0)
+  const cameraSelect = cells[0].querySelector('select');
+  if (cameraSelect && !isUserCurrentlyEditing(cameraSelect, preservationData)) {
+    if (targetEntry.camera && cameraSelect.value !== targetEntry.camera) {
+      console.log(`[CARD-LOG] Updating camera for row ${rowIndex}: ${cameraSelect.value} -> ${targetEntry.camera}`);
+      cameraSelect.value = targetEntry.camera;
+    }
+  }
+  
+  // Update card1 input (cell 1)
+  const card1Input = cells[1].querySelector('input');
+  if (card1Input && !isUserCurrentlyEditing(card1Input, preservationData)) {
+    const targetCard1 = targetEntry.card1 || '';
+    if (card1Input.value !== targetCard1) {
+      console.log(`[CARD-LOG] Updating card1 for row ${rowIndex}: '${card1Input.value}' -> '${targetCard1}'`);
+      card1Input.value = targetCard1;
+    }
+  }
+  
+  // Update card2 input (cell 2)  
+  const card2Input = cells[2].querySelector('input');
+  if (card2Input && !isUserCurrentlyEditing(card2Input, preservationData)) {
+    const targetCard2 = targetEntry.card2 || '';
+    if (card2Input.value !== targetCard2) {
+      console.log(`[CARD-LOG] Updating card2 for row ${rowIndex}: '${card2Input.value}' -> '${targetCard2}'`);
+      card2Input.value = targetCard2;
+    }
+  }
+  
+  // Update user select (cell 3)
+  const userSelect = cells[3].querySelector('select');
+  if (userSelect && !isUserCurrentlyEditing(userSelect, preservationData)) {
+    if (targetEntry.user && userSelect.value !== targetEntry.user) {
+      console.log(`[CARD-LOG] Updating user for row ${rowIndex}: ${userSelect.value} -> ${targetEntry.user}`);
+      userSelect.value = targetEntry.user;
+    }
+  }
+  
+  // Update row ID
+  if (targetEntry._id) {
+    row.setAttribute('data-id', targetEntry._id);
+  }
+}
+
+// Check if a specific element is currently being edited by the user
+function isUserCurrentlyEditing(element, preservationData) {
+  if (!preservationData.focusedElement) return false;
+  
+  const row = element.closest('tr');
+  const cell = element.closest('td');
+  if (!row || !cell) return false;
+  
+  const rowIndex = Array.from(row.parentNode.children).indexOf(row);
+  const cellIndex = Array.from(row.children).indexOf(cell);
+  
+  return (preservationData.focusedElement.rowIndex === rowIndex && 
+          preservationData.focusedElement.cellIndex === cellIndex);
+}
 })();

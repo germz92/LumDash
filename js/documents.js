@@ -34,195 +34,22 @@ try {
 try {
   console.log('🔥 Starting class and function definitions...');
 
-class PhotoSwipeImageViewer {
-  constructor() {
-    this.pswp = null;
-  }
-
-  async openImage(doc) {
-    console.log('[PhotoSwipeViewer.openImage] Called with:', doc);
-    
-    if (typeof window.PhotoSwipe !== 'function') {
-      console.error('[PhotoSwipeViewer.openImage] window.PhotoSwipe is not a function! Cannot initialize. Type:', typeof window.PhotoSwipe);
-      this.fallbackToNewTab(doc);
-      return;
-    }
-    console.log('[PhotoSwipeViewer.openImage] PhotoSwipe constructor is available.');
-
-    let imageDimensions = { w: 0, h: 0 };
-    try {
-      console.log('[PhotoSwipeViewer.openImage] Preloading image to get dimensions:', doc.url);
-      imageDimensions = await this.getImageDimensions(doc.url);
-      console.log('[PhotoSwipeViewer.openImage] Actual image dimensions determined:', imageDimensions);
-    } catch (error) {
-      console.warn('[PhotoSwipeViewer.openImage] Could not preload image dimensions, PhotoSwipe will attempt to determine them automatically. Error:', error);
-      // If preloading fails, PhotoSwipe will still try to load with w:0, h:0
-    }
-
-    const imageData = [{
-      src: doc.url,
-      msrc: doc.url, 
-      w: imageDimensions.w, // Use determined width
-      h: imageDimensions.h, // Use determined height
-      alt: doc.filename,
-      title: doc.filename 
-    }];
-
-    console.log('[PhotoSwipeViewer.openImage] Image data for PhotoSwipe:', imageData);
-
-    const options = {
-      dataSource: imageData,
-      index: 0,
-      showHideAnimationType: 'zoom',
-      bgOpacity: 0.9,
-      maxZoomLevel: 5,
-      initialZoomLevel: 'fit',
-      secondaryZoomLevel: 2,
-      zoomAnimationDuration: 300,
-      pinchToClose: true,
-      closeOnVerticalDrag: true,
-      preload: [1, 1],
-      closeSVG: '<svg class="pswp__svg" viewBox="0 0 32 32" aria-hidden="true"><path d="M24 8 8 24M8 8l16 16"/></svg>',
-      zoomSVG: '<svg class="pswp__svg" viewBox="0 0 32 32" aria-hidden="true"><path d="m23.5 22-5.7-5.7M15 21a6 6 0 1 0 0-12 6 6 0 0 0 0 12ZM8 15A7 7 0 1 1 22 15 7 7 0 0 1 8 15Z"/></svg>',
-      arrowPrevSVG: '<svg class="pswp__svg" viewBox="0 0 32 32" aria-hidden="true"><path d="M20 26 10 16l10-10"/></svg>',
-      arrowNextSVG: '<svg class="pswp__svg" viewBox="0 0 32 32" aria-hidden="true"><path d="m12 6 10 10-10 10"/></svg>',
-      paddingFn: () => ({ top: 20, bottom: 20, left: 20, right: 20 })
-    };
-
-    console.log('[PhotoSwipeViewer.openImage] PhotoSwipe options prepared:', options);
-
-    try {
-      console.log('[PhotoSwipeViewer.openImage] Attempting to create new PhotoSwipe instance...');
-      this.pswp = new window.PhotoSwipe(options);
-      console.log('[PhotoSwipeViewer.openImage] PhotoSwipe instance successfully created.');
-      
-      this.pswp.on('uiRegister', () => {
-        console.log('[PhotoSwipeViewer.openImage] uiRegister event');
-        this.pswp.ui.registerElement({
-          name: 'download', order: 8, isButton: true, title: 'Download',
-          html: '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 9h-4V3H9v6H5l7 7 7-7zM5 18v2h14v-2H5z"/></svg>',
-          onClick: (event, el) => {
-            const link = document.createElement('a');
-            link.href = this.pswp.currSlide.data.src;
-            link.download = this.pswp.currSlide.data.alt || 'image';
-            link.click();
-          }
-        });
-        this.pswp.ui.registerElement({
-          name: 'external', order: 9, isButton: true, title: 'Open in new tab',
-          html: '<svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor"><path d="M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z"/></svg>',
-          onClick: () => { window.open(this.pswp.currSlide.data.src, '_blank'); }
-        });
-      });
-
-      this.pswp.on('close', () => {
-        console.log('[PhotoSwipeViewer.openImage] Instance closed.');
-        this.pswp = null;
-      });
-
-      console.log('[PhotoSwipeViewer.openImage] Initializing PhotoSwipe lightbox...');
-      this.pswp.init();
-      console.log('[PhotoSwipeViewer.openImage] Lightbox initialized and opened.');
-      
-    } catch (error) {
-      console.error('[PhotoSwipeViewer.openImage] Critical error initializing PhotoSwipe instance:', error);
-      this.fallbackToNewTab(doc);
-    }
-  }
-
-  async getImageDimensions(url) {
-    return new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => {
-        resolve({ w: img.naturalWidth, h: img.naturalHeight });
-      };
-      img.onerror = (err) => {
-        console.error('[PhotoSwipeViewer.getImageDimensions] Error loading image for dimension check:', url, err);
-        reject(err);
-      };
-      img.src = url;
-    });
-  }
-
-  fallbackToNewTab(doc) {
-    console.warn('PhotoSwipe failed, falling back to opening image in a new tab.');
-    window.open(doc.url, '_blank');
-  }
-
-  close() {
-    if (this.pswp) {
-      this.pswp.close();
-    }
-  }
-}
-
 class DocumentsPage {
   constructor() {
-    this.documents = [];
-    this.currentTable = null;
-    this.isOwner = false;
-    this.cloudinaryWidget = null;
     this.currentDocument = null;
     this.eventId = localStorage.getItem('eventId');
-    this.photoSwipeViewer = null; // Add PhotoSwipe viewer
+    this.isOwner = false; // Track owner status
+    this.zoomLevel = 1;
+    this.isDragging = false;
+    this.dragStart = { x: 0, y: 0 };
+    this.imagePosition = { x: 0, y: 0 };
+    this.init();
   }
 
-  async init() {
-    console.log('🔥 DocumentsPage.init() called');
-    
-    // Load Cloudinary script if not already loaded
-    if (!window.cloudinary) {
-      await this.loadCloudinaryScript();
-    }
-    
-    await this.checkOwnerStatus();
-    await this.loadDocuments();
+  init() {
+    this.checkOwnerStatus();
     this.setupEventListeners();
-    this.updateUIForOwnerStatus();
-  }
-
-  async loadCloudinaryScript() {
-    return new Promise((resolve, reject) => {
-      if (window.cloudinary) {
-        resolve();
-        return;
-      }
-      
-      const script = document.createElement('script');
-      script.src = 'https://media-library.cloudinary.com/global/all.js';
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-  }
-
-  async loadPhotoSwipe() {
-    // Load CSS
-    if (!document.querySelector('link[href*="photoswipe"]')) {
-      const css = document.createElement('link');
-      css.rel = 'stylesheet';
-      css.href = 'https://cdnjs.cloudflare.com/ajax/libs/photoswipe/5.4.4/photoswipe.min.css';
-      document.head.appendChild(css);
-      console.log('PhotoSwipe CSS loaded');
-    }
-
-    // Load JS
-    if (!window.PhotoSwipe) {
-      return new Promise((resolve, reject) => {
-        const script = document.createElement('script');
-        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/photoswipe/5.4.4/umd/photoswipe.umd.min.js';
-        script.onload = () => {
-          console.log('PhotoSwipe JS loaded successfully');
-          console.log('PhotoSwipe available:', typeof window.PhotoSwipe);
-          resolve();
-        };
-        script.onerror = (error) => {
-          console.error('Failed to load PhotoSwipe:', error);
-          reject(error);
-        };
-        document.head.appendChild(script);
-      });
-    }
+    this.loadDocuments();
   }
 
   async checkOwnerStatus() {
@@ -643,11 +470,8 @@ class DocumentsPage {
   }
 
   showDocumentModal(documentData) {
-    console.log('[showDocumentModal] Opening document modal with data:', documentData);
-    console.log('[showDocumentModal] Type of documentData:', typeof documentData);
-    console.log('[showDocumentModal] documentData.fileType:', documentData ? documentData.fileType : 'documentData is null/undefined');
-    console.log('[showDocumentModal] documentData.url:', documentData ? documentData.url : 'documentData is null/undefined');
-
+    console.log('Opening document modal for:', documentData);
+    
     const modal = document.getElementById('documentModal');
     const title = document.getElementById('documentTitle');
     const viewer = document.getElementById('documentViewer');
@@ -657,6 +481,11 @@ class DocumentsPage {
       this.showError('Modal elements not found');
       return;
     }
+
+    // Reset zoom state
+    this.zoomLevel = 1;
+    this.imagePosition = { x: 0, y: 0 };
+    this.isDragging = false;
 
     title.textContent = documentData.originalName;
     
@@ -668,22 +497,19 @@ class DocumentsPage {
     console.log('Document URL:', documentData.url);
     
     if (documentData.fileType.startsWith('image/')) {
-      console.log('Image detected, using PhotoSwipe...');
+      console.log('Displaying image');
+      viewer.innerHTML = `
+        <img id="zoomableImage" 
+             src="${documentData.url}" 
+             alt="${documentData.originalName}"
+             style="max-width: 100%; max-height: 100%; object-fit: contain; display: block; margin: auto; transform-origin: center;"
+             onload="console.log('Image loaded successfully'); documentsPage.setupImageZoom();"
+             onerror="console.error('Image failed to load'); this.style.display='none'; this.parentNode.innerHTML='<p>Failed to load image</p>';">
+      `;
       
-      // Close the modal since PhotoSwipe will handle the display
-      modal.style.display = 'none';
-      document.body.style.overflow = '';
+      // Show zoom controls for images
+      this.showZoomControls(true);
       
-      // Use PhotoSwipe for native image viewing
-      const docForViewer = {
-        url: documentData.url,
-        filename: documentData.originalName,
-        type: 'image'
-      };
-      
-      // Try PhotoSwipe with fallback to new tab
-      this.openImageWithNativeViewer(docForViewer);
-      return;
     } else if (documentData.fileType === 'application/pdf') {
       console.log('Displaying PDF');
       // Hide zoom controls for PDFs
@@ -789,7 +615,12 @@ class DocumentsPage {
     const modal = document.getElementById('documentModal');
     const viewer = document.getElementById('documentViewer');
     
-    // Hide zoom controls (no longer needed with PhotoSwipe)
+    // Reset zoom state
+    this.zoomLevel = 1;
+    this.imagePosition = { x: 0, y: 0 };
+    this.isDragging = false;
+    
+    // Hide zoom controls
     this.showZoomControls(false);
     
     // Remove zoomed class
@@ -870,204 +701,419 @@ class DocumentsPage {
   }
 
   async convertPdfToImage(documentId) {
-    if (!this.isOwner) {
-      this.showError('Only event owners can convert PDFs');
-      return;
-    }
-
     try {
+      this.showSuccess('Converting PDF to image... This may take a moment.');
+      
+      // Get the document data
       const apiBase = window.API_BASE || API_BASE || 'http://localhost:3000';
-      const response = await fetch(`${apiBase}/api/documents/${documentId}/convert`, {
-        method: 'POST',
+      const response = await fetch(`${apiBase}/api/tables/${this.eventId}/documents/${documentId}`, {
         headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json'
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
       });
 
       if (!response.ok) {
-        throw new Error('Failed to convert PDF');
+        throw new Error('Failed to load document');
       }
 
-      const result = await response.json();
-      this.showSuccess('PDF converted to image successfully');
+      const documentData = await response.json();
       
-      // Reload documents to show the new image
-      await this.loadDocuments();
+      // Use Cloudinary's transformation to convert PDF to image
+      // Extract the public_id from the URL
+      const publicId = documentData.cloudinaryPublicId;
       
-      return result;
+      // Create image URL from PDF using Cloudinary transformations
+      const imageUrl = `https://res.cloudinary.com/dnp0pvego/image/upload/f_jpg,q_auto,w_1200/${publicId}.jpg`;
+      
+      console.log('Converted PDF to image URL:', imageUrl);
+      
+      // Update the modal to show the image instead
+      const viewer = document.getElementById('documentViewer');
+      viewer.innerHTML = `
+        <div style="width: 100%; height: 100%; display: flex; align-items: center; justify-content: center; background: #f0f0f0;">
+          <img src="${imageUrl}" 
+               alt="${documentData.originalName} (converted to image)"
+               style="max-width: 100%; max-height: 100%; object-fit: contain; display: block;"
+               onload="console.log('Converted PDF image loaded successfully'); documentsPage.showSuccess('PDF converted to image successfully!');"
+               onerror="console.error('Failed to convert PDF to image'); documentsPage.showError('Failed to convert PDF to image. The PDF might be too complex or corrupted.');">
+        </div>
+      `;
+      
     } catch (error) {
-      console.error('Error converting PDF:', error);
-      this.showError('Failed to convert PDF to image');
-      throw error;
+      console.error('Convert PDF to image error:', error);
+      this.showError('Failed to convert PDF to image: ' + error.message);
     }
   }
 
   showZoomControls(show) {
-    // Zoom controls are no longer needed with PhotoSwipe
-    // This method is kept for compatibility but does nothing
-  }
-
-  openImageWithCloudinary(doc) {
-    // Initialize Cloudinary Media Library Widget for viewing
-    this.cloudinaryWidget = window.cloudinary.createMediaLibrary({
-      cloud_name: 'your_cloud_name', // You'll need to replace this with your actual cloud name
-      api_key: 'your_api_key', // You'll need to replace this with your actual API key
-      multiple: false,
-      max_files: 1,
-      insert_caption: "View Image",
-      default_transformations: [[]],
-      inline_container: "#cloudinary-widget-container",
-      folder: {
-        path: "documents",
-        resource_type: "image"
-      },
-      search: {
-        query: `public_id:${doc.cloudinary_public_id || doc.filename.split('.')[0]}`
-      }
-    }, {
-      insertHandler: function(data) {
-        // This won't be called since we're just viewing
-        console.log('Image selected:', data);
-      }
-    });
-
-    // Create modal for Cloudinary widget
-    const modal = document.createElement('div');
-    modal.className = 'document-modal';
-    modal.innerHTML = `
-      <div class="modal-content cloudinary-modal">
-        <div class="modal-header">
-          <h3>${doc.filename}</h3>
-          <button class="close-modal">&times;</button>
-        </div>
-        <div id="cloudinary-widget-container" style="width: 100%; height: 80vh;"></div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    // Close modal functionality
-    const closeBtn = modal.querySelector('.close-modal');
-    closeBtn.addEventListener('click', () => {
-      if (this.cloudinaryWidget) {
-        this.cloudinaryWidget.destroy();
-        this.cloudinaryWidget = null;
-      }
-      document.body.removeChild(modal);
-    });
-
-    // Close on backdrop click
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) {
-        closeBtn.click();
-      }
-    });
-
-    // Show the widget
-    this.cloudinaryWidget.show();
-  }
-
-  // PhotoSwipe-powered native image viewer
-  async openImageWithNativeViewer(doc) {
-    console.log('openImageWithNativeViewer called with:', doc);
+    const zoomOut = document.getElementById('zoomOut');
+    const zoomIn = document.getElementById('zoomIn');
+    const zoomLevel = document.getElementById('zoomLevel');
+    const resetZoom = document.getElementById('resetZoom');
     
-    try {
-      // Ensure PhotoSwipe is loaded before creating the viewer instance
-      if (!window.PhotoSwipe) {
-        console.log('PhotoSwipe not found, loading now...');
-        await this.loadPhotoSwipe(); // Wait for the script to load
-        console.log('PhotoSwipe JS should be loaded now. Checking window.PhotoSwipe:', window.PhotoSwipe);
-      }
-
-      // Double-check if PhotoSwipe is now available
-      if (!window.PhotoSwipe) {
-        console.error('PhotoSwipe failed to load after explicit attempt. Falling back.');
-        this.openImageInNewTab(doc);
-        return;
-      }
-
-      // Create and use the viewer instance only if it doesn't exist or PhotoSwipe was just loaded
-      if (!this.photoSwipeViewer) {
-        console.log('Creating new PhotoSwipeImageViewer instance.');
-        this.photoSwipeViewer = new PhotoSwipeImageViewer();
-      }
-      
-      console.log('Opening image with PhotoSwipe viewer...');
-      await this.photoSwipeViewer.openImage(doc); // This calls the openImage method of the instance
-      
-    } catch (error) {
-      console.error('Error in openImageWithNativeViewer:', error);
-      // Fallback to opening in new tab
-      console.log('Falling back to new tab due to error:', error.message);
-      this.openImageInNewTab(doc);
-    }
-  }
-
-  // Legacy openDocument method - RENAME TO AVOID CONFLICT
-  // The main openDocument method above handles API calls and uses PhotoSwipe for images
-  _legacy_openDocument_object(doc) { // Renamed
-    console.log('[Legacy Method] Opening document object:', doc);
-    
-    if (doc && doc.type === 'image') {
-      console.log('[Legacy Method] Document is image, using PhotoSwipe via openImageWithNativeViewer');
-      this.openImageWithNativeViewer(doc);
-    } else if (doc && doc.url) { // Check if it might be a PDF object
-      console.log('[Legacy Method] Document is not image or structure unclear, trying PDF modal');
-      this.openPDFDocument(doc);
+    if (show) {
+      if (zoomOut) zoomOut.style.display = 'block';
+      if (zoomIn) zoomIn.style.display = 'block';
+      if (zoomLevel) zoomLevel.style.display = 'block';
+      if (resetZoom) resetZoom.style.display = 'block';
     } else {
-      console.error('[Legacy Method] Called with invalid document object:', doc);
-      this.showError('Cannot open this document type or data is invalid.');
+      if (zoomOut) zoomOut.style.display = 'none';
+      if (zoomIn) zoomIn.style.display = 'none';
+      if (zoomLevel) zoomLevel.style.display = 'none';
+      if (resetZoom) resetZoom.style.display = 'none';
     }
   }
 
-  openPDFDocument(doc) {
-    const modal = document.createElement('div');
-    modal.className = 'document-modal';
-    modal.innerHTML = `
-      <div class="modal-content">
-        <div class="modal-header">
-          <h3>${doc.filename}</h3>
-          <div class="pdf-actions">
-            <button class="open-native-btn">Open in New Tab</button>
-            <button class="close-modal">&times;</button>
-          </div>
-        </div>
-        <div class="pdf-container">
-          <embed src="${doc.url}#toolbar=1&navpanes=1&scrollbar=1" type="application/pdf" style="width: 100%; height: 80vh;">
-          <p style="text-align: center; margin-top: 10px; color: #666;">
-            If the PDF doesn't display, click "Open in New Tab" above
-          </p>
-        </div>
-      </div>
-    `;
-
-    document.body.appendChild(modal);
-
-    // Open in new tab functionality
-    const openNativeBtn = modal.querySelector('.open-native-btn');
-    openNativeBtn.addEventListener('click', () => {
-      window.open(doc.url, '_blank');
-    });
-
-    // Close modal functionality
-    const closeBtn = modal.querySelector('.close-modal');
-    closeBtn.addEventListener('click', () => {
-      document.body.removeChild(modal);
-    });
-
-    // Close on backdrop click
-    modal.addEventListener('click', (e) => {
-      if (e.target === modal) {
-        closeBtn.click();
+  setupImageZoom() {
+    /*
+     * PERFORMANCE-OPTIMIZED IMAGE ZOOM IMPLEMENTATION
+     * 
+     * This implementation includes several optimizations for smooth zoom/pan:
+     * - Hardware acceleration with translate3d and will-change
+     * - RequestAnimationFrame for smooth updates
+     * - Momentum-based panning with velocity calculations
+     * - Optimized touch handling with pinch-to-zoom
+     * - Debounced wheel events to prevent excessive updates
+     * 
+     * For even better performance, consider these alternatives:
+     * 
+     * 1. PhotoSwipe (https://photoswipe.com/) - Best for galleries with zoom
+     *    - Hardware-accelerated, mobile-optimized
+     *    - Built-in pinch-to-zoom and momentum
+     *    - Excellent performance on mobile devices
+     * 
+     * 2. Panzoom (https://github.com/timmywil/panzoom) - Lightweight pan/zoom
+     *    - Only 4KB gzipped, very fast
+     *    - Excellent touch support
+     *    - Framework agnostic
+     * 
+     * 3. wheel-zoom (https://github.com/worka/wheel-zoom) - Minimal zoom library
+     *    - Vanilla JS, no dependencies
+     *    - Optimized for mouse wheel and drag
+     *    - Very lightweight (~2KB)
+     * 
+     * 4. Zoomist.js (https://github.com/cotton123236/zoomist) - Modern zoom library
+     *    - Built for performance with modern APIs
+     *    - Excellent mobile support
+     *    - Custom controls support
+     * 
+     * To implement any of these, replace this function and add the library via CDN or npm.
+     */
+    
+    const image = document.getElementById('zoomableImage');
+    const viewer = document.getElementById('documentViewer');
+    const zoomOut = document.getElementById('zoomOut');
+    const zoomIn = document.getElementById('zoomIn');
+    const resetZoom = document.getElementById('resetZoom');
+    const zoomLevel = document.getElementById('zoomLevel');
+    
+    if (!image || !viewer) return;
+    
+    // Reset zoom state
+    this.zoomLevel = 1;
+    this.imagePosition = { x: 0, y: 0 };
+    this.updateZoomDisplay();
+    
+    // Performance optimizations
+    let animationId = null;
+    let isTransforming = false;
+    
+    // Optimized transform update with requestAnimationFrame
+    const updateTransform = () => {
+      if (animationId) {
+        cancelAnimationFrame(animationId);
       }
+      
+      animationId = requestAnimationFrame(() => {
+        this.updateImageTransform();
+        isTransforming = false;
+      });
+    };
+    
+    // Smooth zoom function with bounds checking
+    const zoomImage = (factor, centerX = null, centerY = null) => {
+      const oldZoom = this.zoomLevel;
+      const newZoom = Math.max(0.1, Math.min(10, this.zoomLevel * factor));
+      
+      if (newZoom === oldZoom) return; // No change needed
+      
+      // Calculate zoom center point
+      if (centerX !== null && centerY !== null) {
+        const rect = image.getBoundingClientRect();
+        const imageX = centerX - rect.left;
+        const imageY = centerY - rect.top;
+        
+        // Adjust position to zoom towards the center point
+        const zoomRatio = newZoom / oldZoom;
+        this.imagePosition.x = centerX - (imageX * zoomRatio + this.imagePosition.x * (zoomRatio - 1));
+        this.imagePosition.y = centerY - (imageY * zoomRatio + this.imagePosition.y * (zoomRatio - 1));
+      }
+      
+      this.zoomLevel = newZoom;
+      
+      // Update UI state
+      if (this.zoomLevel > 1) {
+        viewer.classList.add('zoomed');
+        image.style.cursor = 'grab';
+      } else {
+        viewer.classList.remove('zoomed');
+        image.style.cursor = 'default';
+        this.imagePosition = { x: 0, y: 0 }; // Reset position when zoomed out
+      }
+      
+      if (!isTransforming) {
+        isTransforming = true;
+        updateTransform();
+      }
+      this.updateZoomDisplay();
+    };
+    
+    const resetZoomLevel = () => {
+      this.zoomLevel = 1;
+      this.imagePosition = { x: 0, y: 0 };
+      viewer.classList.remove('zoomed');
+      image.style.cursor = 'default';
+      updateTransform();
+      this.updateZoomDisplay();
+    };
+    
+    // Button event listeners
+    if (zoomIn) {
+      zoomIn.addEventListener('click', () => zoomImage(1.25));
+    }
+    if (zoomOut) {
+      zoomOut.addEventListener('click', () => zoomImage(0.8));
+    }
+    if (resetZoom) {
+      resetZoom.addEventListener('click', resetZoomLevel);
+    }
+    
+    // Optimized mouse wheel zoom with momentum
+    let wheelTimeout = null;
+    viewer.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      
+      // Clear any existing timeout
+      if (wheelTimeout) {
+        clearTimeout(wheelTimeout);
+      }
+      
+      // Get mouse position for zoom center
+      const rect = viewer.getBoundingClientRect();
+      const centerX = e.clientX - rect.left;
+      const centerY = e.clientY - rect.top;
+      
+      // Smooth zoom factor based on wheel delta
+      const delta = e.deltaY || e.detail || e.wheelDelta;
+      const factor = delta > 0 ? 0.9 : 1.1;
+      
+      zoomImage(factor, centerX, centerY);
+      
+      // Debounce to prevent excessive updates
+      wheelTimeout = setTimeout(() => {
+        // Final update after wheel stops
+        updateTransform();
+      }, 50);
+    }, { passive: false });
+    
+    // Enhanced pan functionality with momentum
+    let isDragging = false;
+    let dragStart = { x: 0, y: 0 };
+    let lastMoveTime = 0;
+    let velocity = { x: 0, y: 0 };
+    
+    const startDrag = (clientX, clientY) => {
+      if (this.zoomLevel > 1) {
+        isDragging = true;
+        dragStart = { x: clientX, y: clientY };
+        lastMoveTime = Date.now();
+        velocity = { x: 0, y: 0 };
+        image.style.cursor = 'grabbing';
+        viewer.style.cursor = 'grabbing';
+      }
+    };
+    
+    const updateDrag = (clientX, clientY) => {
+      if (isDragging && this.zoomLevel > 1) {
+        const now = Date.now();
+        const dt = now - lastMoveTime;
+        
+        const dx = clientX - dragStart.x;
+        const dy = clientY - dragStart.y;
+        
+        // Calculate velocity for momentum
+        if (dt > 0) {
+          velocity.x = dx / dt;
+          velocity.y = dy / dt;
+        }
+        
+        this.imagePosition.x += dx;
+        this.imagePosition.y += dy;
+        
+        dragStart = { x: clientX, y: clientY };
+        lastMoveTime = now;
+        
+        if (!isTransforming) {
+          isTransforming = true;
+          updateTransform();
+        }
+      }
+    };
+    
+    const endDrag = () => {
+      if (isDragging) {
+        isDragging = false;
+        image.style.cursor = this.zoomLevel > 1 ? 'grab' : 'default';
+        viewer.style.cursor = 'default';
+        
+        // Apply momentum if velocity is significant
+        if (Math.abs(velocity.x) > 0.1 || Math.abs(velocity.y) > 0.1) {
+          const momentum = () => {
+            velocity.x *= 0.95;
+            velocity.y *= 0.95;
+            
+            if (Math.abs(velocity.x) > 0.01 || Math.abs(velocity.y) > 0.01) {
+              this.imagePosition.x += velocity.x * 10;
+              this.imagePosition.y += velocity.y * 10;
+              updateTransform();
+              requestAnimationFrame(momentum);
+            }
+          };
+          requestAnimationFrame(momentum);
+        }
+      }
+    };
+    
+    // Mouse events
+    image.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      startDrag(e.clientX, e.clientY);
+    });
+    
+    document.addEventListener('mousemove', (e) => {
+      updateDrag(e.clientX, e.clientY);
+    });
+    
+    document.addEventListener('mouseup', endDrag);
+    
+    // Enhanced touch support with pinch-to-zoom
+    let touches = [];
+    let lastTouchDistance = 0;
+    let lastTouchCenter = { x: 0, y: 0 };
+    
+    const getTouchDistance = (touch1, touch2) => {
+      const dx = touch1.clientX - touch2.clientX;
+      const dy = touch1.clientY - touch2.clientY;
+      return Math.sqrt(dx * dx + dy * dy);
+    };
+    
+    const getTouchCenter = (touch1, touch2) => {
+      return {
+        x: (touch1.clientX + touch2.clientX) / 2,
+        y: (touch1.clientY + touch2.clientY) / 2
+      };
+    };
+    
+    image.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      touches = Array.from(e.touches);
+      
+      if (touches.length === 1) {
+        // Single touch - start pan
+        startDrag(touches[0].clientX, touches[0].clientY);
+      } else if (touches.length === 2) {
+        // Two touches - prepare for pinch zoom
+        isDragging = false; // Stop panning
+        lastTouchDistance = getTouchDistance(touches[0], touches[1]);
+        lastTouchCenter = getTouchCenter(touches[0], touches[1]);
+      }
+    }, { passive: false });
+    
+    image.addEventListener('touchmove', (e) => {
+      e.preventDefault();
+      touches = Array.from(e.touches);
+      
+      if (touches.length === 1 && isDragging) {
+        // Single touch pan
+        updateDrag(touches[0].clientX, touches[0].clientY);
+      } else if (touches.length === 2) {
+        // Pinch to zoom
+        const currentDistance = getTouchDistance(touches[0], touches[1]);
+        const currentCenter = getTouchCenter(touches[0], touches[1]);
+        
+        if (lastTouchDistance > 0) {
+          const scale = currentDistance / lastTouchDistance;
+          const rect = viewer.getBoundingClientRect();
+          const centerX = currentCenter.x - rect.left;
+          const centerY = currentCenter.y - rect.top;
+          
+          zoomImage(scale, centerX, centerY);
+        }
+        
+        lastTouchDistance = currentDistance;
+        lastTouchCenter = currentCenter;
+      }
+    }, { passive: false });
+    
+    image.addEventListener('touchend', (e) => {
+      e.preventDefault();
+      touches = Array.from(e.touches);
+      
+      if (touches.length === 0) {
+        endDrag();
+        lastTouchDistance = 0;
+      } else if (touches.length === 1) {
+        // Switch back to single touch pan
+        lastTouchDistance = 0;
+        startDrag(touches[0].clientX, touches[0].clientY);
+      }
+    }, { passive: false });
+    
+    // Prevent context menu on long press
+    image.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+    });
+    
+    // Double tap to zoom
+    let lastTap = 0;
+    image.addEventListener('touchend', (e) => {
+      const currentTime = new Date().getTime();
+      const tapLength = currentTime - lastTap;
+      
+      if (tapLength < 500 && tapLength > 0 && e.touches.length === 0) {
+        // Double tap detected
+        e.preventDefault();
+        
+        if (this.zoomLevel === 1) {
+          // Zoom in to 2x
+          const rect = viewer.getBoundingClientRect();
+          const touch = e.changedTouches[0];
+          const centerX = touch.clientX - rect.left;
+          const centerY = touch.clientY - rect.top;
+          zoomImage(2, centerX, centerY);
+        } else {
+          // Reset zoom
+          resetZoomLevel();
+        }
+      }
+      lastTap = currentTime;
     });
   }
-
-  // Simple fallback image viewer that opens in new tab
-  openImageInNewTab(doc) {
-    console.log('Opening image in new tab:', doc.url);
-    window.open(doc.url, '_blank');
+  
+  updateImageTransform() {
+    const image = document.getElementById('zoomableImage');
+    if (image) {
+      // Use transform3d for hardware acceleration
+      image.style.transform = `translate3d(${this.imagePosition.x}px, ${this.imagePosition.y}px, 0) scale(${this.zoomLevel})`;
+      image.style.willChange = this.zoomLevel > 1 ? 'transform' : 'auto';
+    }
+  }
+  
+  updateZoomDisplay() {
+    const zoomLevel = document.getElementById('zoomLevel');
+    if (zoomLevel) {
+      zoomLevel.textContent = `${Math.round(this.zoomLevel * 100)}%`;
+    }
   }
 }
 
