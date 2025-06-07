@@ -524,7 +524,7 @@ window.initPage = async function(id) {
     navContainer.id = 'bottomNav';
     document.body.appendChild(navContainer);
   }
-    const navRes = await fetch('../bottom-nav.html');
+          const navRes = await fetch('../bottom-nav.html?v=' + Date.now());
     const navHTML = await navRes.text();
   
   // Extract just the nav content (without the outer nav tag)

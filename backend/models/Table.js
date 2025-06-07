@@ -125,6 +125,43 @@ const tableSchema = new mongoose.Schema({
     type: [programSchema],
     default: []
   },
+  // Shotlist - checklist of shots to capture
+  shotlist: [
+    {
+      _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+      title: { type: String, required: true },
+      description: { type: String, default: '' },
+      priority: { type: String, enum: ['normal', 'high', 'critical'], default: 'normal' },
+      category: { type: String, default: '' },
+      completed: { type: Boolean, default: false },
+      completedAt: { type: Date },
+      createdAt: { type: Date, default: Date.now },
+      createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      updatedAt: { type: Date, default: Date.now }
+    }
+  ],
+  
+  // Multiple shotlists - simplified checklists
+  shotlists: [
+    {
+      _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+      name: { type: String, required: true },
+      items: [
+        {
+          _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
+          title: { type: String, required: true },
+          completed: { type: Boolean, default: false },
+          completedAt: { type: Date },
+          createdAt: { type: Date, default: Date.now },
+          createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+          updatedAt: { type: Date, default: Date.now }
+        }
+      ],
+      createdAt: { type: Date, default: Date.now },
+      createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+      updatedAt: { type: Date, default: Date.now }
+    }
+  ],
   archived: { type: Boolean, default: false },
   // Admin-only notes for this event/table
   adminNotes: [

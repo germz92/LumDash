@@ -633,6 +633,253 @@ app.put('/api/tables/:id/cardlog', authenticate, async (req, res) => {
   }
 });
 
+// ✅ Save shotlist data
+app.put('/api/tables/:id/shotlist', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === "null") {
+    return res.status(400).json({ error: "Invalid table ID" });
+  }
+  
+  try {
+    console.log(`[SHOTLIST] Received PUT request for shotlist, table ID: ${req.params.id}`);
+    
+    // Safely extract the shotlist data
+    let newShotlist = [];
+    try {
+      newShotlist = Array.isArray(req.body.shotlist) ? req.body.shotlist : [];
+      console.log(`[SHOTLIST] Received ${newShotlist.length} shots`);
+    } catch (err) {
+      console.error('[SHOTLIST] Error parsing shotlist data:', err);
+      return res.status(400).json({ error: "Invalid shotlist data format" });
+    }
+    
+    // Get the current table
+    const table = await Table.findById(req.params.id);
+    if (!table) {
+      console.error(`[SHOTLIST] Table not found: ${req.params.id}`);
+      return res.status(404).json({ error: "Table not found" });
+    }
+    
+    // Check permissions - only owners and leads can edit
+    const canEdit = table.owners.includes(req.user.id) || 
+                   (Array.isArray(table.leads) && table.leads.includes(req.user.id));
+    
+    if (!canEdit && !table.sharedWith.includes(req.user.id)) {
+      console.error(`[SHOTLIST] Unauthorized access: ${req.user.id}`);
+      return res.status(403).json({ error: "Not authorized" });
+    }
+    
+    // If user is only a shared member (not owner/lead), they can only update completion status
+    if (!canEdit && table.sharedWith.includes(req.user.id)) {
+      const oldShotlist = Array.isArray(table.shotlist) ? table.shotlist : [];
+      
+      // Validate that only completion status changed
+      if (newShotlist.length !== oldShotlist.length) {
+        return res.status(403).json({ error: "Only owners and leads can add/remove shots" });
+      }
+      
+      for (let i = 0; i < newShotlist.length; i++) {
+        const newShot = newShotlist[i];
+        const oldShot = oldShotlist[i];
+        
+        // Allow only completed and completedAt fields to change
+        const allowedFields = ['completed', 'completedAt'];
+        for (const key in newShot) {
+          if (!allowedFields.includes(key) && newShot[key] !== oldShot[key]) {
+            return res.status(403).json({ 
+              error: "Only owners and leads can edit shot details. You can only check/uncheck completion." 
+            });
+          }
+        }
+      }
+    }
+    
+    // Sanitize shotlist data
+    const sanitizedShotlist = newShotlist.map(shot => ({
+      ...shot,
+      _id: shot._id || `shot-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      createdAt: shot.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }));
+    
+    // Update with retry logic
+    let updateSuccessful = false;
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (!updateSuccessful && retryCount < maxRetries) {
+      try {
+        const result = await Table.findOneAndUpdate(
+          { 
+            _id: req.params.id,
+            $or: [
+              { owners: req.user.id },
+              { leads: req.user.id },
+              { sharedWith: req.user.id }
+            ]
+          },
+          { $set: { shotlist: sanitizedShotlist } },
+          { new: true }
+        );
+        
+        if (!result) {
+          console.error(`[SHOTLIST] Update failed: No document returned`);
+          return res.status(404).json({ error: "Update failed - table not found or permissions changed" });
+        }
+        
+        updateSuccessful = true;
+        console.log(`[SHOTLIST] Update successful on attempt ${retryCount + 1}`);
+        
+        // Emit socket event for real-time updates
+        try {
+          console.log(`[SHOTLIST] Emitting shotlistUpdated event`);
+          notifyDataChange('shotlistUpdated', { shotlist: sanitizedShotlist }, req.params.id);
+        } catch (err) {
+          console.error('[SHOTLIST] Error emitting events:', err);
+          // Continue - the save was successful even if notifications fail
+        }
+        
+      } catch (err) {
+        console.error(`[SHOTLIST] Update attempt ${retryCount + 1} failed:`, err);
+        retryCount++;
+        
+        if (retryCount >= maxRetries) {
+          return res.status(500).json({ 
+            error: "Failed to update shotlist after multiple attempts",
+            details: err.message
+          });
+        }
+        
+        // Wait a bit before retry
+        await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
+      }
+    }
+    
+    return res.json({ message: 'Shotlist saved successfully' });
+  } catch (err) {
+    console.error('[SHOTLIST] Unhandled error in shotlist update:', err);
+    return res.status(500).json({ error: 'Failed to update shotlist', details: err.message });
+  }
+});
+
+// ✅ Save shotlists data (multiple lists)
+app.put('/api/tables/:id/shotlists', authenticate, async (req, res) => {
+  const maxRetries = 3;
+  let retryCount = 0;
+
+  try {
+    console.log(`[SHOTLISTS] Received PUT request for shotlists, table ID: ${req.params.id}`);
+    
+    // Safely extract the shotlists data
+    let newShotlists = [];
+    try {
+      newShotlists = Array.isArray(req.body.shotlists) ? req.body.shotlists : [];
+      console.log(`[SHOTLISTS] Received ${newShotlists.length} lists`);
+    } catch (err) {
+      console.error('[SHOTLISTS] Error parsing shotlists data:', err);
+      return res.status(400).json({ error: "Invalid shotlists data format" });
+    }
+
+    const table = await Table.findById(req.params.id);
+    if (!table) {
+      console.error(`[SHOTLISTS] Table not found: ${req.params.id}`);
+      return res.status(404).json({ error: 'Table not found' });
+    }
+
+    // Check if user has permission to edit
+    const userId = req.user.id;
+    const isOwner = table.owners && table.owners.some(ownerId => ownerId.toString() === userId);
+    const isLead = table.leads && table.leads.some(leadId => leadId.toString() === userId);
+
+    if (!isOwner && !isLead) {
+      console.error(`[SHOTLISTS] Unauthorized access: ${req.user.id}`);
+      return res.status(403).json({ error: 'Unauthorized: Only owners and leads can edit shotlists' });
+    }
+
+    // Sanitize shotlists data - let mongoose handle ObjectId creation automatically
+    const sanitizedShotlists = newShotlists.map(list => {
+      const sanitizedList = {
+        name: typeof list.name === 'string' ? list.name.trim() : '',
+        items: Array.isArray(list.items) ? list.items.map(item => {
+          const sanitizedItem = {
+            title: typeof item.title === 'string' ? item.title.trim() : '',
+            completed: Boolean(item.completed),
+            completedAt: item.completed && item.completedAt ? new Date(item.completedAt) : null,
+            createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
+            createdBy: item.createdBy || req.user.id,
+            updatedAt: new Date()
+          };
+          
+          // Only preserve _id if it's a valid MongoDB ObjectId
+          if (item._id && mongoose.Types.ObjectId.isValid(item._id)) {
+            sanitizedItem._id = item._id;
+          }
+          
+          return sanitizedItem;
+        }) : [],
+        createdAt: list.createdAt ? new Date(list.createdAt) : new Date(),
+        createdBy: list.createdBy || req.user.id,
+        updatedAt: new Date()
+      };
+      
+      // Only preserve _id if it's a valid MongoDB ObjectId
+      if (list._id && mongoose.Types.ObjectId.isValid(list._id)) {
+        sanitizedList._id = list._id;
+      }
+      
+      return sanitizedList;
+    });
+
+    while (retryCount < maxRetries) {
+      try {
+        const updatedTable = await Table.findByIdAndUpdate(
+          req.params.id,
+          { $set: { shotlists: sanitizedShotlists } },
+          { new: true, runValidators: true }
+        );
+
+        if (!updatedTable) {
+          console.error(`[SHOTLISTS] Update failed: No document returned`);
+          return res.status(404).json({ error: 'Table not found' });
+        }
+
+        console.log(`[SHOTLISTS] Update successful on attempt ${retryCount + 1}`);
+
+        // Emit Socket.IO event for real-time updates
+        try {
+          console.log(`[SHOTLISTS] Emitting shotlistsUpdated event`);
+          // Send the actual saved data from MongoDB, not the sanitized input
+          notifyDataChange('shotlistsUpdated', { shotlists: updatedTable.shotlists }, req.params.id);
+        } catch (err) {
+          console.error('[SHOTLISTS] Error emitting events:', err);
+        }
+
+        break;
+
+      } catch (err) {
+        console.error(`[SHOTLISTS] Update attempt ${retryCount + 1} failed:`, err);
+        retryCount++;
+        
+        if (retryCount >= maxRetries) {
+          console.error('[SHOTLISTS] Max retries reached');
+          return res.status(500).json({ 
+            error: "Failed to update shotlists after multiple attempts",
+            details: err.message 
+          });
+        }
+        
+        // Wait before retrying
+        await new Promise(resolve => setTimeout(resolve, 100 * retryCount));
+      }
+    }
+
+    return res.json({ message: 'Shotlists saved successfully' });
+
+  } catch (err) {
+    console.error('[SHOTLISTS] Unhandled error in shotlists update:', err);
+    return res.status(500).json({ error: 'Failed to update shotlists', details: err.message });
+  }
+});
+
 // GENERAL INFO
 app.get('/api/tables/:id/general', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === "null") {

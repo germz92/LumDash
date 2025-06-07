@@ -253,7 +253,7 @@ window.initPage = async function(id) {
     logEventIdState('AFTER_NAV_CONTAINER_SETUP');
     
     console.log(`[INIT] Fetching ../bottom-nav.html...`);
-    const navRes = await fetch('../bottom-nav.html');
+    const navRes = await fetch('../bottom-nav.html?v=' + Date.now());
     const navHTML = await navRes.text();
     logEventIdState('AFTER_NAV_HTML_FETCH');
     
@@ -1541,6 +1541,9 @@ window.handleFileImport = handleFileImport;
 window.processImportedData = processImportedData;
 window.formatTimeValue = formatTimeValue;
 window.showImportModal = showImportModal;
+window.updateProgramRow = updateProgramRow;
+window.updateProgramFields = updateProgramFields;
+window.preserveProgramInputStates = preserveProgramInputStates;
 
 // --- Socket.IO real-time updates ---
 if (window.socket) {
@@ -1566,37 +1569,25 @@ if (window.socket) {
       
       // If this is a specific program update, try to update just that row
       if (data.program && data.program._id) {
-        console.log(`[SOCKET] Updating specific program row: ${data.program._id}`);
+        console.log(`[SOCKET] Smart updating specific program row: ${data.program._id}`);
         
-        // Update the program in our local data
+        // Check if the user is specifically editing this program
+        const container = document.getElementById('programSections');
+        if (container) {
+          const entry = container.querySelector(`.program-entry[data-program-id='${data.program._id}']`);
+          if (entry && entry.contains(document.activeElement)) {
+            console.log('[SOCKET] User is editing this specific program, deferring update');
+            window.pendingReload = true;
+            return;
+          }
+        }
+        
+        // Update the program in our local data and UI using smart update
         const programIndex = tableData.programs.findIndex(p => p._id === data.program._id);
         if (programIndex !== -1) {
-          // Merge data but protect recently edited fields
-          const existingProgram = tableData.programs[programIndex];
-          const mergedProgram = { ...existingProgram };
-          
-          // Check each field in the incoming update
-          for (const [key, value] of Object.entries(data.program)) {
-            const fieldKey = `${data.program._id}-${key}`;
-            const recentEdit = window.recentlyEditedFields.get(fieldKey);
-            
-            // Skip this field if it was recently edited and hasn't changed
-            if (recentEdit && Date.now() - recentEdit.timestamp < 3000) {
-              console.log(`[SOCKET] Skipping field ${key} - recently edited by user`);
-              continue;
-            }
-            
-            mergedProgram[key] = value;
-          }
-          
-          tableData.programs[programIndex] = mergedProgram;
-          
-          // Update just this row in the UI
-          updateProgramRow(mergedProgram, isOwner);
-          console.log(`[SOCKET] Successfully updated program row for ${mergedProgram.name || 'unnamed program'}`);
-          
-          // Re-attach event listeners to the updated row
-          setEditingListeners();
+          // Use the smart update which will handle field protection automatically
+          updateProgramRow(data.program, isOwner);
+          console.log(`[SOCKET] Smart update completed for program row: ${data.program.name || 'unnamed'}`);
         } else {
           console.log(`[SOCKET] Program not found in local data, doing full reload`);
           loadPrograms(); // Fallback to full reload
@@ -1676,7 +1667,7 @@ if (window.socket) {
       
       // If this is a specific program update, try to update just that row
       if (data.program && data.program._id) {
-        console.log(`[SOCKET] Updating specific program row: ${data.program._id}`);
+        console.log(`[SOCKET] Smart updating specific program row: ${data.program._id}`);
         
         // Check if the user is specifically editing this program
         const container = document.getElementById('programSections');
@@ -1689,43 +1680,12 @@ if (window.socket) {
           }
         }
         
-        // Update the program in our local data
+        // Update the program in our local data and UI using smart update
         const programIndex = tableData.programs.findIndex(p => p._id === data.program._id);
         if (programIndex !== -1) {
-          // Merge data but protect recently edited fields
-          const existingProgram = tableData.programs[programIndex];
-          const mergedProgram = { ...existingProgram };
-          
-          // Check each field in the incoming update
-          for (const [key, value] of Object.entries(data.program)) {
-            const fieldKey = `${data.program._id}-${key}`;
-            const recentEdit = window.recentlyEditedFields.get(fieldKey);
-            
-            // Also check if this specific field is currently being edited
-            const currentlyEditing = window.currentlyEditingField === fieldKey;
-            
-            // Skip this field if it was recently edited or is currently being edited
-            if (recentEdit && Date.now() - recentEdit.timestamp < 5000) {
-              console.log(`[SOCKET] Skipping field ${key} - recently edited by user (${Date.now() - recentEdit.timestamp}ms ago)`);
-              continue;
-            }
-            
-            if (currentlyEditing) {
-              console.log(`[SOCKET] Skipping field ${key} - currently being edited by user`);
-              continue;
-            }
-            
-            mergedProgram[key] = value;
-          }
-          
-          tableData.programs[programIndex] = mergedProgram;
-          
-          // Update just this row in the UI
-          updateProgramRow(mergedProgram, isOwner);
-          console.log(`[SOCKET] Successfully updated program row for ${mergedProgram.name || 'unnamed program'}`);
-          
-          // Re-attach event listeners to the updated row
-          setEditingListeners();
+          // Use the smart update which will handle field protection automatically
+          updateProgramRow(data.program, isOwner);
+          console.log(`[SOCKET] Smart update completed for program row: ${data.program.name || 'unnamed'}`);
         } else {
           console.log(`[SOCKET] Program not found in local data, doing full reload`);
           loadPrograms(); // Fallback to full reload
@@ -1857,28 +1817,28 @@ function updateProgramRow(program, hasScheduleAccess) {
   // Find the row by _id
   const container = document.getElementById('programSections');
   if (!container) return;
+  
   // Find the entry with the matching data-program-id
   const entry = container.querySelector(`.program-entry[data-program-id='${program._id}']`);
   if (!entry) return;
-  // Rebuild the row's HTML (copy from renderProgramSections)
+  
   const programIndex = tableData.programs.findIndex(p => p._id === program._id);
   if (programIndex === -1) return;
+  
+  console.log(`[UPDATE] Smart updating program row for ${program.name || 'unnamed'}`);
+  
+  // Preserve current input states before making changes
+  const preservationData = preserveProgramInputStates(entry);
   
   // Check if any field in this row is currently focused
   const activeElement = document.activeElement;
   const isRowBeingEdited = entry.contains(activeElement) && 
     (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA');
   
-  if (isRowBeingEdited) {
-    console.log('[UPDATE] Skipping row update - user is currently editing this row');
-    // Still update the done-entry class for strikethrough
-    entry.classList.toggle('done-entry', program.done);
-    // Update the data in memory but don't rebuild the HTML
-    tableData.programs[programIndex] = { ...tableData.programs[programIndex], ...program };
-    return;
-  }
+  // Always update the done-entry class for strikethrough
+  entry.classList.toggle('done-entry', program.done);
   
-  // Merge the incoming program data with recently edited fields protection
+  // Merge the incoming program data with protection for active editing
   const currentProgram = tableData.programs[programIndex];
   const finalProgram = { ...currentProgram };
   
@@ -1886,18 +1846,17 @@ function updateProgramRow(program, hasScheduleAccess) {
   for (const [key, value] of Object.entries(program)) {
     const fieldKey = `${program._id}-${key}`;
     const recentEdit = window.recentlyEditedFields.get(fieldKey);
-    
-    // Also check if this specific field is currently being edited
     const currentlyEditing = window.currentlyEditingField === fieldKey;
+    const isFieldFocused = preservationData.focusedField === key;
     
-    // Skip this field if it was recently edited or is currently being edited
+    // Skip this field if it was recently edited, currently being edited, or currently focused
     if (recentEdit && Date.now() - recentEdit.timestamp < 5000) {
       console.log(`[UPDATE] Preserving recently edited field: ${key} (${Date.now() - recentEdit.timestamp}ms ago)`);
       continue;
     }
     
-    if (currentlyEditing) {
-      console.log(`[UPDATE] Preserving currently editing field: ${key}`);
+    if (currentlyEditing || isFieldFocused) {
+      console.log(`[UPDATE] Preserving actively editing field: ${key}`);
       continue;
     }
     
@@ -1907,75 +1866,150 @@ function updateProgramRow(program, hasScheduleAccess) {
   // Update the local data
   tableData.programs[programIndex] = finalProgram;
   
-  // Toggle the done-entry class based on program.done state
-  entry.classList.toggle('done-entry', finalProgram.done);
+  // Smart update individual fields instead of rebuilding entire HTML
+  updateProgramFields(entry, finalProgram, preservationData, hasScheduleAccess, programIndex);
   
-  entry.innerHTML = `
-    <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
-      <input class="program-name" type="text"
-        ${!hasScheduleAccess ? 'readonly' : ''}
-        placeholder="Program Name"
-        style="flex: 1;"
-        value="${finalProgram.name || ''}" 
-        onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}" 
-        onblur="${hasScheduleAccess ? `autoSave(this, '${finalProgram.date}', ${programIndex}, 'name')` : ''}">
-      <div class="right-actions">
-        <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; margin-bottom: 0;">
-        <input type="checkbox" class="done-checkbox"
-          style="width: 20px; height: 20px;"
-          ${finalProgram.done ? 'checked' : ''}
-          onchange="toggleDone(this, ${programIndex})">
-      </label>
-    </div>
-    </div>
-    <div style="display: flex; align-items: center; gap: 3px;">
-      <input type="time" placeholder="Start Time" style="flex: 1; min-width: 0; text-align: left;"
-        value="${finalProgram.startTime || ''}"
-        ${!hasScheduleAccess ? 'readonly' : ''}
-        onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
-        onblur="${hasScheduleAccess ? `autoSave(this, '${finalProgram.date}', ${programIndex}, 'startTime')` : ''}">
-      <input type="time" placeholder="End Time" style="flex: 1; min-width: 0; text-align: left;"
-        value="${finalProgram.endTime || ''}"
-        ${!hasScheduleAccess ? 'readonly' : ''}
-        onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
-        onblur="${hasScheduleAccess ? `autoSave(this, '${finalProgram.date}', ${programIndex}, 'endTime')` : ''}">
-    </div>
-    <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
-      <div style="display: flex; align-items: center; flex: 1;">
-        <span class="material-symbols-outlined" style="margin-right: 4px; font-size: 18px;">location_on</span>
-        <textarea style="flex: 1; resize: none;"
-          placeholder="Location"
-          ${!hasScheduleAccess ? 'readonly' : ''}
-          onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
-          oninput="${hasScheduleAccess ? 'autoResizeTextarea(this)' : ''}"
-          onblur="${hasScheduleAccess ? `autoSave(this, '${finalProgram.date}', ${programIndex}, 'location')` : ''}">${finalProgram.location || ''}</textarea>
-      </div>
-      <div style="display: flex; align-items: center; flex: 1;">
-        <span class="material-symbols-outlined" style="margin-right: 4px; font-size: 18px;">photo_camera</span>
-        <textarea style="flex: 1; resize: none;"
-          placeholder="Photographer"
-          ${!hasScheduleAccess ? 'readonly' : ''}
-          onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
-          oninput="${hasScheduleAccess ? 'autoResizeTextarea(this)' : ''}"
-          onblur="${hasScheduleAccess ? `autoSave(this, '${finalProgram.date}', ${programIndex}, 'photographer')` : ''}">${finalProgram.photographer || ''}</textarea>
-      </div>
-    </div>
-    <div class="entry-actions">
-    <button class="show-notes-btn" onclick="toggleNotes(this)">Show Notes</button>
-      ${hasScheduleAccess ? `<button class="delete-btn" onclick="deleteProgram(this)"><span class="material-symbols-outlined">delete</span></button>` : ''}
-    </div>
-    <div class="notes-field" style="display: none;">
-      <textarea
-        class="auto-expand"
-        placeholder="Notes"
-        oninput="autoResizeTextarea(this)"
-        ${!hasScheduleAccess ? 'readonly' : ''}
-        onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
-        onblur="${hasScheduleAccess ? `autoSave(this, '${finalProgram.date}', ${programIndex}, 'notes')` : ''}">${finalProgram.notes || ''}</textarea>
-    </div>
-  `;
-  // Re-attach listeners and auto-resize
-  entry.querySelectorAll('textarea').forEach(setupTextareaResize);
+  console.log(`[UPDATE] Smart update completed for program ${finalProgram.name || 'unnamed'}`);
+}
+
+// Smart field update function that preserves input states
+function updateProgramFields(entry, program, preservationData, hasScheduleAccess, programIndex) {
+  // Update program name input
+  const nameInput = entry.querySelector('.program-name');
+  if (nameInput && !isFieldCurrentlyFocused(nameInput, preservationData)) {
+    if (nameInput.value !== (program.name || '')) {
+      console.log(`[UPDATE] Updating name: '${nameInput.value}' -> '${program.name || ''}'`);
+      nameInput.value = program.name || '';
+    }
+  }
+  
+  // Update done checkbox
+  const doneCheckbox = entry.querySelector('.done-checkbox');
+  if (doneCheckbox && doneCheckbox.checked !== !!program.done) {
+    console.log(`[UPDATE] Updating done status: ${doneCheckbox.checked} -> ${!!program.done}`);
+    doneCheckbox.checked = !!program.done;
+  }
+  
+  // Update start time
+  const startTimeInput = entry.querySelector('input[type="time"]:first-of-type');
+  if (startTimeInput && !isFieldCurrentlyFocused(startTimeInput, preservationData)) {
+    if (startTimeInput.value !== (program.startTime || '')) {
+      console.log(`[UPDATE] Updating start time: '${startTimeInput.value}' -> '${program.startTime || ''}'`);
+      startTimeInput.value = program.startTime || '';
+    }
+  }
+  
+  // Update end time
+  const endTimeInput = entry.querySelector('input[type="time"]:last-of-type');
+  if (endTimeInput && !isFieldCurrentlyFocused(endTimeInput, preservationData)) {
+    if (endTimeInput.value !== (program.endTime || '')) {
+      console.log(`[UPDATE] Updating end time: '${endTimeInput.value}' -> '${program.endTime || ''}'`);
+      endTimeInput.value = program.endTime || '';
+    }
+  }
+  
+  // Update location textarea
+  const locationTextarea = entry.querySelector('textarea:first-of-type');
+  if (locationTextarea && !isFieldCurrentlyFocused(locationTextarea, preservationData)) {
+    if (locationTextarea.value !== (program.location || '')) {
+      console.log(`[UPDATE] Updating location: '${locationTextarea.value}' -> '${program.location || ''}'`);
+      locationTextarea.value = program.location || '';
+      autoResizeTextarea(locationTextarea);
+    }
+  }
+  
+  // Update photographer textarea
+  const photographerTextarea = entry.querySelector('textarea:nth-of-type(2)');
+  if (photographerTextarea && !isFieldCurrentlyFocused(photographerTextarea, preservationData)) {
+    if (photographerTextarea.value !== (program.photographer || '')) {
+      console.log(`[UPDATE] Updating photographer: '${photographerTextarea.value}' -> '${program.photographer || ''}'`);
+      photographerTextarea.value = program.photographer || '';
+      autoResizeTextarea(photographerTextarea);
+    }
+  }
+  
+  // Update notes textarea
+  const notesTextarea = entry.querySelector('.notes-field textarea');
+  if (notesTextarea && !isFieldCurrentlyFocused(notesTextarea, preservationData)) {
+    if (notesTextarea.value !== (program.notes || '')) {
+      console.log(`[UPDATE] Updating notes: '${notesTextarea.value}' -> '${program.notes || ''}'`);
+      notesTextarea.value = program.notes || '';
+      autoResizeTextarea(notesTextarea);
+    }
+  }
+  
+  // Restore focus if it was preserved
+  if (preservationData.focusedElement && preservationData.shouldRestoreFocus) {
+    setTimeout(() => {
+      try {
+        preservationData.focusedElement.focus();
+        if (preservationData.focusedElement.setSelectionRange && 
+            preservationData.selectionStart !== undefined && 
+            preservationData.selectionEnd !== undefined) {
+          preservationData.focusedElement.setSelectionRange(
+            preservationData.selectionStart, 
+            preservationData.selectionEnd
+          );
+        }
+        console.log('[UPDATE] Restored focus and selection');
+      } catch (error) {
+        console.log('[UPDATE] Could not restore focus:', error);
+      }
+    }, 0);
+  }
+}
+
+// Preserve input states for program row updates
+function preserveProgramInputStates(entry) {
+  const preservationData = {
+    focusedElement: null,
+    focusedField: null,
+    selectionStart: null,
+    selectionEnd: null,
+    shouldRestoreFocus: false
+  };
+  
+  const activeElement = document.activeElement;
+  if (activeElement && entry.contains(activeElement)) {
+    preservationData.focusedElement = activeElement;
+    preservationData.shouldRestoreFocus = true;
+    
+    // Determine which field is focused
+    if (activeElement.classList.contains('program-name')) {
+      preservationData.focusedField = 'name';
+    } else if (activeElement.type === 'time') {
+      if (activeElement === entry.querySelector('input[type="time"]:first-of-type')) {
+        preservationData.focusedField = 'startTime';
+      } else {
+        preservationData.focusedField = 'endTime';
+      }
+    } else if (activeElement.type === 'checkbox') {
+      preservationData.focusedField = 'done';
+    } else if (activeElement.tagName === 'TEXTAREA') {
+      if (activeElement.closest('.notes-field')) {
+        preservationData.focusedField = 'notes';
+      } else if (activeElement === entry.querySelector('textarea:first-of-type')) {
+        preservationData.focusedField = 'location';
+      } else {
+        preservationData.focusedField = 'photographer';
+      }
+    }
+    
+    // Preserve selection for text inputs and textareas
+    if (activeElement.tagName === 'INPUT' || activeElement.tagName === 'TEXTAREA') {
+      preservationData.selectionStart = activeElement.selectionStart;
+      preservationData.selectionEnd = activeElement.selectionEnd;
+    }
+    
+    console.log('[UPDATE] Preserving focus state for field:', preservationData.focusedField);
+  }
+  
+  return preservationData;
+}
+
+// Check if a field is currently focused
+function isFieldCurrentlyFocused(element, preservationData) {
+  return preservationData.focusedElement === element;
 }
 
 // Add missing setupDateFilterOptions function and fix programs reference
@@ -2014,5 +2048,23 @@ if (originalSetupBottomNavigation) {
 } else {
   console.warn(`[MONITOR] setupBottomNavigation not found for monitoring`);
 }
+
+// Test smart update functionality
+window.testScheduleSmartUpdate = function(programId, testData) {
+  console.log('[TEST] Testing smart schedule update for program:', programId);
+  const mockProgram = testData || {
+    _id: programId,
+    name: 'Test Program ' + Date.now(),
+    startTime: '14:30',
+    endTime: '16:00',
+    location: 'Test Location',
+    photographer: 'Test Photographer',
+    notes: 'Test notes content',
+    done: false
+  };
+  
+  console.log('[TEST] Mock program data:', mockProgram);
+  updateProgramRow(mockProgram, true);
+};
 
 })();
