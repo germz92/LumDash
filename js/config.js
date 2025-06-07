@@ -27,6 +27,7 @@ console.log(`[config.js] API_BASE set to: ${API_BASE}`);
   const isSafePage =
     pathname.endsWith('/index.html') ||
     pathname.endsWith('/register.html') || // ✅ Allow registration page
+    pathname.endsWith('/reset-password.html') || // ✅ Allow reset password page
     pathname.endsWith('/dashboard.html') || // ✅ Allow dashboard to load SPA
     pathname === '/' ||
     pathname === '' ||

@@ -90,7 +90,8 @@ function navigate(page, id) {
       // Check for page-specific cleanup functions
       const cleanupFunctionMap = {
         'schedule': 'cleanupSchedulePage',
-        'card-log': 'cleanupCardLogPage'
+        'card-log': 'cleanupCardLogPage',
+        'shotlist': 'cleanupShotlist'
         // Add more page cleanup functions here as needed
       };
       
@@ -226,7 +227,8 @@ function injectPageContent(html, page, id) {
   // Clear any page-specific flags
   const pageFlags = {
     'schedule': ['__scheduleJsLoaded'],
-    'card-log': ['__cardLogJsLoaded']
+    'card-log': ['__cardLogJsLoaded'],
+    'shotlist': ['__shotlistJsLoaded']
     // Add other page flags as needed
   };
   
@@ -427,6 +429,7 @@ function loadPageCSS(page) {
     case 'gear': cssFile = 'css/gear.css'; break;
     case 'card-log': cssFile = 'css/card-log.css'; break;
     case 'schedule': cssFile = 'css/schedule.css'; break;
+    case 'shotlist': cssFile = 'css/shotlist.css'; break;
     case 'users': cssFile = 'css/users.css'; break;
   }
   if (cssFile) {
@@ -606,7 +609,8 @@ function setupDesktopNavigation(navContainer, tableId, currentPage) {
     { page: 'travel-accommodation', icon: 'flight_takeoff', label: 'Travel' },
     { page: 'gear', icon: 'photo_camera', label: 'Gear' },
     { page: 'card-log', icon: 'sd_card', label: 'Cards' },
-    { page: 'documents', icon: 'map', label: 'Map' }
+    { page: 'documents', icon: 'map', label: 'Map' },
+    { page: 'events', icon: 'exit_to_app', label: 'Exit' }
   ];
   
   // Remove any existing desktop nav items we added previously
@@ -717,15 +721,16 @@ function updateActiveNavigation(currentPage) {
 
   // Map: data-page value or a special key for toggle -> Material Symbol INACTIVE icon name
   const defaultInactiveIcons = {
-    'events': 'home',
+    'events': 'exit_to_app',  // Exit icon for events page
     'dashboard': 'home', 
-    'general': 'info',
+    'general': 'home',        // Home icon for general page
     'crew': 'group',
     'schedule': 'calendar_today',
     'more-toggle': 'more_horiz',
     'travel-accommodation': 'flight_takeoff',
     'gear': 'photo_camera',
     'card-log': 'sd_card',
+    'shotlist': 'checklist',
     'documents': 'map'
   };
 
