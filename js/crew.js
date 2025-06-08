@@ -1,3 +1,4 @@
+// CREW PAGE v2.1 - DRAG_DROP_FIX - Fixed drag and drop persistence by using correct API endpoint
 (function() {
 window.initPage = undefined;
 window.token = window.token || localStorage.getItem('token');
@@ -745,14 +746,26 @@ function clearDateFilter() {
 }
 
 async function saveRowOrder() {
-  await fetch(`${API_BASE}/api/tables/${tableId}/reorder-rows`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: token
-    },
-    body: JSON.stringify({ rows: tableData.rows })
-  });
+  try {
+    console.log('🔄 CREW: Saving row order...');
+    const response = await fetch(`${API_BASE}/api/tables/${tableId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: token
+      },
+      body: JSON.stringify({ rows: tableData.rows })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to save row order: ${response.status}`);
+    }
+
+    console.log('✅ CREW: Row order saved successfully');
+  } catch (error) {
+    console.error('❌ CREW: Failed to save row order:', error);
+    alert('Failed to save row order. Please try again.');
+  }
 }
 
 function handleDrop(targetId, draggedId) {
