@@ -6,6 +6,7 @@ class ChatWidget {
     this.isLoading = false;
     this.token = localStorage.getItem('token');
     this.API_BASE = window.API_BASE || '';
+    this.conversationHistory = []; // Store conversation for context
     
     this.init();
   }
@@ -124,8 +125,11 @@ class ChatWidget {
 
   addWelcomeMessage() {
     const eventTitle = document.getElementById('eventTitle')?.textContent || 'this event';
-    const welcomeMessage = `Hi! I'm your AI assistant for ${eventTitle}. I can help you find information about schedules, travel, accommodation, and more. What would you like to know?`;
+    const welcomeMessage = `Hi! I'm Luma, your AI assistant for ${eventTitle}. I can help you find information about schedules, crew assignments, gear lists, travel details, and more. What would you like to know? 📸`;
     this.addMessage('assistant', welcomeMessage);
+    
+    // Add welcome message to conversation history
+    this.conversationHistory.push({ role: 'assistant', content: welcomeMessage });
   }
 
   async sendMessage() {
@@ -150,7 +154,10 @@ class ChatWidget {
           'Content-Type': 'application/json',
           'Authorization': this.token
         },
-        body: JSON.stringify({ message })
+        body: JSON.stringify({ 
+          message,
+          conversationHistory: this.conversationHistory 
+        })
       });
 
       if (!response.ok) {
@@ -158,6 +165,15 @@ class ChatWidget {
       }
 
       const data = await response.json();
+      
+      // Add to conversation history for context
+      this.conversationHistory.push({ role: 'user', content: message });
+      this.conversationHistory.push({ role: 'assistant', content: data.response });
+      
+      // Keep only last 20 messages to avoid memory issues
+      if (this.conversationHistory.length > 20) {
+        this.conversationHistory = this.conversationHistory.slice(-20);
+      }
       
       // Remove typing indicator and add response
       this.hideTypingIndicator();
@@ -188,7 +204,7 @@ class ChatWidget {
     const messageDiv = document.createElement('div');
     messageDiv.className = `chat-message ${sender}`;
     
-    const senderLabel = sender === 'user' ? 'You' : 'Assistant';
+    const senderLabel = sender === 'user' ? 'You' : 'Luma';
     
     messageDiv.innerHTML = `
       <div class="message-sender">${senderLabel}</div>
