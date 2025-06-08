@@ -3,6 +3,9 @@
 // Use IIFE to prevent variable conflicts and create a clean scope
 (function() {
   
+// Get API base URL
+const API_BASE = window.API_BASE || 'https://spa-lumdash-backend.onrender.com';
+  
 // Prevent multiple script loading conflicts
 if (window.shotlistModule) {
   console.log('🎯 SHOTLIST: Module already loaded, cleaning up...');
@@ -214,7 +217,7 @@ async function loadShotlists() {
       return;
     }
 
-    const response = await fetch(`/api/tables/${tableId}`, {
+    const response = await fetch(`${API_BASE}/api/tables/${tableId}`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
@@ -487,7 +490,7 @@ async function saveShotlists() {
       return;
     }
 
-    const response = await fetch(`/api/tables/${tableId}/shotlists`, {
+    const response = await fetch(`${API_BASE}/api/tables/${tableId}/shotlists`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -907,7 +910,7 @@ window.initPage = async function(id) {
   try {
     const tableId = getCurrentTableId();
     if (tableId) {
-      const response = await fetch(`/api/tables/${tableId}`, {
+      const response = await fetch(`${API_BASE}/api/tables/${tableId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
