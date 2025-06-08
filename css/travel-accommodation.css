@@ -64,6 +64,9 @@
 .travel-page td.text, .travel-page th.text {
   width: 140px;
 }
+.travel-page td.hotel-column, .travel-page th.hotel-column {
+  width: 180px;
+}
 .travel-page td.action, .travel-page th.action {
   width: 90px;
   text-align: center;
@@ -187,6 +190,7 @@
   .travel-page th, .travel-page td { white-space: nowrap; }
   .travel-page th, .travel-page td { min-width: 110px; max-width: 140px; }
   .travel-page th.text, .travel-page td.text { min-width: 90px; max-width: 120px; }
+  .travel-page th.hotel-column, .travel-page td.hotel-column { min-width: 120px; max-width: 160px; }
   .travel-page th.date, .travel-page td.date, .travel-page th.time, .travel-page td.time { min-width: 80px; max-width: 90px; }
   .travel-page th.action { 
     min-width: 80px; 

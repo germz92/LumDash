@@ -40,6 +40,37 @@ window.initPage = undefined;
       return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${ampm}`;
     }
 
+    function createLinkHTML(value, type) {
+      if (!value) return '<div>(empty)</div>';
+      value = value.trim();
+      let href = '#';
+      
+      if (type === 'email') {
+        href = `mailto:${value}`;
+      } 
+      else if (type === 'phone' || type === 'number') {
+        href = `tel:${value}`;
+      } 
+      else if (type === 'address') {
+        // Use a more iOS-friendly maps URL format
+        // Apple Maps URL scheme for iOS, fallback to Google Maps
+        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+        
+        if (isIOS) {
+          // Apple Maps format (iOS)
+          href = `maps://?q=${encodeURIComponent(value)}`;
+        } else {
+          // Google Maps format (Android, desktop)
+          href = `https://www.google.com/maps/search/?q=${encodeURIComponent(value)}`;
+        }
+      }
+      else {
+        return `<div>${value}</div>`;
+      }
+      
+      return `<a href="${href}" target="_blank" style="color: #1976d2; text-decoration: underline;">${value}</a>`;
+    }
+
     function autoResizeTextarea(el) {
       el.style.height = 'auto';
       el.style.height = el.scrollHeight + 'px';
@@ -115,7 +146,7 @@ window.initPage = undefined;
             row.innerHTML = `
               <td class="date"><span class="readonly-span">${formatDateReadable(item.checkin)}</span></td>
               <td class="date"><span class="readonly-span">${formatDateReadable(item.checkout)}</span></td>
-              <td class="text"><span class="readonly-span">${item.hotel || ''}</span></td>
+              <td class="text hotel-column"><span class="readonly-span">${createLinkHTML(item.hotel || '', 'address')}</span></td>
               <td class="text"><span class="readonly-span">${item.name || ''}</span></td>
               <td class="text"><span class="readonly-span">${item.ref || ''}</span></td>
               <td class="action"></td>
