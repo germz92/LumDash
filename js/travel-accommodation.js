@@ -146,8 +146,8 @@ window.initPage = undefined;
             row.innerHTML = `
               <td class="date"><span class="readonly-span">${formatDateReadable(item.checkin)}</span></td>
               <td class="date"><span class="readonly-span">${formatDateReadable(item.checkout)}</span></td>
-              <td class="text hotel-column"><span class="readonly-span">${createLinkHTML(item.hotel || '', 'address')}</span></td>
               <td class="text"><span class="readonly-span">${item.name || ''}</span></td>
+              <td class="text hotel-column"><span class="readonly-span">${createLinkHTML(item.hotel || '', 'address')}</span></td>
               <td class="text"><span class="readonly-span">${item.ref || ''}</span></td>
               <td class="action"></td>
             `;
