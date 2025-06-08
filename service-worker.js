@@ -55,3 +55,12 @@ self.addEventListener('notificationclick', function(event) {
     clients.openWindow(event.notification.data.url)
   );
 });
+
+// Handle PWA visibility changes to save page state
+self.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'PAGE_VISIBILITY_CHANGE') {
+    // The main app will send us visibility changes
+    // We can use this to trigger page state saves
+    console.log('[SW] Page visibility changed:', event.data.hidden);
+  }
+});

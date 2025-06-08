@@ -130,6 +130,9 @@ function navigate(page, id) {
   // Track the current page to know when we're navigating
   window.currentPage = page;
   
+  // Save the current page state for PWA restoration
+  saveCurrentPageState(page, finalId);
+  
   // CRITICAL: Always pass the finalId (which is guaranteed to be valid for pages that need it)
   loadPage(page, needsId ? finalId : null);
   
@@ -831,3 +834,90 @@ function updateActiveNavigation(currentPage) {
 
   // No need for lucide.createIcons(); Material Symbols with icon font render on textContent change.
 }
+
+// Function to save current page state for PWA restoration
+function saveCurrentPageState(page, eventId = null) {
+  const pageState = {
+    page: page,
+    eventId: eventId || localStorage.getItem('eventId'),
+    timestamp: Date.now(),
+    url: window.location.href
+  };
+  
+  localStorage.setItem('lastPageState', JSON.stringify(pageState));
+  console.log('[PWA] Saved page state:', pageState);
+}
+
+// Function to restore the last visited page when PWA reopens
+function restoreLastPageState() {
+  try {
+    const savedState = localStorage.getItem('lastPageState');
+    if (!savedState) {
+      console.log('[PWA] No saved page state found, starting fresh');
+      return false;
+    }
+    
+    const pageState = JSON.parse(savedState);
+    const isAuthenticated = !!localStorage.getItem('token');
+    
+    // Don't restore if not authenticated or if saved state is too old (more than 7 days)
+    const maxAge = 7 * 24 * 60 * 60 * 1000; // 7 days in milliseconds
+    if (!isAuthenticated || (Date.now() - pageState.timestamp > maxAge)) {
+      console.log('[PWA] Not restoring page state - not authenticated or state too old');
+      localStorage.removeItem('lastPageState');
+      return false;
+    }
+    
+    // Restore the page if it's valid and we have the required eventId for pages that need it
+    const needsId = !['events', 'dashboard', 'login', 'register', 'users'].includes(pageState.page);
+    
+    if (needsId && !pageState.eventId) {
+      console.log('[PWA] Cannot restore page state - missing eventId for page:', pageState.page);
+      return false;
+    }
+    
+    console.log('[PWA] Restoring last page state:', pageState);
+    
+    // Update the hash without triggering navigation yet
+    if (pageState.page !== 'events') {
+      location.hash = `#${pageState.page}`;
+    }
+    
+    // Restore eventId if needed
+    if (pageState.eventId) {
+      localStorage.setItem('eventId', pageState.eventId);
+    }
+    
+    // Navigate to the restored page
+    setTimeout(() => {
+      navigate(pageState.page, pageState.eventId);
+    }, 100);
+    
+    return true;
+  } catch (error) {
+    console.error('[PWA] Error restoring page state:', error);
+    localStorage.removeItem('lastPageState');
+    return false;
+  }
+}
+
+// Function to clear old page state (utility)
+function clearPageState() {
+  localStorage.removeItem('lastPageState');
+  console.log('[PWA] Page state cleared');
+}
+
+// Function to get the current page state (utility)
+function getCurrentPageState() {
+  try {
+    const savedState = localStorage.getItem('lastPageState');
+    return savedState ? JSON.parse(savedState) : null;
+  } catch (error) {
+    console.error('[PWA] Error getting current page state:', error);
+    return null;
+  }
+}
+
+// Make PWA utilities globally available
+window.clearPageState = clearPageState;
+window.getCurrentPageState = getCurrentPageState;

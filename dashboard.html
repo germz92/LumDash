@@ -164,6 +164,70 @@
   <!-- Load other scripts after config.js -->
   <script src="js/api.js"></script>
   <script src="js/app.js"></script>
+  
+  <!-- PWA Page Restoration Script -->
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      // Check if we should restore the last page state
+      const urlHash = window.location.hash.replace('#', '');
+      const hasEventParam = new URLSearchParams(window.location.search).get('id');
+      
+      // Only attempt restoration if no specific page is requested in the URL
+      if (!urlHash && !hasEventParam && typeof restoreLastPageState === 'function') {
+        const restored = restoreLastPageState();
+        
+        // If no page was restored, navigate to default events page
+        if (!restored) {
+          console.log('[PWA] No page restored, navigating to default events page');
+          navigate('events');
+        }
+      } else if (urlHash) {
+        // If there's a hash in the URL, navigate to that page
+        const eventId = hasEventParam || localStorage.getItem('eventId');
+        navigate(urlHash, eventId);
+      } else {
+        // Default fallback
+        navigate('events');
+      }
+    });
+    
+    // Handle browser back/forward navigation to also save page state
+    window.addEventListener('hashchange', function(e) {
+      const newHash = window.location.hash.replace('#', '');
+      if (newHash && typeof saveCurrentPageState === 'function') {
+        const eventId = localStorage.getItem('eventId');
+        console.log('[PWA] Hash changed to:', newHash, 'saving page state');
+        saveCurrentPageState(newHash, eventId);
+      }
+    });
+    
+    // Handle PWA lifecycle events to save page state
+    document.addEventListener('visibilitychange', function() {
+      if (document.hidden && typeof saveCurrentPageState === 'function' && window.currentPage) {
+        const eventId = localStorage.getItem('eventId');
+        console.log('[PWA] App going to background, saving current page state:', window.currentPage);
+        saveCurrentPageState(window.currentPage, eventId);
+        
+        // Send message to service worker
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+          navigator.serviceWorker.controller.postMessage({
+            type: 'PAGE_VISIBILITY_CHANGE',
+            hidden: true,
+            page: window.currentPage
+          });
+        }
+      }
+    });
+    
+    // Handle beforeunload to save state when app is closed
+    window.addEventListener('beforeunload', function() {
+      if (typeof saveCurrentPageState === 'function' && window.currentPage) {
+        const eventId = localStorage.getItem('eventId');
+        console.log('[PWA] App closing, saving current page state:', window.currentPage);
+        saveCurrentPageState(window.currentPage, eventId);
+      }
+    });
+  </script>
 
   <!-- Service Worker Registration -->
   <script>

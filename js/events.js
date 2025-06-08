@@ -689,6 +689,14 @@ async function submitShare() {
 function logout() {
   localStorage.removeItem('fullName');
   localStorage.removeItem('token');
+  
+  // Clear PWA page state when logging out
+  if (typeof window.clearPageState === 'function') {
+    window.clearPageState();
+  } else {
+    localStorage.removeItem('lastPageState');
+  }
+  
   window.location.replace('index.html');
 }
 
