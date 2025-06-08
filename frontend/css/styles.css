@@ -460,7 +460,7 @@ body:has(.bottom-nav-material) #page-container {
   /* Mobile navbar layout: Home | Crew | [Floating Luma Space] | Schedule | More */
   .bottom-nav-material {
     display: grid !important;
-    grid-template-columns: 1fr 0.8fr 0.4fr 0.8fr 1fr;
+    grid-template-columns: 1fr 0.8fr 0.8fr 0.8fr 1fr;
     gap: 0;
     align-items: center;
     position: fixed !important; /* Maintain fixed positioning */

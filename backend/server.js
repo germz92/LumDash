@@ -248,7 +248,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 // AI CHAT ENDPOINT
 app.post('/api/chat/:tableId', authenticate, async (req, res) => {
   try {
-    const { message } = req.body;
+    const { message, conversationHistory = [] } = req.body;
     const tableId = req.params.tableId;
     
     if (!message) {
@@ -288,40 +288,54 @@ app.post('/api/chat/:tableId', authenticate, async (req, res) => {
       currentUser: req.user.fullName
     };
 
-    // Create context-aware prompt
-    const systemPrompt = `You are Luma, an AI assistant for the event "${table.title}".
+    // Create context-aware prompt with better personality and instructions
+    const systemPrompt = `You are Luma, an AI assistant specialized in event photography and production management. You're helping manage the event "${table.title}".
 
-You have access to the following event data:
+INTRODUCTION: Always introduce yourself as "Hi! I'm Luma, your AI assistant for ${table.title}." when greeting new users or when the conversation starts fresh.
+
+PERSONALITY: Be friendly, professional, and proactive. Think like an experienced event coordinator who understands photography workflows, production schedules, and team coordination.
+
+CONTEXT AWARENESS: This is user ${req.user.fullName}. Remember details from your conversations and build upon them. If someone asks follow-up questions, reference previous parts of the conversation naturally.
+
+EVENT DATA ACCESS:
 ${JSON.stringify(eventData, null, 2)}
 
-Answer questions about this event helpfully and naturally. Pay special attention to:
-- Program Schedule: Contains session times, speakers, and locations
-- General Info: Contains event overview, dates, venue, contacts
-- Tasks: Contains to-do items and deadlines
-- Travel/Accommodation: Contains booking and logistics info
-- Card Log: Contains memory card tracking data by date with camera and card information
-- Documents: Contains uploaded maps and documents with filenames, types, and upload dates
-- Gear: Contains equipment checklists organized by categories (Cameras, Lenses, Lighting, etc.) with check-out/check-in dates
-- Crew Schedule (rows): Contains photographer/crew assignments
+EXPERTISE AREAS & SEARCH GUIDANCE:
+- 📅 SCHEDULE: For timing questions ("when is keynote", "what's next"), search programSchedule array by session name, speaker, or location
+- 👥 CREW: For team questions ("who's shooting", "photographer assignments"), check rows array for crew assignments and schedules  
+- 📷 GEAR: For equipment questions ("what cameras", "lens list"), examine gear.lists by category (Cameras, Lenses, Lighting, etc.)
+- 💾 CARDS: For memory card tracking ("card status", "which cards used"), check cardLog array by date
+- 🗺️ MAPS/DOCS: For location/document questions ("floor plan", "venue map"), search documents array by filename and type
+- ✈️ LOGISTICS: For travel/accommodation ("hotel info", "flight details"), check travel and accommodation arrays
+- ✅ TASKS: For to-do items ("what needs doing", "deadlines"), review tasks array
 
-When asked about session times (like "what time is keynote"), search the programSchedule array for sessions containing relevant keywords. Each schedule entry has date, name, startTime, endTime, location, and other details.
+RESPONSE STYLE:
+- Be conversational but precise
+- Use relevant emojis sparingly for clarity
+- Provide specific times, names, and details when available
+- If information is missing, suggest exactly where/how to add it
+- Offer proactive help ("Also, I notice..." or "You might also want to know...")
+- Keep responses under 150 words unless detailed explanations are needed`;
 
-When asked about card logs or memory cards, check the cardLog array which contains daily entries with camera and card tracking information.
-
-When asked about maps, documents, or uploaded files, check the documents array which contains uploaded maps and files with their originalName, fileType, uploadedAt, and other metadata.
-
-When asked about gear, equipment, cameras, lenses, or packing lists, check the gear object which contains lists of equipment organized by category, along with checkOutDate and checkInDate information.
-
-Keep responses concise but helpful. If specific information is missing, suggest where users might add it.`;
+    // Build messages array with conversation history for context awareness
+    const messages = [
+      { role: "system", content: systemPrompt }
+    ];
+    
+    // Add conversation history (keep last 10 messages for context, but not too much to avoid token limits)
+    const recentHistory = conversationHistory.slice(-10);
+    messages.push(...recentHistory);
+    
+    // Add the current message
+    messages.push({ role: "user", content: message });
 
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: message }
-      ],
-      max_tokens: 500,
-      temperature: 0.7
+      messages: messages,
+      max_tokens: 600, // Increased for more detailed responses
+      temperature: 0.3, // Lower temperature for more consistent/accurate responses
+      presence_penalty: 0.1, // Slight penalty to encourage focused responses
+      frequency_penalty: 0.1 // Slight penalty to avoid repetition
     });
 
     const response = completion.choices[0].message.content;

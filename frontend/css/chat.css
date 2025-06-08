@@ -13,7 +13,7 @@
   justify-content: center;
   cursor: pointer;
   box-shadow: 0 4px 20px rgba(204, 0, 7, 0.3);
-  z-index: 1500; /* Higher z-index to appear above nav */
+  z-index: 1600; /* Higher z-index to appear above nav and schedule header */
   transition: all 0.3s ease;
   font-size: 28px;
 }
@@ -35,7 +35,7 @@
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15);
   display: none;
   flex-direction: column;
-  z-index: 1501; /* Higher z-index */
+  z-index: 1601; /* Higher z-index than schedule header and nav */
   font-family: 'Roboto', Arial, sans-serif;
   border: 1px solid #e0e0e0;
   overflow: hidden;
@@ -257,4 +257,130 @@
 
 .chat-messages::-webkit-scrollbar-thumb:hover {
   background: #999;
+}
+
+/* Global chat consistency overrides for ALL pages */
+.chat-panel {
+  position: fixed !important;
+  z-index: 1601 !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+  border: 1px solid #e0e0e0 !important;
+  border-radius: 15px !important;
+  background: white !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+}
+
+.chat-button {
+  position: fixed !important;
+  z-index: 1600 !important;
+  width: 60px !important;
+  height: 60px !important;
+  border-radius: 50% !important;
+  background: #cc0007 !important;
+  color: white !important;
+  font-size: 28px !important;
+  box-shadow: 0 4px 20px rgba(204, 0, 7, 0.3) !important;
+}
+
+/* Schedule page specific positioning (inherits global styles above) */
+.schedule-page .chat-panel {
+  z-index: 1602 !important; /* Above schedule header */
+}
+
+.schedule-page .chat-button {
+  z-index: 1602 !important; /* Above schedule header */
+}
+
+/* Override schedule page button styles for chat buttons */
+.schedule-page .chat-panel .close-chat-btn,
+.schedule-page .chat-panel .send-btn {
+  padding: 5px !important;
+  font-size: 20px !important;
+  border-radius: 50% !important;
+  box-shadow: none !important;
+  font-weight: normal !important;
+  transition: background 0.2s !important;
+}
+
+.schedule-page .chat-panel .close-chat-btn {
+  background: transparent !important;
+  color: white !important;
+  width: 40px !important;
+  height: 40px !important;
+  padding: 8px !important;
+}
+
+.schedule-page .chat-panel .send-btn {
+  background: #cc0007 !important;
+  color: white !important;
+  width: 45px !important;
+  height: 45px !important;
+  padding: 0 !important;
+}
+
+.schedule-page .chat-panel .close-chat-btn:hover {
+  background: rgba(255, 255, 255, 0.2) !important;
+}
+
+.schedule-page .chat-panel .send-btn:hover {
+  background: #b30006 !important;
+  transform: scale(1.05) !important;
+}
+
+/* Global chat element consistency overrides */
+.chat-header {
+  padding: 15px 20px !important;
+  background: linear-gradient(135deg, #cc0007, #b30006) !important;
+  color: white !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+}
+
+.chat-messages {
+  background: #f9f9f9 !important;
+  padding: 15px !important;
+  overflow-y: auto !important;
+}
+
+.chat-input-container {
+  padding: 15px !important;
+  background: white !important;
+  border-top: 1px solid #e0e0e0 !important;
+}
+
+.chat-input {
+  border: 1px solid #ddd !important;
+  border-radius: 25px !important;
+  padding: 12px 15px !important;
+  font-size: 14px !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+}
+
+.send-btn {
+  background: #cc0007 !important;
+  color: white !important;
+  border-radius: 50% !important;
+  width: 45px !important;
+  height: 45px !important;
+  font-size: 20px !important;
+}
+
+@media (max-width: 768px) {
+  /* Mobile positioning - consistent across ALL pages */
+  .chat-panel {
+    bottom: 140px !important;
+    right: 20px !important;
+    left: 20px !important;
+    width: calc(100vw - 40px) !important;
+    height: 450px !important;
+  }
+  
+  /* Schedule page specific mobile adjustments */
+  .schedule-page .chat-panel {
+    bottom: 140px !important; /* Match other pages positioning */
+    right: 20px !important;
+    left: 20px !important;
+    width: calc(100vw - 40px) !important;
+    height: 450px !important; /* Match other pages height */
+  }
 } 
