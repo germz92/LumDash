@@ -104,9 +104,14 @@ function getUserRole(tableData) {
   }
 }
 
-// Check if user can edit (owners and leads only)
+// Check if user can edit lists and delete items (owners only)
 function canUserEdit() {
-  return currentUserRole === 'owner' || currentUserRole === 'lead';
+  return currentUserRole === 'owner';
+}
+
+// Check if user can toggle checkboxes (all authenticated users)
+function canUserToggleItems() {
+  return currentUserRole === 'owner' || currentUserRole === 'lead' || currentUserRole === 'viewer';
 }
 
 // Setup event listeners
@@ -297,6 +302,11 @@ async function handleAddList() {
 
 // Handle adding item to list
 async function handleAddItem(listId, input) {
+  if (!canUserEdit()) {
+    debugLog('User cannot edit - only owners can add items');
+    return;
+  }
+  
   const title = input.value.trim();
   
   if (!title) {
@@ -345,6 +355,11 @@ async function handleAddItem(listId, input) {
 
 // Toggle item completion
 async function toggleItemCompletion(listId, itemId) {
+  if (!canUserToggleItems()) {
+    debugLog('User cannot toggle items');
+    return;
+  }
+  
   debugLog('Toggling item completion', { listId, itemId });
   
   try {
@@ -685,7 +700,8 @@ function renderShotlist(list, listIndex) {
 
 // Render a single shot item
 function renderShotItem(item, itemIndex) {
-  const canEdit = canUserEdit();
+  const canEdit = canUserEdit(); // Only owners can delete items
+  const canToggle = canUserToggleItems(); // All users can toggle checkboxes
   const itemId = item._id || `temp-item-${itemIndex}`;
   
   // Format completion info if item is completed
@@ -707,7 +723,7 @@ function renderShotItem(item, itemIndex) {
   
   return `
     <div class="shot-item ${item.completed ? 'completed' : ''}" data-item-id="${itemId}" data-item-index="${itemIndex}">
-      <input type="checkbox" class="shot-checkbox" ${item.completed ? 'checked' : ''}>
+      ${canToggle ? `<input type="checkbox" class="shot-checkbox" ${item.completed ? 'checked' : ''}>` : ''}
       <div class="shot-content">
         <div class="shot-title">${escapeHtml(item.title)}</div>
         ${completionInfo}
@@ -984,7 +1000,7 @@ window.testShotlistSave = testShotlistSave;
 window.__shotlistJsLoaded = true;
 
 // Version identifier for cache debugging
-console.log('🎯 SHOTLIST: Module loaded - Version: USER_TRACKING_DEBUG_v1.3 - ' + new Date().toISOString());
+console.log('🎯 SHOTLIST: Module loaded - Version: OWNER_ONLY_EDIT_v1.4 - ' + new Date().toISOString());
 debugLog('Shotlist module loaded');
 
 })(); // Close the IIFE 
