@@ -147,14 +147,7 @@ function setupEventListeners() {
     }
   }, true);
   
-  // List selector dropdown
-  document.addEventListener('change', (e) => {
-    if (e.target.id === 'list-selector') {
-      selectedListId = e.target.value;
-      debugLog('List selection changed:', selectedListId);
-      renderShotlists();
-    }
-  });
+  // List selector dropdown is now handled in setupListEventDelegation
 }
 
 // Setup socket listeners
@@ -386,7 +379,25 @@ async function toggleItemCompletion(listId, itemId) {
     }
     
     item.completed = !item.completed;
-    item.completedAt = item.completed ? new Date().toISOString() : null;
+    
+    if (item.completed) {
+      // Item was just checked off - save completion info
+      item.completedAt = new Date().toISOString();
+      item.completedBy = localStorage.getItem('userId') || 'unknown';
+      item.completedByName = localStorage.getItem('fullName') || 'Unknown User';
+      console.log('🎯 SHOTLIST: Item completed by:', item.completedByName);
+      console.log('🎯 SHOTLIST: User ID:', item.completedBy);
+      console.log('🎯 SHOTLIST: Completed at:', item.completedAt);
+      console.log('🎯 SHOTLIST: Full item data:', item);
+      debugLog('Item completed by:', item.completedByName);
+    } else {
+      // Item was unchecked - clear completion info
+      item.completedAt = null;
+      item.completedBy = null;
+      item.completedByName = null;
+      console.log('🎯 SHOTLIST: Item unchecked, completion info cleared');
+      debugLog('Item unchecked, completion info cleared');
+    }
     
     await saveShotlists();
     debugLog('Item completion toggled successfully');
@@ -677,10 +688,30 @@ function renderShotItem(item, itemIndex) {
   const canEdit = canUserEdit();
   const itemId = item._id || `temp-item-${itemIndex}`;
   
+  // Format completion info if item is completed
+  let completionInfo = '';
+  if (item.completed && item.completedByName) {
+    const completedDate = item.completedAt ? new Date(item.completedAt).toLocaleDateString() : '';
+    console.log('🎯 SHOTLIST: Rendering completion info for:', item.title);
+    console.log('🎯 SHOTLIST: Completed by:', item.completedByName);
+    console.log('🎯 SHOTLIST: Completed date:', completedDate);
+    completionInfo = `
+      <div class="completion-info">
+        <span class="completed-by">✓ ${escapeHtml(item.completedByName)}</span>
+        ${completedDate ? `<span class="completed-date">${completedDate}</span>` : ''}
+      </div>
+    `;
+  } else if (item.completed) {
+    console.log('🎯 SHOTLIST: Item is completed but no completedByName:', item);
+  }
+  
   return `
     <div class="shot-item ${item.completed ? 'completed' : ''}" data-item-id="${itemId}" data-item-index="${itemIndex}">
       <input type="checkbox" class="shot-checkbox" ${item.completed ? 'checked' : ''}>
-      <div class="shot-title">${escapeHtml(item.title)}</div>
+      <div class="shot-content">
+        <div class="shot-title">${escapeHtml(item.title)}</div>
+        ${completionInfo}
+      </div>
       ${canEdit ? `
         <div class="shot-actions">
           <button class="btn-icon delete" title="Delete">
@@ -782,6 +813,15 @@ function handleListKeypress(e) {
 }
 
 function handleListChanges(e) {
+  // Handle list selector dropdown
+  if (e.target.id === 'list-selector') {
+    selectedListId = e.target.value;
+    debugLog('List selection changed:', selectedListId);
+    renderShotlists();
+    return;
+  }
+  
+  // Handle shot checkboxes
   if (e.target.classList.contains('shot-checkbox')) {
     const itemElement = e.target.closest('[data-item-id]');
     const listElement = e.target.closest('.shot-list');
@@ -844,7 +884,9 @@ function testShotlistData() {
           title: 'Bride getting ready',
           completed: true,
           createdAt: new Date().toISOString(),
-          completedAt: new Date().toISOString()
+          completedAt: new Date().toISOString(),
+          completedBy: 'test-user-id',
+          completedByName: 'John Photographer'
         },
         {
           _id: 'item-2',
@@ -941,6 +983,8 @@ window.testShotlistSave = testShotlistSave;
 // Mark as loaded to prevent conflicts
 window.__shotlistJsLoaded = true;
 
+// Version identifier for cache debugging
+console.log('🎯 SHOTLIST: Module loaded - Version: USER_TRACKING_DEBUG_v1.3 - ' + new Date().toISOString());
 debugLog('Shotlist module loaded');
 
 })(); // Close the IIFE 
