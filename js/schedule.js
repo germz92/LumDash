@@ -304,6 +304,12 @@ window.initPage = async function(id) {
     });
   }
   
+  // Add event listener for search input
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput) {
+    searchInput.addEventListener('input', handleSearchInput);
+  }
+  
   // Set up the import button and file input
   const importBtn = document.getElementById('importBtn');
   const fileInput = document.getElementById('fileImport');
@@ -356,6 +362,12 @@ window.initPage = async function(id) {
   } else {
     console.log('[INIT] Same event, restoring filter settings');
     restoreFilterSettings(); // This should only update filter/search UI, not re-render
+    
+    // If we restored filters, re-render to apply them
+    if (filterDate !== 'all' || searchQuery) {
+      console.log('[INIT] Re-rendering to apply restored filters:', { filterDate, searchQuery });
+      renderProgramSections(isOwner);
+    }
   }
   
   logEventIdState('INIT_COMPLETE');
@@ -2017,7 +2029,27 @@ function setupDateFilterOptions() {
   const filterDropdown = document.getElementById('filterDateDropdown');
   if (filterDropdown && tableData.programs) {
     const allDates = [...new Set(tableData.programs.map(p => p.date))].sort((a, b) => a.localeCompare(b));
-    const currentSelection = filterDate || 'all';
+    
+    // Check if there's a saved filter date in sessionStorage
+    const tableId = currentEventId || localStorage.getItem('eventId');
+    const settingsJson = sessionStorage.getItem(`schedule_${tableId}_settings`);
+    let savedFilterDate = null;
+    
+    if (settingsJson) {
+      try {
+        const settings = JSON.parse(settingsJson);
+        savedFilterDate = settings.filterDate;
+      } catch (err) {
+        console.error('Error parsing saved filter settings:', err);
+      }
+    }
+    
+    // Use saved filter date if available, otherwise use current filterDate, fallback to 'all'
+    const currentSelection = savedFilterDate || filterDate || 'all';
+    
+    // Update the global filterDate variable to match what we're setting
+    filterDate = currentSelection;
+    
     filterDropdown.innerHTML = `<option value="all">All Dates</option>`;
     allDates.forEach(date => {
       const option = document.createElement('option');
@@ -2026,7 +2058,7 @@ function setupDateFilterOptions() {
       filterDropdown.appendChild(option);
     });
     filterDropdown.value = currentSelection;
-    console.log(`[FILTER] Setup ${allDates.length} date filter options, current: ${currentSelection}`);
+    console.log(`[FILTER] Setup ${allDates.length} date filter options, current: ${currentSelection}, saved: ${savedFilterDate}`);
   }
 }
 
