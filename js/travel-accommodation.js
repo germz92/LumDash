@@ -40,22 +40,41 @@ window.initPage = undefined;
       return `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${ampm}`;
     }
 
-    function createLinkHTML(value, type) {
-      if (!value) return '<div>(empty)</div>';
-      value = value.trim();
-      let href = '#';
+    function autoResizeTextarea(el) {
+      el.style.height = 'auto';
+      el.style.height = el.scrollHeight + 'px';
+    }
+
+    // Function to create clickable location links (similar to general page)
+    function createLocationLink(hotelValue) {
+      if (!hotelValue || !hotelValue.trim()) {
+        return '<span class="readonly-span"></span>';
+      }
       
-      if (type === 'email') {
-        href = `mailto:${value}`;
-      } 
-      else if (type === 'phone' || type === 'number') {
-        href = `tel:${value}`;
-      } 
-      else if (type === 'address') {
-        // Use a more iOS-friendly maps URL format
-        // Apple Maps URL scheme for iOS, fallback to Google Maps
+      const value = hotelValue.trim();
+      
+      // Enhanced location detection - check for hotel chains, common location words, or addresses
+      const hotelChains = ['marriott', 'hilton', 'hyatt', 'sheraton', 'westin', 'radisson', 'intercontinental', 'doubletree', 'embassy', 'hampton', 'holiday inn', 'fairfield', 'residence inn', 'courtyard', 'springhill', 'homewood', 'ritz carlton', 'ritz-carlton', 'w hotel', 'le meridien', 'renaissance', 'aloft', 'four points', 'luxury collection'];
+      const locationWords = ['hotel', 'resort', 'inn', 'suites', 'lodge', 'motel', 'hostel', 'bed & breakfast', 'b&b', 'guesthouse', 'villa', 'resort & spa', 'spa', 'center', 'centre', 'plaza', 'tower', 'towers', 'grand', 'royal', 'palace', 'castle'];
+      const addressWords = ['street', 'st', 'ave', 'avenue', 'road', 'rd', 'blvd', 'boulevard', 'drive', 'dr', 'lane', 'ln', 'way', 'place', 'pl', 'court', 'ct', 'circle', 'cir', 'square', 'sq'];
+      
+      const valueLower = value.toLowerCase();
+      
+      // Check if it looks like a location
+      const isHotelChain = hotelChains.some(chain => valueLower.includes(chain));
+      const hasLocationWords = locationWords.some(word => valueLower.includes(word));
+      const hasAddressWords = addressWords.some(word => valueLower.includes(word));
+      const hasNumbers = /\d+/.test(value); // Contains numbers (common in addresses)
+      const hasCommaOrAddress = value.includes(',') || /\b(city|state|zip|postal)\b/i.test(value);
+      
+      // Consider it a location if it matches any of these criteria
+      const looksLikeLocation = isHotelChain || hasLocationWords || hasAddressWords || (hasNumbers && hasCommaOrAddress);
+      
+      if (looksLikeLocation) {
+        // Use iOS-friendly maps URL format
         const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
         
+        let href;
         if (isIOS) {
           // Apple Maps format (iOS)
           href = `maps://?q=${encodeURIComponent(value)}`;
@@ -63,17 +82,12 @@ window.initPage = undefined;
           // Google Maps format (Android, desktop)
           href = `https://www.google.com/maps/search/?q=${encodeURIComponent(value)}`;
         }
+        
+        return `<span class="readonly-span"><a href="${href}" target="_blank" title="Open in Maps: ${value}"><span class="material-symbols-outlined" style="font-size: 14px; vertical-align: text-bottom; margin-right: 4px;">place</span>${value}</a></span>`;
+      } else {
+        // Not a location, just display as text
+        return `<span class="readonly-span">${value}</span>`;
       }
-      else {
-        return `<div>${value}</div>`;
-      }
-      
-      return `<a href="${href}" target="_blank" style="color: #1976d2; text-decoration: underline;">${value}</a>`;
-    }
-
-    function autoResizeTextarea(el) {
-      el.style.height = 'auto';
-      el.style.height = el.scrollHeight + 'px';
     }
 
     // Airline URL mapping for major airlines
@@ -146,8 +160,8 @@ window.initPage = undefined;
             row.innerHTML = `
               <td class="date"><span class="readonly-span">${formatDateReadable(item.checkin)}</span></td>
               <td class="date"><span class="readonly-span">${formatDateReadable(item.checkout)}</span></td>
-              <td class="text"><span class="readonly-span">${item.name || ''}</span></td>
-              <td class="text hotel-column"><span class="readonly-span">${createLinkHTML(item.hotel || '', 'address')}</span></td>
+              <td class="text"><span class="readonly-span">${item.hotel || ''}</span></td>
+              <td class="text">${createLocationLink(item.name)}</td>
               <td class="text"><span class="readonly-span">${item.ref || ''}</span></td>
               <td class="action"></td>
             `;
@@ -308,6 +322,21 @@ window.initPage = undefined;
     window.initPage = async function(id) {
       console.log('initPage called with id:', id);
       const tableIdToUse = id || tableId;
+      
+      // Ensure CSS is loaded when accessing page directly
+      if (!document.querySelector('link[href*="travel-accommodation.css"]')) {
+        const cssLink = document.createElement('link');
+        cssLink.rel = 'stylesheet';
+        cssLink.href = 'css/travel-accommodation.css';
+        cssLink.setAttribute('data-page-css', 'true');
+        document.head.appendChild(cssLink);
+        console.log('Loaded travel-accommodation CSS directly');
+      }
+      
+      // Ensure body class is set
+      if (!document.body.classList.contains('travel-page')) {
+        document.body.classList.add('travel-page');
+      }
       
       try {
         const res = await fetch(`${API_BASE}/api/tables/${tableIdToUse}`, {

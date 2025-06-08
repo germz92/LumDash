@@ -64,9 +64,6 @@
 .travel-page td.text, .travel-page th.text {
   width: 140px;
 }
-.travel-page td.hotel-column, .travel-page th.hotel-column {
-  width: 180px;
-}
 .travel-page td.action, .travel-page th.action {
   width: 90px;
   text-align: center;
@@ -190,7 +187,6 @@
   .travel-page th, .travel-page td { white-space: nowrap; }
   .travel-page th, .travel-page td { min-width: 110px; max-width: 140px; }
   .travel-page th.text, .travel-page td.text { min-width: 90px; max-width: 120px; }
-  .travel-page th.hotel-column, .travel-page td.hotel-column { min-width: 120px; max-width: 160px; }
   .travel-page th.date, .travel-page td.date, .travel-page th.time, .travel-page td.time { min-width: 80px; max-width: 90px; }
   .travel-page th.action { 
     min-width: 80px; 
@@ -226,6 +222,16 @@
     box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1) !important;
   }
   
+  /* Mobile-specific styling for location links */
+  .travel-page .readonly-span a {
+    font-size: 14px !important;
+    gap: 1px !important;
+  }
+  
+  .travel-page .readonly-span a .material-symbols-outlined {
+    font-size: 12px !important;
+  }
+  
   /* Ensure at least 3 columns fit before scrolling */
   .travel-page table { min-width: 300px; }
   .travel-page input,
@@ -237,6 +243,7 @@
 }
 
 .name-column { width: 150px; /* Adjust the width as needed */ }
+.hotel-column { width: 200px; /* Wider column for hotel locations */ }
 
 .travel-page .readonly-span {
   display: inline-block;
@@ -297,5 +304,31 @@
   background: #d0d0d0 !important;
   border-color: #999 !important;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* Styling for clickable location links in hotel column */
+.travel-page .readonly-span a {
+  color: #1976d2 !important;
+  text-decoration: underline !important;
+  transition: color 0.2s ease !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 2px !important;
+}
+
+.travel-page .readonly-span a:hover {
+  color: #1565c0 !important;
+  text-decoration: none !important;
+}
+
+.travel-page .readonly-span a:visited {
+  color: #1976d2 !important;
+}
+
+.travel-page .readonly-span a .material-symbols-outlined {
+  font-size: 14px !important;
+  color: inherit !important;
+  vertical-align: text-bottom !important;
 }
     
