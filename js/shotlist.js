@@ -30,6 +30,59 @@ let isUserEditing = window.shotlistModule.isUserEditing;
 let isInitialized = window.shotlistModule.isInitialized;
 let selectedListId = null; // Track which list is currently selected
 
+// Save list selection to sessionStorage
+function saveListSelection() {
+  const tableId = getCurrentTableId();
+  if (!tableId) {
+    debugLog('No table ID available for saving list selection');
+    return;
+  }
+  
+  const settings = {
+    selectedListId: selectedListId
+  };
+  
+  debugLog('Saving list selection:', { selectedListId, tableId });
+  sessionStorage.setItem(`shotlist_${tableId}_settings`, JSON.stringify(settings));
+}
+
+// Restore list selection from sessionStorage  
+function restoreListSelection() {
+  const tableId = getCurrentTableId();
+  if (!tableId) {
+    debugLog('No table ID available for restoring list selection');
+    return;
+  }
+  
+  const settingsJson = sessionStorage.getItem(`shotlist_${tableId}_settings`);
+  if (!settingsJson) {
+    debugLog('No saved list selection found for table:', tableId);
+    return;
+  }
+  
+  try {
+    const settings = JSON.parse(settingsJson);
+    debugLog('Restoring list selection:', settings);
+    
+    if (settings.selectedListId) {
+      // Check if the saved list still exists
+      const listExists = shotlists.some(list => 
+        (list._id && list._id === settings.selectedListId) ||
+        `temp-list-${shotlists.indexOf(list)}` === settings.selectedListId
+      );
+      
+      if (listExists) {
+        selectedListId = settings.selectedListId;
+        debugLog('Successfully restored list selection:', selectedListId);
+      } else {
+        debugLog('Saved list no longer exists, using default selection');
+      }
+    }
+  } catch (err) {
+    console.error('Error restoring list selection:', err);
+  }
+}
+
 // Helper to sync local variables with module
 const syncToModule = () => {
   window.shotlistModule.shotlists = shotlists;
@@ -290,6 +343,9 @@ async function loadShotlists() {
     // Determine user role based on table data
     getUserRole(tableData);
     
+    // Restore saved list selection before rendering
+    restoreListSelection();
+    
     // Important: sync after updating shotlists
     syncToModule();
     debugLog('Shotlists loaded', shotlists);
@@ -349,6 +405,7 @@ async function handleAddList() {
     // Select the newly created list
     const newListIndex = shotlists.length - 1;
     selectedListId = newList._id || `temp-list-${newListIndex}`;
+    saveListSelection(); // Save the new selection
     
     input.value = '';
     
@@ -564,6 +621,7 @@ async function deleteList(listId) {
     if (selectedListId === listId) {
       selectedListId = shotlists.length > 0 ? 
         (shotlists[0]._id || `temp-list-0`) : null;
+      saveListSelection(); // Save the new selection
     }
     
     syncToModule();
@@ -686,6 +744,7 @@ function renderShotlists() {
   // If no list is selected, select the first one
   if (!selectedListId && shotlists.length > 0) {
     selectedListId = shotlists[0]._id || `temp-list-0`;
+    saveListSelection(); // Save the default selection
   }
   
   // Find the selected list
@@ -697,6 +756,7 @@ function renderShotlists() {
   if (!selectedList && shotlists.length > 0) {
     // If selected list no longer exists, select the first one
     selectedListId = shotlists[0]._id || `temp-list-0`;
+    saveListSelection(); // Save the fallback selection
     const selector = document.getElementById('list-selector');
     if (selector) selector.value = selectedListId;
     renderShotlists();
@@ -938,6 +998,7 @@ function handleListChanges(e) {
   if (e.target.id === 'list-selector') {
     selectedListId = e.target.value;
     debugLog('List selection changed:', selectedListId);
+    saveListSelection(); // Save the selection
     renderShotlists();
     return;
   }
