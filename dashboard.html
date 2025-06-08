@@ -76,6 +76,7 @@
   <nav class="bottom-nav-material" id="bottomNav">
     <a href="#" id="navHome" data-page="general"><span class="material-symbols-outlined">home</span><span>Home</span></a>
     <a href="#" id="navCrew" data-page="crew"><span class="material-symbols-outlined">group</span><span>Crew</span></a>
+    <a href="#" id="navLuma" class="chat-button-nav"><span class="material-symbols-outlined">lightbulb_2</span><span>Luma</span></a>
     <a href="#" id="navSchedule" data-page="schedule"><span class="material-symbols-outlined">calendar_today</span><span>Schedule</span></a>
     <a href="#" id="navShotlist" data-page="shotlist"><span class="material-symbols-outlined">checklist</span><span>Shotlist</span></a>
     
@@ -98,14 +99,18 @@
           <span class="material-symbols-outlined">sd_card</span>
           <span>Cards</span>
         </a>
-        <a href="#" data-page="documents">
+                <a href="#" data-page="documents">
           <span class="material-symbols-outlined">map</span>
           <span>Map</span>
         </a>
-                 <a href="#" id="navExit" data-page="events">
-           <span class="material-symbols-outlined">exit_to_app</span>
-           <span>Exit</span>
-         </a>
+        <a href="#" data-page="shotlist" class="mobile-shotlist-dropdown">
+          <span class="material-symbols-outlined">checklist</span>
+          <span>Shotlist</span>
+        </a>
+        <a href="#" id="navExit" data-page="events">
+          <span class="material-symbols-outlined">exit_to_app</span>
+          <span>Exit</span>
+        </a>
       </div>
     </div>
   </nav>
@@ -164,6 +169,9 @@
   <!-- Load other scripts after config.js -->
   <script src="js/api.js"></script>
   <script src="js/app.js"></script>
+  
+  <!-- AI Chat Widget -->
+  <script src="js/chat.js"></script>
   
   <!-- PWA Page Restoration Script -->
   <script>

@@ -199,6 +199,14 @@ function injectPageContent(html, page, id) {
     console.log('Bottom navigation element (bottomNav) not found.');
   }
 
+  // Initialize AI Chat Widget for pages with event ID
+  if (id && typeof window.initChat === 'function') {
+    console.log(`Initializing AI chat for page: ${page} with id: ${id}`);
+    window.initChat(id);
+  } else if (id) {
+    console.warn('Chat widget not available - window.initChat not found');
+  }
+
   // Lucide icons init should be called AFTER setupBottomNavigation has potentially changed data-lucide attributes
   // Note: updateActiveNavigation, called by setupBottomNavigation, already calls lucide.createIcons().
   // So, an additional call here might be redundant unless setupBottomNavigation might not run or not call it.
@@ -714,6 +722,33 @@ function setupRegularNavLinks(navContainer) {
       window.navigate(page, currentEventId);
     });
   });
+  
+  // Set up the chat button in navbar (mobile only)
+  const chatNavButton = navContainer.querySelector('.chat-button-nav');
+  if (chatNavButton) {
+    console.log('Setting up chat button in navbar');
+    
+    // Remove any existing click listeners to avoid duplicates
+    const newChatButton = chatNavButton.cloneNode(true);
+    chatNavButton.parentNode.replaceChild(newChatButton, chatNavButton);
+    
+    newChatButton.addEventListener('click', function(e) {
+      e.preventDefault();
+      console.log('Chat navbar button clicked');
+      
+      // Close dropdown menu if it's open
+      const dropdownMenu = document.getElementById('dropdownMenu');
+      if (dropdownMenu && dropdownMenu.classList.contains('show')) {
+        console.log('Closing dropdown menu due to chat button click');
+        dropdownMenu.classList.remove('show');
+      }
+      
+      // Trigger the chat functionality (same as floating button)
+      if (window.chatWidget) {
+        window.chatWidget.toggleChat();
+      }
+    });
+  }
 }
 
 // Function to update active navigation state
