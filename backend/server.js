@@ -10,6 +10,7 @@ const socketIo = require('socket.io');
 const sgMail = require('@sendgrid/mail');
 const cloudinary = require('cloudinary').v2;
 const multer = require('multer');
+const OpenAI = require('openai');
 require('dotenv').config();
 sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 console.log('SENDGRID_API_KEY loaded:', !!process.env.SENDGRID_API_KEY);
@@ -34,6 +35,17 @@ console.log('Cloudinary config:', {
   api_key: process.env.CLOUDINARY_API_KEY ? '***' + process.env.CLOUDINARY_API_KEY.slice(-4) : 'NOT SET',
   api_secret: process.env.CLOUDINARY_API_SECRET ? '***' + process.env.CLOUDINARY_API_SECRET.slice(-4) : 'NOT SET'
 });
+
+// Configure OpenAI
+let openai = null;
+if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_api_key_here') {
+  openai = new OpenAI({
+    apiKey: process.env.OPENAI_API_KEY,
+  });
+  console.log('✅ OpenAI configured successfully');
+} else {
+  console.log('⚠️  OpenAI API key not configured - chat feature disabled');
+}
 
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
@@ -231,6 +243,109 @@ app.post('/api/auth/reset-password', async (req, res) => {
   user.resetPasswordExpires = undefined;
   await user.save();
   res.json({ message: 'Password has been reset.' });
+});
+
+// AI CHAT ENDPOINT
+app.post('/api/chat/:tableId', authenticate, async (req, res) => {
+  try {
+    const { message } = req.body;
+    const tableId = req.params.tableId;
+    
+    if (!message) {
+      return res.status(400).json({ error: 'Message is required' });
+    }
+
+    // Check if OpenAI is configured
+    if (!openai) {
+      return res.status(503).json({ 
+        error: 'AI chat feature is not available. Please configure OpenAI API key.' 
+      });
+    }
+
+    // Get the table and verify access
+    const table = await Table.findById(tableId);
+    if (!table) {
+      return res.status(404).json({ error: 'Table not found' });
+    }
+    
+    if (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id)) {
+      return res.status(403).json({ error: 'Not authorized to access this event' });
+    }
+
+    // Collect all event data
+    const eventData = {
+      eventTitle: table.title,
+      general: table.general || {},
+      programSchedule: table.programSchedule || [],
+      tasks: table.tasks || [],
+      adminNotes: table.adminNotes || [],
+      travel: table.travel || [],
+      accommodation: table.accommodation || [],
+      cardLog: table.cardLog || [],
+      documents: table.documents || [],
+      gear: table.gear || {},
+      rows: table.rows || [],
+      currentUser: req.user.fullName
+    };
+
+    // Create context-aware prompt
+    const systemPrompt = `You are Luma, an AI assistant for the event "${table.title}".
+
+You have access to the following event data:
+${JSON.stringify(eventData, null, 2)}
+
+Answer questions about this event helpfully and naturally. Pay special attention to:
+- Program Schedule: Contains session times, speakers, and locations
+- General Info: Contains event overview, dates, venue, contacts
+- Tasks: Contains to-do items and deadlines
+- Travel/Accommodation: Contains booking and logistics info
+- Card Log: Contains memory card tracking data by date with camera and card information
+- Documents: Contains uploaded maps and documents with filenames, types, and upload dates
+- Gear: Contains equipment checklists organized by categories (Cameras, Lenses, Lighting, etc.) with check-out/check-in dates
+- Crew Schedule (rows): Contains photographer/crew assignments
+
+When asked about session times (like "what time is keynote"), search the programSchedule array for sessions containing relevant keywords. Each schedule entry has date, name, startTime, endTime, location, and other details.
+
+When asked about card logs or memory cards, check the cardLog array which contains daily entries with camera and card tracking information.
+
+When asked about maps, documents, or uploaded files, check the documents array which contains uploaded maps and files with their originalName, fileType, uploadedAt, and other metadata.
+
+When asked about gear, equipment, cameras, lenses, or packing lists, check the gear object which contains lists of equipment organized by category, along with checkOutDate and checkInDate information.
+
+Keep responses concise but helpful. If specific information is missing, suggest where users might add it.`;
+
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: message }
+      ],
+      max_tokens: 500,
+      temperature: 0.7
+    });
+
+    const response = completion.choices[0].message.content;
+    
+    res.json({ response });
+
+  } catch (error) {
+    console.error('Chat API error:', error);
+    
+    // Handle different types of OpenAI errors
+    if (error.status === 429) {
+      res.status(429).json({ 
+        error: 'OpenAI quota exceeded. Please add billing to your OpenAI account at platform.openai.com/billing' 
+      });
+    } else if (error.status === 401) {
+      res.status(401).json({ 
+        error: 'Invalid OpenAI API key. Please check your configuration.' 
+      });
+    } else {
+      res.status(500).json({ 
+        error: 'AI service temporarily unavailable. Please try again later.' 
+      });
+    }
+  }
 });
 
 // TABLE ROUTES

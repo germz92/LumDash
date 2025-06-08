@@ -259,7 +259,7 @@ function insertAdminNotesBtn(tableId) {
   container.style.display = 'flex';
   container.style.alignItems = 'center';
   
-  if (isAdmin()) {
+  if (isAdmin() || isOwner) {
     const btn = document.createElement('button');
     btn.textContent = 'Notes';
     btn.className = 'admin-notes-btn';
@@ -330,7 +330,14 @@ function initPage(id) {
           div.id = field === 'eventSummary' ? 'summary' : field;
           div.dataset.value = general[field === 'eventSummary' ? 'summary' : field] || '';
           div.className = 'read-only';
-          div.textContent = general[field === 'eventSummary' ? 'summary' : field] || '';
+          
+          // Make location field clickable to open maps
+          if (field === 'location') {
+            div.innerHTML = createLinkHTML(general.location || '', 'address');
+          } else {
+            div.textContent = general[field === 'eventSummary' ? 'summary' : field] || '';
+          }
+          
           el.replaceWith(div);
         }
       });

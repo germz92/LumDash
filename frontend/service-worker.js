@@ -28,6 +28,9 @@ self.addEventListener("fetch", (event) => {
   // Let the browser handle all requests normally
   // This disables any service worker caching
   console.log("Service worker fetch event for:", event.request.url);
+  
+  // Important: Pass through the request to the network
+  event.respondWith(fetch(event.request));
 });
 
 // Handle push notifications
@@ -54,4 +57,13 @@ self.addEventListener('notificationclick', function(event) {
   event.waitUntil(
     clients.openWindow(event.notification.data.url)
   );
+});
+
+// Handle PWA visibility changes to save page state
+self.addEventListener('message', function(event) {
+  if (event.data && event.data.type === 'PAGE_VISIBILITY_CHANGE') {
+    // The main app will send us visibility changes
+    // We can use this to trigger page state saves
+    console.log('[SW] Page visibility changed:', event.data.hidden);
+  }
 });

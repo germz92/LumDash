@@ -1,3 +1,4 @@
+// CREW PAGE v2.1 - DRAG_DROP_FIX - Fixed drag and drop persistence by using correct API endpoint
 (function() {
 window.initPage = undefined;
 window.token = window.token || localStorage.getItem('token');
@@ -137,6 +138,9 @@ async function loadTable() {
   if (!cachedUsers.length) await preloadUsers();
   const tableTitleEl = document.getElementById('tableTitle');
   if (tableTitleEl) tableTitleEl.textContent = tableData.title;
+  
+  // Restore filter state before rendering
+  restoreFilterState();
   renderTableSection();
   updateCrewCount();
 }
@@ -162,9 +166,25 @@ function renderTableSection() {
   dates.sort((a, b) => new Date(a) - new Date(b));
 
   if (filterDropdown) {
+    // Get the saved filter value to use when rebuilding the dropdown
+    const savedFilterDate = localStorage.getItem(`crew_filter_date_${tableId}`) || '';
     const currentValue = filterDropdown.value;
+    const valueToUse = savedFilterDate || currentValue;
+    
+    console.log('🔄 CREW: Rebuilding date dropdown...', { 
+      savedFilterDate, 
+      currentValue, 
+      valueToUse, 
+      availableDates: dates 
+    });
+    
     filterDropdown.innerHTML = `<option value="">Show All</option>` +
-      dates.map(d => `<option value="${d}" ${d === currentValue ? 'selected' : ''}>${formatDateLocal(d)}</option>`).join('');
+      dates.map(d => `<option value="${d}" ${d === valueToUse ? 'selected' : ''}>${formatDateLocal(d)}</option>`).join('');
+    
+    // Ensure the dropdown value is set correctly after rebuilding
+    filterDropdown.value = valueToUse;
+    
+    console.log('✅ CREW: Date dropdown rebuilt, final value:', filterDropdown.value);
   }
 
   const selectedDate = filterDropdown?.value;
@@ -741,18 +761,80 @@ function updateCrewCount() {
 
 function clearDateFilter() {
   document.getElementById('filterDate').value = '';
+  saveFilterState();
   renderTableSection();
 }
 
-async function saveRowOrder() {
-  await fetch(`${API_BASE}/api/tables/${tableId}/reorder-rows`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: token
-    },
-    body: JSON.stringify({ rows: tableData.rows })
+// Save filter states to localStorage
+function saveFilterState() {
+  const filterDate = document.getElementById('filterDate')?.value || '';
+  const searchInput = document.getElementById('searchInput')?.value || '';
+  const sortDirection = document.getElementById('sortDirection')?.value || 'asc';
+  
+  console.log('🔄 CREW: Saving filter state...', { filterDate, searchInput, sortDirection, tableId });
+  
+  localStorage.setItem(`crew_filter_date_${tableId}`, filterDate);
+  localStorage.setItem(`crew_search_${tableId}`, searchInput);
+  localStorage.setItem(`crew_sort_${tableId}`, sortDirection);
+  
+  console.log('✅ CREW: Filter state saved to localStorage');
+}
+
+// Restore filter states from localStorage
+function restoreFilterState() {
+  const savedFilterDate = localStorage.getItem(`crew_filter_date_${tableId}`) || '';
+  const savedSearch = localStorage.getItem(`crew_search_${tableId}`) || '';
+  const savedSort = localStorage.getItem(`crew_sort_${tableId}`) || 'asc';
+  
+  console.log('🔄 CREW: Restoring filter state...', { savedFilterDate, savedSearch, savedSort, tableId });
+  
+  const filterDateEl = document.getElementById('filterDate');
+  const searchInputEl = document.getElementById('searchInput');
+  const sortDirectionEl = document.getElementById('sortDirection');
+  
+  console.log('🔍 CREW: DOM elements found:', { 
+    filterDateEl: !!filterDateEl, 
+    searchInputEl: !!searchInputEl, 
+    sortDirectionEl: !!sortDirectionEl 
   });
+  
+  if (filterDateEl) {
+    console.log('📅 CREW: Setting filter date to:', savedFilterDate);
+    filterDateEl.value = savedFilterDate;
+  }
+  if (searchInputEl) {
+    console.log('🔍 CREW: Setting search to:', savedSearch);
+    searchInputEl.value = savedSearch;
+  }
+  if (sortDirectionEl) {
+    console.log('📊 CREW: Setting sort to:', savedSort);
+    sortDirectionEl.value = savedSort;
+  }
+  
+  console.log('✅ CREW: Filter state restoration complete');
+}
+
+async function saveRowOrder() {
+  try {
+    console.log('🔄 CREW: Saving row order...');
+    const response = await fetch(`${API_BASE}/api/tables/${tableId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: token
+      },
+      body: JSON.stringify({ rows: tableData.rows })
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to save row order: ${response.status}`);
+    }
+
+    console.log('✅ CREW: Row order saved successfully');
+  } catch (error) {
+    console.error('❌ CREW: Failed to save row order:', error);
+    alert('Failed to save row order. Please try again.');
+  }
 }
 
 function handleDrop(targetId, draggedId) {
@@ -779,12 +861,30 @@ function handleDrop(targetId, draggedId) {
 function attachEventListeners() {
   const addDateBtn = document.getElementById('addDateBtn');
   if (addDateBtn) addDateBtn.onclick = addDateSection;
+  
   const filterDate = document.getElementById('filterDate');
-  if (filterDate) filterDate.onchange = renderTableSection;
+  if (filterDate) {
+    filterDate.onchange = () => {
+      saveFilterState();
+      renderTableSection();
+    };
+  }
+  
   const sortDirection = document.getElementById('sortDirection');
-  if (sortDirection) sortDirection.onchange = renderTableSection;
+  if (sortDirection) {
+    sortDirection.onchange = () => {
+      saveFilterState();
+      renderTableSection();
+    };
+  }
+  
   const searchInput = document.getElementById('searchInput');
-  if (searchInput) searchInput.oninput = renderTableSection;
+  if (searchInput) {
+    searchInput.oninput = () => {
+      saveFilterState();
+      renderTableSection();
+    };
+  }
 }
 
 function exportCrewCsv() {
@@ -820,6 +920,12 @@ function exportCrewCsv() {
 }
 
 function showCrewCostCalcModal() {
+  // Only allow owners to access the cost calculator
+  if (!isOwner) {
+    alert('Access denied. Only event owners can view the crew cost calculator.');
+    return;
+  }
+  
   // Gather all crew rows (excluding placeholders)
   const rows = (tableData.rows || []).filter(row => row.role !== '__placeholder__' && row.name && row.role);
   if (!rows.length) {
