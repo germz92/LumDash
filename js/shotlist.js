@@ -1,4 +1,5 @@
-// ===== SHOTLIST FUNCTIONALITY =====
+// ===== SHOTLIST FUNCTIONALITY v3.6 - COMPLETION_FIX_v1.0 =====
+// Fixed completion info persistence and removed date display
 
 // Use IIFE to prevent variable conflicts and create a clean scope
 (function() {
@@ -160,26 +161,60 @@ function setupSocketListeners() {
   debugLog('Setting up socket listeners...');
   
   if (typeof socket !== 'undefined' && socket) {
+    // Remove any existing listeners to prevent duplicates
+    socket.off('shotlistsUpdated', handleShotlistsUpdate);
+    
+    // Add the listener
     socket.on('shotlistsUpdated', handleShotlistsUpdate);
+    
+    // Join table-specific room for targeted updates
+    const tableId = getCurrentTableId();
+    if (tableId) {
+      socket.emit('joinTable', tableId);
+      console.log('🎯 SHOTLIST: Joined socket room for table:', tableId);
+    }
+    
+    console.log('🎯 SHOTLIST: Socket listeners registered');
     debugLog('Socket listeners registered');
   } else {
+    console.warn('🎯 SHOTLIST: Socket not available - real-time updates disabled');
     debugLog('Socket not available');
   }
 }
 
 // Handle socket updates
 function handleShotlistsUpdate(data) {
+  console.log('🎯 SHOTLIST: Received real-time update from socket', data);
   debugLog('Received shotlists update from socket', data);
   debugLog('Socket shotlists data:', data.shotlists);
   
-  if (isUserEditing) {
-    debugLog('User is editing, deferring update');
-    setTimeout(() => handleShotlistsUpdate(data), 500);
+  // Skip update if it's from the same table (to avoid infinite loops)
+  const currentTableId = getCurrentTableId();
+  if (data.tableId && data.tableId !== currentTableId) {
+    console.log('🎯 SHOTLIST: Update for different table, ignoring');
     return;
   }
   
+  if (isUserEditing) {
+    console.log('🎯 SHOTLIST: User is editing, deferring update for 100ms');
+    debugLog('User is editing, deferring update');
+    setTimeout(() => handleShotlistsUpdate(data), 100);
+    return;
+  }
+  
+  // Check if we actually have new data
+  if (!data.shotlists || !Array.isArray(data.shotlists)) {
+    console.warn('🎯 SHOTLIST: Invalid shotlists data received');
+    return;
+  }
+  
+// Socket update data validated
+  
+  // Preserve currently selected list
+  const currentSelectedListId = selectedListId;
+  
   // Validate and ensure IDs are preserved
-  const updatedShotlists = (data.shotlists || []).map(list => {
+  const updatedShotlists = data.shotlists.map(list => {
     if (!list._id) {
       debugLog('WARNING: List missing _id, generating new one:', list);
       list._id = generateId();
@@ -199,9 +234,33 @@ function handleShotlistsUpdate(data) {
     return list;
   });
   
+  // Check if the data has actually changed to avoid unnecessary re-renders
+  const dataChanged = JSON.stringify(shotlists) !== JSON.stringify(updatedShotlists);
+  
+  if (!dataChanged) {
+    console.log('🎯 SHOTLIST: Socket data identical to local data, skipping update');
+    return;
+  }
+
+  console.log('🎯 SHOTLIST: Applying real-time update with', updatedShotlists.length, 'lists');
   shotlists = updatedShotlists;
+  
+  // Restore selected list if it still exists
+  if (currentSelectedListId) {
+    const listStillExists = shotlists.some(list => 
+      (list._id && list._id === currentSelectedListId) || 
+      `temp-list-${shotlists.indexOf(list)}` === currentSelectedListId
+    );
+    if (listStillExists) {
+      selectedListId = currentSelectedListId;
+    } else if (shotlists.length > 0) {
+      selectedListId = shotlists[0]._id || `temp-list-0`;
+    }
+  }
+  
   syncToModule();
   renderShotlists();
+  console.log('🎯 SHOTLIST: Real-time update applied successfully');
 }
 
 // Load shotlists from server
@@ -286,13 +345,18 @@ async function handleAddList() {
     
     shotlists.push(newList);
     syncToModule();
-    await saveShotlists();
     
     // Select the newly created list
     const newListIndex = shotlists.length - 1;
     selectedListId = newList._id || `temp-list-${newListIndex}`;
     
     input.value = '';
+    
+    // Render immediately for responsive UI (optimistic update)
+    renderShotlists();
+    
+    // Then save to server
+    await saveShotlists();
     debugLog('List added successfully');
     
   } catch (error) {
@@ -344,6 +408,9 @@ async function handleAddItem(listId, input) {
     // Clear input immediately and mark it as cleared
     input.value = '';
     input.dataset.shouldClear = 'true';
+    
+    // Render immediately for responsive UI (optimistic update)
+    renderShotlists();
     
     await saveShotlists();
     debugLog('Item added successfully');
@@ -414,6 +481,10 @@ async function toggleItemCompletion(listId, itemId) {
       debugLog('Item unchecked, completion info cleared');
     }
     
+    // Render immediately for responsive UI (optimistic update)
+    renderShotlists();
+    
+    // Then save to server
     await saveShotlists();
     debugLog('Item completion toggled successfully');
     
@@ -508,6 +579,11 @@ async function deleteList(listId) {
 async function saveShotlists() {
   debugLog('Saving shotlists to server...');
   debugLog('Shotlists data being sent:', shotlists);
+  console.log('🎯 SHOTLIST: Current user role:', currentUserRole);
+  console.log('🎯 SHOTLIST: Attempting to save shotlists...');
+  
+  // Show loading state
+  const loadingIndicator = showLoadingState();
   
   try {
     const tableId = getCurrentTableId();
@@ -516,6 +592,7 @@ async function saveShotlists() {
       return;
     }
 
+    console.log('🎯 SHOTLIST: Making PUT request to:', `${API_BASE}/api/tables/${tableId}/shotlists`);
     const response = await fetch(`${API_BASE}/api/tables/${tableId}/shotlists`, {
       method: 'PUT',
       headers: {
@@ -525,15 +602,46 @@ async function saveShotlists() {
       body: JSON.stringify({ shotlists })
     });
 
+    console.log('🎯 SHOTLIST: Server response status:', response.status);
+    console.log('🎯 SHOTLIST: Server response ok:', response.ok);
+
     if (!response.ok) {
-      throw new Error(`Failed to save shotlists: ${response.status}`);
+      const errorText = await response.text();
+      console.error('🎯 SHOTLIST: Server error response:', errorText);
+      throw new Error(`Failed to save shotlists: ${response.status} - ${errorText}`);
     }
 
+    const responseData = await response.json();
+    console.log('🎯 SHOTLIST: Server response data:', responseData);
     debugLog('Shotlists saved successfully');
-    renderShotlists();
+    hideLoadingState(loadingIndicator);
+    // Don't re-render here - let the socket update handle it to preserve optimistic updates
     
   } catch (error) {
     console.error('🎯 SHOTLIST: Failed to save shotlists:', error);
+    console.error('🎯 SHOTLIST: Error details:', error.message);
+    
+    // Show user-friendly error message based on error type
+    if (error.message.includes('403')) {
+      alert('You don\'t have permission to modify this shotlist. Only table owners can edit.');
+    } else if (error.message.includes('401')) {
+      alert('Your session has expired. Please log in again.');
+      window.location.href = '/login.html';
+    } else if (error.message.includes('Network')) {
+      alert('Network error. Please check your connection and try again.');
+    } else {
+      alert('Failed to save changes. Please try again.');
+    }
+    
+    // Reload the shotlists to revert any local changes and sync with server
+    console.log('🎯 SHOTLIST: Reloading shotlists to sync with server...');
+    try {
+      await loadShotlists();
+         } catch (reloadError) {
+       console.error('🎯 SHOTLIST: Failed to reload shotlists:', reloadError);
+     }
+     
+         hideLoadingState(loadingIndicator);
     throw error;
   }
 }
@@ -704,17 +812,14 @@ function renderShotItem(item, itemIndex) {
   const canToggle = canUserToggleItems(); // All users can toggle checkboxes
   const itemId = item._id || `temp-item-${itemIndex}`;
   
-  // Format completion info if item is completed
+  // Format completion info if item is completed (show only username, no date)
   let completionInfo = '';
   if (item.completed && item.completedByName) {
-    const completedDate = item.completedAt ? new Date(item.completedAt).toLocaleDateString() : '';
     console.log('🎯 SHOTLIST: Rendering completion info for:', item.title);
     console.log('🎯 SHOTLIST: Completed by:', item.completedByName);
-    console.log('🎯 SHOTLIST: Completed date:', completedDate);
     completionInfo = `
       <div class="completion-info">
         <span class="completed-by">✓ ${escapeHtml(item.completedByName)}</span>
-        ${completedDate ? `<span class="completed-date">${completedDate}</span>` : ''}
       </div>
     `;
   } else if (item.completed) {
@@ -886,6 +991,58 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Show loading state
+function showLoadingState() {
+  const indicator = document.createElement('div');
+  indicator.className = 'loading-indicator';
+  indicator.innerHTML = `
+    <div class="loading-spinner">
+      <span class="material-symbols-outlined">sync</span>
+      Saving...
+    </div>
+  `;
+  indicator.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 0.5rem;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  `;
+  indicator.querySelector('.material-symbols-outlined').style.cssText = `
+    animation: spin 1s linear infinite;
+  `;
+  
+  // Add spin animation
+  if (!document.getElementById('shotlist-spinner-style')) {
+    const style = document.createElement('style');
+    style.id = 'shotlist-spinner-style';
+    style.textContent = `
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  document.body.appendChild(indicator);
+  return indicator;
+}
+
+// Hide loading state
+function hideLoadingState(indicator) {
+  if (indicator && indicator.parentNode) {
+    indicator.parentNode.removeChild(indicator);
+  }
+}
+
 // Test functions for debugging
 function testShotlistData() {
   debugLog('Creating test shotlist data...');
@@ -1000,7 +1157,7 @@ window.testShotlistSave = testShotlistSave;
 window.__shotlistJsLoaded = true;
 
 // Version identifier for cache debugging
-console.log('🎯 SHOTLIST: Module loaded - Version: OWNER_ONLY_EDIT_v1.4 - ' + new Date().toISOString());
+console.log('🎯 SHOTLIST: Module loaded - Version: ALL_USERS_TOGGLE_v1.5 - ' + new Date().toISOString());
 debugLog('Shotlist module loaded');
 
 })(); // Close the IIFE 
