@@ -920,6 +920,12 @@ function exportCrewCsv() {
 }
 
 function showCrewCostCalcModal() {
+  // Only allow owners to access the cost calculator
+  if (!isOwner) {
+    alert('Access denied. Only event owners can view the crew cost calculator.');
+    return;
+  }
+  
   // Gather all crew rows (excluding placeholders)
   const rows = (tableData.rows || []).filter(row => row.role !== '__placeholder__' && row.name && row.role);
   if (!rows.length) {
