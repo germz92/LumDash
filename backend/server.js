@@ -1,3 +1,4 @@
+// Backend v4.1 - COMPLETION_SCHEMA_FIX - Added completedBy and completedByName fields to shotlist schema
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -62,7 +63,26 @@ const io = socketIo(server, {
 });
 
 io.on('connection', (socket) => {
-  console.log('Socket.IO: Client connected');
+  console.log('Socket.IO: Client connected', socket.id);
+  
+  // Handle joining table-specific rooms
+  socket.on('joinTable', (tableId) => {
+    if (tableId) {
+      socket.join(`table-${tableId}`);
+      console.log(`Socket.IO: Client ${socket.id} joined table room: table-${tableId}`);
+    }
+  });
+  
+  socket.on('leaveTable', (tableId) => {
+    if (tableId) {
+      socket.leave(`table-${tableId}`);
+      console.log(`Socket.IO: Client ${socket.id} left table room: table-${tableId}`);
+    }
+  });
+  
+  socket.on('disconnect', () => {
+    console.log('Socket.IO: Client disconnected', socket.id);
+  });
 });
 
 // CORS configuration
@@ -83,15 +103,27 @@ app.use(express.json());
 // Helper function to notify clients about data changes
 function notifyDataChange(eventType, additionalData = null, tableId = null) {
   console.log(`📢 Emitting ${eventType} event for tableId: ${tableId || 'all'}`);
+  
   // Always include the tableId in the event data to help clients filter relevant events
   const eventData = tableId 
     ? { ...(additionalData || {}), tableId } 
     : additionalData;
     
-  if (eventData) {
+  if (tableId) {
+    // Emit to specific table room for better performance and targeting
+    const roomName = `table-${tableId}`;
+    console.log(`📢 Emitting to room: ${roomName}`);
+    io.to(roomName).emit(eventType, eventData);
+    
+    // Also emit globally for backwards compatibility (but with tableId for filtering)
     io.emit(eventType, eventData);
   } else {
-    io.emit(eventType, tableId ? { tableId } : {});
+    // Global events (no specific table)
+    if (eventData) {
+      io.emit(eventType, eventData);
+    } else {
+      io.emit(eventType, {});
+    }
   }
 }
 
@@ -785,25 +817,30 @@ app.put('/api/tables/:id/shotlists', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Table not found' });
     }
 
-    // Check if user has permission to edit
+    // Check if user has permission to access
     const userId = req.user.id;
     const isOwner = table.owners && table.owners.some(ownerId => ownerId.toString() === userId);
     const isLead = table.leads && table.leads.some(leadId => leadId.toString() === userId);
+    const isShared = table.sharedWith && table.sharedWith.some(sharedId => sharedId.toString() === userId);
 
-    if (!isOwner && !isLead) {
+    if (!isOwner && !isLead && !isShared) {
       console.error(`[SHOTLISTS] Unauthorized access: ${req.user.id}`);
-      return res.status(403).json({ error: 'Unauthorized: Only owners and leads can edit shotlists' });
+      return res.status(403).json({ error: 'Unauthorized: No access to this table' });
     }
+
+    console.log(`[SHOTLISTS] User permissions - Owner: ${isOwner}, Lead: ${isLead}, Shared: ${isShared}`);
 
     // Sanitize shotlists data - let mongoose handle ObjectId creation automatically
     const sanitizedShotlists = newShotlists.map(list => {
-      const sanitizedList = {
+              const sanitizedList = {
         name: typeof list.name === 'string' ? list.name.trim() : '',
         items: Array.isArray(list.items) ? list.items.map(item => {
           const sanitizedItem = {
             title: typeof item.title === 'string' ? item.title.trim() : '',
             completed: Boolean(item.completed),
             completedAt: item.completed && item.completedAt ? new Date(item.completedAt) : null,
+            completedBy: item.completed && item.completedBy ? item.completedBy : null,
+            completedByName: item.completed && item.completedByName ? item.completedByName : null,
             createdAt: item.createdAt ? new Date(item.createdAt) : new Date(),
             createdBy: item.createdBy || req.user.id,
             updatedAt: new Date()

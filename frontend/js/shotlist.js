@@ -1,7 +1,11 @@
-// ===== SHOTLIST FUNCTIONALITY =====
+// ===== SHOTLIST FUNCTIONALITY v3.6 - COMPLETION_FIX_v1.0 =====
+// Fixed completion info persistence and removed date display
 
 // Use IIFE to prevent variable conflicts and create a clean scope
 (function() {
+  
+// Get API base URL
+const API_BASE = window.API_BASE || 'https://spa-lumdash-backend.onrender.com';
   
 // Prevent multiple script loading conflicts
 if (window.shotlistModule) {
@@ -101,9 +105,14 @@ function getUserRole(tableData) {
   }
 }
 
-// Check if user can edit (owners and leads only)
+// Check if user can edit lists and delete items (owners only)
 function canUserEdit() {
-  return currentUserRole === 'owner' || currentUserRole === 'lead';
+  return currentUserRole === 'owner';
+}
+
+// Check if user can toggle checkboxes (all authenticated users)
+function canUserToggleItems() {
+  return currentUserRole === 'owner' || currentUserRole === 'lead' || currentUserRole === 'viewer';
 }
 
 // Setup event listeners
@@ -144,14 +153,7 @@ function setupEventListeners() {
     }
   }, true);
   
-  // List selector dropdown
-  document.addEventListener('change', (e) => {
-    if (e.target.id === 'list-selector') {
-      selectedListId = e.target.value;
-      debugLog('List selection changed:', selectedListId);
-      renderShotlists();
-    }
-  });
+  // List selector dropdown is now handled in setupListEventDelegation
 }
 
 // Setup socket listeners
@@ -159,26 +161,60 @@ function setupSocketListeners() {
   debugLog('Setting up socket listeners...');
   
   if (typeof socket !== 'undefined' && socket) {
+    // Remove any existing listeners to prevent duplicates
+    socket.off('shotlistsUpdated', handleShotlistsUpdate);
+    
+    // Add the listener
     socket.on('shotlistsUpdated', handleShotlistsUpdate);
+    
+    // Join table-specific room for targeted updates
+    const tableId = getCurrentTableId();
+    if (tableId) {
+      socket.emit('joinTable', tableId);
+      console.log('🎯 SHOTLIST: Joined socket room for table:', tableId);
+    }
+    
+    console.log('🎯 SHOTLIST: Socket listeners registered');
     debugLog('Socket listeners registered');
   } else {
+    console.warn('🎯 SHOTLIST: Socket not available - real-time updates disabled');
     debugLog('Socket not available');
   }
 }
 
 // Handle socket updates
 function handleShotlistsUpdate(data) {
+  console.log('🎯 SHOTLIST: Received real-time update from socket', data);
   debugLog('Received shotlists update from socket', data);
   debugLog('Socket shotlists data:', data.shotlists);
   
-  if (isUserEditing) {
-    debugLog('User is editing, deferring update');
-    setTimeout(() => handleShotlistsUpdate(data), 500);
+  // Skip update if it's from the same table (to avoid infinite loops)
+  const currentTableId = getCurrentTableId();
+  if (data.tableId && data.tableId !== currentTableId) {
+    console.log('🎯 SHOTLIST: Update for different table, ignoring');
     return;
   }
   
+  if (isUserEditing) {
+    console.log('🎯 SHOTLIST: User is editing, deferring update for 100ms');
+    debugLog('User is editing, deferring update');
+    setTimeout(() => handleShotlistsUpdate(data), 100);
+    return;
+  }
+  
+  // Check if we actually have new data
+  if (!data.shotlists || !Array.isArray(data.shotlists)) {
+    console.warn('🎯 SHOTLIST: Invalid shotlists data received');
+    return;
+  }
+  
+// Socket update data validated
+  
+  // Preserve currently selected list
+  const currentSelectedListId = selectedListId;
+  
   // Validate and ensure IDs are preserved
-  const updatedShotlists = (data.shotlists || []).map(list => {
+  const updatedShotlists = data.shotlists.map(list => {
     if (!list._id) {
       debugLog('WARNING: List missing _id, generating new one:', list);
       list._id = generateId();
@@ -198,9 +234,33 @@ function handleShotlistsUpdate(data) {
     return list;
   });
   
+  // Check if the data has actually changed to avoid unnecessary re-renders
+  const dataChanged = JSON.stringify(shotlists) !== JSON.stringify(updatedShotlists);
+  
+  if (!dataChanged) {
+    console.log('🎯 SHOTLIST: Socket data identical to local data, skipping update');
+    return;
+  }
+
+  console.log('🎯 SHOTLIST: Applying real-time update with', updatedShotlists.length, 'lists');
   shotlists = updatedShotlists;
+  
+  // Restore selected list if it still exists
+  if (currentSelectedListId) {
+    const listStillExists = shotlists.some(list => 
+      (list._id && list._id === currentSelectedListId) || 
+      `temp-list-${shotlists.indexOf(list)}` === currentSelectedListId
+    );
+    if (listStillExists) {
+      selectedListId = currentSelectedListId;
+    } else if (shotlists.length > 0) {
+      selectedListId = shotlists[0]._id || `temp-list-0`;
+    }
+  }
+  
   syncToModule();
   renderShotlists();
+  console.log('🎯 SHOTLIST: Real-time update applied successfully');
 }
 
 // Load shotlists from server
@@ -214,7 +274,7 @@ async function loadShotlists() {
       return;
     }
 
-    const response = await fetch(`/api/tables/${tableId}`, {
+    const response = await fetch(`${API_BASE}/api/tables/${tableId}`, {
       headers: {
         'Authorization': `Bearer ${localStorage.getItem('token')}`
       }
@@ -285,13 +345,18 @@ async function handleAddList() {
     
     shotlists.push(newList);
     syncToModule();
-    await saveShotlists();
     
     // Select the newly created list
     const newListIndex = shotlists.length - 1;
     selectedListId = newList._id || `temp-list-${newListIndex}`;
     
     input.value = '';
+    
+    // Render immediately for responsive UI (optimistic update)
+    renderShotlists();
+    
+    // Then save to server
+    await saveShotlists();
     debugLog('List added successfully');
     
   } catch (error) {
@@ -301,6 +366,11 @@ async function handleAddList() {
 
 // Handle adding item to list
 async function handleAddItem(listId, input) {
+  if (!canUserEdit()) {
+    debugLog('User cannot edit - only owners can add items');
+    return;
+  }
+  
   const title = input.value.trim();
   
   if (!title) {
@@ -339,6 +409,9 @@ async function handleAddItem(listId, input) {
     input.value = '';
     input.dataset.shouldClear = 'true';
     
+    // Render immediately for responsive UI (optimistic update)
+    renderShotlists();
+    
     await saveShotlists();
     debugLog('Item added successfully');
     
@@ -349,6 +422,11 @@ async function handleAddItem(listId, input) {
 
 // Toggle item completion
 async function toggleItemCompletion(listId, itemId) {
+  if (!canUserToggleItems()) {
+    debugLog('User cannot toggle items');
+    return;
+  }
+  
   debugLog('Toggling item completion', { listId, itemId });
   
   try {
@@ -383,8 +461,30 @@ async function toggleItemCompletion(listId, itemId) {
     }
     
     item.completed = !item.completed;
-    item.completedAt = item.completed ? new Date().toISOString() : null;
     
+    if (item.completed) {
+      // Item was just checked off - save completion info
+      item.completedAt = new Date().toISOString();
+      item.completedBy = localStorage.getItem('userId') || 'unknown';
+      item.completedByName = localStorage.getItem('fullName') || 'Unknown User';
+      console.log('🎯 SHOTLIST: Item completed by:', item.completedByName);
+      console.log('🎯 SHOTLIST: User ID:', item.completedBy);
+      console.log('🎯 SHOTLIST: Completed at:', item.completedAt);
+      console.log('🎯 SHOTLIST: Full item data:', item);
+      debugLog('Item completed by:', item.completedByName);
+    } else {
+      // Item was unchecked - clear completion info
+      item.completedAt = null;
+      item.completedBy = null;
+      item.completedByName = null;
+      console.log('🎯 SHOTLIST: Item unchecked, completion info cleared');
+      debugLog('Item unchecked, completion info cleared');
+    }
+    
+    // Render immediately for responsive UI (optimistic update)
+    renderShotlists();
+    
+    // Then save to server
     await saveShotlists();
     debugLog('Item completion toggled successfully');
     
@@ -479,6 +579,11 @@ async function deleteList(listId) {
 async function saveShotlists() {
   debugLog('Saving shotlists to server...');
   debugLog('Shotlists data being sent:', shotlists);
+  console.log('🎯 SHOTLIST: Current user role:', currentUserRole);
+  console.log('🎯 SHOTLIST: Attempting to save shotlists...');
+  
+  // Show loading state
+  const loadingIndicator = showLoadingState();
   
   try {
     const tableId = getCurrentTableId();
@@ -487,7 +592,8 @@ async function saveShotlists() {
       return;
     }
 
-    const response = await fetch(`/api/tables/${tableId}/shotlists`, {
+    console.log('🎯 SHOTLIST: Making PUT request to:', `${API_BASE}/api/tables/${tableId}/shotlists`);
+    const response = await fetch(`${API_BASE}/api/tables/${tableId}/shotlists`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
@@ -496,15 +602,46 @@ async function saveShotlists() {
       body: JSON.stringify({ shotlists })
     });
 
+    console.log('🎯 SHOTLIST: Server response status:', response.status);
+    console.log('🎯 SHOTLIST: Server response ok:', response.ok);
+
     if (!response.ok) {
-      throw new Error(`Failed to save shotlists: ${response.status}`);
+      const errorText = await response.text();
+      console.error('🎯 SHOTLIST: Server error response:', errorText);
+      throw new Error(`Failed to save shotlists: ${response.status} - ${errorText}`);
     }
 
+    const responseData = await response.json();
+    console.log('🎯 SHOTLIST: Server response data:', responseData);
     debugLog('Shotlists saved successfully');
-    renderShotlists();
+    hideLoadingState(loadingIndicator);
+    // Don't re-render here - let the socket update handle it to preserve optimistic updates
     
   } catch (error) {
     console.error('🎯 SHOTLIST: Failed to save shotlists:', error);
+    console.error('🎯 SHOTLIST: Error details:', error.message);
+    
+    // Show user-friendly error message based on error type
+    if (error.message.includes('403')) {
+      alert('You don\'t have permission to modify this shotlist. Only table owners can edit.');
+    } else if (error.message.includes('401')) {
+      alert('Your session has expired. Please log in again.');
+      window.location.href = '/login.html';
+    } else if (error.message.includes('Network')) {
+      alert('Network error. Please check your connection and try again.');
+    } else {
+      alert('Failed to save changes. Please try again.');
+    }
+    
+    // Reload the shotlists to revert any local changes and sync with server
+    console.log('🎯 SHOTLIST: Reloading shotlists to sync with server...');
+    try {
+      await loadShotlists();
+         } catch (reloadError) {
+       console.error('🎯 SHOTLIST: Failed to reload shotlists:', reloadError);
+     }
+     
+         hideLoadingState(loadingIndicator);
     throw error;
   }
 }
@@ -671,13 +808,31 @@ function renderShotlist(list, listIndex) {
 
 // Render a single shot item
 function renderShotItem(item, itemIndex) {
-  const canEdit = canUserEdit();
+  const canEdit = canUserEdit(); // Only owners can delete items
+  const canToggle = canUserToggleItems(); // All users can toggle checkboxes
   const itemId = item._id || `temp-item-${itemIndex}`;
+  
+  // Format completion info if item is completed (show only username, no date)
+  let completionInfo = '';
+  if (item.completed && item.completedByName) {
+    console.log('🎯 SHOTLIST: Rendering completion info for:', item.title);
+    console.log('🎯 SHOTLIST: Completed by:', item.completedByName);
+    completionInfo = `
+      <div class="completion-info">
+        <span class="completed-by">✓ ${escapeHtml(item.completedByName)}</span>
+      </div>
+    `;
+  } else if (item.completed) {
+    console.log('🎯 SHOTLIST: Item is completed but no completedByName:', item);
+  }
   
   return `
     <div class="shot-item ${item.completed ? 'completed' : ''}" data-item-id="${itemId}" data-item-index="${itemIndex}">
-      <input type="checkbox" class="shot-checkbox" ${item.completed ? 'checked' : ''}>
-      <div class="shot-title">${escapeHtml(item.title)}</div>
+      ${canToggle ? `<input type="checkbox" class="shot-checkbox" ${item.completed ? 'checked' : ''}>` : ''}
+      <div class="shot-content">
+        <div class="shot-title">${escapeHtml(item.title)}</div>
+        ${completionInfo}
+      </div>
       ${canEdit ? `
         <div class="shot-actions">
           <button class="btn-icon delete" title="Delete">
@@ -779,6 +934,15 @@ function handleListKeypress(e) {
 }
 
 function handleListChanges(e) {
+  // Handle list selector dropdown
+  if (e.target.id === 'list-selector') {
+    selectedListId = e.target.value;
+    debugLog('List selection changed:', selectedListId);
+    renderShotlists();
+    return;
+  }
+  
+  // Handle shot checkboxes
   if (e.target.classList.contains('shot-checkbox')) {
     const itemElement = e.target.closest('[data-item-id]');
     const listElement = e.target.closest('.shot-list');
@@ -827,6 +991,58 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Show loading state
+function showLoadingState() {
+  const indicator = document.createElement('div');
+  indicator.className = 'loading-indicator';
+  indicator.innerHTML = `
+    <div class="loading-spinner">
+      <span class="material-symbols-outlined">sync</span>
+      Saving...
+    </div>
+  `;
+  indicator.style.cssText = `
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 1rem 2rem;
+    border-radius: 0.5rem;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  `;
+  indicator.querySelector('.material-symbols-outlined').style.cssText = `
+    animation: spin 1s linear infinite;
+  `;
+  
+  // Add spin animation
+  if (!document.getElementById('shotlist-spinner-style')) {
+    const style = document.createElement('style');
+    style.id = 'shotlist-spinner-style';
+    style.textContent = `
+      @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+      }
+    `;
+    document.head.appendChild(style);
+  }
+  
+  document.body.appendChild(indicator);
+  return indicator;
+}
+
+// Hide loading state
+function hideLoadingState(indicator) {
+  if (indicator && indicator.parentNode) {
+    indicator.parentNode.removeChild(indicator);
+  }
+}
+
 // Test functions for debugging
 function testShotlistData() {
   debugLog('Creating test shotlist data...');
@@ -841,7 +1057,9 @@ function testShotlistData() {
           title: 'Bride getting ready',
           completed: true,
           createdAt: new Date().toISOString(),
-          completedAt: new Date().toISOString()
+          completedAt: new Date().toISOString(),
+          completedBy: 'test-user-id',
+          completedByName: 'John Photographer'
         },
         {
           _id: 'item-2',
@@ -907,7 +1125,7 @@ window.initPage = async function(id) {
   try {
     const tableId = getCurrentTableId();
     if (tableId) {
-      const response = await fetch(`/api/tables/${tableId}`, {
+      const response = await fetch(`${API_BASE}/api/tables/${tableId}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         }
@@ -938,6 +1156,8 @@ window.testShotlistSave = testShotlistSave;
 // Mark as loaded to prevent conflicts
 window.__shotlistJsLoaded = true;
 
+// Version identifier for cache debugging
+console.log('🎯 SHOTLIST: Module loaded - Version: ALL_USERS_TOGGLE_v1.5 - ' + new Date().toISOString());
 debugLog('Shotlist module loaded');
 
 })(); // Close the IIFE 

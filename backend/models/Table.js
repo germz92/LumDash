@@ -146,12 +146,14 @@ const tableSchema = new mongoose.Schema({
     {
       _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
       name: { type: String, required: true },
-      items: [
+              items: [
         {
           _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
           title: { type: String, required: true },
           completed: { type: Boolean, default: false },
           completedAt: { type: Date },
+          completedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+          completedByName: { type: String },
           createdAt: { type: Date, default: Date.now },
           createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
           updatedAt: { type: Date, default: Date.now }
