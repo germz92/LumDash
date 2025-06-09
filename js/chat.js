@@ -8,13 +8,6 @@ class ChatWidget {
     this.API_BASE = window.API_BASE || '';
     this.conversationHistory = []; // Store conversation for context
     
-    // Voice functionality
-    this.isListening = false;
-    this.isSpeaking = false;
-    this.speechRecognition = null;
-    this.speechSynthesis = window.speechSynthesis;
-    this.initVoiceSupport();
-    
     this.init();
   }
 
@@ -24,52 +17,6 @@ class ChatWidget {
       this.setupEventListeners();
       this.addWelcomeMessage();
     });
-  }
-
-  initVoiceSupport() {
-    // Ensure voices are loaded for speech synthesis
-    if (this.speechSynthesis) {
-      // Load voices if not already loaded
-      if (this.speechSynthesis.getVoices().length === 0) {
-        this.speechSynthesis.addEventListener('voiceschanged', () => {
-          console.log('Available voices:', this.speechSynthesis.getVoices().map(v => v.name));
-        });
-      }
-    }
-    
-    // Check for speech recognition support
-    if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      this.speechRecognition = new SpeechRecognition();
-      
-      this.speechRecognition.continuous = false;
-      this.speechRecognition.interimResults = false;
-      this.speechRecognition.lang = 'en-US';
-      
-      this.speechRecognition.onstart = () => {
-        this.isListening = true;
-        this.updateVoiceButton(true);
-      };
-      
-      this.speechRecognition.onresult = (event) => {
-        const transcript = event.results[0][0].transcript;
-        const chatInput = document.getElementById('chatInput');
-        if (chatInput) {
-          chatInput.value = transcript;
-          // Auto-send the message
-          this.sendMessage();
-        }
-      };
-      
-      this.speechRecognition.onerror = (event) => {
-        console.error('Speech recognition error:', event.error);
-        this.stopListening();
-      };
-      
-      this.speechRecognition.onend = () => {
-        this.stopListening();
-      };
-    }
   }
 
   async loadChatComponents() {
@@ -102,25 +49,14 @@ class ChatWidget {
       </div>
       <div id="chatPanel" class="chat-panel">
         <div class="chat-header">
-          <div class="chat-header-left">
-            <strong>Luma</strong>
-            <span class="chat-subtitle">AI Assistant</span>
-          </div>
-          <div class="chat-header-controls">
-            <button id="speakerBtn" class="voice-control-btn" title="Toggle speech">
-              <span class="material-symbols-outlined">volume_up</span>
-            </button>
-            <button id="closeChatBtn" class="close-chat-btn">
-              <span class="material-symbols-outlined">close</span>
-            </button>
-          </div>
+          <strong>Event Assistant</strong>
+          <button id="closeChatBtn" class="close-chat-btn">
+            <span class="material-symbols-outlined">close</span>
+          </button>
         </div>
         <div id="chatMessages" class="chat-messages"></div>
         <div class="chat-input-container">
-          <button id="voiceBtn" class="voice-btn" title="Speak your message">
-            <span class="material-symbols-outlined">mic</span>
-          </button>
-          <input id="chatInput" type="text" placeholder="Ask about this event or click mic to speak..." class="chat-input">
+          <input id="chatInput" type="text" placeholder="Ask about this event..." class="chat-input">
           <button id="sendBtn" class="send-btn">
             <span class="material-symbols-outlined">send</span>
           </button>
@@ -135,8 +71,6 @@ class ChatWidget {
     const closeChatBtn = document.getElementById('closeChatBtn');
     const sendBtn = document.getElementById('sendBtn');
     const chatInput = document.getElementById('chatInput');
-    const voiceBtn = document.getElementById('voiceBtn');
-    const speakerBtn = document.getElementById('speakerBtn');
 
     if (chatButton) {
       chatButton.addEventListener('click', () => this.toggleChat());
@@ -156,14 +90,6 @@ class ChatWidget {
           this.sendMessage();
         }
       });
-    }
-
-    if (voiceBtn) {
-      voiceBtn.addEventListener('click', () => this.toggleVoiceInput());
-    }
-
-    if (speakerBtn) {
-      speakerBtn.addEventListener('click', () => this.toggleSpeaker());
     }
   }
 
@@ -252,9 +178,6 @@ class ChatWidget {
       // Remove typing indicator and add response
       this.hideTypingIndicator();
       this.addMessage('assistant', data.response);
-      
-      // Speak the response if speaker is enabled
-      this.speakResponse(data.response);
 
     } catch (error) {
       console.error('Chat error:', error);
@@ -332,201 +255,6 @@ class ChatWidget {
     if (sendBtn) {
       sendBtn.disabled = !enabled;
     }
-  }
-
-  // Voice control methods
-  toggleVoiceInput() {
-    if (!this.speechRecognition) {
-      this.showVoiceError('Speech recognition not supported in this browser');
-      return;
-    }
-
-    if (this.isListening) {
-      this.stopListening();
-    } else {
-      this.startListening();
-    }
-  }
-
-  startListening() {
-    if (!this.speechRecognition || this.isListening) return;
-    
-    try {
-      this.speechRecognition.start();
-      const chatInput = document.getElementById('chatInput');
-      if (chatInput) {
-        chatInput.placeholder = 'Listening... Speak now';
-      }
-    } catch (error) {
-      console.error('Error starting speech recognition:', error);
-      this.showVoiceError('Could not start voice recognition');
-    }
-  }
-
-  stopListening() {
-    this.isListening = false;
-    this.updateVoiceButton(false);
-    const chatInput = document.getElementById('chatInput');
-    if (chatInput) {
-      chatInput.placeholder = 'Ask about this event or click mic to speak...';
-    }
-  }
-
-  updateVoiceButton(isListening) {
-    const voiceBtn = document.getElementById('voiceBtn');
-    if (voiceBtn) {
-      const icon = voiceBtn.querySelector('.material-symbols-outlined');
-      if (isListening) {
-        icon.textContent = 'mic_off';
-        voiceBtn.classList.add('listening');
-        voiceBtn.title = 'Stop listening';
-      } else {
-        icon.textContent = 'mic';
-        voiceBtn.classList.remove('listening');
-        voiceBtn.title = 'Speak your message';
-      }
-    }
-  }
-
-  toggleSpeaker() {
-    const speakerBtn = document.getElementById('speakerBtn');
-    const icon = speakerBtn?.querySelector('.material-symbols-outlined');
-    
-    if (this.isSpeaking) {
-      // Stop current audio playback
-      const audioElements = document.querySelectorAll('audio');
-      audioElements.forEach(audio => {
-        audio.pause();
-        audio.currentTime = 0;
-      });
-      
-      // Also cancel browser speech synthesis as fallback
-      if (this.speechSynthesis) {
-        this.speechSynthesis.cancel();
-      }
-      
-      this.isSpeaking = false;
-      if (icon) {
-        icon.textContent = 'volume_up';
-        speakerBtn.classList.remove('speaking');
-        speakerBtn.title = 'Enable speech';
-      }
-    } else {
-      // Toggle speaker preference
-      const isEnabled = localStorage.getItem('lumaVoiceEnabled') === 'true';
-      localStorage.setItem('lumaVoiceEnabled', !isEnabled);
-      
-      if (icon) {
-        icon.textContent = !isEnabled ? 'volume_up' : 'volume_off';
-        speakerBtn.classList.toggle('voice-enabled', !isEnabled);
-        speakerBtn.title = !isEnabled ? 'Disable speech' : 'Enable speech';
-      }
-    }
-  }
-
-  async speakResponse(text) {
-    const isVoiceEnabled = localStorage.getItem('lumaVoiceEnabled') === 'true';
-    if (!isVoiceEnabled) return;
-
-    console.log('🎙️ Speaking response with OpenAI TTS:', text.substring(0, 50) + '...');
-
-    try {
-      // Set speaking state
-      this.isSpeaking = true;
-      const speakerBtn = document.getElementById('speakerBtn');
-      if (speakerBtn) {
-        speakerBtn.classList.add('speaking');
-      }
-
-      // Call OpenAI TTS API
-      console.log('📡 Calling TTS API:', `${this.API_BASE}/api/tts/${this.tableId}`);
-      const response = await fetch(`${this.API_BASE}/api/tts/${this.tableId}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${this.token}`
-        },
-        body: JSON.stringify({ text })
-      });
-
-      if (!response.ok) {
-        console.error('❌ TTS API error:', response.status, response.statusText);
-        throw new Error(`TTS API error: ${response.status}`);
-      }
-
-      console.log('✅ TTS API success, creating audio...');
-      
-      // Get audio blob and play it
-      const audioBlob = await response.blob();
-      const audioUrl = URL.createObjectURL(audioBlob);
-      const audio = new Audio(audioUrl);
-      
-      audio.onended = () => {
-        this.isSpeaking = false;
-        if (speakerBtn) {
-          speakerBtn.classList.remove('speaking');
-        }
-        URL.revokeObjectURL(audioUrl); // Clean up
-      };
-
-      audio.onerror = (error) => {
-        console.error('Audio playback error:', error);
-        this.isSpeaking = false;
-        if (speakerBtn) {
-          speakerBtn.classList.remove('speaking');
-        }
-        URL.revokeObjectURL(audioUrl);
-      };
-
-      await audio.play();
-
-    } catch (error) {
-      console.error('❌ TTS error, falling back to browser voice:', error);
-      this.isSpeaking = false;
-      const speakerBtn = document.getElementById('speakerBtn');
-      if (speakerBtn) {
-        speakerBtn.classList.remove('speaking');
-      }
-      
-      // Fallback to browser TTS if OpenAI TTS fails
-      console.log('🔄 Using browser fallback voice...');
-      this.fallbackSpeakResponse(text);
-    }
-  }
-
-  // Fallback to browser speech synthesis if OpenAI TTS fails
-  fallbackSpeakResponse(text) {
-    if (!this.speechSynthesis) return;
-
-    // Clean text for speech (remove emojis and markdown)
-    const cleanText = text.replace(/[📸📅👥📷💾🗺️✈️✅]/g, '').replace(/\*\*/g, '');
-    
-    const utterance = new SpeechSynthesisUtterance(cleanText);
-    utterance.rate = 0.85;
-    utterance.pitch = 0.95;
-    utterance.volume = 0.8;
-    
-    utterance.onstart = () => {
-      this.isSpeaking = true;
-      const speakerBtn = document.getElementById('speakerBtn');
-      if (speakerBtn) {
-        speakerBtn.classList.add('speaking');
-      }
-    };
-    
-    utterance.onend = () => {
-      this.isSpeaking = false;
-      const speakerBtn = document.getElementById('speakerBtn');
-      if (speakerBtn) {
-        speakerBtn.classList.remove('speaking');
-      }
-    };
-
-    this.speechSynthesis.speak(utterance);
-  }
-
-  showVoiceError(message) {
-    this.addMessage('assistant', `🎤 ${message}`);
   }
 
   destroy() {
