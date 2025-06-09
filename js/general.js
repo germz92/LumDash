@@ -145,11 +145,34 @@ function createLinkHTML(value, type) {
 function linkifyText(text) {
   if (!text) return '';
   
-  // Regular expression to match URLs (http, https, www, and basic domain.com patterns)
-  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/g;
+  // First, handle markdown-style custom links: [Custom Name](URL)
+  const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  text = text.replace(markdownLinkRegex, (match, linkText, url) => {
+    let href = url.trim();
+    
+    // Add protocol if missing
+    if (!href.match(/^https?:\/\//)) {
+      href = 'https://' + href;
+    }
+    
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;">${linkText}</a>`;
+  });
   
-  // Replace URLs with clickable links
-  return text.replace(urlRegex, (url) => {
+  // Then handle regular URLs (but skip ones already inside <a> tags from markdown processing)
+  const urlRegex = /(https?:\/\/[^\s<]+|www\.[^\s<]+|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)/g;
+  
+  // Replace URLs with clickable links, but only if they're not already inside <a> tags
+  text = text.replace(urlRegex, (url) => {
+    // Check if this URL is already inside an <a> tag
+    const beforeUrl = text.substring(0, text.indexOf(url));
+    const lastATag = beforeUrl.lastIndexOf('<a ');
+    const lastCloseATag = beforeUrl.lastIndexOf('</a>');
+    
+    // If we're inside an <a> tag, don't linkify
+    if (lastATag > lastCloseATag) {
+      return url;
+    }
+    
     let href = url;
     
     // Add protocol if missing
@@ -159,6 +182,8 @@ function linkifyText(text) {
     
     return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;">${url}</a>`;
   });
+  
+  return text;
 }
 
 function renderContactRow(data = {}, readOnly = false) {
