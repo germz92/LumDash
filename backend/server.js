@@ -284,6 +284,7 @@ app.post('/api/chat/:tableId', authenticate, async (req, res) => {
       cardLog: table.cardLog || [],
       documents: table.documents || [],
       gear: table.gear || {},
+      shotlists: table.shotlists || [],
       rows: table.rows || [],
       currentUser: req.user.fullName
     };
@@ -306,6 +307,7 @@ EXPERTISE AREAS & SEARCH GUIDANCE:
 - 📷 GEAR: For equipment questions ("what cameras", "lens list"), examine gear.lists by category (Cameras, Lenses, Lighting, etc.)
 - 💾 CARDS: For memory card tracking ("card status", "which cards used"), check cardLog array by date
 - 🗺️ MAPS/DOCS: For location/document questions ("floor plan", "venue map"), search documents array by filename and type
+- 📸 SHOTLISTS: For shot planning questions ("what shots needed", "photo checklist", "which shots completed"), check shotlists array by list name and shot items
 - ✈️ LOGISTICS: For travel/accommodation ("hotel info", "flight details"), check travel and accommodation arrays
 - ✅ TASKS: For to-do items ("what needs doing", "deadlines"), review tasks array
 
