@@ -145,7 +145,22 @@ function createLinkHTML(value, type) {
 function linkifyText(text) {
   if (!text) return '';
   
-  // First, handle markdown-style custom links: [Custom Name](URL)
+  // First, escape HTML to prevent XSS (but preserve our line breaks)
+  text = text.replace(/&/g, '&amp;')
+             .replace(/</g, '&lt;')
+             .replace(/>/g, '&gt;');
+  
+  // Convert line breaks to HTML: double newlines = paragraphs, single newlines = line breaks
+  text = text.replace(/\r\n/g, '\n'); // Normalize Windows line endings
+  text = text.replace(/\n\s*\n/g, '</p><p>'); // Double line breaks = new paragraph
+  text = text.replace(/\n/g, '<br>'); // Single line breaks = <br>
+  text = `<p>${text}</p>`; // Wrap in paragraph tags
+  
+  // Clean up empty paragraphs
+  text = text.replace(/<p><\/p>/g, '');
+  text = text.replace(/<p>\s*<br>\s*<\/p>/g, '<p></p>');
+  
+  // Handle markdown-style custom links: [Custom Name](URL)
   const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
   text = text.replace(markdownLinkRegex, (match, linkText, url) => {
     let href = url.trim();
