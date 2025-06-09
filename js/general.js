@@ -170,7 +170,7 @@ function linkifyText(text) {
       href = 'https://' + href;
     }
     
-    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;">${linkText}</a>`;
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;" onclick="window.open('${href}', '_blank'); return false;">${linkText}</a>`;
   });
   
   // Then handle regular URLs (but skip ones already inside <a> tags from markdown processing)
@@ -195,7 +195,7 @@ function linkifyText(text) {
       href = 'https://' + url;
     }
     
-    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;">${url}</a>`;
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;" onclick="window.open('${href}', '_blank'); return false;">${url}</a>`;
   });
   
   return text;
