@@ -375,6 +375,11 @@
     height: 450px !important;
   }
   
+  /* Prevent zoom on iOS when typing - input must be at least 16px */
+  .chat-input {
+    font-size: 16px !important;
+  }
+  
   /* Schedule page specific mobile adjustments */
   .schedule-page .chat-panel {
     bottom: 140px !important; /* Match other pages positioning */
