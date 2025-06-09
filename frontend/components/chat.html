@@ -5,15 +5,25 @@
 
 <div id="chatPanel" class="chat-panel">
   <div class="chat-header">
-    <strong>Luma</strong>
-    <span class="chat-subtitle">Event Assistant</span>
-    <button id="closeChatBtn" class="close-chat-btn">
-      <span class="material-symbols-outlined">close</span>
-    </button>
+    <div class="chat-header-left">
+      <strong>Luma</strong>
+      <span class="chat-subtitle">AI Assistant</span>
+    </div>
+    <div class="chat-header-controls">
+      <button id="speakerBtn" class="voice-control-btn" title="Toggle speech">
+        <span class="material-symbols-outlined">volume_up</span>
+      </button>
+      <button id="closeChatBtn" class="close-chat-btn">
+        <span class="material-symbols-outlined">close</span>
+      </button>
+    </div>
   </div>
   <div id="chatMessages" class="chat-messages"></div>
   <div class="chat-input-container">
-    <input id="chatInput" type="text" placeholder="Ask Luma about this event..." class="chat-input">
+    <button id="voiceBtn" class="voice-btn" title="Speak your message">
+      <span class="material-symbols-outlined">mic</span>
+    </button>
+    <input id="chatInput" type="text" placeholder="Ask about this event or click mic to speak..." class="chat-input">
     <button id="sendBtn" class="send-btn">
       <span class="material-symbols-outlined">send</span>
     </button>
