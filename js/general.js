@@ -142,6 +142,25 @@ function createLinkHTML(value, type) {
   return `<a href="${href}" target="_blank" style="color: #1976d2; text-decoration: underline;">${value}</a>`;
 }
 
+function linkifyText(text) {
+  if (!text) return '';
+  
+  // Regular expression to match URLs (http, https, www, and basic domain.com patterns)
+  const urlRegex = /(https?:\/\/[^\s]+|www\.[^\s]+|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\/[^\s]*)?)/g;
+  
+  // Replace URLs with clickable links
+  return text.replace(urlRegex, (url) => {
+    let href = url;
+    
+    // Add protocol if missing
+    if (!url.match(/^https?:\/\//)) {
+      href = 'https://' + url;
+    }
+    
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;">${url}</a>`;
+  });
+}
+
 function renderContactRow(data = {}, readOnly = false) {
   const tbody = document.getElementById('contactRows');
   const row = document.createElement('tr');
@@ -334,8 +353,11 @@ function initPage(id) {
           // Make location field clickable to open maps
           if (field === 'location') {
             div.innerHTML = createLinkHTML(general.location || '', 'address');
+          } else if (field === 'eventSummary') {
+            // Make URLs in summary clickable
+            div.innerHTML = linkifyText(general.summary || '');
           } else {
-            div.textContent = general[field === 'eventSummary' ? 'summary' : field] || '';
+            div.textContent = general[field] || '';
           }
           
           el.replaceWith(div);
