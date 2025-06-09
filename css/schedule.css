@@ -530,8 +530,8 @@
         align-items: center;
         justify-content: space-between;
         gap: 8px;
-        margin-top: 2px !important;
-        width: 100%;
+        margin-top: -14px; /* Negative margin to pull up closer */
+        width: 30%; /* Reduced width for more compact layout */
     }
 
     .schedule-page .program-entry .show-notes-btn {
@@ -540,7 +540,7 @@
         background: none;
         border: none;
         cursor: pointer;
-        font-size: 14px !important;
+        font-size: 12px !important; /* Changed from 14px to 12px for mobile */
         text-decoration: underline;
         padding: 3px 6px !important;
         width: fit-content;
