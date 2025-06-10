@@ -92,8 +92,126 @@ io.on('connection', (socket) => {
     }
   });
   
+  // Collaborative editing event handlers
+  socket.on('joinEventRoom', (data) => {
+    const { eventId, userId, userName, userColor } = data;
+    if (eventId && userId) {
+      const roomName = `event-${eventId}`;
+      socket.join(roomName);
+      socket.eventId = eventId;
+      socket.userId = userId;
+      socket.userName = userName;
+      socket.userColor = userColor;
+      
+      console.log(`Socket.IO: User ${userName} (${userId}) joined event room: ${roomName}`);
+      
+      // Broadcast to other users in the room that this user joined
+      socket.to(roomName).emit('userJoined', {
+        userId,
+        userName,
+        userColor,
+        timestamp: Date.now()
+      });
+    }
+  });
+  
+  socket.on('leaveEventRoom', (data) => {
+    const { eventId, userId } = data;
+    if (eventId && userId) {
+      const roomName = `event-${eventId}`;
+      socket.leave(roomName);
+      
+      // Broadcast to other users that this user left
+      socket.to(roomName).emit('userLeft', {
+        userId,
+        timestamp: Date.now()
+      });
+      
+      console.log(`Socket.IO: User ${userId} left event room: ${roomName}`);
+    }
+  });
+  
+  socket.on('startFieldEdit', (data) => {
+    const { eventId, fieldId, userId, userName, userColor } = data;
+    if (eventId && fieldId && userId) {
+      const roomName = `event-${eventId}`;
+      
+      // Broadcast to other users that this field is being edited
+      socket.to(roomName).emit('fieldEditStarted', {
+        fieldId,
+        userId,
+        userName,
+        userColor,
+        timestamp: Date.now()
+      });
+      
+      console.log(`Socket.IO: User ${userName} started editing field ${fieldId} in event ${eventId}`);
+    }
+  });
+  
+  socket.on('stopFieldEdit', (data) => {
+    const { eventId, fieldId, userId } = data;
+    if (eventId && fieldId && userId) {
+      const roomName = `event-${eventId}`;
+      
+      // Broadcast to other users that this field is no longer being edited
+      socket.to(roomName).emit('fieldEditStopped', {
+        fieldId,
+        userId,
+        timestamp: Date.now()
+      });
+      
+      console.log(`Socket.IO: User ${userId} stopped editing field ${fieldId} in event ${eventId}`);
+    }
+  });
+  
+  socket.on('programOperation', (data) => {
+    const { eventId, operation, userId, userName } = data;
+    if (eventId && operation && userId) {
+      const roomName = `event-${eventId}`;
+      
+      // Broadcast the operation to other users in the room
+      socket.to(roomName).emit('programOperationReceived', {
+        operation,
+        userId,
+        userName,
+        timestamp: Date.now()
+      });
+      
+      const fieldName = operation.data ? operation.data.field : 'unknown';
+      const programId = operation.data ? operation.data.programId : 'unknown';
+      console.log(`Socket.IO: User ${userName} performed operation on field ${fieldName} (program: ${programId}) in event ${eventId}`);
+      console.log(`Operation details:`, JSON.stringify(operation, null, 2));
+    }
+  });
+  
+  socket.on('updatePresence', (data) => {
+    const { eventId, userId, userName, userColor, currentField } = data;
+    if (eventId && userId) {
+      const roomName = `event-${eventId}`;
+      
+      // Broadcast presence update to other users
+      socket.to(roomName).emit('presenceUpdated', {
+        userId,
+        userName,
+        userColor,
+        currentField,
+        lastSeen: Date.now()
+      });
+    }
+  });
+  
   socket.on('disconnect', () => {
     console.log('Socket.IO: Client disconnected', socket.id);
+    
+    // If user was in an event room, notify others they left
+    if (socket.eventId && socket.userId) {
+      const roomName = `event-${socket.eventId}`;
+      socket.to(roomName).emit('userLeft', {
+        userId: socket.userId,
+        timestamp: Date.now()
+      });
+    }
   });
 });
 
@@ -248,7 +366,7 @@ app.post('/api/auth/reset-password', async (req, res) => {
 // AI CHAT ENDPOINT
 app.post('/api/chat/:tableId', authenticate, async (req, res) => {
   try {
-    const { message, conversationHistory = [] } = req.body;
+    const { message, conversationHistory = [], pageContext = {} } = req.body;
     const tableId = req.params.tableId;
     
     if (!message) {
@@ -289,35 +407,90 @@ app.post('/api/chat/:tableId', authenticate, async (req, res) => {
       currentUser: req.user.fullName
     };
 
+    // Get current date and time information
+    const now = new Date();
+    const currentDateTime = {
+      date: now.toISOString().split('T')[0], // YYYY-MM-DD format
+      time: now.toTimeString().split(' ')[0], // HH:MM:SS format
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      dayOfWeek: now.toLocaleDateString('en-US', { weekday: 'long' }),
+      timestamp: now.toISOString(),
+      localDateTime: now.toLocaleString()
+    };
+
+    // Get event dates if available
+    const eventDates = {
+      start: table.general?.start || null,
+      end: table.general?.end || null
+    };
+
+    // Calculate event status
+    let eventStatus = 'unknown';
+    if (eventDates.start && eventDates.end) {
+      const startDate = new Date(eventDates.start);
+      const endDate = new Date(eventDates.end);
+      const today = new Date(now.toISOString().split('T')[0]);
+      
+      if (today < startDate) {
+        eventStatus = 'upcoming';
+      } else if (today >= startDate && today <= endDate) {
+        eventStatus = 'ongoing';
+      } else {
+        eventStatus = 'completed';
+      }
+    }
+
     // Create context-aware prompt with better personality and instructions
     const systemPrompt = `You are Luma, an AI assistant specialized in event photography and production management. You're helping manage the event "${table.title}".
 
+CURRENT DATE & TIME CONTEXT:
+- Today's Date: ${currentDateTime.date} (${currentDateTime.dayOfWeek})
+- Current Time: ${currentDateTime.time} (${currentDateTime.timezone})
+- Event Status: ${eventStatus}
+${eventDates.start ? `- Event Start Date: ${eventDates.start}` : ''}
+${eventDates.end ? `- Event End Date: ${eventDates.end}` : ''}
+
+USER CONTEXT:
+- Current Page: ${pageContext.currentPage || 'unknown'}
+- Active Tab/Section: ${pageContext.activeTab || 'none'}
+- User Timezone: ${pageContext.userTimezone || currentDateTime.timezone}
+- Browser Language: ${pageContext.browserLanguage || 'en-US'}
+
 INTRODUCTION: Always introduce yourself as "Hi! I'm Luma, your AI assistant for ${table.title}." when greeting new users or when the conversation starts fresh.
 
-PERSONALITY: Be friendly, professional, and proactive. Think like an experienced event coordinator who understands photography workflows, production schedules, and team coordination.
+PERSONALITY: Be friendly, professional, and proactive. Think like an experienced event coordinator who understands photography workflows, production schedules, and team coordination. Use time-aware language (e.g., "later today", "tomorrow", "next week").
 
-CONTEXT AWARENESS: This is user ${req.user.fullName}. Remember details from your conversations and build upon them. If someone asks follow-up questions, reference previous parts of the conversation naturally.
+CONTEXT AWARENESS: This is user ${req.user.fullName}. Remember details from your conversations and build upon them. If someone asks follow-up questions, reference previous parts of the conversation naturally. Be aware of timing relative to the event dates.
 
 EVENT DATA ACCESS:
 ${JSON.stringify(eventData, null, 2)}
 
 EXPERTISE AREAS & SEARCH GUIDANCE:
-- 📅 SCHEDULE: For timing questions ("when is keynote", "what's next"), search programSchedule array by session name, speaker, or location
-- 👥 CREW: For team questions ("who's shooting", "photographer assignments"), check rows array for crew assignments and schedules  
-- 📷 GEAR: For equipment questions ("what cameras", "lens list"), examine gear.lists by category (Cameras, Lenses, Lighting, etc.)
-- 💾 CARDS: For memory card tracking ("card status", "which cards used"), check cardLog array by date
+- 📅 SCHEDULE: For timing questions ("when is keynote", "what's next"), search programSchedule array by session name, speaker, or location. Be aware of current time and suggest what's happening now/next.
+- 👥 CREW: For team questions ("who's shooting", "photographer assignments"), check rows array for crew assignments and schedules. Consider current date for active assignments.
+- 📷 GEAR: For equipment questions ("what cameras", "lens list"), examine gear.lists by category (Cameras, Lenses, Lighting, etc.). Check availability against current event dates.
+- 💾 CARDS: For memory card tracking ("card status", "which cards used"), check cardLog array by date. Use current date to show today's card usage.
 - 🗺️ MAPS/DOCS: For location/document questions ("floor plan", "venue map"), search documents array by filename and type
-- 📸 SHOTLISTS: For shot planning questions ("what shots needed", "photo checklist", "which shots completed"), check shotlists array by list name and shot items
-- ✈️ LOGISTICS: For travel/accommodation ("hotel info", "flight details"), check travel and accommodation arrays
-- ✅ TASKS: For to-do items ("what needs doing", "deadlines"), review tasks array
+- 📸 SHOTLISTS: For shot planning questions ("what shots needed", "photo checklist", "which shots completed"), check shotlists array by list name and shot items. Prioritize based on event timing.
+- ✈️ LOGISTICS: For travel/accommodation ("hotel info", "flight details"), check travel and accommodation arrays. Alert about upcoming departures/arrivals.
+- ✅ TASKS: For to-do items ("what needs doing", "deadlines"), review tasks array. Prioritize by urgency relative to current date and event dates.
+
+CONTEXTUAL INTELLIGENCE:
+- Weather Awareness: If someone asks about outdoor shoots, remind them to check weather
+- Time Zone Awareness: Consider timezone differences for remote team members
+- Pre-Event Phase: Focus on preparation, planning, gear checks, team coordination
+- During Event: Focus on real-time coordination, troubleshooting, schedule adjustments
+- Post-Event: Focus on wrap-up tasks, file organization, equipment returns
 
 RESPONSE STYLE:
 - Be conversational but precise
 - Use relevant emojis sparingly for clarity
 - Provide specific times, names, and details when available
+- Reference time context naturally ("Since it's Monday morning..." or "With the event starting tomorrow...")
 - If information is missing, suggest exactly where/how to add it
 - Offer proactive help ("Also, I notice..." or "You might also want to know...")
-- Keep responses under 150 words unless detailed explanations are needed`;
+- Alert about time-sensitive items (deadlines approaching, schedules starting soon)
+- Keep responses under 200 words unless detailed explanations are needed`;
 
     // Build messages array with conversation history for context awareness
     const messages = [
@@ -331,35 +504,61 @@ RESPONSE STYLE:
     // Add the current message
     messages.push({ role: "user", content: message });
 
-    const completion = await openai.chat.completions.create({
+    // Set up Server-Sent Events for streaming response
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+    });
+
+    const stream = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: messages,
       max_tokens: 600, // Increased for more detailed responses
       temperature: 0.3, // Lower temperature for more consistent/accurate responses
       presence_penalty: 0.1, // Slight penalty to encourage focused responses
-      frequency_penalty: 0.1 // Slight penalty to avoid repetition
+      frequency_penalty: 0.1, // Slight penalty to avoid repetition
+      stream: true // Enable streaming
     });
 
-    const response = completion.choices[0].message.content;
-    
-    res.json({ response });
+    let fullResponse = '';
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content || '';
+      if (content) {
+        fullResponse += content;
+        // Send each chunk to the client
+        res.write(`data: ${JSON.stringify({ content, done: false })}\n\n`);
+      }
+    }
+
+    // Send completion signal
+    res.write(`data: ${JSON.stringify({ content: '', done: true, fullResponse })}\n\n`);
+    res.end();
 
   } catch (error) {
     console.error('Chat API error:', error);
     
-    // Handle different types of OpenAI errors
+    // Handle different types of OpenAI errors for streaming
+    let errorMessage = 'AI service temporarily unavailable. Please try again later.';
+    
     if (error.status === 429) {
-      res.status(429).json({ 
-        error: 'OpenAI quota exceeded. Please add billing to your OpenAI account at platform.openai.com/billing' 
-      });
+      errorMessage = 'OpenAI quota exceeded. Please add billing to your OpenAI account at platform.openai.com/billing';
     } else if (error.status === 401) {
-      res.status(401).json({ 
-        error: 'Invalid OpenAI API key. Please check your configuration.' 
-      });
-    } else {
-      res.status(500).json({ 
-        error: 'AI service temporarily unavailable. Please try again later.' 
-      });
+      errorMessage = 'Invalid OpenAI API key. Please check your configuration.';
+    }
+
+    // Send error as streaming event
+    try {
+      res.write(`data: ${JSON.stringify({ error: errorMessage, done: true })}\n\n`);
+      res.end();
+    } catch (writeError) {
+      // If we can't write to stream, fall back to regular error response
+      if (!res.headersSent) {
+        res.status(500).json({ error: errorMessage });
+      }
     }
   }
 });

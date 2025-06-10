@@ -348,6 +348,20 @@
   border-top: 1px solid #e0e0e0 !important;
 }
 
+/* Streaming typing cursor animation */
+.typing-cursor {
+  display: inline-block;
+  animation: blink 1s infinite;
+  font-weight: normal;
+  color: #666;
+  margin-left: 2px;
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0; }
+}
+
 .chat-input {
   border: 1px solid #ddd !important;
   border-radius: 25px !important;

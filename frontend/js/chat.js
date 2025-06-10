@@ -148,6 +148,15 @@ class ChatWidget {
     this.updateSendButton(false);
 
     try {
+      // Gather additional context about the current page/state
+      const pageContext = {
+        currentPage: window.location.pathname,
+        activeTab: document.querySelector('.tab-button.active')?.textContent?.trim() || null,
+        currentView: document.querySelector('.view-container.active')?.id || null,
+        userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+        browserLanguage: navigator.language || 'en-US'
+      };
+
       const response = await fetch(`${this.API_BASE}/api/chat/${this.tableId}`, {
         method: 'POST',
         headers: {
@@ -156,7 +165,8 @@ class ChatWidget {
         },
         body: JSON.stringify({ 
           message,
-          conversationHistory: this.conversationHistory 
+          conversationHistory: this.conversationHistory,
+          pageContext 
         })
       });
 
@@ -164,20 +174,17 @@ class ChatWidget {
         throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
 
-      const data = await response.json();
-      
-      // Add to conversation history for context
+      // Add user message to conversation history immediately
       this.conversationHistory.push({ role: 'user', content: message });
-      this.conversationHistory.push({ role: 'assistant', content: data.response });
       
-      // Keep only last 20 messages to avoid memory issues
-      if (this.conversationHistory.length > 20) {
-        this.conversationHistory = this.conversationHistory.slice(-20);
-      }
-      
-      // Remove typing indicator and add response
+      // Remove typing indicator and prepare for streaming response
       this.hideTypingIndicator();
-      this.addMessage('assistant', data.response);
+      
+      // Create message container for streaming response
+      const messageContainer = this.addStreamingMessage('assistant');
+      
+      // Handle streaming response
+      await this.handleStreamingResponse(response, messageContainer);
 
     } catch (error) {
       console.error('Chat error:', error);
@@ -213,6 +220,88 @@ class ChatWidget {
 
     chatMessages.appendChild(messageDiv);
     chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    return messageDiv;
+  }
+
+  addStreamingMessage(sender) {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return null;
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `chat-message ${sender}`;
+    
+    const senderLabel = sender === 'user' ? 'You' : 'Luma';
+    
+    messageDiv.innerHTML = `
+      <div class="message-sender">${senderLabel}</div>
+      <div class="message-content"></div>
+    `;
+
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+    
+    return messageDiv.querySelector('.message-content');
+  }
+
+  async handleStreamingResponse(response, messageContainer) {
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullResponse = '';
+    
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        
+        if (done) break;
+        
+        const chunk = decoder.decode(value);
+        const lines = chunk.split('\n');
+        
+        for (const line of lines) {
+          if (line.startsWith('data: ')) {
+            try {
+              const data = JSON.parse(line.slice(6));
+              
+              if (data.error) {
+                messageContainer.innerHTML = `<span style="color: #cc0007;">${data.error}</span>`;
+                return;
+              }
+              
+              if (data.content) {
+                fullResponse += data.content;
+                messageContainer.innerHTML = this.formatMessage(fullResponse) + '<span class="typing-cursor">|</span>';
+                
+                // Auto-scroll to bottom
+                const chatMessages = document.getElementById('chatMessages');
+                if (chatMessages) {
+                  chatMessages.scrollTop = chatMessages.scrollHeight;
+                }
+              }
+              
+              if (data.done) {
+                // Remove typing cursor and finalize message
+                messageContainer.innerHTML = this.formatMessage(fullResponse);
+                
+                // Add to conversation history
+                this.conversationHistory.push({ role: 'assistant', content: fullResponse });
+                
+                // Keep only last 20 messages to avoid memory issues
+                if (this.conversationHistory.length > 20) {
+                  this.conversationHistory = this.conversationHistory.slice(-20);
+                }
+                return;
+              }
+            } catch (parseError) {
+              console.error('Error parsing streaming data:', parseError);
+            }
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Streaming error:', error);
+      messageContainer.innerHTML = '<span style="color: #cc0007;">Connection error. Please try again.</span>';
+    }
   }
 
   formatMessage(content) {

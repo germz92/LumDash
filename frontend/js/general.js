@@ -142,6 +142,65 @@ function createLinkHTML(value, type) {
   return `<a href="${href}" target="_blank" style="color: #1976d2; text-decoration: underline;">${value}</a>`;
 }
 
+function linkifyText(text) {
+  if (!text) return '';
+  
+  // First, escape HTML to prevent XSS (but preserve our line breaks)
+  text = text.replace(/&/g, '&amp;')
+             .replace(/</g, '&lt;')
+             .replace(/>/g, '&gt;');
+  
+  // Convert line breaks to HTML: double newlines = paragraphs, single newlines = line breaks
+  text = text.replace(/\r\n/g, '\n'); // Normalize Windows line endings
+  text = text.replace(/\n\s*\n/g, '</p><p>'); // Double line breaks = new paragraph
+  text = text.replace(/\n/g, '<br>'); // Single line breaks = <br>
+  text = `<p>${text}</p>`; // Wrap in paragraph tags
+  
+  // Clean up empty paragraphs
+  text = text.replace(/<p><\/p>/g, '');
+  text = text.replace(/<p>\s*<br>\s*<\/p>/g, '<p></p>');
+  
+  // Handle markdown-style custom links: [Custom Name](URL)
+  const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+  text = text.replace(markdownLinkRegex, (match, linkText, url) => {
+    let href = url.trim();
+    
+    // Add protocol if missing
+    if (!href.match(/^https?:\/\//)) {
+      href = 'https://' + href;
+    }
+    
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;" onclick="window.open('${href}', '_blank'); return false;">${linkText}</a>`;
+  });
+  
+  // Then handle regular URLs (but skip ones already inside <a> tags from markdown processing)
+  const urlRegex = /(https?:\/\/[^\s<]+|www\.[^\s<]+|[a-zA-Z0-9][a-zA-Z0-9-]*[a-zA-Z0-9]*\.[a-zA-Z]{2,}(?:\/[^\s<]*)?)/g;
+  
+  // Replace URLs with clickable links, but only if they're not already inside <a> tags
+  text = text.replace(urlRegex, (url) => {
+    // Check if this URL is already inside an <a> tag
+    const beforeUrl = text.substring(0, text.indexOf(url));
+    const lastATag = beforeUrl.lastIndexOf('<a ');
+    const lastCloseATag = beforeUrl.lastIndexOf('</a>');
+    
+    // If we're inside an <a> tag, don't linkify
+    if (lastATag > lastCloseATag) {
+      return url;
+    }
+    
+    let href = url;
+    
+    // Add protocol if missing
+    if (!url.match(/^https?:\/\//)) {
+      href = 'https://' + url;
+    }
+    
+    return `<a href="${href}" target="_blank" rel="noopener noreferrer" style="color: #1976d2; text-decoration: underline;" onclick="window.open('${href}', '_blank'); return false;">${url}</a>`;
+  });
+  
+  return text;
+}
+
 function renderContactRow(data = {}, readOnly = false) {
   const tbody = document.getElementById('contactRows');
   const row = document.createElement('tr');
@@ -334,8 +393,11 @@ function initPage(id) {
           // Make location field clickable to open maps
           if (field === 'location') {
             div.innerHTML = createLinkHTML(general.location || '', 'address');
+          } else if (field === 'eventSummary') {
+            // Make URLs in summary clickable
+            div.innerHTML = linkifyText(general.summary || '');
           } else {
-            div.textContent = general[field === 'eventSummary' ? 'summary' : field] || '';
+            div.textContent = general[field] || '';
           }
           
           el.replaceWith(div);
