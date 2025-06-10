@@ -19,8 +19,22 @@
   // Use the global API_BASE from config.js
   // The Socket.IO client should connect to the same URL as the API
   
-  // Initialize the global socket connection
-  const socket = io(API_BASE);
+  // Initialize the global socket connection with production-friendly options
+  const socket = io(API_BASE, {
+    // Essential for cloud deployment stability
+    transports: ['websocket', 'polling'],
+    // Start with polling, upgrade to websocket if available
+    upgrade: true,
+    // Timeout settings for cloud platforms
+    timeout: 20000,
+    // Reconnection settings
+    reconnection: true,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    maxReconnectionAttempts: 5,
+    // Force new connection
+    forceNew: false
+  });
   
   // Store connection status
   let connected = false;
@@ -28,6 +42,12 @@
   // Connection events
   socket.on('connect', () => {
     console.log('🔌 Socket.IO connected');
+    console.log('🔌 Connection details:', {
+      id: socket.id,
+      transport: socket.io.engine.transport.name,
+      upgraded: socket.io.engine.upgraded,
+      url: API_BASE
+    });
     connected = true;
     
     // Notify the UI if needed
@@ -36,8 +56,8 @@
     }
   });
   
-  socket.on('disconnect', () => {
-    console.log('🔌 Socket.IO disconnected');
+  socket.on('disconnect', (reason) => {
+    console.log('🔌 Socket.IO disconnected:', reason);
     connected = false;
     
     // Notify the UI if needed
@@ -48,7 +68,32 @@
   
   socket.on('connect_error', (error) => {
     console.error('Socket.IO connection error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      type: error.type,
+      description: error.description,
+      context: error.context,
+      url: API_BASE
+    });
     connected = false;
+  });
+  
+  // Additional debugging for cloud deployment
+  socket.on('reconnect', (attemptNumber) => {
+    console.log(`🔌 Socket.IO reconnected after ${attemptNumber} attempts`);
+  });
+  
+  socket.on('reconnect_attempt', (attemptNumber) => {
+    console.log(`🔌 Socket.IO reconnection attempt #${attemptNumber}`);
+  });
+  
+  socket.on('reconnect_failed', () => {
+    console.error('🔌 Socket.IO failed to reconnect after all attempts');
+  });
+  
+  // Transport upgrade logging
+  socket.io.on('upgrade', () => {
+    console.log('🔌 Socket.IO upgraded to:', socket.io.engine.transport.name);
   });
   
   // Export socket to window for global access

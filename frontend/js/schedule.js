@@ -604,6 +604,13 @@ async function savePrograms() {
     console.error('No tableId found in localStorage. Cannot save.');
     return;
   }
+  
+  // Validate data before saving to prevent corruption
+  if (!validateScheduleData()) {
+    console.error('Aborting save due to data validation failure');
+    return;
+  }
+  
   try {
     console.log('Saving programs for tableId:', tableId);
     const res = await fetch(`${API_BASE}/api/tables/${tableId}/program-schedule`, {
@@ -626,8 +633,40 @@ async function savePrograms() {
 }
 
 function scheduleSave() {
+  // Prevent multiple simultaneous saves
+  if (window.saveInProgress) {
+    console.log('[SCHEDULE SAVE] Save already in progress, queueing for later');
+    window.pendingSave = true;
+    return;
+  }
+  
   clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(savePrograms, 1000);
+  saveTimeout = setTimeout(async () => {
+    try {
+      window.saveInProgress = true;
+      console.log('[SCHEDULE SAVE] Starting save operation...');
+      
+      await savePrograms();
+      
+      console.log('[SCHEDULE SAVE] Save completed successfully');
+      
+      // Check if another save was requested while we were saving
+      if (window.pendingSave) {
+        console.log('[SCHEDULE SAVE] Processing queued save...');
+        window.pendingSave = false;
+        // Schedule another save with a short delay
+        setTimeout(() => {
+          if (!window.saveInProgress) {
+            scheduleSave();
+          }
+        }, 200);
+      }
+    } catch (error) {
+      console.error('[SCHEDULE SAVE] Save failed:', error);
+    } finally {
+      window.saveInProgress = false;
+    }
+  }, 1000); // Keep the 1-second delay but make it safer
 }
 
 function renderProgramSections(hasScheduleAccess) {
@@ -887,12 +926,26 @@ function applyScrollRestore() {
 }
 
 function toggleDone(checkbox, index) {
-  if (!isNaN(index)) {
-    tableData.programs[index].done = checkbox.checked;
-    const entry = checkbox.closest('.program-entry');
-    if (entry) {
-      entry.classList.toggle('done-entry', checkbox.checked);
-    }
+  if (isNaN(index) || !tableData.programs[index]) {
+    console.error(`[TOGGLE DONE] Invalid program index: ${index}`);
+    return;
+  }
+  
+  const program = tableData.programs[index];
+  const newValue = checkbox.checked;
+  
+  console.log(`[TOGGLE DONE] Program ${index} done: ${program.done} → ${newValue}`);
+  
+  // Use safe update for consistency
+  const wasChanged = safeUpdateProgram(index, 'done', newValue);
+  
+  // Update visual state
+  const entry = checkbox.closest('.program-entry');
+  if (entry) {
+    entry.classList.toggle('done-entry', newValue);
+  }
+  
+  if (wasChanged) {
     scheduleSave();
   }
 }
@@ -935,62 +988,62 @@ function autoSave(field, date, ignoredIndex, key) {
   field.classList.remove('editing');
   const entry = field.closest('.program-entry');
   const programIndex = parseInt(entry.getAttribute('data-program-index'), 10);
-  if (!isNaN(programIndex)) {
-    const program = tableData.programs[programIndex];
-    const newValue = field.value.trim();
-    
-    // Ensure we have the correct key for textarea fields
-    let fieldKey = key;
-    if (!fieldKey) {
-      const placeholder = field.getAttribute('placeholder');
-      if (placeholder) {
-        fieldKey = placeholder.toLowerCase();
-      } else if (field.className.includes('program-name')) {
-        fieldKey = 'name';
-      }
-    }
-    
-    console.log(`[AUTOSAVE] Saving field: ${fieldKey} = "${newValue}" for program ${program?._id}`);
-    
-    // Track this edit with a timestamp to protect it from socket overwrites
-    if (program && program._id && fieldKey) {
-      const protectionKey = `${program._id}-${fieldKey}`;
-      window.recentlyEditedFields.set(protectionKey, {
-        value: newValue,
-        timestamp: Date.now(),
-        field: fieldKey
-      });
-      
-      console.log(`[AUTOSAVE] Protected field ${fieldKey} for 5 seconds`);
-      
-      // Clear the tracking after 5 seconds (increased from 3 for better protection)
-      setTimeout(() => {
-        window.recentlyEditedFields.delete(protectionKey);
-        console.log(`[AUTOSAVE] Protection expired for field ${fieldKey}`);
-      }, 5000);
-    }
-    
-    // Update the data
-    if (fieldKey) {
-      tableData.programs[programIndex][fieldKey] = newValue;
-      scheduleSave();
-    }
-    
-    // If there was a pending update for this program/field, apply it now
-    if (window.currentlyEditing && window.currentlyEditing.pendingUpdate) {
-      const { program, field: pendingField } = window.currentlyEditing.pendingUpdate;
-      if (program && program._id && pendingField === key) {
-        // Find the program and update it
-        const idx = tableData.programs.findIndex(p => p._id === program._id);
-        if (idx !== -1) {
-          tableData.programs[idx] = program;
-          renderProgramSections(isOwner);
-        }
-        window.currentlyEditing.pendingUpdate = null;
-      }
-    }
-    window.currentlyEditing = null;
+  
+  if (isNaN(programIndex) || !tableData.programs[programIndex]) {
+    console.error(`[AUTOSAVE] Invalid program index: ${programIndex}`);
+    return;
   }
+  
+  const program = tableData.programs[programIndex];
+  const newValue = field.value.trim();
+  
+  // Ensure we have the correct key for textarea fields
+  let fieldKey = key;
+  if (!fieldKey) {
+    const placeholder = field.getAttribute('placeholder');
+    if (placeholder) {
+      fieldKey = placeholder.toLowerCase();
+    } else if (field.className.includes('program-name')) {
+      fieldKey = 'name';
+    } else if (field.type === 'checkbox') {
+      fieldKey = 'done';
+    }
+  }
+  
+  if (!fieldKey) {
+    console.error(`[AUTOSAVE] Could not determine field key for auto-save`);
+    return;
+  }
+  
+  console.log(`[AUTOSAVE] Saving field: ${fieldKey} = "${newValue}" for program ${program?._id || programIndex}`);
+  
+  // Track this edit with a timestamp to protect it from socket overwrites
+  if (program && program._id && fieldKey) {
+    const protectionKey = `${program._id}-${fieldKey}`;
+    window.recentlyEditedFields = window.recentlyEditedFields || new Map();
+    window.recentlyEditedFields.set(protectionKey, {
+      value: newValue,
+      timestamp: Date.now(),
+      field: fieldKey
+    });
+    
+    console.log(`[AUTOSAVE] Protected field ${fieldKey} for 5 seconds`);
+    
+    // Clear the tracking after 5 seconds (increased from 3 for better protection)
+    setTimeout(() => {
+      window.recentlyEditedFields.delete(protectionKey);
+      console.log(`[AUTOSAVE] Protection expired for field ${fieldKey}`);
+    }, 5000);
+  }
+  
+  // Use safe update to prevent data corruption
+  const wasChanged = safeUpdateProgram(programIndex, fieldKey, newValue);
+  if (wasChanged) {
+    scheduleSave();
+  }
+  
+  // Clear editing state
+  window.currentlyEditing = null;
 }
 
 // Optimistic UI: update tableData on input
@@ -1086,57 +1139,110 @@ function setupTextareaResize(textarea) {
 }
 
 function captureCurrentPrograms() {
-  const sections = document.querySelectorAll('.date-section');
-  tableData.programs = [];
-  sections.forEach(section => {
-    const date = section.getAttribute('data-date');
-    section.querySelectorAll('.program-entry').forEach(entry => {
-      tableData.programs.push({
-        date,
-        name: entry.querySelector('input.program-name')?.value.trim() || '',
-        startTime: entry.querySelector('input[placeholder="Start Time"]')?.value.trim() || '',
-        endTime: entry.querySelector('input[placeholder="End Time"]')?.value.trim() || '',
-        location: entry.querySelector('textarea[placeholder="Location"]')?.value.trim() || '',
-        photographer: entry.querySelector('textarea[placeholder="Photographer"]')?.value.trim() || '',
-        notes: entry.querySelector('textarea[placeholder="Notes"]')?.value.trim() || '',
-        done: entry.querySelector('input.done-checkbox')?.checked || false,
-      });
-    });
-  });
+  console.warn('[DEPRECATED] captureCurrentPrograms() is being phased out due to data corruption risks');
+  // This function has been replaced with safer, targeted updates
+  // Do not rebuild the entire array - this causes data loss
+}
+
+function safeUpdateProgram(programIndex, field, value) {
+  if (!tableData.programs[programIndex]) {
+    console.error(`Program index ${programIndex} does not exist`);
+    return false;
+  }
+  
+  const program = tableData.programs[programIndex];
+  const oldValue = program[field];
+  
+  if (oldValue !== value) {
+    console.log(`[SAFE UPDATE] Program ${programIndex} ${field}: "${oldValue}" → "${value}"`);
+    program[field] = value;
+    return true; // Changed
+  }
+  return false; // No change
+}
+
+function safeAddProgram(date) {
+  // Don't capture current programs - this causes data loss
+  const newProgram = { 
+    date, 
+    name: '', 
+    startTime: '', 
+    endTime: '', 
+    location: '', 
+    photographer: '', 
+    notes: '',
+    done: false
+  };
+  
+  tableData.programs.push(newProgram);
+  console.log(`[SAFE ADD] Added new program for ${date}`);
+  renderProgramSections(isOwner);
+  scheduleSave();
+}
+
+function safeDeleteProgram(programIndex) {
+  if (programIndex < 0 || programIndex >= tableData.programs.length) {
+    console.error(`Invalid program index: ${programIndex}`);
+    return;
+  }
+  
+  const program = tableData.programs[programIndex];
+  console.log(`[SAFE DELETE] Removing program: ${program.name || 'Untitled'} on ${program.date}`);
+  
+  tableData.programs.splice(programIndex, 1);
+  renderProgramSections(isOwner);
+  scheduleSave();
+}
+
+function safeDeleteDate(date) {
+  if (!confirm('Delete all programs for this date?')) return;
+  
+  const originalCount = tableData.programs.length;
+  tableData.programs = tableData.programs.filter(p => p.date !== date);
+  const removedCount = originalCount - tableData.programs.length;
+  
+  console.log(`[SAFE DELETE DATE] Removed ${removedCount} programs for ${date}`);
+  renderProgramSections(isOwner);
+  scheduleSave();
 }
 
 function addDateSection() {
   const date = document.getElementById('newDate').value;
   if (!date) return alert('Please select a date');
-  captureCurrentPrograms();
-  tableData.programs.push({ date, name: '', startTime: '', endTime: '', location: '', photographer: '', notes: '' });
+  
+  // Use safe add instead of dangerous captureCurrentPrograms
+  const newProgram = { 
+    date, 
+    name: '', 
+    startTime: '', 
+    endTime: '', 
+    location: '', 
+    photographer: '', 
+    notes: '',
+    done: false
+  };
+  
+  tableData.programs.push(newProgram);
   document.getElementById('newDate').value = '';
+  console.log(`[ADD DATE SECTION] Added new date section: ${date}`);
   renderProgramSections(isOwner);
   scheduleSave();
 }
 
 function addProgram(date) {
-  captureCurrentPrograms();
-  tableData.programs.push({ date, name: '', startTime: '', endTime: '', location: '', photographer: '', notes: '' });
-  renderProgramSections(isOwner);
-  scheduleSave();
+  // Use safe add instead of dangerous captureCurrentPrograms
+  safeAddProgram(date);
 }
 
 function deleteProgram(button) {
   const index = parseInt(button.closest('.program-entry').getAttribute('data-program-index'), 10);
   if (!isNaN(index)) {
-    tableData.programs.splice(index, 1);
-    renderProgramSections(isOwner);
-    scheduleSave();
+    safeDeleteProgram(index);
   }
 }
 
 function deleteDate(date) {
-  if (confirm('Delete all programs for this date?')) {
-    tableData.programs = tableData.programs.filter(p => p.date !== date);
-    renderProgramSections(isOwner);
-    scheduleSave();
-  }
+  safeDeleteDate(date);
 }
 
 function goBack() {
@@ -1170,7 +1276,85 @@ window.autoSave = autoSave;
 window.toggleNotes = toggleNotes;
 window.toggleAllNotes = toggleAllNotes;
 window.autoResizeTextarea = autoResizeTextarea;
+
+// DEPRECATED: Use safe functions instead
 window.captureCurrentPrograms = captureCurrentPrograms;
+
+// NEW SAFE FUNCTIONS - USE THESE
+window.safeUpdateProgram = safeUpdateProgram;
+window.safeAddProgram = safeAddProgram;
+window.safeDeleteProgram = safeDeleteProgram;
+window.safeDeleteDate = safeDeleteDate;
+
+// DATA VALIDATION AND CORRUPTION DETECTION
+function validateScheduleData() {
+  if (!tableData || !Array.isArray(tableData.programs)) {
+    console.error('[VALIDATION] tableData.programs is not an array!');
+    return false;
+  }
+  
+  const validationErrors = [];
+  const dates = new Set();
+  
+  tableData.programs.forEach((program, index) => {
+    if (!program) {
+      validationErrors.push(`Program ${index} is null/undefined`);
+      return;
+    }
+    
+    if (!program.date) {
+      validationErrors.push(`Program ${index} missing date`);
+    } else {
+      dates.add(program.date);
+    }
+    
+    // Check for suspicious data patterns that indicate corruption
+    if (program.photographer && typeof program.photographer === 'string') {
+      // Check if all programs have exactly the same photographer (corruption pattern)
+      const allPhotographers = tableData.programs
+        .filter(p => p && p.photographer)
+        .map(p => p.photographer.trim())
+        .filter(p => p.length > 0);
+      
+      if (allPhotographers.length > 1) {
+        const uniquePhotographers = new Set(allPhotographers);
+        if (uniquePhotographers.size === 1 && allPhotographers.length > 3) {
+          validationErrors.push(`Suspicious: All ${allPhotographers.length} programs have identical photographer "${program.photographer}"`);
+        }
+      }
+    }
+    
+    // Validate checkbox field (done) is boolean
+    if (program.done !== undefined && typeof program.done !== 'boolean') {
+      validationErrors.push(`Program ${index} has invalid done value: "${program.done}" (expected boolean)`);
+    }
+  });
+  
+  if (validationErrors.length > 0) {
+    console.error('[VALIDATION] Schedule data validation failed:');
+    validationErrors.forEach(error => console.error(`  - ${error}`));
+    
+    // Alert user about data corruption
+    if (validationErrors.some(error => error.includes('Suspicious'))) {
+      const shouldReload = confirm(
+        'Data corruption detected: All programs have the same photographer. ' +
+        'This usually indicates a saving error. Would you like to reload the page to restore the correct data?'
+      );
+      if (shouldReload) {
+        window.location.reload();
+        return false;
+      }
+    }
+    
+    return false;
+  }
+  
+  console.log(`[VALIDATION] Schedule data is valid: ${tableData.programs.length} programs across ${dates.size} dates`);
+  return true;
+}
+
+window.validateScheduleData = validateScheduleData;
+
 window.addDateSection = addDateSection;
 window.addProgram = addProgram;
 window.deleteProgram = deleteProgram;
