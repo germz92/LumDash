@@ -425,11 +425,13 @@ function setupEventListeners() {
         const date = e.target.getAttribute('data-date');
         console.log(`User clicked "Add Row" for date: ${date}`);
         addRow(date);
-        console.log(`Added empty row to ${date} - will save when user enters data`);
-        // Don't auto-save empty rows - save will happen when user enters data
+        console.log(`Added new row to ${date} - saving immediately for collaboration`);
+        // Save immediately to prevent conflicts with other users
+        await saveToMongoDB();
       }
-      if (e.target.classList.contains('delete-row-btn') && isOwner) {
-        e.target.closest('tr').remove();
+      if (e.target.classList.contains('delete-row-btn')) {
+        const row = e.target.closest('tr');
+        row.remove();
         saveToMongoDB();
       }
       if (e.target.classList.contains('delete-day-btn') && isOwner) {
@@ -450,7 +452,7 @@ function setupEventListeners() {
             console.log(`Save failed, restoring deleted day: ${date}`);
             // Reload the entire card log to ensure consistency
             await loadCardLog();
-            alert(`The day could not be deleted due to an error. The page has been refreshed.`);
+            alert(`The day could not be deleted due for an error. The page has been refreshed.`);
           }
         }
       }
@@ -458,6 +460,42 @@ function setupEventListeners() {
 
     // Track input events with better timing
     tableContainer.addEventListener('input', (e) => {
+      // Check if user can edit this row
+      if (e.target.matches('input, select')) {
+        const row = e.target.closest('.card-log-row');
+        const rowUser = row ? row.getAttribute('data-user') : '';
+        
+        if (!canEditRow(rowUser)) {
+          // Prevent the change and show message
+          e.preventDefault();
+          e.target.blur();
+          
+          const notification = document.createElement('div');
+          notification.className = 'access-denied-notification';
+          notification.textContent = `This row belongs to ${rowUser} and cannot be edited`;
+          notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ff4444;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            z-index: 10000;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          `;
+          
+          document.body.appendChild(notification);
+          
+          setTimeout(() => {
+            notification.remove();
+          }, 3000);
+          
+          return;
+        }
+      }
+      
       lastInputTime = Date.now();
       isActivelyEditing = true;
       
@@ -537,7 +575,58 @@ function setupEventListeners() {
       }
     }, true);
 
-    tableContainer.addEventListener('change', debounceSave);
+    tableContainer.addEventListener('change', (e) => {
+      // Check if user can edit this row
+      if (e.target.matches('input, select')) {
+        const row = e.target.closest('.card-log-row');
+        const rowUser = row ? row.getAttribute('data-user') : '';
+        
+        if (!canEditRow(rowUser)) {
+          // Revert the change
+          const originalValue = e.target.getAttribute('data-original-value') || '';
+          if (e.target.tagName === 'SELECT') {
+            // For selects, find the originally selected option
+            const options = e.target.querySelectorAll('option');
+            options.forEach(option => {
+              option.selected = option.value === originalValue;
+            });
+            e.target.value = originalValue;
+          } else {
+            e.target.value = originalValue;
+          }
+          
+          // Show access denied message
+          const notification = document.createElement('div');
+          notification.className = 'access-denied-notification';
+          notification.textContent = `This row belongs to ${rowUser} and cannot be edited`;
+          notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ff4444;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            z-index: 10000;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          `;
+          
+          document.body.appendChild(notification);
+          
+          setTimeout(() => {
+            notification.remove();
+          }, 3000);
+          
+          return;
+        } else {
+          // Update original value after successful change
+          e.target.setAttribute('data-original-value', e.target.value);
+        }
+      }
+      
+      debounceSave();
+    });
   }
   
   eventListenersAttached = true;
@@ -582,9 +671,6 @@ function validateCardLogData(cardLog) {
         // Note: Camera is now optional - users can save without selecting a camera
         if (!entry.user || entry.user.trim() === '') {
           errors.push(`${day.date} Row ${rowNum}: Missing user`);
-        }
-        if ((!entry.card1 || entry.card1.trim() === '') && (!entry.card2 || entry.card2.trim() === '')) {
-          errors.push(`${day.date} Row ${rowNum}: No card numbers entered`);
         }
       }
     });
@@ -666,56 +752,59 @@ function addManualSaveButton() {
 
 // Cleanup function for page navigation
 function cleanupCardLogPage() {
-  // Reset the flag so we can initialize again if needed
-  window.__cardLogJsLoaded = false;
-  eventListenersAttached = false;
+  console.log('[CARD-LOG] Cleaning up card log page...');
   
-  // Clear any timeouts
+  // Clear any pending save operations
   if (saveTimeout) {
     clearTimeout(saveTimeout);
     saveTimeout = null;
   }
   
-  if (window.cardLogBlurTimeout) {
-    clearTimeout(window.cardLogBlurTimeout);
-    window.cardLogBlurTimeout = null;
+  // Clean up collaborative system if it exists
+  if (window.cleanupCardLogCollaborativeSystem) {
+    console.log('🧹 Cleaning up card log collaborative features...');
+    window.cleanupCardLogCollaborativeSystem();
   }
   
-  // Reset global variables
-  users = [];
-  isOwner = false;
+  // Remove Socket.IO listeners specific to card log
+  if (window.socket) {
+    console.log('[CARD-LOG] Removing Socket.IO listeners...');
+    window.socket.off('cardLogAdded');
+    window.socket.off('cardLogUpdated');
+    window.socket.off('cardLogDeleted');
+    window.socket.off('tableUpdated');
+    
+    // Leave both table and event rooms
+    const tableId = localStorage.getItem('eventId');
+    if (tableId) {
+      window.socket.emit('leaveTable', tableId);
+      console.log(`[CARD-LOG] Left table room: table-${tableId}`);
+      
+      window.socket.emit('leaveEventRoom', {
+        eventId: tableId,
+        userId: getUserIdFromToken()
+      });
+      window.__cardLogEventRoomJoined = false;
+      console.log(`[CARD-LOG] Left event room: event-${tableId}`);
+    }
+  }
+  
+  // Clear the table container
+  const container = document.getElementById('table-container');
+  if (container) {
+    container.innerHTML = '';
+  }
+  
+  // Reset flags
+  eventListenersAttached = false;
   processingSocketEvent = false;
   isActivelyEditing = false;
-  lastInputTime = 0;
-  lastEventTime = 0;
-  deferredUpdate = null;
   
-  // Reset cameras to default list
-  cameras = ["A7IV-A", "A7IV-B", "A7IV-C", "A7IV-D", "A7IV-E", "A7RV-A", "FX3-A", "A7IV", "A7RV", "A7III"];
+  // Reset global data
+  users = [];
   customCameras = [];
   
-  // Remove event listeners
-  const addDayBtn = document.getElementById('add-day-btn');
-  const cancelModalBtn = document.getElementById('cancel-modal');
-  const submitDateBtn = document.getElementById('submit-date');
-  const tableContainer = document.getElementById('table-container');
-  
-  if (addDayBtn) addDayBtn.removeEventListener('click', openDateModal);
-  if (cancelModalBtn) cancelModalBtn.removeEventListener('click', closeDateModal);
-  if (submitDateBtn) submitDateBtn.removeEventListener('click', createNewDay);
-  
-  // Remove manual save button and its styles
-  const manualSaveBtn = document.getElementById('manual-save-btn');
-  if (manualSaveBtn) manualSaveBtn.remove();
-  
-  const manualSaveStyles = document.getElementById('manual-save-styles');
-  if (manualSaveStyles) manualSaveStyles.remove();
-  
-  // Remove any error notifications
-  const errorNotification = document.getElementById('save-error-notification');
-  if (errorNotification) errorNotification.remove();
-  
-  console.log('Card log page cleaned up');
+  console.log('[CARD-LOG] ✅ Card log page cleaned up');
 }
 
 window.initPage = async function(id) {
@@ -749,6 +838,21 @@ window.initPage = async function(id) {
 
   await loadUsers();
   await loadCardLog();
+
+  // Join Socket.IO rooms for both table and event-specific features
+  if (window.socket && window.socket.connected) {
+    window.socket.emit('joinTable', tableId);
+    console.log(`[CARD-LOG] Joined table room: table-${tableId}`);
+    
+    // Also join event room for collaborative features compatibility
+    window.socket.emit('joinEventRoom', {
+      eventId: tableId,
+      userId: getUserIdFromToken(),
+      userName: getCurrentUserName()
+    });
+    window.__cardLogEventRoomJoined = true;
+    console.log(`[CARD-LOG] Joined event room: event-${tableId}`);
+  }
 
   // Set up Socket.IO event listeners after everything is loaded
   setupSocketListeners();
@@ -793,6 +897,9 @@ window.initPage = async function(id) {
   
   // Set up event listeners
   setupEventListeners();
+  
+  // Load collaborative system
+  await loadCardLogCollaborativeSystem();
 };
 
 async function loadUsers() {
@@ -1033,16 +1140,20 @@ function addRow(date, entry = {}) {
   console.log(`Adding row to date ${date}:`, entry);
   
   const row = document.createElement('tr');
+  row.className = 'card-log-row';
   
   // Generate or use existing ID for this row
   const rowId = entry._id || `row-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   row.setAttribute('data-id', rowId);
+  
+  // Add row index for collaborative system
+  const rowIndex = tbody.children.length;
+  row.setAttribute('data-row-index', rowIndex);
 
   const currentUser = getCurrentUserName();
-  const isCreator = !entry.user || entry.user === currentUser;
-  const readOnlyForNonOwner = !isOwner && !isCreator;
-
   const userValue = entry.user || currentUser;
+  const canEdit = canEditRow(userValue);
+
   const userOptions = users.map(user =>
     `<option value="${user}" ${user === userValue ? 'selected' : ''}>${user}</option>`
   ).join('');
@@ -1050,72 +1161,94 @@ function addRow(date, entry = {}) {
   row.setAttribute('data-user', userValue);
 
   row.innerHTML = `
-    <td><select class="camera-select" ${readOnlyForNonOwner ? 'disabled' : ''}>
+    <td><select class="camera-select" data-field="camera" ${!canEdit ? 'disabled' : ''}>
       <option value="" disabled ${entry.camera ? '' : 'selected hidden'}>Select Camera</option>
       ${cameras.map(cam => `<option value="${cam}" ${entry.camera === cam ? 'selected' : ''}>${cam}</option>`).join('')}
-      <option value="add-new-camera">➕ Add New Camera</option>
+      ${canEdit ? '<option value="add-new-camera">➕ Add New Camera</option>' : ''}
     </select></td>
-    <td><input type="text" value="${entry.card1 || ''}" placeholder="Card 1" ${readOnlyForNonOwner ? 'readonly' : ''} /></td>
-    <td><input type="text" value="${entry.card2 || ''}" placeholder="Card 2" ${readOnlyForNonOwner ? 'readonly' : ''} /></td>
+    <td><input type="text" value="${entry.card1 || ''}" placeholder="Card 1" data-field="card1" ${!canEdit ? 'readonly' : ''} /></td>
+    <td><input type="text" value="${entry.card2 || ''}" placeholder="Card 2" data-field="card2" ${!canEdit ? 'readonly' : ''} /></td>
     <td>
-      <select class="user-select" ${!isOwner ? 'disabled' : ''}>
+      <select class="user-select" data-field="user" ${!isOwner ? 'disabled' : ''}>
         ${userOptions}
-        <option value="add-new-user">➕ Add New User</option>
+        ${isOwner ? '<option value="add-new-user">➕ Add New User</option>' : ''}
       </select>
     </td>
     <td style="text-align:center;">
-    ${isOwner ? '<button class="delete-row-btn" title="Delete Row"><span class="material-symbols-outlined">delete</span></button>' : ''}
+    <button class="delete-row-btn" title="Delete Row"><span class="material-symbols-outlined">delete</span></button>
     </td>
   `;
-
+  
   tbody.appendChild(row);
 
   const cameraSelect = row.querySelector('.camera-select');
   const userSelect = row.querySelector('.user-select');
+  const card1Input = row.querySelector('[data-field="card1"]');
+  const card2Input = row.querySelector('[data-field="card2"]');
 
-  cameraSelect.addEventListener('change', function () {
-    if (this.value === 'add-new-camera') {
-      const newCamera = prompt('Enter new camera name:');
-      if (newCamera && newCamera.trim()) {
-        const trimmedCamera = newCamera.trim();
-        
-        // Check if camera already exists
-        if (!cameras.includes(trimmedCamera) && !customCameras.includes(trimmedCamera)) {
-          customCameras.push(trimmedCamera);
-          cameras.push(trimmedCamera);
+  // Store original values for access control
+  cameraSelect.setAttribute('data-original-value', entry.camera || '');
+  userSelect.setAttribute('data-original-value', userValue);
+  card1Input.setAttribute('data-original-value', entry.card1 || '');
+  card2Input.setAttribute('data-original-value', entry.card2 || '');
+  
+  // Apply initial access control
+  updateRowAccessControl(row, userValue);
+
+  // Only add camera change listener if user can edit this row
+  if (canEdit) {
+    cameraSelect.addEventListener('change', function () {
+      if (this.value === 'add-new-camera') {
+        const newCamera = prompt('Enter new camera name:');
+        if (newCamera && newCamera.trim()) {
+          const trimmedCamera = newCamera.trim();
           
-          // Save custom cameras to localStorage for persistence
-          localStorage.setItem(`customCameras_${localStorage.getItem('eventId')}`, JSON.stringify(customCameras));
-          
-          // Add to current dropdown
-          const option = new Option(trimmedCamera, trimmedCamera, true, true);
-          this.insertBefore(option, this.querySelector('[value="add-new-camera"]'));
-          
-          // Update all other camera dropdowns to include the new camera
-          updateAllCameraDropdowns();
-          
-          // Trigger save to persist the change
-          debounceSave();
-          
-          console.log(`[CARD-LOG] Added new camera: ${trimmedCamera}`);
+          // Check if camera already exists
+          if (!cameras.includes(trimmedCamera) && !customCameras.includes(trimmedCamera)) {
+            customCameras.push(trimmedCamera);
+            cameras.push(trimmedCamera);
+            
+            // Save custom cameras to localStorage for persistence
+            localStorage.setItem(`customCameras_${localStorage.getItem('eventId')}`, JSON.stringify(customCameras));
+            
+            // Add to current dropdown
+            const option = new Option(trimmedCamera, trimmedCamera, true, true);
+            this.insertBefore(option, this.querySelector('[value="add-new-camera"]'));
+            
+            // Update all other camera dropdowns to include the new camera
+            updateAllCameraDropdowns();
+            
+            // Trigger save to persist the change
+            debounceSave();
+            
+            console.log(`[CARD-LOG] Added new camera: ${trimmedCamera}`);
+          } else {
+            alert('Camera already exists!');
+            this.value = '';
+          }
         } else {
-          alert('Camera already exists!');
           this.value = '';
         }
-      } else {
-        this.value = '';
       }
-    }
-  });
+    });
+  }
 
+  // Only owners can add new users, but all users can see user selection changes
   userSelect.addEventListener('change', function () {
-    if (this.value === 'add-new-user') {
+    if (this.value === 'add-new-user' && isOwner) {
       const newUser = prompt('Enter new user name:');
       if (newUser) {
         users.push(newUser);
         const option = new Option(newUser, newUser, true, true);
         this.insertBefore(option, this.querySelector('[value="add-new-user"]'));
       } else this.value = '';
+    }
+
+    // If this is a new empty row (no entry data), trigger a save for real-time collaboration
+    // This ensures other users see the new row immediately
+    if (!entry._id && Object.keys(entry).length === 0) {
+      console.log(`[CARD-LOG] New empty row added to ${date} - triggering collaborative save`);
+      debounceSave();
     }
   });
 }
@@ -1132,6 +1265,27 @@ window.loadCardLog = loadCardLog;
 window.getUserIdFromToken = getUserIdFromToken;
 window.getCurrentUserName = getCurrentUserName;
 window.applySmartDayUpdate = applySmartDayUpdate;
+window.canEditRow = canEditRow;
+
+// Add CSS for readonly rows
+const style = document.createElement('style');
+style.textContent = `
+  .readonly-row {
+    background-color: #f8f9fa;
+    opacity: 0.8;
+  }
+  
+  .readonly-row input,
+  .readonly-row select {
+    background-color: #e9ecef !important;
+    cursor: not-allowed;
+  }
+  
+  .readonly-row:hover {
+    background-color: #f1f3f4;
+  }
+`;
+document.head.appendChild(style);
 
 // Add test function for debugging
 window.testCardLogSave = function() {
@@ -1231,7 +1385,9 @@ function applySmartDayUpdate(date, entries) {
     const rowsToAdd = targetEntries.length - currentRows.length;
     console.log(`[CARD-LOG] Adding ${rowsToAdd} new rows`);
     for (let i = 0; i < rowsToAdd; i++) {
-      addRow(date, {});
+      const rowIndex = currentRows.length + i;
+      const entryData = targetEntries[rowIndex] || {};
+      addRow(date, entryData);
     }
   } else if (targetEntries.length < currentRows.length) {
     // Remove extra rows (from the end)
@@ -1365,6 +1521,11 @@ function updateRowData(row, targetEntry, preservationData) {
     if (targetEntry.user && userSelect.value !== targetEntry.user) {
       console.log(`[CARD-LOG] Updating user for row ${rowIndex}: ${userSelect.value} -> ${targetEntry.user}`);
       userSelect.value = targetEntry.user;
+      
+      // Update the row's data-user attribute and access control
+      row.setAttribute('data-user', targetEntry.user);
+      userSelect.setAttribute('data-original-value', targetEntry.user);
+      updateRowAccessControl(row, targetEntry.user);
     }
   }
   
@@ -1387,5 +1548,96 @@ function isUserCurrentlyEditing(element, preservationData) {
   
   return (preservationData.focusedElement.rowIndex === rowIndex && 
           preservationData.focusedElement.cellIndex === cellIndex);
+}
+
+// Load collaborative card log system
+async function loadCardLogCollaborativeSystem() {
+  return new Promise((resolve) => {
+    if (window.__collaborativeCardLogLoaded) {
+      console.log('✅ Card log collaborative system already loaded');
+      resolve();
+      return;
+    }
+    
+    const script = document.createElement('script');
+    script.src = `${API_BASE}/js/card-log-collaborative.js?v=${Date.now()}`;
+    script.onload = () => {
+      console.log('✅ Card log collaborative system loaded');
+      window.__collaborativeCardLogLoaded = true;
+      
+      // Initialize the collaborative system
+      if (window.loadCardLogCollaborativeSystem) {
+        window.loadCardLogCollaborativeSystem();
+      }
+      
+      resolve();
+    };
+    script.onerror = () => {
+      console.error('❌ Failed to load card log collaborative system');
+      resolve(); // Don't reject, continue without collaborative features
+    };
+    document.head.appendChild(script);
+  });
+}
+
+// Check if current user can edit a specific row
+function canEditRow(rowUser) {
+  if (isOwner) return true; // Owners can edit all rows
+  
+  const currentUser = getCurrentUserName();
+  return rowUser === currentUser; // Non-owners can only edit their own rows
+}
+
+// Update access control for a specific row based on user ownership
+function updateRowAccessControl(row, rowUser) {
+  const canEdit = canEditRow(rowUser);
+  
+  // Update input fields
+  const inputs = row.querySelectorAll('input');
+  inputs.forEach(input => {
+    input.readOnly = !canEdit;
+    input.setAttribute('data-original-value', input.value);
+  });
+  
+  // Update select fields (except user select which only owners can modify)
+  const selects = row.querySelectorAll('select');
+  selects.forEach(select => {
+    if (select.classList.contains('camera-select')) {
+      select.disabled = !canEdit;
+      
+      // Add/remove "Add New Camera" option based on edit permission
+      const addCameraOption = select.querySelector('[value="add-new-camera"]');
+      if (canEdit && !addCameraOption) {
+        const option = new Option('➕ Add New Camera', 'add-new-camera');
+        select.appendChild(option);
+      } else if (!canEdit && addCameraOption) {
+        addCameraOption.remove();
+      }
+    } else if (select.classList.contains('user-select')) {
+      // User select is controlled by owner status, not row ownership
+      select.disabled = !isOwner;
+    }
+    
+    select.setAttribute('data-original-value', select.value);
+  });
+  
+  // Update delete button - always show for all users (all users can delete any row)
+  const deleteBtn = row.querySelector('.delete-row-btn');
+  if (!deleteBtn) {
+    // Add delete button if it doesn't exist
+    const lastCell = row.querySelector('td:last-child');
+    if (lastCell) {
+      lastCell.innerHTML = '<button class="delete-row-btn" title="Delete Row"><span class="material-symbols-outlined">delete</span></button>';
+    }
+  }
+  
+  // Update visual styling
+  if (canEdit) {
+    row.classList.remove('readonly-row');
+    row.title = '';
+  } else {
+    row.classList.add('readonly-row');
+    row.title = 'This row belongs to another user and cannot be edited';
+  }
 }
 })();

@@ -153,7 +153,6 @@ class ChatWidget {
         currentPage: window.location.pathname,
         activeTab: document.querySelector('.tab-button.active')?.textContent?.trim() || null,
         currentView: document.querySelector('.view-container.active')?.id || null,
-        userTimezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
         browserLanguage: navigator.language || 'en-US'
       };
 

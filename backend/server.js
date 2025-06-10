@@ -185,6 +185,25 @@ io.on('connection', (socket) => {
     }
   });
   
+  // Card Log Collaborative Operations
+  socket.on('cardLogOperation', (data) => {
+    const { eventId, operation, userId, userName } = data;
+    if (eventId && operation && userId) {
+      const roomName = `event-${eventId}`;
+      
+      // Broadcast the card log operation to other users in the room
+      socket.to(roomName).emit('cardLogOperationReceived', {
+        operation,
+        userId,
+        userName,
+        timestamp: Date.now()
+      });
+      
+      const fieldName = operation.fieldId || 'unknown field';
+      console.log(`Socket.IO: User ${userName} performed card log operation on field ${fieldName} in event ${eventId}`);
+    }
+  });
+  
   socket.on('updatePresence', (data) => {
     const { eventId, userId, userName, userColor, currentField } = data;
     if (eventId && userId) {
@@ -412,7 +431,6 @@ app.post('/api/chat/:tableId', authenticate, async (req, res) => {
     const currentDateTime = {
       date: now.toISOString().split('T')[0], // YYYY-MM-DD format
       time: now.toTimeString().split(' ')[0], // HH:MM:SS format
-      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       dayOfWeek: now.toLocaleDateString('en-US', { weekday: 'long' }),
       timestamp: now.toISOString(),
       localDateTime: now.toLocaleString()
@@ -445,7 +463,7 @@ app.post('/api/chat/:tableId', authenticate, async (req, res) => {
 
 CURRENT DATE & TIME CONTEXT:
 - Today's Date: ${currentDateTime.date} (${currentDateTime.dayOfWeek})
-- Current Time: ${currentDateTime.time} (${currentDateTime.timezone})
+- Current Time: ${currentDateTime.time}
 - Event Status: ${eventStatus}
 ${eventDates.start ? `- Event Start Date: ${eventDates.start}` : ''}
 ${eventDates.end ? `- Event End Date: ${eventDates.end}` : ''}
@@ -453,7 +471,6 @@ ${eventDates.end ? `- Event End Date: ${eventDates.end}` : ''}
 USER CONTEXT:
 - Current Page: ${pageContext.currentPage || 'unknown'}
 - Active Tab/Section: ${pageContext.activeTab || 'none'}
-- User Timezone: ${pageContext.userTimezone || currentDateTime.timezone}
 - Browser Language: ${pageContext.browserLanguage || 'en-US'}
 
 INTRODUCTION: Always introduce yourself as "Hi! I'm Luma, your AI assistant for ${table.title}." when greeting new users or when the conversation starts fresh.
@@ -461,6 +478,8 @@ INTRODUCTION: Always introduce yourself as "Hi! I'm Luma, your AI assistant for 
 PERSONALITY: Be friendly, professional, and proactive. Think like an experienced event coordinator who understands photography workflows, production schedules, and team coordination. Use time-aware language (e.g., "later today", "tomorrow", "next week").
 
 CONTEXT AWARENESS: This is user ${req.user.fullName}. Remember details from your conversations and build upon them. If someone asks follow-up questions, reference previous parts of the conversation naturally. Be aware of timing relative to the event dates.
+
+IMPORTANT: For all times and schedules, display them exactly as they appear in the data without any timezone conversion. Do not adjust times to local timezone - show all times as stored in the system.
 
 EVENT DATA ACCESS:
 ${JSON.stringify(eventData, null, 2)}
@@ -477,7 +496,6 @@ EXPERTISE AREAS & SEARCH GUIDANCE:
 
 CONTEXTUAL INTELLIGENCE:
 - Weather Awareness: If someone asks about outdoor shoots, remind them to check weather
-- Time Zone Awareness: Consider timezone differences for remote team members
 - Pre-Event Phase: Focus on preparation, planning, gear checks, team coordination
 - During Event: Focus on real-time coordination, troubleshooting, schedule adjustments
 - Post-Event: Focus on wrap-up tasks, file organization, equipment returns
