@@ -68,10 +68,53 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: process.env.CORS_ORIGIN || ['https://www.lumdash.app', 'https://spa-lumdash-backend.onrender.com', 'https://germainedavid.github.io'],
+    origin: function(origin, callback) {
+      // In production, allow any origin (Render generates dynamic URLs)
+      // In development, be more specific
+      const allowedOrigins = [
+        'https://www.lumdash.app',
+        'https://lumdash.app', 
+        'https://spa-lumdash-backend.onrender.com',
+        'https://germainedavid.github.io',
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'http://localhost:5000',
+        'http://127.0.0.1:5000'
+      ];
+      
+      // Allow requests with no origin (mobile apps, Postman, etc.)
+      if (!origin) return callback(null, true);
+      
+      // For Render deployment, allow any .onrender.com domain
+      if (origin.includes('.onrender.com')) return callback(null, true);
+      
+      // For GitHub Pages, allow any github.io domain
+      if (origin.includes('.github.io')) return callback(null, true);
+      
+      // Check explicit allowed origins
+      if (allowedOrigins.includes(origin)) return callback(null, true);
+      
+      // In development, allow localhost with any port
+      if (process.env.NODE_ENV !== 'production' && origin.includes('localhost')) {
+        return callback(null, true);
+      }
+      
+      console.log('CORS blocked origin:', origin);
+      callback(new Error('Not allowed by CORS'));
+    },
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
     credentials: true
-  }
+  },
+  // Essential for Render deployment
+  transports: ['websocket', 'polling'],
+  // Increase timeouts for stability on cloud platforms
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  // Allow upgrade from polling to websocket
+  allowUpgrades: true,
+  // Handle connection issues gracefully
+  maxHttpBufferSize: 1e6,
+  connectTimeout: 45000
 });
 
 io.on('connection', (socket) => {
