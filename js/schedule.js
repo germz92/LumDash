@@ -240,6 +240,17 @@ window.initPage = async function(id) {
     logEventIdState('AFTER_EVENT_TITLE_ERROR');
   }
 
+  // Load collaborative schedule system early
+  if (!window.__collaborativeScheduleLoaded) {
+    console.log('🤝 Loading collaborative schedule system...');
+    try {
+      await loadCollaborativeSystem();
+      console.log('✅ Collaborative schedule system loaded');
+    } catch (error) {
+      console.error('❌ Failed to load collaborative system:', error);
+    }
+  }
+
   // Load bottom nav HTML
   console.log(`[INIT] Starting bottom nav setup...`);
   try {
@@ -380,6 +391,28 @@ window.initPage = async function(id) {
   }, 2000);
 };
 
+// Load collaborative schedule system
+async function loadCollaborativeSystem() {
+  return new Promise((resolve, reject) => {
+    if (window.__collaborativeScheduleLoaded) {
+      resolve();
+      return;
+    }
+    
+    const script = document.createElement('script');
+    script.src = `${API_BASE}/js/schedule-collaborative.js?v=${Date.now()}`;
+    script.onload = () => {
+      console.log('✅ Collaborative schedule system loaded');
+      resolve();
+    };
+    script.onerror = () => {
+      console.error('❌ Failed to load collaborative schedule system');
+      resolve(); // Don't reject, continue without collaborative features
+    };
+    document.head.appendChild(script);
+  });
+}
+
 async function loadPrograms(tableId = null, retryCount = 0) {
   console.log(`\n--- LOAD PROGRAMS START (retry: ${retryCount}) ---`);
   const loadStartTime = Date.now();
@@ -486,6 +519,18 @@ async function loadPrograms(tableId = null, retryCount = 0) {
     setupDateFilterOptions();
     console.log(`[LOAD] Date filter options setup complete`);
     logEventIdState('AFTER_DATE_FILTER_SETUP');
+
+    // Initialize collaborative features if available
+    if (window.CollaborativeSchedule && !window.__collaborativeScheduleInitialized) {
+      console.log('🤝 Initializing collaborative schedule features...');
+      try {
+        window.CollaborativeSchedule.init(eventId, tableData.programs, hasScheduleAccess);
+        window.__collaborativeScheduleInitialized = true;
+        console.log('✅ Collaborative features initialized successfully');
+      } catch (error) {
+        console.error('❌ Failed to initialize collaborative features:', error);
+      }
+    }
 
     // Final verification that event ID hasn't changed
     const finalEventId = localStorage.getItem('eventId');
@@ -675,6 +720,7 @@ function renderProgramSections(hasScheduleAccess) {
       entry.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
           <input class="program-name" type="text"
+            data-field="name"
             ${!hasScheduleAccess ? 'readonly' : ''}
             placeholder="Program Name"
             style="flex: 1;"
@@ -684,6 +730,7 @@ function renderProgramSections(hasScheduleAccess) {
           <div class="right-actions">
             <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; margin-bottom: 0;">
             <input type="checkbox" class="done-checkbox"
+              data-field="done"
               style="width: 20px; height: 20px;"
               ${program.done ? 'checked' : ''}
               onchange="toggleDone(this, ${program.__index})">
@@ -691,12 +738,16 @@ function renderProgramSections(hasScheduleAccess) {
         </div>
         </div>
         <div style="display: flex; align-items: center; gap: 3px;">
-          <input type="time" placeholder="Start Time" style="flex: 1; min-width: 0; text-align: left;"
+          <input type="time" placeholder="Start Time" 
+            data-field="startTime"
+            style="flex: 1; min-width: 0; text-align: left;"
             value="${program.startTime || ''}"
             ${!hasScheduleAccess ? 'readonly' : ''}
             onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
             onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'startTime')` : ''}">
-          <input type="time" placeholder="End Time" style="flex: 1; min-width: 0; text-align: left;"
+          <input type="time" placeholder="End Time" 
+            data-field="endTime"
+            style="flex: 1; min-width: 0; text-align: left;"
             value="${program.endTime || ''}"
             ${!hasScheduleAccess ? 'readonly' : ''}
             onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
@@ -706,6 +757,7 @@ function renderProgramSections(hasScheduleAccess) {
           <div style="display: flex; align-items: center; flex: 1;">
             <span class="material-symbols-outlined" style="margin-right: 4px; font-size: 18px;">location_on</span>
             <textarea style="flex: 1; resize: none;"
+              data-field="location"
               placeholder="Location"
               ${!hasScheduleAccess ? 'readonly' : ''}
               onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
@@ -715,6 +767,7 @@ function renderProgramSections(hasScheduleAccess) {
           <div style="display: flex; align-items: center; flex: 1;">
             <span class="material-symbols-outlined" style="margin-right: 4px; font-size: 18px;">photo_camera</span>
             <textarea style="flex: 1; resize: none;"
+              data-field="photographer"
               placeholder="Photographer"
               ${!hasScheduleAccess ? 'readonly' : ''}
               onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
@@ -729,6 +782,7 @@ function renderProgramSections(hasScheduleAccess) {
         <div class="notes-field" style="display: none;">
           <textarea
             class="auto-expand"
+            data-field="notes"
             placeholder="Notes"
             oninput="autoResizeTextarea(this)"
             ${!hasScheduleAccess ? 'readonly' : ''}
@@ -921,21 +975,22 @@ function autoSave(field, date, ignoredIndex, key) {
       tableData.programs[programIndex][fieldKey] = newValue;
       scheduleSave();
     }
-  }
-  // If there was a pending update for this program/field, apply it now
-  if (window.currentlyEditing && window.currentlyEditing.pendingUpdate) {
-    const { program, field: pendingField } = window.currentlyEditing.pendingUpdate;
-    if (program && program._id && pendingField === key) {
-      // Find the program and update it
-      const idx = tableData.programs.findIndex(p => p._id === program._id);
-      if (idx !== -1) {
-        tableData.programs[idx] = program;
-        renderProgramSections(isOwner);
+    
+    // If there was a pending update for this program/field, apply it now
+    if (window.currentlyEditing && window.currentlyEditing.pendingUpdate) {
+      const { program, field: pendingField } = window.currentlyEditing.pendingUpdate;
+      if (program && program._id && pendingField === key) {
+        // Find the program and update it
+        const idx = tableData.programs.findIndex(p => p._id === program._id);
+        if (idx !== -1) {
+          tableData.programs[idx] = program;
+          renderProgramSections(isOwner);
+        }
+        window.currentlyEditing.pendingUpdate = null;
       }
-      window.currentlyEditing.pendingUpdate = null;
     }
+    window.currentlyEditing = null;
   }
-  window.currentlyEditing = null;
 }
 
 // Optimistic UI: update tableData on input
@@ -1128,6 +1183,18 @@ window.resetFilterSettings = resetFilterSettings;
 document.querySelectorAll('.auto-expand').forEach(setupTextareaResize);
 
 function cleanupSchedulePage() {
+  // Cleanup collaborative features first
+  if (window.CollaborativeSchedule && window.__collaborativeScheduleInitialized) {
+    console.log('🧹 Cleaning up collaborative schedule features...');
+    try {
+      window.CollaborativeSchedule.cleanup();
+      window.__collaborativeScheduleInitialized = false;
+      console.log('✅ Collaborative features cleaned up');
+    } catch (error) {
+      console.error('❌ Error cleaning up collaborative features:', error);
+    }
+  }
+  
   // Remove schedule-page class from body
   document.body.classList.remove('schedule-page');
 

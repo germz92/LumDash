@@ -10,7 +10,8 @@ window.__cardLogJsLoaded = true;
 
 // 🔥 Global variables
 let users = [];
-const cameras = ["A7IV-A", "A7IV-B", "A7IV-C", "A7IV-D", "A7IV-E", "A7RV-A", "FX3-A", "A7IV", "A7RV", "A7III"];
+let cameras = ["A7IV-A", "A7IV-B", "A7IV-C", "A7IV-D", "A7IV-E", "A7RV-A", "FX3-A", "A7IV", "A7RV", "A7III"];
+let customCameras = []; // Track custom cameras separately
 let isOwner = false;
 let saveTimeout;
 let eventListenersAttached = false;
@@ -32,7 +33,13 @@ setInterval(() => {
 // Socket.IO real-time updates
 function setupSocketListeners() {
   if (!window.socket) {
-    console.warn('[CARD-LOG] Socket.IO not available, skipping event listeners');
+    console.log('[CARD-LOG] Socket.IO not available - running in standalone mode');
+    
+    // Add manual save button when Socket.IO is not available
+    addManualSaveButton();
+    
+    // Use more frequent auto-saves in standalone mode
+    console.log('[CARD-LOG] Using enhanced auto-save for standalone mode');
     return;
   }
   
@@ -182,6 +189,21 @@ function setupSocketListeners() {
 // Utility and handler functions
 async function saveToMongoDB() {
   try {
+    // First, check for concurrent edits by fetching latest data
+    if (!window.socket) {
+      const hasConflicts = await checkForConcurrentEdits();
+      if (hasConflicts) {
+        const userChoice = await showConflictResolutionDialog();
+        if (userChoice === 'cancel') {
+          return false;
+        } else if (userChoice === 'merge') {
+          const success = await performMergedSave();
+          return success;
+        }
+        // If 'overwrite', continue with normal save
+      }
+    }
+    
     const tables = document.querySelectorAll('.day-table');
     
     // If no day tables exist, send an empty array explicitly
@@ -224,6 +246,16 @@ async function saveToMongoDB() {
         _id: dayId || `day-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
       };
     });
+
+    // Validate card log data before saving
+    const validationErrors = validateCardLogData(cardLog);
+    if (validationErrors.length > 0) {
+      console.warn('[CARD-LOG] Validation errors found:', validationErrors);
+      const userWantsToContinue = confirm(`Found issues with card log data:\n${validationErrors.join('\n')}\n\nDo you want to save anyway?`);
+      if (!userWantsToContinue) {
+        return false;
+      }
+    }
 
     console.log("Saving card log with entries:", cardLog.map(log => `${log.date} (${log.entries.length} entries)`));
     const response = await fetch(`${API_BASE}/api/tables/${localStorage.getItem('eventId')}/cardlog`, {
@@ -268,35 +300,88 @@ async function saveToMongoDB() {
 }
 
 function debounceSave() {
-  // Don't save if we're processing a Socket.IO event
-  if (processingSocketEvent) {
+  // Don't save if we're processing a Socket.IO event (only if Socket.IO is available)
+  if (window.socket && processingSocketEvent) {
     console.log('[CARD-LOG] Skipping save - processing Socket.IO event');
     return;
   }
   
   clearTimeout(saveTimeout);
   
-  // Use shorter, more consistent delay since we have better conflict prevention now
-  const delay = isActivelyEditing ? 1000 : 300;
+  // Use different delays based on Socket.IO availability
+  let delay;
+  if (!window.socket) {
+    // Standalone mode - more frequent saves
+    delay = isActivelyEditing ? 500 : 200;
+  } else {
+    // Socket.IO mode - conservative delays to avoid conflicts
+    delay = isActivelyEditing ? 1000 : 300;
+  }
   
-  console.log(`[CARD-LOG] Debouncing save with ${delay}ms delay (actively editing: ${isActivelyEditing})`);
+  console.log(`[CARD-LOG] Debouncing save with ${delay}ms delay (actively editing: ${isActivelyEditing}, socket: ${!!window.socket})`);
   
   saveTimeout = setTimeout(() => {
-    // Double-check we're not processing an event and user isn't actively editing
-    if (!processingSocketEvent && !isActivelyEditing) {
+    // Check conditions based on Socket.IO availability
+    const shouldSkip = window.socket ? (processingSocketEvent || isActivelyEditing) : isActivelyEditing;
+    
+    if (!shouldSkip) {
       console.log('[CARD-LOG] Executing debounced save');
-      saveToMongoDB();
+      saveToMongoDB().catch(error => {
+        console.error('[CARD-LOG] Auto-save failed:', error);
+        // Show user-friendly notification
+        showSaveError('Auto-save failed. Please use the manual save button.');
+      });
     } else {
       console.log('[CARD-LOG] Skipping save - conflict detected', {
-        processingSocketEvent,
-        isActivelyEditing
+        processingSocketEvent: window.socket ? processingSocketEvent : 'N/A',
+        isActivelyEditing,
+        hasSocket: !!window.socket
       });
       // Retry save in a bit if conditions are temporary
-      if (processingSocketEvent && !isActivelyEditing) {
+      if (window.socket && processingSocketEvent && !isActivelyEditing) {
         setTimeout(() => debounceSave(), 200);
       }
     }
   }, delay);
+}
+
+// Show save error notification
+function showSaveError(message) {
+  // Remove existing error if present
+  const existingError = document.getElementById('save-error-notification');
+  if (existingError) existingError.remove();
+  
+  const notification = document.createElement('div');
+  notification.id = 'save-error-notification';
+  notification.innerHTML = `
+    <span class="material-symbols-outlined">error</span>
+    ${message}
+    <button onclick="this.parentElement.remove()">×</button>
+  `;
+  notification.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: #dc3545;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 6px;
+    z-index: 10000;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    box-shadow: 0 4px 12px rgba(220, 53, 69, 0.3);
+  `;
+  
+  document.body.appendChild(notification);
+  
+  // Auto-remove after 10 seconds
+  setTimeout(() => {
+    if (notification.parentElement) {
+      notification.remove();
+    }
+  }, 10000);
 }
 
 function openDateModal() {
@@ -340,8 +425,8 @@ function setupEventListeners() {
         const date = e.target.getAttribute('data-date');
         console.log(`User clicked "Add Row" for date: ${date}`);
         addRow(date);
-        console.log(`Calling saveToMongoDB after adding row to ${date}`);
-        saveToMongoDB();
+        console.log(`Added empty row to ${date} - will save when user enters data`);
+        // Don't auto-save empty rows - save will happen when user enters data
       }
       if (e.target.classList.contains('delete-row-btn') && isOwner) {
         e.target.closest('tr').remove();
@@ -375,7 +460,22 @@ function setupEventListeners() {
     tableContainer.addEventListener('input', (e) => {
       lastInputTime = Date.now();
       isActivelyEditing = true;
-      console.log('[CARD-LOG] User input detected, updating lastInputTime');
+      
+      // Only trigger save for meaningful input changes
+      if (e.target.tagName === 'SELECT') {
+        // For dropdowns, don't save on input events - wait for change events
+        console.log('[CARD-LOG] User input on dropdown - waiting for change event to save');
+        return;
+      } else if (e.target.tagName === 'INPUT') {
+        // For text inputs, only save if there's actual content
+        const value = e.target.value || '';
+        if (value.trim() === '') {
+          console.log('[CARD-LOG] User input detected but field is empty - not triggering save');
+          return;
+        }
+      }
+      
+      console.log('[CARD-LOG] User input detected with meaningful data, updating lastInputTime');
       debounceSave();
     });
     
@@ -433,6 +533,7 @@ function setupEventListeners() {
         if (window.cardLogBlurTimeout) {
           clearTimeout(window.cardLogBlurTimeout);
         }
+        // Note: Removed automatic debounceSave() call here - focus doesn't mean data changed
       }
     }, true);
 
@@ -440,6 +541,127 @@ function setupEventListeners() {
   }
   
   eventListenersAttached = true;
+}
+
+// Validate card log data before saving
+function validateCardLogData(cardLog) {
+  const errors = [];
+  
+  cardLog.forEach((day, dayIndex) => {
+    if (!day.date || day.date.trim() === '') {
+      errors.push(`Day ${dayIndex + 1}: Missing date`);
+    }
+    
+    if (!Array.isArray(day.entries)) {
+      errors.push(`Day ${dayIndex + 1} (${day.date}): Invalid entries array`);
+      return;
+    }
+    
+    day.entries.forEach((entry, entryIndex) => {
+      const rowNum = entryIndex + 1;
+      
+      // Check for completely empty rows
+      const isEmpty = (!entry.camera || entry.camera.trim() === '') && 
+                     (!entry.card1 || entry.card1.trim() === '') && 
+                     (!entry.card2 || entry.card2.trim() === '') && 
+                     (!entry.user || entry.user.trim() === '');
+      
+      if (isEmpty) {
+        // Don't warn about empty rows - they might be newly added
+        return;
+      }
+      
+      // Check for partially filled rows (these need attention)
+      const hasAnyData = (entry.camera && entry.camera.trim() !== '') || 
+                        (entry.card1 && entry.card1.trim() !== '') || 
+                        (entry.card2 && entry.card2.trim() !== '') || 
+                        (entry.user && entry.user.trim() !== '');
+      
+      if (hasAnyData) {
+        // Only warn about missing data if the row has some data (not a fresh empty row)
+        // Note: Camera is now optional - users can save without selecting a camera
+        if (!entry.user || entry.user.trim() === '') {
+          errors.push(`${day.date} Row ${rowNum}: Missing user`);
+        }
+        if ((!entry.card1 || entry.card1.trim() === '') && (!entry.card2 || entry.card2.trim() === '')) {
+          errors.push(`${day.date} Row ${rowNum}: No card numbers entered`);
+        }
+      }
+    });
+  });
+  
+  return errors;
+}
+
+// Add a manual save button for when Socket.IO is not available
+function addManualSaveButton() {
+  const existingButton = document.getElementById('manual-save-btn');
+  if (existingButton) return; // Already added
+  
+  const addDayBtn = document.getElementById('add-day-btn');
+  if (!addDayBtn) return;
+  
+  const saveBtn = document.createElement('button');
+  saveBtn.id = 'manual-save-btn';
+  saveBtn.innerHTML = '<span class="material-symbols-outlined">save</span> Save Changes';
+  saveBtn.className = 'manual-save-btn';
+  saveBtn.onclick = async () => {
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="material-symbols-outlined">hourglass_empty</span> Saving...';
+    
+    const success = await saveToMongoDB();
+    
+    if (success) {
+      saveBtn.innerHTML = '<span class="material-symbols-outlined">check_circle</span> Saved!';
+      setTimeout(() => {
+        saveBtn.innerHTML = '<span class="material-symbols-outlined">save</span> Save Changes';
+        saveBtn.disabled = false;
+      }, 2000);
+    } else {
+      saveBtn.innerHTML = '<span class="material-symbols-outlined">error</span> Save Failed';
+      saveBtn.style.backgroundColor = '#dc3545';
+      setTimeout(() => {
+        saveBtn.innerHTML = '<span class="material-symbols-outlined">save</span> Save Changes';
+        saveBtn.style.backgroundColor = '';
+        saveBtn.disabled = false;
+      }, 3000);
+    }
+  };
+  
+  // Insert after the add day button
+  addDayBtn.parentNode.insertBefore(saveBtn, addDayBtn.nextSibling);
+  
+  // Add styles for the save button
+  if (!document.getElementById('manual-save-styles')) {
+    const styles = document.createElement('style');
+    styles.id = 'manual-save-styles';
+    styles.textContent = `
+      .manual-save-btn {
+        background: #28a745;
+        color: white;
+        border: none;
+        padding: 10px 20px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 14px;
+        margin-left: 10px;
+        display: inline-flex;
+        align-items: center;
+        gap: 5px;
+        transition: all 0.2s;
+      }
+      .manual-save-btn:hover:not(:disabled) {
+        background: #218838;
+        transform: translateY(-1px);
+      }
+      .manual-save-btn:disabled {
+        opacity: 0.7;
+        cursor: not-allowed;
+        transform: none;
+      }
+    `;
+    document.head.appendChild(styles);
+  }
 }
 
 // Cleanup function for page navigation
@@ -468,6 +690,10 @@ function cleanupCardLogPage() {
   lastEventTime = 0;
   deferredUpdate = null;
   
+  // Reset cameras to default list
+  cameras = ["A7IV-A", "A7IV-B", "A7IV-C", "A7IV-D", "A7IV-E", "A7RV-A", "FX3-A", "A7IV", "A7RV", "A7III"];
+  customCameras = [];
+  
   // Remove event listeners
   const addDayBtn = document.getElementById('add-day-btn');
   const cancelModalBtn = document.getElementById('cancel-modal');
@@ -477,6 +703,17 @@ function cleanupCardLogPage() {
   if (addDayBtn) addDayBtn.removeEventListener('click', openDateModal);
   if (cancelModalBtn) cancelModalBtn.removeEventListener('click', closeDateModal);
   if (submitDateBtn) submitDateBtn.removeEventListener('click', createNewDay);
+  
+  // Remove manual save button and its styles
+  const manualSaveBtn = document.getElementById('manual-save-btn');
+  if (manualSaveBtn) manualSaveBtn.remove();
+  
+  const manualSaveStyles = document.getElementById('manual-save-styles');
+  if (manualSaveStyles) manualSaveStyles.remove();
+  
+  // Remove any error notifications
+  const errorNotification = document.getElementById('save-error-notification');
+  if (errorNotification) errorNotification.remove();
   
   console.log('Card log page cleaned up');
 }
@@ -569,11 +806,38 @@ async function loadUsers() {
 async function loadCardLog() {
   const token = localStorage.getItem('token');
   const eventId = localStorage.getItem('eventId');
+  
+  // Load custom cameras from localStorage first
+  loadCustomCameras();
+  
   const res = await fetch(`${API_BASE}/api/tables/${eventId}`, { headers: { Authorization: token } });
   if (!res.ok) return console.error('Failed to load table data');
   const table = await res.json();
   const userId = getUserIdFromToken();
   isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
+  
+  // Extract any custom cameras from the loaded data
+  if (table.cardLog && Array.isArray(table.cardLog)) {
+    table.cardLog.forEach(dayData => {
+      if (dayData.entries && Array.isArray(dayData.entries)) {
+        dayData.entries.forEach(entry => {
+          if (entry.camera && !cameras.includes(entry.camera)) {
+            console.log(`[CARD-LOG] Found custom camera in data: ${entry.camera}`);
+            if (!customCameras.includes(entry.camera)) {
+              customCameras.push(entry.camera);
+              cameras.push(entry.camera);
+            }
+          }
+        });
+      }
+    });
+    
+    // Save any newly discovered custom cameras
+    if (customCameras.length > 0) {
+      localStorage.setItem(`customCameras_${eventId}`, JSON.stringify(customCameras));
+    }
+  }
+  
   if (!table.cardLog || table.cardLog.length === 0) return;
   
   const container = document.getElementById('table-container');
@@ -603,6 +867,54 @@ async function loadCardLog() {
       }
     });
   }
+}
+
+// Load custom cameras from localStorage
+function loadCustomCameras() {
+  try {
+    const eventId = localStorage.getItem('eventId');
+    const stored = localStorage.getItem(`customCameras_${eventId}`);
+    if (stored) {
+      customCameras = JSON.parse(stored);
+      // Add custom cameras to the main cameras array if not already present
+      customCameras.forEach(camera => {
+        if (!cameras.includes(camera)) {
+          cameras.push(camera);
+        }
+      });
+      console.log(`[CARD-LOG] Loaded ${customCameras.length} custom cameras from localStorage`);
+    }
+  } catch (error) {
+    console.error('[CARD-LOG] Error loading custom cameras:', error);
+    customCameras = [];
+  }
+}
+
+// Update all camera dropdowns with new cameras
+function updateAllCameraDropdowns() {
+  const allCameraSelects = document.querySelectorAll('.camera-select');
+  allCameraSelects.forEach(select => {
+    const currentValue = select.value;
+    const isAddNewSelected = currentValue === 'add-new-camera';
+    
+    // Get all current options except "add-new-camera"
+    const existingOptions = Array.from(select.options)
+      .filter(option => option.value !== 'add-new-camera')
+      .map(option => option.value);
+    
+    // Add any missing cameras
+    cameras.forEach(camera => {
+      if (!existingOptions.includes(camera) && camera) {
+        const option = new Option(camera, camera);
+        select.insertBefore(option, select.querySelector('[value="add-new-camera"]'));
+      }
+    });
+    
+    // Restore selection if it wasn't "add-new-camera"
+    if (!isAddNewSelected && cameras.includes(currentValue)) {
+      select.value = currentValue;
+    }
+  });
 }
 
 function getUserIdFromToken() {
@@ -764,11 +1076,35 @@ function addRow(date, entry = {}) {
   cameraSelect.addEventListener('change', function () {
     if (this.value === 'add-new-camera') {
       const newCamera = prompt('Enter new camera name:');
-      if (newCamera) {
-        cameras.push(newCamera);
-        const option = new Option(newCamera, newCamera, true, true);
-        this.insertBefore(option, this.querySelector('[value="add-new-camera"]'));
-      } else this.value = '';
+      if (newCamera && newCamera.trim()) {
+        const trimmedCamera = newCamera.trim();
+        
+        // Check if camera already exists
+        if (!cameras.includes(trimmedCamera) && !customCameras.includes(trimmedCamera)) {
+          customCameras.push(trimmedCamera);
+          cameras.push(trimmedCamera);
+          
+          // Save custom cameras to localStorage for persistence
+          localStorage.setItem(`customCameras_${localStorage.getItem('eventId')}`, JSON.stringify(customCameras));
+          
+          // Add to current dropdown
+          const option = new Option(trimmedCamera, trimmedCamera, true, true);
+          this.insertBefore(option, this.querySelector('[value="add-new-camera"]'));
+          
+          // Update all other camera dropdowns to include the new camera
+          updateAllCameraDropdowns();
+          
+          // Trigger save to persist the change
+          debounceSave();
+          
+          console.log(`[CARD-LOG] Added new camera: ${trimmedCamera}`);
+        } else {
+          alert('Camera already exists!');
+          this.value = '';
+        }
+      } else {
+        this.value = '';
+      }
     }
   });
 
@@ -979,9 +1315,27 @@ function updateRowData(row, targetEntry, preservationData) {
   // Update camera select (cell 0)
   const cameraSelect = cells[0].querySelector('select');
   if (cameraSelect && !isUserCurrentlyEditing(cameraSelect, preservationData)) {
-    if (targetEntry.camera && cameraSelect.value !== targetEntry.camera) {
-      console.log(`[CARD-LOG] Updating camera for row ${rowIndex}: ${cameraSelect.value} -> ${targetEntry.camera}`);
-      cameraSelect.value = targetEntry.camera;
+    // Ensure the camera option exists in the dropdown before setting it
+    if (targetEntry.camera) {
+      let cameraOption = cameraSelect.querySelector(`option[value="${targetEntry.camera}"]`);
+      if (!cameraOption && targetEntry.camera) {
+        // Camera doesn't exist in dropdown, add it
+        if (!cameras.includes(targetEntry.camera)) {
+          cameras.push(targetEntry.camera);
+          if (!customCameras.includes(targetEntry.camera)) {
+            customCameras.push(targetEntry.camera);
+            localStorage.setItem(`customCameras_${localStorage.getItem('eventId')}`, JSON.stringify(customCameras));
+          }
+        }
+        // Add the option to this dropdown
+        cameraOption = new Option(targetEntry.camera, targetEntry.camera);
+        cameraSelect.insertBefore(cameraOption, cameraSelect.querySelector('[value="add-new-camera"]'));
+      }
+      
+      if (cameraSelect.value !== targetEntry.camera) {
+        console.log(`[CARD-LOG] Updating camera for row ${rowIndex}: ${cameraSelect.value} -> ${targetEntry.camera}`);
+        cameraSelect.value = targetEntry.camera;
+      }
     }
   }
   
