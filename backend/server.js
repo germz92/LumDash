@@ -1687,6 +1687,59 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
   }
 });
 
+// UPDATE SINGLE PROGRAM FIELD - prevents data corruption from full saves
+app.patch('/api/tables/:id/program-field', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === "null") {
+    return res.status(400).json({ error: "Invalid table ID" });
+  }
+  
+  const { programId, field, value } = req.body;
+  if (!programId || !field) {
+    return res.status(400).json({ error: "programId and field are required" });
+  }
+  
+  try {
+    console.log(`🔧 Updating single field: ${field} = ${value} for program ${programId} in table ${req.params.id}`);
+    
+    // Use MongoDB's positional operator to update only the specific field
+    const result = await Table.findOneAndUpdate(
+      { 
+        _id: req.params.id,
+        $or: [
+          { owners: req.user.id },
+          { sharedWith: req.user.id }
+        ],
+        'programSchedule._id': programId
+      },
+      { 
+        $set: { [`programSchedule.$.${field}`]: value }
+      },
+      { new: true, runValidators: true }
+    );
+    
+    if (!result) {
+      return res.status(403).json({ error: 'Not authorized, table not found, or program not found' });
+    }
+    
+    // Find the updated program for notification
+    const updatedProgram = result.programSchedule.find(p => p._id.toString() === programId);
+    if (updatedProgram) {
+      console.log(`✅ Updated field ${field} for program ${programId}`);
+      notifyDataChange('programFieldUpdated', { 
+        programId, 
+        field, 
+        value, 
+        program: updatedProgram 
+      }, req.params.id);
+    }
+    
+    res.json({ message: 'Program field updated successfully' });
+  } catch (err) {
+    console.error('Error updating program field:', err);
+    res.status(500).json({ error: 'Failed to update program field' });
+  }
+});
+
 // FOLDER LOGS
 app.get('/api/tables/:id/folder-logs', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === "null") {
