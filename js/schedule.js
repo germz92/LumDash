@@ -12,45 +12,52 @@ let searchQuery = '';
 let filterDate = 'all';
 let allNotesVisible = false;
 let isOwner = false;
+let lastKnownEventId = null; // Add this declaration
 
 // Store the intended event ID at module level to prevent external interference
 let currentEventId = null;
 
-// Add logging utility for event ID tracking
+// Add logging utility for event ID tracking - SIMPLIFIED VERSION
 function logEventIdState(location) {
   const timestamp = new Date().toISOString();
   const stored = localStorage.getItem('eventId');
   const module = currentEventId;
-  console.log(`[${timestamp}] EVENT_ID_TRACE [${location}]: module=${module}, localStorage=${stored}, match=${module === stored}`);
+  const hasIssue = module !== stored;
+  
+  // Only log if there's a mismatch or during critical checkpoints
+  if (hasIssue || ['INIT_START', 'LOAD_START', 'INIT_COMPLETE'].includes(location)) {
+    const logLevel = hasIssue ? 'warn' : 'log';
+    console[logLevel](`[${timestamp}] EVENT_ID_CHECK [${location}]: module=${module}, localStorage=${stored}, match=${!hasIssue}`);
+  }
+  
   return { timestamp, stored, module, match: module === stored };
 }
 
-// Add a localStorage monitor to detect external changes
-let lastKnownEventId = null;
+// Simplified monitoring - only check during critical operations
+let eventIdMonitorActive = false;
 function startEventIdMonitoring() {
-  if (window.eventIdMonitorInterval) {
-    clearInterval(window.eventIdMonitorInterval);
-  }
+  if (eventIdMonitorActive) return;
+  eventIdMonitorActive = true;
   lastKnownEventId = localStorage.getItem('eventId');
-  console.log(`[MONITOR] Starting event ID monitoring. Initial value: ${lastKnownEventId}`);
-  
-  window.eventIdMonitorInterval = setInterval(() => {
-    const current = localStorage.getItem('eventId');
-    if (current !== lastKnownEventId) {
-      const timestamp = new Date().toISOString();
-      console.warn(`[${timestamp}] EVENT_ID_MONITOR: External change detected! Old: ${lastKnownEventId}, New: ${current}`);
-      console.trace('Event ID changed by external code');
-      lastKnownEventId = current;
-    }
-  }, 100); // Check every 100ms
+  console.log(`[MONITOR] Event ID monitoring active. Current: ${lastKnownEventId}`);
 }
 
 function stopEventIdMonitoring() {
-  if (window.eventIdMonitorInterval) {
-    clearInterval(window.eventIdMonitorInterval);
-    window.eventIdMonitorInterval = null;
-    console.log(`[MONITOR] Stopped event ID monitoring`);
+  eventIdMonitorActive = false;
+  console.log(`[MONITOR] Event ID monitoring stopped`);
+}
+
+// Only check for changes when actually needed
+function checkEventIdStability() {
+  if (!eventIdMonitorActive) return true;
+  
+  const current = localStorage.getItem('eventId');
+  if (current !== lastKnownEventId) {
+    console.warn(`[MONITOR] Event ID changed externally! Old: ${lastKnownEventId}, New: ${current}`);
+    lastKnownEventId = current;
+    return false;
   }
+  return true;
 }
 
 // Add a global variable to track if scroll position should be restored
@@ -213,90 +220,68 @@ window.initPage = async function(id) {
   // CRITICAL FIX: Don't override localStorage - trust the navigation system
   // localStorage.setItem('eventId', tableId); // REMOVED - causes wrong event persistence
   console.log(`[INIT] Using localStorage eventId set by navigation system: ${previousEventId}`);
-  logEventIdState('AFTER_NAVIGATION_TRUST');
 
   // Start monitoring for external changes (but don't defensively overwrite)
   startEventIdMonitoring();
 
   // Add schedule-page class to body
   document.body.classList.add('schedule-page');
-  logEventIdState('AFTER_BODY_CLASS');
 
-  // Load event title
-  console.log(`[INIT] Starting event title fetch...`);
+  // Event title loading with error handling
   try {
-    const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
+    console.log(`[INIT] Starting event title fetch...`);
+    const titleResponse = await fetch(`${API_BASE}/api/tables/${tableId}`, {
       headers: { Authorization: localStorage.getItem('token') }
     });
-    const table = await res.json();
-    const eventTitleEl = document.getElementById('eventTitle');
-    if (eventTitleEl) eventTitleEl.textContent = table.title || 'Program Schedule';
-    console.log(`[INIT] Event title loaded successfully`);
-    logEventIdState('AFTER_EVENT_TITLE_FETCH');
-  } catch (err) {
-    console.error('Error loading event title:', err);
-    const eventTitleEl = document.getElementById('eventTitle');
-    if (eventTitleEl) eventTitleEl.textContent = 'Event Not Found';
-    logEventIdState('AFTER_EVENT_TITLE_ERROR');
+    
+    if (titleResponse.ok) {
+      const titleData = await titleResponse.json();
+      document.title = `LumDash - ${titleData.title}`;
+      console.log(`[INIT] Event title loaded successfully`);
+    }
+  } catch (error) {
+    console.warn('[INIT] Failed to load event title:', error);
   }
 
-  // Load collaborative schedule system early
-  if (!window.__collaborativeScheduleLoaded) {
-    console.log('🤝 Loading collaborative schedule system...');
+  // Load collaborative system first
+  await loadCollaborativeSystem();
+
+  // Setup navigation - prevent duplicate setup
+  if (!document.getElementById('bottomNav').hasChildNodes()) {
     try {
-      await loadCollaborativeSystem();
-      console.log('✅ Collaborative schedule system loaded');
-    } catch (error) {
-      console.error('❌ Failed to load collaborative system:', error);
+      let navContainer = document.getElementById('bottomNav');
+      if (!navContainer) {
+        navContainer = document.createElement('nav');
+        navContainer.className = 'bottom-nav';
+        navContainer.id = 'bottomNav';
+        document.body.appendChild(navContainer);
+      }
+      
+      console.log(`[INIT] Loading navigation HTML...`);
+      const navRes = await fetch('../bottom-nav.html?v=' + Date.now());
+      const navHTML = await navRes.text();
+      
+      // Extract just the nav content (without the outer nav tag)
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = navHTML;
+      const navContent = tempDiv.querySelector('nav').innerHTML;
+      navContainer.innerHTML = navContent;
+      
+      // Set up navigation using the centralized function from app.js
+      if (window.setupBottomNavigation) {
+        console.log(`[INIT] Setting up navigation for event: ${tableId}`);
+        window.setupBottomNavigation(navContainer, tableId, 'schedule');
+        console.log(`[INIT] Navigation setup complete`);
+      }
+      
+      if (window.lucide) {
+        lucide.createIcons();
+      }
+    } catch (err) {
+      console.error('Failed to load bottom nav:', err);
     }
-  }
-
-  // Load bottom nav HTML
-  console.log(`[INIT] Starting bottom nav setup...`);
-  try {
-    let navContainer = document.getElementById('bottomNav');
-    if (!navContainer) {
-      navContainer = document.createElement('nav');
-      navContainer.className = 'bottom-nav';
-      navContainer.id = 'bottomNav';
-      document.body.appendChild(navContainer);
-    }
-    logEventIdState('AFTER_NAV_CONTAINER_SETUP');
-    
-    console.log(`[INIT] Fetching ../bottom-nav.html...`);
-    const navRes = await fetch('../bottom-nav.html?v=' + Date.now());
-    const navHTML = await navRes.text();
-    logEventIdState('AFTER_NAV_HTML_FETCH');
-    
-    // Extract just the nav content (without the outer nav tag)
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = navHTML;
-    const navContent = tempDiv.querySelector('nav').innerHTML;
-    navContainer.innerHTML = navContent;
-    logEventIdState('AFTER_NAV_HTML_SET');
-    
-    // Set up navigation using the centralized function from app.js
-    // IMPORTANT: Pass the current tableId to ensure navigation stays within this event
-    console.log(`[INIT] About to call setupBottomNavigation with event: ${tableId}`);
-    logEventIdState('BEFORE_SETUP_BOTTOM_NAV');
-    
-    if (window.setupBottomNavigation) {
-      console.log(`[INIT] Calling setupBottomNavigation(navContainer, ${tableId}, 'schedule')`);
-      window.setupBottomNavigation(navContainer, tableId, 'schedule');
-      console.log(`[INIT] setupBottomNavigation completed`);
-      logEventIdState('AFTER_SETUP_BOTTOM_NAV');
-    } else {
-      console.warn(`[INIT] window.setupBottomNavigation not available`);
-    }
-    
-    if (window.lucide) {
-      console.log(`[INIT] Creating lucide icons...`);
-      lucide.createIcons();
-      logEventIdState('AFTER_LUCIDE_ICONS');
-    }
-  } catch (err) {
-    console.error('Failed to load bottom nav:', err);
-    logEventIdState('AFTER_NAV_ERROR');
+  } else {
+    console.log(`[INIT] Navigation already exists, skipping setup`);
   }
 
   // Setup event listeners for schedule page controls
@@ -342,37 +327,24 @@ window.initPage = async function(id) {
   }
   
   console.log(`[INIT] Event listeners setup complete`);
-  logEventIdState('AFTER_EVENT_LISTENERS');
 
-  // Monitor for external changes to eventId during loadPrograms
-  console.log(`[INIT] About to call loadPrograms with tableId: ${tableId}...`);
-  logEventIdState('BEFORE_LOAD_PROGRAMS');
-  
   // Load programs (this sets isOwner/hasScheduleAccess and calls renderProgramSections)
-  // Pass the tableId directly to ensure no confusion
+  console.log(`[INIT] Loading programs for event: ${tableId}...`);
   await loadPrograms(tableId);
-  
-  console.log(`[INIT] loadPrograms completed`);
-  logEventIdState('AFTER_LOAD_PROGRAMS');
+  console.log(`[INIT] Programs loaded successfully`);
 
-  // Check for interference after loadPrograms - but only warn, don't override
-  const eventIdAfterLoad = localStorage.getItem('eventId');
-  
-  // Verify that the event ID is still correct after loadPrograms
-  if (eventIdAfterLoad !== tableId) {
-    console.warn(`[INIT] Event ID changed during loadPrograms! Expected: ${tableId}, Current: ${eventIdAfterLoad}. This indicates interference from external code.`);
-    // Only update the module variable, don't force localStorage changes
-    currentEventId = tableId;
-    logEventIdState('AFTER_DETECTION');
+  // Check for interference after loadPrograms
+  if (!checkEventIdStability()) {
+    console.warn(`[INIT] Event ID was modified during program loading - this indicates interference`);
   }
 
-  // Only restore filter settings after loadPrograms, and do not call renderProgramSections in restoreFilterSettings
+  // Only restore filter settings after loadPrograms
   if (isEventChange) {
     console.log('[INIT] Event changed, resetting filters and scroll position');
     resetFilterSettings();
   } else {
     console.log('[INIT] Same event, restoring filter settings');
-    restoreFilterSettings(); // This should only update filter/search UI, not re-render
+    restoreFilterSettings();
     
     // If we restored filters, re-render to apply them
     if (filterDate !== 'all' || searchQuery) {
@@ -385,28 +357,27 @@ window.initPage = async function(id) {
   const endTime = Date.now();
   console.log(`=== SCHEDULE INITPAGE COMPLETE (${endTime - startTime}ms) ===\n`);
   
-  // Stop monitoring after a delay to catch any post-init changes
-  setTimeout(() => {
-    stopEventIdMonitoring();
-  }, 2000);
+  // Stop monitoring after completion
+  setTimeout(stopEventIdMonitoring, 1000);
 };
 
 // Load collaborative schedule system
 async function loadCollaborativeSystem() {
   return new Promise((resolve, reject) => {
-    if (window.__collaborativeScheduleLoaded) {
+    if (window.__simpleCollabLoaded) {
       resolve();
       return;
     }
     
     const script = document.createElement('script');
-    script.src = `${API_BASE}/js/schedule-collaborative.js?v=${Date.now()}`;
+    script.src = `${API_BASE}/js/schedule-simple-collab.js?v=${Date.now()}`;
     script.onload = () => {
-      console.log('✅ Collaborative schedule system loaded');
+      console.log('✅ Simple collaborative system loaded');
+      window.__simpleCollabLoaded = true;
       resolve();
     };
     script.onerror = () => {
-      console.error('❌ Failed to load collaborative schedule system');
+      console.error('❌ Failed to load simple collaborative system');
       resolve(); // Don't reject, continue without collaborative features
     };
     document.head.appendChild(script);
@@ -520,15 +491,17 @@ async function loadPrograms(tableId = null, retryCount = 0) {
     console.log(`[LOAD] Date filter options setup complete`);
     logEventIdState('AFTER_DATE_FILTER_SETUP');
 
-    // Initialize collaborative features if available
-    if (window.CollaborativeSchedule && !window.__collaborativeScheduleInitialized) {
-      console.log('🤝 Initializing collaborative schedule features...');
+    // Initialize simple collaborative features if available
+    if (window.SimpleCollab && !window.__simpleCollabInitialized) {
+      console.log('🤝 Initializing simple collaborative features...');
       try {
-        window.CollaborativeSchedule.init(eventId, tableData.programs, hasScheduleAccess);
-        window.__collaborativeScheduleInitialized = true;
-        console.log('✅ Collaborative features initialized successfully');
+        const userId = await getUserIdFromToken();
+        const userName = getUserName();
+        window.SimpleCollab.init(eventId, userId, userName);
+        window.__simpleCollabInitialized = true;
+        console.log('✅ Simple collaborative features initialized successfully');
       } catch (error) {
-        console.error('❌ Failed to initialize collaborative features:', error);
+        console.error('❌ Failed to initialize simple collaborative features:', error);
       }
     }
 
@@ -591,6 +564,38 @@ async function getUserIdFromToken() {
   }
 }
 
+function getUserName() {
+  // Try to get user name from JWT token
+  const token = localStorage.getItem('token');
+  if (!token) return 'Anonymous User';
+  
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    console.log('[DEBUG] JWT payload for username:', JSON.stringify(payload, null, 2));
+    
+    // Try different possible name fields in the JWT
+    const possibleNames = [
+      payload.fullName,     // Most likely field - try this first
+      payload.name,
+      payload.username, 
+      payload.displayName,
+      payload.firstName,
+      payload.email?.split('@')[0], // Use email prefix as fallback
+      payload.userId && `User ${payload.userId}`,
+      payload.id && `User ${payload.id}`,
+      'User Unknown'
+    ];
+    
+    const userName = possibleNames.find(name => name && name.trim() !== '');
+    console.log('[DEBUG] Selected username:', userName);
+    return userName;
+    
+  } catch (error) {
+    console.error('[DEBUG] Error parsing JWT for username:', error);
+    return 'Anonymous User';
+  }
+}
+
 function getUserRoleFromToken() {
   const token = localStorage.getItem('token');
   if (!token) return null;
@@ -633,40 +638,22 @@ async function savePrograms() {
 }
 
 function scheduleSave() {
-  // Prevent multiple simultaneous saves
-  if (window.saveInProgress) {
-    console.log('[SCHEDULE SAVE] Save already in progress, queueing for later');
-    window.pendingSave = true;
-    return;
-  }
-  
-  clearTimeout(saveTimeout);
-  saveTimeout = setTimeout(async () => {
-    try {
-      window.saveInProgress = true;
-      console.log('[SCHEDULE SAVE] Starting save operation...');
-      
-      await savePrograms();
-      
-      console.log('[SCHEDULE SAVE] Save completed successfully');
-      
-      // Check if another save was requested while we were saving
-      if (window.pendingSave) {
-        console.log('[SCHEDULE SAVE] Processing queued save...');
-        window.pendingSave = false;
-        // Schedule another save with a short delay
-        setTimeout(() => {
-          if (!window.saveInProgress) {
-            scheduleSave();
-          }
-        }, 200);
-      }
-    } catch (error) {
-      console.error('[SCHEDULE SAVE] Save failed:', error);
-    } finally {
-      window.saveInProgress = false;
+  return new Promise((resolve, reject) => {
+    // Clear any existing timeout to prevent double-saves
+    if (saveTimeout) {
+      clearTimeout(saveTimeout);
     }
-  }, 1000); // Keep the 1-second delay but make it safer
+    
+    // Debounce saves to prevent too many rapid updates
+    saveTimeout = setTimeout(async () => {
+      try {
+        await savePrograms();
+        resolve();
+      } catch (error) {
+        reject(error);
+      }
+    }, 500);
+  });
 }
 
 function renderProgramSections(hasScheduleAccess) {
@@ -754,7 +741,12 @@ function renderProgramSections(hasScheduleAccess) {
       const entry = document.createElement('div');
       entry.className = 'program-entry' + (program.done ? ' done-entry' : '');
       entry.setAttribute('data-program-index', program.__index);
-      if (program._id) entry.setAttribute('data-program-id', program._id);
+      
+      // Use _id if available, otherwise use _tempId for new programs
+      const programId = program._id || program._tempId;
+      if (programId) {
+        entry.setAttribute('data-program-id', programId);
+      }
 
       entry.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
@@ -770,6 +762,7 @@ function renderProgramSections(hasScheduleAccess) {
             <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; margin-bottom: 0;">
             <input type="checkbox" class="done-checkbox"
               data-field="done"
+              data-original-value="${program.done ? 'true' : 'false'}"
               style="width: 20px; height: 20px;"
               ${program.done ? 'checked' : ''}
               onchange="toggleDone(this, ${program.__index})">
@@ -933,20 +926,39 @@ function toggleDone(checkbox, index) {
   
   const program = tableData.programs[index];
   const newValue = checkbox.checked;
+  // Get the original value from the stored data attribute (set during rendering)
+  const originalValue = checkbox.getAttribute('data-original-value') === 'true';
   
-  console.log(`[TOGGLE DONE] Program ${index} done: ${program.done} → ${newValue}`);
+  // Only proceed if there's an actual change from the original value
+  if (originalValue === newValue) {
+    console.log(`[TOGGLE DONE] No change detected (${originalValue} → ${newValue}), skipping`);
+    return;
+  }
   
-  // Use safe update for consistency
-  const wasChanged = safeUpdateProgram(index, 'done', newValue);
+  console.log(`[TOGGLE DONE] Program ${index} done: ${originalValue} → ${newValue}`);
   
-  // Update visual state
+  // Update visual state immediately
   const entry = checkbox.closest('.program-entry');
   if (entry) {
     entry.classList.toggle('done-entry', newValue);
   }
   
-  if (wasChanged) {
-    scheduleSave();
+  // Update in-memory data immediately for responsive UI
+  program.done = newValue;
+  
+  // Update the data attribute to reflect the new original value
+  checkbox.setAttribute('data-original-value', newValue ? 'true' : 'false');
+  
+  // ALWAYS save changes - either via collaborative system or direct save
+  if (program._id && window.__collaborativeScheduleInitialized) {
+    console.log('[TOGGLE DONE] Program has ID - collaborative system handling');
+    // Collaborative system will handle via change event listener
+  } else {
+    console.log('[TOGGLE DONE] No program ID or collaborative system - saving directly');
+    const wasChanged = safeUpdateProgram(index, 'done', newValue);
+    if (wasChanged) {
+      scheduleSave();
+    }
   }
 }
 
@@ -1049,6 +1061,12 @@ function autoSave(field, date, ignoredIndex, key) {
 // Optimistic UI: update tableData on input
 function optimisticInputHandler(e) {
   const field = e.target;
+  
+  // Skip optimistic updates for checkboxes - they're handled by toggleDone
+  if (field.type === 'checkbox') {
+    return;
+  }
+  
   const entry = field.closest('.program-entry');
   if (!entry) return;
   const programIndex = parseInt(entry.getAttribute('data-program-index'), 10);
@@ -1060,13 +1078,10 @@ function optimisticInputHandler(e) {
     key = key.toLowerCase();
   } else if (field.className.includes('program-name')) {
     key = 'name';
-  } else if (field.className.includes('done-checkbox')) {
-    key = 'done';
   }
   
   if (key && tableData.programs[programIndex]) {
-    // For checkbox, use checked property, otherwise use value
-    const value = field.type === 'checkbox' ? field.checked : field.value;
+    const value = field.value;
     tableData.programs[programIndex][key] = value;
     
     console.log(`[OPTIMISTIC] Updated ${key} = ${value} for program ${programIndex}`);
@@ -1162,7 +1177,7 @@ function safeUpdateProgram(programIndex, field, value) {
 }
 
 function safeAddProgram(date) {
-  // Don't capture current programs - this causes data loss
+  // Create new program with temporary ID until saved to database
   const newProgram = { 
     date, 
     name: '', 
@@ -1171,13 +1186,30 @@ function safeAddProgram(date) {
     location: '', 
     photographer: '', 
     notes: '',
-    done: false
+    done: false,
+    // Add a temporary ID for UI consistency (will be replaced by MongoDB _id after save)
+    _tempId: generateTempId()
   };
   
   tableData.programs.push(newProgram);
-  console.log(`[SAFE ADD] Added new program for ${date}`);
+  console.log(`[SAFE ADD] Added new program for ${date} with temp ID: ${newProgram._tempId}`);
   renderProgramSections(isOwner);
-  scheduleSave();
+  
+  // Broadcast to other users if collaboration is enabled
+  if (window.SimpleCollab && window.SimpleCollab.isEnabled()) {
+    window.SimpleCollab.broadcastProgramAdded(date, newProgram);
+  }
+  
+  // Save immediately to get a real MongoDB _id
+  scheduleSave().then(() => {
+    console.log(`[SAFE ADD] Program saved, should now have real _id`);
+    // Re-render to update data-program-id attributes with real IDs
+    if (window.__collaborativeScheduleInitialized) {
+      setTimeout(() => renderProgramSections(isOwner), 100);
+    }
+  }).catch(err => {
+    console.error('[SAFE ADD] Failed to save new program:', err);
+  });
 }
 
 function safeDeleteProgram(programIndex) {
@@ -1188,6 +1220,11 @@ function safeDeleteProgram(programIndex) {
   
   const program = tableData.programs[programIndex];
   console.log(`[SAFE DELETE] Removing program: ${program.name || 'Untitled'} on ${program.date}`);
+  
+  // Broadcast to other users if collaboration is enabled
+  if (window.SimpleCollab && window.SimpleCollab.isEnabled()) {
+    window.SimpleCollab.broadcastProgramDeleted(program);
+  }
   
   tableData.programs.splice(programIndex, 1);
   renderProgramSections(isOwner);
@@ -1219,7 +1256,9 @@ function addDateSection() {
     location: '', 
     photographer: '', 
     notes: '',
-    done: false
+    done: false,
+    // Add automatic temporary ID for collaborative system compatibility
+    _tempId: generateTempId()
   };
   
   tableData.programs.push(newProgram);
@@ -1612,7 +1651,9 @@ function processImportedData(data) {
       location: columnMap.location !== -1 ? (row[columnMap.location] || '') : '',
       photographer: columnMap.photographer !== -1 ? (row[columnMap.photographer] || '') : '',
       notes: columnMap.notes !== -1 ? (row[columnMap.notes] || '') : '',
-      done: isDone
+      done: isDone,
+      // Add automatic temporary ID for collaborative system compatibility
+      _tempId: generateTempId(`import_${i}`)
     });
   }
   
@@ -1766,6 +1807,15 @@ function formatTimeValue(timeValue) {
   return timeValue;
 }
 
+// Utility function to generate temporary IDs for new programs
+// This ensures all programs (manual and imported) have IDs from creation
+// Temporary IDs get replaced with MongoDB _ids when saved to backend
+function generateTempId(suffix = '') {
+  const timestamp = Date.now();
+  const randomId = Math.random().toString(36).substr(2, 9);
+  return `temp_${timestamp}_${randomId}${suffix ? '_' + suffix : ''}`;
+}
+
 // Function to download a CSV template for importing
 function downloadImportTemplate() {
   // Only allow owners to download the template
@@ -1799,6 +1849,7 @@ function downloadImportTemplate() {
 }
 
 // Add to exports
+window.generateTempId = generateTempId;
 window.downloadImportTemplate = downloadImportTemplate;
 window.handleFileImport = handleFileImport;
 window.processImportedData = processImportedData;
@@ -2137,20 +2188,31 @@ function updateProgramRow(program, hasScheduleAccess) {
 
 // Smart field update function that preserves input states
 function updateProgramFields(entry, program, preservationData, hasScheduleAccess, programIndex) {
-  // Update program name input
+  // Update name
   const nameInput = entry.querySelector('.program-name');
   if (nameInput && !isFieldCurrentlyFocused(nameInput, preservationData)) {
     if (nameInput.value !== (program.name || '')) {
       console.log(`[UPDATE] Updating name: '${nameInput.value}' -> '${program.name || ''}'`);
+      
+      // CRITICAL: Mark as programmatic update to prevent feedback loops
+      nameInput.dataset.collaborativeUpdate = 'true';
+      
       nameInput.value = program.name || '';
     }
   }
   
   // Update done checkbox
-  const doneCheckbox = entry.querySelector('.done-checkbox');
-  if (doneCheckbox && doneCheckbox.checked !== !!program.done) {
-    console.log(`[UPDATE] Updating done status: ${doneCheckbox.checked} -> ${!!program.done}`);
-    doneCheckbox.checked = !!program.done;
+  const doneCheckbox = entry.querySelector('input[type="checkbox"]');
+  if (doneCheckbox && !isFieldCurrentlyFocused(doneCheckbox, preservationData)) {
+    if (doneCheckbox.checked !== Boolean(program.done)) {
+      console.log(`[UPDATE] Updating done: ${doneCheckbox.checked} -> ${Boolean(program.done)}`);
+      
+      // CRITICAL: Mark as programmatic update to prevent feedback loops
+      doneCheckbox.dataset.collaborativeUpdate = 'true';
+      
+      doneCheckbox.checked = Boolean(program.done);
+      entry.classList.toggle('done-entry', Boolean(program.done));
+    }
   }
   
   // Update start time
@@ -2158,6 +2220,10 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
   if (startTimeInput && !isFieldCurrentlyFocused(startTimeInput, preservationData)) {
     if (startTimeInput.value !== (program.startTime || '')) {
       console.log(`[UPDATE] Updating start time: '${startTimeInput.value}' -> '${program.startTime || ''}'`);
+      
+      // CRITICAL: Mark as programmatic update to prevent feedback loops
+      startTimeInput.dataset.collaborativeUpdate = 'true';
+      
       startTimeInput.value = program.startTime || '';
     }
   }
@@ -2167,6 +2233,10 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
   if (endTimeInput && !isFieldCurrentlyFocused(endTimeInput, preservationData)) {
     if (endTimeInput.value !== (program.endTime || '')) {
       console.log(`[UPDATE] Updating end time: '${endTimeInput.value}' -> '${program.endTime || ''}'`);
+      
+      // CRITICAL: Mark as programmatic update to prevent feedback loops
+      endTimeInput.dataset.collaborativeUpdate = 'true';
+      
       endTimeInput.value = program.endTime || '';
     }
   }
@@ -2176,6 +2246,10 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
   if (locationTextarea && !isFieldCurrentlyFocused(locationTextarea, preservationData)) {
     if (locationTextarea.value !== (program.location || '')) {
       console.log(`[UPDATE] Updating location: '${locationTextarea.value}' -> '${program.location || ''}'`);
+      
+      // CRITICAL: Mark as programmatic update to prevent feedback loops
+      locationTextarea.dataset.collaborativeUpdate = 'true';
+      
       locationTextarea.value = program.location || '';
       autoResizeTextarea(locationTextarea);
     }
@@ -2186,6 +2260,10 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
   if (photographerTextarea && !isFieldCurrentlyFocused(photographerTextarea, preservationData)) {
     if (photographerTextarea.value !== (program.photographer || '')) {
       console.log(`[UPDATE] Updating photographer: '${photographerTextarea.value}' -> '${program.photographer || ''}'`);
+      
+      // CRITICAL: Mark as programmatic update to prevent feedback loops
+      photographerTextarea.dataset.collaborativeUpdate = 'true';
+      
       photographerTextarea.value = program.photographer || '';
       autoResizeTextarea(photographerTextarea);
     }
@@ -2196,6 +2274,10 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
   if (notesTextarea && !isFieldCurrentlyFocused(notesTextarea, preservationData)) {
     if (notesTextarea.value !== (program.notes || '')) {
       console.log(`[UPDATE] Updating notes: '${notesTextarea.value}' -> '${program.notes || ''}'`);
+      
+      // CRITICAL: Mark as programmatic update to prevent feedback loops
+      notesTextarea.dataset.collaborativeUpdate = 'true';
+      
       notesTextarea.value = program.notes || '';
       autoResizeTextarea(notesTextarea);
     }
