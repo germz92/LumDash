@@ -20,6 +20,7 @@ let lastEventTime = 0; // Track when the last event started processing
 let isActivelyEditing = false; // Track if user is actively editing
 let lastInputTime = 0; // Track when user last typed
 let deferredUpdate = null; // Store deferred updates
+let deferredUpdateTimeout = null; // Timeout for deferred updates
 
 // Function to refresh owner status and update collaborative system
 function refreshOwnerStatus(newOwnerStatus) {
@@ -108,28 +109,52 @@ function setupSocketListeners() {
       return;
     }
     
-    // Don't update UI if user is actively editing
-    if (isActivelyEditing && Date.now() - lastInputTime < 2000) {
-      console.log("[CARD-LOG] User is actively editing, deferring update");
+    // Enhanced safety checks for race conditions
+    const timeSinceLastInput = Date.now() - lastInputTime;
+    const isRecentlyEditing = isActivelyEditing && timeSinceLastInput < 3000; // Increased timeout
+    
+    // Don't update UI if user is actively editing or recently finished editing
+    if (isRecentlyEditing) {
+      console.log(`[CARD-LOG] User is actively editing (last input ${timeSinceLastInput}ms ago), deferring update`);
+      
+      // Clear any existing deferred update and store the new one
+      if (deferredUpdateTimeout) {
+        clearTimeout(deferredUpdateTimeout);
+      }
+      
       deferredUpdate = data; // Store the update for later
-      setTimeout(() => {
-        if (!isActivelyEditing && deferredUpdate) {
-          console.log("[CARD-LOG] User finished editing, applying deferred update");
+      
+      deferredUpdateTimeout = setTimeout(() => {
+        if (!isActivelyEditing && deferredUpdate && Date.now() - lastInputTime > 2000) {
+          console.log("[CARD-LOG] Applying deferred update after user finished editing");
           const storedData = deferredUpdate;
           deferredUpdate = null;
-          // Process the stored update
-          processingSocketEvent = true;
-          lastEventTime = Date.now();
+          deferredUpdateTimeout = null;
           
-          try {
-            applySmartDayUpdate(storedData.cardLog.date, storedData.cardLog.entries);
-          } finally {
-            setTimeout(() => {
-              processingSocketEvent = false;
-            }, 100);
+          // Process the stored update with safety checks
+          if (storedData && storedData.cardLog) {
+            processingSocketEvent = true;
+            lastEventTime = Date.now();
+            
+            try {
+              setTimeout(() => {
+                applySmartDayUpdate(storedData.cardLog.date, storedData.cardLog.entries);
+              }, 100); // Small delay to ensure DOM stability
+            } catch (error) {
+              console.error('[CARD-LOG] Error in deferred update:', error);
+            } finally {
+              setTimeout(() => {
+                processingSocketEvent = false;
+                console.log('[CARD-LOG] Deferred update applied using smart update');
+              }, 200);
+            }
           }
+        } else {
+          console.log("[CARD-LOG] Skipping deferred update - user still editing or no data");
+          deferredUpdate = null;
+          deferredUpdateTimeout = null;
         }
-      }, 2000);
+      }, 3000); // Increased timeout for better stability
       return;
     }
     
@@ -155,8 +180,14 @@ function setupSocketListeners() {
         entries: data.cardLog.entries
       });
       
-      // Use smart update instead of removing/recreating the entire day
-      applySmartDayUpdate(data.cardLog.date, data.cardLog.entries);
+      // Add small delay to prevent race conditions with DOM updates
+      setTimeout(() => {
+        try {
+          applySmartDayUpdate(data.cardLog.date, data.cardLog.entries);
+        } catch (updateError) {
+          console.error('[CARD-LOG] Error in delayed smart update:', updateError);
+        }
+      }, 50);
       
     } catch (error) {
       console.error('[CARD-LOG] Error processing cardLogUpdated:', error);
@@ -164,7 +195,7 @@ function setupSocketListeners() {
       setTimeout(() => {
         processingSocketEvent = false;
         console.log('[CARD-LOG] Processing flag reset to false');
-      }, 100);
+      }, 150); // Slightly longer delay
     }
   });
   
@@ -1402,48 +1433,97 @@ function applySmartDayUpdate(date, entries) {
   
   console.log(`[CARD-LOG] Smart updating day section for ${date}`);
   
-  // Preserve current input values and focus state
-  const preservationData = preserveInputStates(dayDiv);
-  
-  // Get current rows
-  const tbody = dayDiv.querySelector('tbody');
-  const currentRows = tbody ? Array.from(tbody.querySelectorAll('tr')) : [];
-  const targetEntries = Array.isArray(entries) ? entries : [];
-  
-  console.log(`[CARD-LOG] Current rows: ${currentRows.length}, Target entries: ${targetEntries.length}`);
-  
-  // Handle row count differences
-  if (targetEntries.length > currentRows.length) {
-    // Add missing rows
-    const rowsToAdd = targetEntries.length - currentRows.length;
-    console.log(`[CARD-LOG] Adding ${rowsToAdd} new rows`);
-    for (let i = 0; i < rowsToAdd; i++) {
-      const rowIndex = currentRows.length + i;
-      const entryData = targetEntries[rowIndex] || {};
-      addRow(date, entryData);
-    }
-  } else if (targetEntries.length < currentRows.length) {
-    // Remove extra rows (from the end)
-    const rowsToRemove = currentRows.length - targetEntries.length;
-    console.log(`[CARD-LOG] Removing ${rowsToRemove} extra rows`);
-    for (let i = 0; i < rowsToRemove; i++) {
-      const lastRow = tbody.querySelector('tr:last-child');
-      if (lastRow) lastRow.remove();
-    }
+  // Safety check: if user is actively typing, defer the update
+  if (isActivelyEditing) {
+    console.log(`[CARD-LOG] User is actively editing, deferring smart update for ${date}`);
+    setTimeout(() => {
+      if (!isActivelyEditing) {
+        console.log(`[CARD-LOG] Retrying deferred smart update for ${date}`);
+        applySmartDayUpdate(date, entries);
+      }
+    }, 500);
+    return;
   }
   
-  // Update existing rows with new data (but preserve user input if they're actively editing)
-  const updatedRows = tbody.querySelectorAll('tr');
-  targetEntries.forEach((entry, index) => {
-    if (updatedRows[index]) {
-      updateRowData(updatedRows[index], entry, preservationData);
+  try {
+    // Preserve current input values and focus state
+    const preservationData = preserveInputStates(dayDiv);
+    
+    // Get current rows with safety checks
+    const tbody = dayDiv.querySelector('tbody');
+    if (!tbody || !tbody.isConnected) {
+      console.warn(`[CARD-LOG] Invalid tbody for day ${date}, recreating section`);
+      addDaySection(date, entries);
+      return;
     }
-  });
-  
-  // Update row indices to ensure they're correct after changes
-  updateRowIndices(date);
-  
-  console.log(`[CARD-LOG] Smart update completed for ${date}`);
+    
+    const currentRows = Array.from(tbody.querySelectorAll('tr'));
+    const targetEntries = Array.isArray(entries) ? entries : [];
+    
+    console.log(`[CARD-LOG] Current rows: ${currentRows.length}, Target entries: ${targetEntries.length}`);
+    
+    // Handle row count differences with safety checks
+    if (targetEntries.length > currentRows.length) {
+      // Add missing rows
+      const rowsToAdd = targetEntries.length - currentRows.length;
+      console.log(`[CARD-LOG] Adding ${rowsToAdd} new rows`);
+      for (let i = 0; i < rowsToAdd; i++) {
+        const rowIndex = currentRows.length + i;
+        const entryData = targetEntries[rowIndex] || {};
+        try {
+          addRow(date, entryData);
+        } catch (error) {
+          console.error(`[CARD-LOG] Error adding row ${rowIndex}:`, error);
+          break; // Stop adding rows if there's an error
+        }
+      }
+    } else if (targetEntries.length < currentRows.length) {
+      // Remove extra rows (from the end) with safety checks
+      const rowsToRemove = currentRows.length - targetEntries.length;
+      console.log(`[CARD-LOG] Removing ${rowsToRemove} extra rows`);
+      for (let i = 0; i < rowsToRemove; i++) {
+        const lastRow = tbody.querySelector('tr:last-child');
+        if (lastRow && lastRow.isConnected) {
+          lastRow.remove();
+        }
+      }
+    }
+    
+    // Update existing rows with new data (but preserve user input if they're actively editing)
+    const updatedRows = tbody.querySelectorAll('tr');
+    targetEntries.forEach((entry, index) => {
+      if (updatedRows[index] && updatedRows[index].isConnected) {
+        try {
+          updateRowData(updatedRows[index], entry, preservationData);
+        } catch (error) {
+          console.warn(`[CARD-LOG] Error updating row ${index}:`, error);
+          // Continue with other rows
+        }
+      }
+    });
+    
+    // Update row indices to ensure they're correct after changes
+    try {
+      updateRowIndices(date);
+    } catch (error) {
+      console.warn(`[CARD-LOG] Error updating row indices for ${date}:`, error);
+    }
+    
+    console.log(`[CARD-LOG] Smart update completed for ${date}`);
+  } catch (error) {
+    console.error(`[CARD-LOG] Critical error in applySmartDayUpdate for ${date}:`, error);
+    // Fallback: recreate the entire day section
+    console.log(`[CARD-LOG] Falling back to full recreation for ${date}`);
+    try {
+      const existingDay = document.getElementById(`day-${date}`);
+      if (existingDay) {
+        existingDay.remove();
+      }
+      addDaySection(date, entries);
+    } catch (fallbackError) {
+      console.error(`[CARD-LOG] Fallback recreation also failed for ${date}:`, fallbackError);
+    }
+  }
 }
 
 // Preserve input states before DOM manipulation
@@ -1454,136 +1534,213 @@ function preserveInputStates(dayDiv) {
     selectionStates: new Map()
   };
   
-  // Get currently focused element
-  const activeElement = document.activeElement;
-  if (activeElement && dayDiv.contains(activeElement)) {
-    preservationData.focusedElement = {
-      tagName: activeElement.tagName,
-      type: activeElement.type,
-      rowIndex: Array.from(activeElement.closest('tbody').children).indexOf(activeElement.closest('tr')),
-      cellIndex: Array.from(activeElement.closest('tr').children).indexOf(activeElement.closest('td')),
-      selectionStart: activeElement.selectionStart,
-      selectionEnd: activeElement.selectionEnd
-    };
-    console.log('[CARD-LOG] Preserving focus state:', preservationData.focusedElement);
+  // Safety check: ensure dayDiv exists and is valid
+  if (!dayDiv || !dayDiv.isConnected) {
+    console.warn('[CARD-LOG] Invalid or disconnected dayDiv passed to preserveInputStates');
+    return preservationData;
   }
   
-  // Preserve all input values and selection states
-  const inputs = dayDiv.querySelectorAll('input, select');
-  inputs.forEach((input, index) => {
-    const row = input.closest('tr');
-    const cell = input.closest('td');
-    if (row && cell) {
-      const rowIndex = Array.from(row.parentNode.children).indexOf(row);
-      const cellIndex = Array.from(row.children).indexOf(cell);
-      const key = `${rowIndex}-${cellIndex}`;
+  try {
+    // Get currently focused element
+    const activeElement = document.activeElement;
+    if (activeElement && dayDiv.contains(activeElement)) {
+      const closestTr = activeElement.closest('tr');
+      const closestTd = activeElement.closest('td');
+      const closestTbody = activeElement.closest('tbody');
       
-      preservationData.inputValues.set(key, {
-        value: input.value,
-        tagName: input.tagName,
-        type: input.type
-      });
-      
-      // Preserve selection state for inputs
-      if (input.tagName === 'INPUT' && input.type === 'text') {
-        preservationData.selectionStates.set(key, {
-          selectionStart: input.selectionStart,
-          selectionEnd: input.selectionEnd
-        });
+      // Additional safety checks for DOM structure
+      if (closestTr && closestTd && closestTbody) {
+        const parentChildren = closestTbody.children;
+        const rowChildren = closestTr.children;
+        
+        // Ensure parent elements exist and have children before accessing
+        if (parentChildren && rowChildren && parentChildren.length > 0 && rowChildren.length > 0) {
+          preservationData.focusedElement = {
+            tagName: activeElement.tagName,
+            type: activeElement.type,
+            rowIndex: Array.from(parentChildren).indexOf(closestTr),
+            cellIndex: Array.from(rowChildren).indexOf(closestTd),
+            selectionStart: activeElement.selectionStart,
+            selectionEnd: activeElement.selectionEnd
+          };
+          console.log('[CARD-LOG] Preserving focus state:', preservationData.focusedElement);
+        }
       }
     }
-  });
+    
+    // Preserve all input values and selection states with safety checks
+    const inputs = dayDiv.querySelectorAll('input, select');
+    inputs.forEach((input, index) => {
+      try {
+        const row = input.closest('tr');
+        const cell = input.closest('td');
+        
+        if (row && cell && row.parentNode && row.children && cell.parentNode) {
+          // Additional safety checks for parent elements
+          const parentChildren = row.parentNode.children;
+          const rowChildren = row.children;
+          
+          if (parentChildren && rowChildren && parentChildren.length > 0 && rowChildren.length > 0) {
+            const rowIndex = Array.from(parentChildren).indexOf(row);
+            const cellIndex = Array.from(rowChildren).indexOf(cell);
+            
+            // Ensure indices are valid
+            if (rowIndex >= 0 && cellIndex >= 0) {
+              const key = `${rowIndex}-${cellIndex}`;
+              
+              preservationData.inputValues.set(key, {
+                value: input.value || '',
+                tagName: input.tagName,
+                type: input.type
+              });
+              
+              // Preserve selection state for inputs
+              if (input.tagName === 'INPUT' && input.type === 'text') {
+                preservationData.selectionStates.set(key, {
+                  selectionStart: input.selectionStart || 0,
+                  selectionEnd: input.selectionEnd || 0
+                });
+              }
+            }
+          }
+        }
+      } catch (inputError) {
+        console.warn(`[CARD-LOG] Error preserving input state for element ${index}:`, inputError);
+        // Continue processing other inputs even if one fails
+      }
+    });
+  } catch (error) {
+    console.error('[CARD-LOG] Error in preserveInputStates:', error);
+    // Return partial data that we were able to preserve
+  }
   
   return preservationData;
 }
 
 // Update a single row's data while preserving user input
 function updateRowData(row, targetEntry, preservationData) {
-  const cells = row.querySelectorAll('td');
-  if (!cells || cells.length < 4) return;
+  // Safety checks
+  if (!row || !row.isConnected || !targetEntry) {
+    console.warn('[CARD-LOG] Invalid row or entry data in updateRowData');
+    return;
+  }
   
-  const rowIndex = Array.from(row.parentNode.children).indexOf(row);
-  
-  // Update camera select (cell 0)
-  const cameraSelect = cells[0].querySelector('select');
-  if (cameraSelect && !isUserCurrentlyEditing(cameraSelect, preservationData)) {
-    // Ensure the camera option exists in the dropdown before setting it
-    if (targetEntry.camera) {
-      let cameraOption = cameraSelect.querySelector(`option[value="${targetEntry.camera}"]`);
-      if (!cameraOption && targetEntry.camera) {
-        // Camera doesn't exist in dropdown, add it
-        if (!cameras.includes(targetEntry.camera)) {
-          cameras.push(targetEntry.camera);
-          if (!customCameras.includes(targetEntry.camera)) {
-            customCameras.push(targetEntry.camera);
-            localStorage.setItem(`customCameras_${localStorage.getItem('eventId')}`, JSON.stringify(customCameras));
+  try {
+    const cells = row.querySelectorAll('td');
+    if (!cells || cells.length < 4) {
+      console.warn('[CARD-LOG] Insufficient cells in row for updateRowData');
+      return;
+    }
+    
+    // Additional safety check for parent structure
+    if (!row.parentNode || !row.parentNode.children) {
+      console.warn('[CARD-LOG] Invalid parent structure in updateRowData');
+      return;
+    }
+    
+    const rowIndex = Array.from(row.parentNode.children).indexOf(row);
+    
+    // Update camera select (cell 0)
+    const cameraSelect = cells[0]?.querySelector('select');
+    if (cameraSelect && !isUserCurrentlyEditing(cameraSelect, preservationData)) {
+      // Ensure the camera option exists in the dropdown before setting it
+      if (targetEntry.camera) {
+        let cameraOption = cameraSelect.querySelector(`option[value="${targetEntry.camera}"]`);
+        if (!cameraOption && targetEntry.camera) {
+          // Camera doesn't exist in dropdown, add it
+          if (!cameras.includes(targetEntry.camera)) {
+            cameras.push(targetEntry.camera);
+            if (!customCameras.includes(targetEntry.camera)) {
+              customCameras.push(targetEntry.camera);
+              localStorage.setItem(`customCameras_${localStorage.getItem('eventId')}`, JSON.stringify(customCameras));
+            }
+          }
+          // Add the option to this dropdown
+          cameraOption = new Option(targetEntry.camera, targetEntry.camera);
+          const addNewCameraOption = cameraSelect.querySelector('[value="add-new-camera"]');
+          if (addNewCameraOption) {
+            cameraSelect.insertBefore(cameraOption, addNewCameraOption);
+          } else {
+            cameraSelect.appendChild(cameraOption);
           }
         }
-        // Add the option to this dropdown
-        cameraOption = new Option(targetEntry.camera, targetEntry.camera);
-        cameraSelect.insertBefore(cameraOption, cameraSelect.querySelector('[value="add-new-camera"]'));
-      }
-      
-      if (cameraSelect.value !== targetEntry.camera) {
-        console.log(`[CARD-LOG] Updating camera for row ${rowIndex}: ${cameraSelect.value} -> ${targetEntry.camera}`);
-        cameraSelect.value = targetEntry.camera;
+        
+        if (cameraSelect.value !== targetEntry.camera) {
+          console.log(`[CARD-LOG] Updating camera for row ${rowIndex}: ${cameraSelect.value} -> ${targetEntry.camera}`);
+          cameraSelect.value = targetEntry.camera;
+        }
       }
     }
-  }
-  
-  // Update card1 input (cell 1)
-  const card1Input = cells[1].querySelector('input');
-  if (card1Input && !isUserCurrentlyEditing(card1Input, preservationData)) {
-    const targetCard1 = targetEntry.card1 || '';
-    if (card1Input.value !== targetCard1) {
-      console.log(`[CARD-LOG] Updating card1 for row ${rowIndex}: '${card1Input.value}' -> '${targetCard1}'`);
-      card1Input.value = targetCard1;
+    
+    // Update card1 input (cell 1)
+    const card1Input = cells[1]?.querySelector('input');
+    if (card1Input && !isUserCurrentlyEditing(card1Input, preservationData)) {
+      const targetCard1 = targetEntry.card1 || '';
+      if (card1Input.value !== targetCard1) {
+        console.log(`[CARD-LOG] Updating card1 for row ${rowIndex}: '${card1Input.value}' -> '${targetCard1}'`);
+        card1Input.value = targetCard1;
+      }
     }
-  }
-  
-  // Update card2 input (cell 2)  
-  const card2Input = cells[2].querySelector('input');
-  if (card2Input && !isUserCurrentlyEditing(card2Input, preservationData)) {
-    const targetCard2 = targetEntry.card2 || '';
-    if (card2Input.value !== targetCard2) {
-      console.log(`[CARD-LOG] Updating card2 for row ${rowIndex}: '${card2Input.value}' -> '${targetCard2}'`);
-      card2Input.value = targetCard2;
+    
+    // Update card2 input (cell 2)  
+    const card2Input = cells[2]?.querySelector('input');
+    if (card2Input && !isUserCurrentlyEditing(card2Input, preservationData)) {
+      const targetCard2 = targetEntry.card2 || '';
+      if (card2Input.value !== targetCard2) {
+        console.log(`[CARD-LOG] Updating card2 for row ${rowIndex}: '${card2Input.value}' -> '${targetCard2}'`);
+        card2Input.value = targetCard2;
+      }
     }
-  }
-  
-  // Update user select (cell 3)
-  const userSelect = cells[3].querySelector('select');
-  if (userSelect && !isUserCurrentlyEditing(userSelect, preservationData)) {
-    if (targetEntry.user && userSelect.value !== targetEntry.user) {
-      console.log(`[CARD-LOG] Updating user for row ${rowIndex}: ${userSelect.value} -> ${targetEntry.user}`);
-      userSelect.value = targetEntry.user;
-      
-      // Update the row's data-user attribute and access control
-      row.setAttribute('data-user', targetEntry.user);
-      userSelect.setAttribute('data-original-value', targetEntry.user);
-      updateRowAccessControl(row, targetEntry.user);
+    
+    // Update user select (cell 3)
+    const userSelect = cells[3]?.querySelector('select');
+    if (userSelect && !isUserCurrentlyEditing(userSelect, preservationData)) {
+      if (targetEntry.user && userSelect.value !== targetEntry.user) {
+        console.log(`[CARD-LOG] Updating user for row ${rowIndex}: ${userSelect.value} -> ${targetEntry.user}`);
+        userSelect.value = targetEntry.user;
+        
+        // Update the row's data-user attribute and access control
+        row.setAttribute('data-user', targetEntry.user);
+        userSelect.setAttribute('data-original-value', targetEntry.user);
+        updateRowAccessControl(row, targetEntry.user);
+      }
     }
-  }
-  
-  // Update row ID
-  if (targetEntry._id) {
-    row.setAttribute('data-id', targetEntry._id);
+    
+    // Update row ID
+    if (targetEntry._id) {
+      row.setAttribute('data-id', targetEntry._id);
+    }
+  } catch (error) {
+    console.error('[CARD-LOG] Error in updateRowData:', error);
+    // Continue execution despite errors to prevent cascading failures
   }
 }
 
 // Check if a specific element is currently being edited by the user
 function isUserCurrentlyEditing(element, preservationData) {
-  if (!preservationData.focusedElement) return false;
+  if (!preservationData?.focusedElement || !element) return false;
   
-  const row = element.closest('tr');
-  const cell = element.closest('td');
-  if (!row || !cell) return false;
-  
-  const rowIndex = Array.from(row.parentNode.children).indexOf(row);
-  const cellIndex = Array.from(row.children).indexOf(cell);
-  
-  return (preservationData.focusedElement.rowIndex === rowIndex && 
-          preservationData.focusedElement.cellIndex === cellIndex);
+  try {
+    const row = element.closest('tr');
+    const cell = element.closest('td');
+    if (!row || !cell || !row.parentNode || !row.children) return false;
+    
+    const parentChildren = row.parentNode.children;
+    const rowChildren = row.children;
+    
+    if (!parentChildren || !rowChildren || parentChildren.length === 0 || rowChildren.length === 0) {
+      return false;
+    }
+    
+    const rowIndex = Array.from(parentChildren).indexOf(row);
+    const cellIndex = Array.from(rowChildren).indexOf(cell);
+    
+    return (preservationData.focusedElement.rowIndex === rowIndex && 
+            preservationData.focusedElement.cellIndex === cellIndex);
+  } catch (error) {
+    console.warn('[CARD-LOG] Error in isUserCurrentlyEditing check:', error);
+    return false; // Default to not editing to allow updates
+  }
 }
 
 // Load collaborative card log system
