@@ -1,10 +1,15 @@
-// --- DEBUG PATCH: Log all changes to localStorage.eventId ---
+// --- DEBUG PATCH: Log localStorage.eventId changes only when needed ---
 (function() {
   const originalSetItem = localStorage.setItem;
   localStorage.setItem = function(key, value) {
     if (key === 'eventId') {
-      console.warn(`[DEBUG] localStorage.setItem('eventId', '${value}') called!`);
-      console.trace('[DEBUG] Stack trace for eventId set:');
+      // Only log in development or if there's a significant change
+      const isDev = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      const prevValue = localStorage.getItem('eventId');
+      
+      if (isDev && prevValue !== value) {
+        console.log(`[NAVIGATE] Set localStorage eventId to: ${value} for page: ${window.currentNavigatingPage || 'unknown'}`);
+      }
     }
     return originalSetItem.apply(this, arguments);
   };
@@ -53,6 +58,7 @@ function navigate(page, id) {
   }
   
   navigationInProgress = true;
+  window.currentNavigatingPage = page; // Track for debugging
   
   // Only require an ID for pages that need it
   const needsId = !['events', 'dashboard', 'login', 'register', 'users'].includes(page);
@@ -66,6 +72,7 @@ function navigate(page, id) {
   
   if (needsId && (!finalId || finalId === "null")) {
     alert("No event selected. Please select an event first.");
+    navigationInProgress = false;
     return;
   }
 
@@ -75,7 +82,7 @@ function navigate(page, id) {
   // Store the event ID ONLY if we have a valid one and it's needed
   if (finalId && needsId) {
     localStorage.setItem('eventId', finalId);
-    console.log(`[NAVIGATE] Set localStorage eventId to: ${finalId} for page: ${page}`);
+    // Logging handled by the localStorage wrapper
   }
   
   // Clean up dropdown listeners before page transition
@@ -265,31 +272,50 @@ function injectPageContent(html, page, id) {
     }
   });
 
-  // Dynamically load JS if it exists
-  const script = document.createElement('script');
-  script.src = `js/${page}.js?v=${Date.now()}`;
-  script.id = 'page-script';
-  
-  console.log(`[SCRIPT_LOAD] Loading script for page: ${page}, src: ${script.src}`);
-  
-  // Make sure we handle load errors
-  script.onerror = (error) => {
-    console.error(`Error loading script for ${page}:`, error);
-    console.error(`Script src that failed:`, script.src);
-    console.error(`Script readyState:`, script.readyState);
-    navigationInProgress = false; // Reset flag on error
-  };
-  
-  script.onload = () => {
-    console.log(`Script loaded for ${page}, calling window.initPage with id: ${id}`);
-    console.log(`[SCRIPT_LOAD] Script src that just loaded: ${script.src}`);
+  // CRITICAL FIX: Add cache busting to prevent old corrupted JS from loading
+  function loadPageScript(page, callback) {
+    const existingScript = document.getElementById('page-script');
+    if (existingScript) {
+      existingScript.remove();
+    }
+    
+    // Cache buster timestamp to force fresh JS
+    const cacheBuster = Date.now();
+    
+    const script = document.createElement('script');
+    script.id = 'page-script';
+    
+    // Add cache buster to force browser to fetch latest version
+    script.src = `js/${page}.js?v=${cacheBuster}`;
+    
+    script.onload = () => {
+      console.log(`✅ Loaded fresh ${page}.js with cache buster: ${cacheBuster}`);
+      if (callback) callback();
+    };
+    
+    script.onerror = (err) => {
+      console.error(`❌ Failed to load ${page}.js:`, err);
+      // Fallback: try without cache buster
+      const fallbackScript = document.createElement('script');
+      fallbackScript.id = 'page-script';
+      fallbackScript.src = `js/${page}.js`;
+      fallbackScript.onload = callback;
+      document.head.appendChild(fallbackScript);
+    };
+    
+    document.head.appendChild(script);
+  }
+
+     // Dynamically load JS if it exists
+   loadPageScript(page, () => {
+     console.log(`Script loaded for ${page}, calling window.initPage with id: ${id}`);
     console.log(`[SCRIPT_LOAD] window.initPage exists: ${typeof window.initPage === 'function'}`);
     
     // Check if the script actually executed by looking for our debug marker
     if (window.__documentsJsLoaded) {
       console.log(`[SCRIPT_LOAD] documents.js execution confirmed via marker`);
     } else {
-      console.warn(`[SCRIPT_LOAD] documents.js may not have executed properly - no execution marker found`);
+      console.warn(`[SCRIPT_LOAD] ${page}.js may not have executed properly - no execution marker found`);
     }
     
     // Small delay to ensure the script has been properly initialized
@@ -313,12 +339,10 @@ function injectPageContent(html, page, id) {
           console.error('Error initializing page:', err);
         }
       } else {
-        console.warn('window.initPage is not defined after loading', script.src);
+        console.warn(`window.initPage is not defined after loading js/${page}.js`);
       }
     }, 50);
-  };
-  
-  document.body.appendChild(script);
+  });
 }
 
 // Global dropdown state management

@@ -974,6 +974,9 @@ async function loadCardLog() {
       }
     });
   }
+  
+  // Fix any existing DOM structure issues for collaborative system compatibility
+  fixExistingCardLogStructure();
 }
 
 // Load custom cameras from localStorage
@@ -1075,6 +1078,7 @@ function addDaySection(date, entries = []) {
   dayDiv.className = 'day-table';
   dayDiv.id = `day-${date}`;
   dayDiv.setAttribute('data-id', dayId);
+  dayDiv.setAttribute('data-date', date);
   
   dayDiv.innerHTML = `
     <div style="display: flex; align-items: center; justify-content: center;">
@@ -1251,6 +1255,9 @@ function addRow(date, entry = {}) {
       debounceSave();
     }
   });
+  
+  // Update row indices after adding this row
+  updateRowIndices(date);
 }
 
 window.saveToMongoDB = saveToMongoDB;
@@ -1331,24 +1338,13 @@ window.testSocketConnection = function() {
 window.testSocketListeners = function() {
   console.log('[TEST] Testing Socket.IO event listeners...');
   
-  if (!window.socket) {
-    console.log('[TEST] ❌ Socket.IO not available');
-    return;
-  }
+  // Test if socket listeners are properly attached
+  const hasListeners = window.socket && window.socket._callbacks;
+  console.log('- Socket has listeners:', !!hasListeners);
   
-  // Check if our event listeners are set up by looking at the socket's event names
-  const eventNames = window.socket.eventNames ? window.socket.eventNames() : [];
-  console.log('[TEST] Socket event listeners:', eventNames);
-  
-  const cardLogEvents = ['cardLogAdded', 'cardLogUpdated', 'cardLogDeleted'];
-  const hasCardLogListeners = cardLogEvents.some(event => eventNames.includes(event));
-  
-  if (hasCardLogListeners) {
-    console.log('[TEST] ✅ Card log event listeners are set up');
-  } else {
-    console.log('[TEST] ❌ Card log event listeners are missing');
-    console.log('[TEST] Attempting to set up listeners now...');
-    setupSocketListeners();
+  if (hasListeners) {
+    const listeners = Object.keys(window.socket._callbacks);
+    console.log('- Registered listeners:', listeners);
   }
 };
 
@@ -1406,6 +1402,9 @@ function applySmartDayUpdate(date, entries) {
       updateRowData(updatedRows[index], entry, preservationData);
     }
   });
+  
+  // Update row indices to ensure they're correct after changes
+  updateRowIndices(date);
   
   console.log(`[CARD-LOG] Smart update completed for ${date}`);
 }
@@ -1640,4 +1639,72 @@ function updateRowAccessControl(row, rowUser) {
     row.title = 'This row belongs to another user and cannot be edited';
   }
 }
+
+// Utility function to fix existing DOM structure for collaborative system compatibility
+function fixExistingCardLogStructure() {
+  console.log('[FIX] Checking and fixing existing card log DOM structure...');
+  
+  // Fix missing data-date attributes on day sections
+  const daySections = document.querySelectorAll('.day-table');
+  daySections.forEach(dayDiv => {
+    const h3 = dayDiv.querySelector('h3');
+    if (h3 && !dayDiv.hasAttribute('data-date')) {
+      const date = h3.textContent.trim();
+      dayDiv.setAttribute('data-date', date);
+      console.log(`[FIX] Added data-date="${date}" to day section`);
+    }
+  });
+  
+  // Fix row indices to ensure they're sequential and correct
+  daySections.forEach(dayDiv => {
+    const tbody = dayDiv.querySelector('tbody');
+    if (tbody) {
+      const rows = tbody.querySelectorAll('.card-log-row');
+      rows.forEach((row, index) => {
+        const currentIndex = row.getAttribute('data-row-index');
+        if (currentIndex !== index.toString()) {
+          row.setAttribute('data-row-index', index);
+          console.log(`[FIX] Updated row index from ${currentIndex} to ${index}`);
+        }
+      });
+    }
+  });
+  
+  console.log('[FIX] DOM structure fix completed');
+}
+
+// Helper function to update row indices for a specific date
+function updateRowIndices(date) {
+  const tbody = document.getElementById(`tbody-${date}`);
+  if (!tbody) return;
+  
+  const rows = tbody.querySelectorAll('.card-log-row');
+  rows.forEach((row, index) => {
+    row.setAttribute('data-row-index', index);
+  });
+}
+
+// Debug helper to test field identification
+window.testFieldIdentification = function() {
+  console.log('[TEST] Testing field identification...');
+  
+  const allInputs = document.querySelectorAll('.day-table input, .day-table select');
+  console.log(`[TEST] Found ${allInputs.length} input/select elements`);
+  
+  allInputs.forEach((input, index) => {
+    const row = input.closest('.card-log-row');
+    const daySection = input.closest('[data-date]');
+    
+    if (row && daySection) {
+      const date = daySection.getAttribute('data-date');
+      const rowIndex = row.getAttribute('data-row-index');
+      const fieldName = input.getAttribute('data-field') || input.name || input.className.split(' ')[0];
+      
+      console.log(`[TEST] Field ${index + 1}: date=${date}, rowIndex=${rowIndex}, field=${fieldName}`);
+    } else {
+      console.warn(`[TEST] Field ${index + 1}: FAILED - row=${!!row}, daySection=${!!daySection}`);
+      console.warn('[TEST] Element:', input);
+    }
+  });
+};
 })();

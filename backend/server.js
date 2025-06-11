@@ -262,7 +262,183 @@ io.on('connection', (socket) => {
       });
     }
   });
+
+  // =============================================================================
+  // SIMPLE COLLABORATION HANDLERS (Clean Slate System)
+  // =============================================================================
+
+  // When user starts editing a field
+  socket.on('startEditing', (data) => {
+    console.log('📝 [SIMPLE] User started editing:', data);
+    
+    const { eventId, programId, field, userId, sessionId, userName, color } = data;
+    if (eventId && programId && field && userId) {
+      const roomName = `event-${eventId}`;
+      
+      // Broadcast to all other users in the same event
+      socket.to(roomName).emit('userStartedEditing', {
+        eventId,
+        programId,
+        field,
+        userId,
+        sessionId,
+        userName,
+        color
+      });
+      
+      console.log(`✅ [SIMPLE] Broadcasted startEditing for ${userName} on ${field}`);
+    }
+  });
+
+  // When user stops editing a field
+  socket.on('stopEditing', (data) => {
+    console.log('✅ [SIMPLE] User stopped editing:', data);
+    
+    const { eventId, programId, field, userId, sessionId } = data;
+    if (eventId && programId && field && userId) {
+      const roomName = `event-${eventId}`;
+      
+      // Broadcast to all other users in the same event
+      socket.to(roomName).emit('userStoppedEditing', {
+        eventId,
+        programId,
+        field,
+        userId,
+        sessionId
+      });
+      
+      console.log(`✅ [SIMPLE] Broadcasted stopEditing for user ${userId} on ${field}`);
+    }
+  });
+
+  // When user updates a field
+  socket.on('updateField', async (data) => {
+    console.log('⚡ [SIMPLE] Field update received:', data);
+    
+    const { eventId, programId, field, value, userId, sessionId, userName } = data;
+    if (eventId && programId && field && userId) {
+      try {
+        const roomName = `event-${eventId}`;
+        
+        // Save to database first
+        await updateProgramInDatabase({
+          eventId,
+          programId,
+          field,
+          value,
+          userId
+        });
+        
+        // Broadcast to all other users in the same event
+        socket.to(roomName).emit('fieldUpdated', {
+          eventId,
+          programId,
+          field,
+          value,
+          userId,
+          sessionId,
+          userName
+        });
+        
+        console.log(`✅ [SIMPLE] Broadcasted field update: ${field} = ${value} by ${userName}`);
+        
+      } catch (error) {
+        console.error('❌ [SIMPLE] Error updating field:', error);
+        
+        // Send error back to user
+        socket.emit('updateError', {
+          eventId,
+          programId,
+          field,
+          error: 'Failed to update field'
+        });
+      }
+    }
+  });
   
+  // =============================================================================
+  // STRUCTURAL CHANGE HANDLERS (NEW)
+  // =============================================================================
+  
+  // Handle program addition
+  socket.on('programAdded', (data) => {
+    console.log('📋 [SIMPLE] Program addition received:', JSON.stringify(data, null, 2));
+    
+    const { eventId, userId, sessionId, userName, date, program } = data;
+    console.log(`📋 [SIMPLE] Extracted fields: eventId=${eventId}, userId=${userId}, sessionId=${sessionId}, userName=${userName}`);
+    
+    if (eventId && userId && sessionId) {
+      const roomName = `event-${eventId}`;
+      
+      const broadcastData = {
+        eventId,
+        userId,
+        sessionId,
+        userName,
+        date,
+        program
+      };
+      
+      console.log(`📋 [SIMPLE] Broadcasting to room ${roomName}:`, JSON.stringify(broadcastData, null, 2));
+      
+      // Broadcast to all other users in the same event
+      socket.to(roomName).emit('programAdded', broadcastData);
+      
+      console.log(`✅ [SIMPLE] Broadcasted program addition by ${userName} on ${date}`);
+    } else {
+      console.log(`❌ [SIMPLE] Missing required fields for program addition broadcast`);
+    }
+  });
+  
+  // Handle program deletion
+  socket.on('programDeleted', (data) => {
+    console.log('🗑️ [SIMPLE] Program deletion received:', JSON.stringify(data, null, 2));
+    
+    const { eventId, userId, sessionId, userName, program } = data;
+    console.log(`🗑️ [SIMPLE] Extracted fields: eventId=${eventId}, userId=${userId}, sessionId=${sessionId}, userName=${userName}`);
+    
+    if (eventId && userId && sessionId) {
+      const roomName = `event-${eventId}`;
+      
+      const broadcastData = {
+        eventId,
+        userId,
+        sessionId,
+        userName,
+        program
+      };
+      
+      console.log(`🗑️ [SIMPLE] Broadcasting to room ${roomName}:`, JSON.stringify(broadcastData, null, 2));
+      
+      // Broadcast to all other users in the same event
+      socket.to(roomName).emit('programDeleted', broadcastData);
+      
+      console.log(`✅ [SIMPLE] Broadcasted program deletion by ${userName}`);
+    } else {
+      console.log(`❌ [SIMPLE] Missing required fields for program deletion broadcast`);
+    }
+  });
+  
+  // Handle schedule reload
+  socket.on('scheduleReloaded', (data) => {
+    console.log('🔄 [SIMPLE] Schedule reload received:', data);
+    
+    const { eventId, userId, sessionId, userName } = data;
+    if (eventId && userId && sessionId) {
+      const roomName = `event-${eventId}`;
+      
+      // Broadcast to all other users in the same event
+      socket.to(roomName).emit('scheduleReloaded', {
+        eventId,
+        userId,
+        sessionId,
+        userName
+      });
+      
+      console.log(`✅ [SIMPLE] Broadcasted schedule reload by ${userName}`);
+    }
+  });
+
   socket.on('disconnect', () => {
     console.log('Socket.IO: Client disconnected', socket.id);
     
@@ -276,6 +452,49 @@ io.on('connection', (socket) => {
     }
   });
 });
+
+// =============================================================================
+// DATABASE UPDATE FUNCTION FOR SIMPLE COLLABORATION
+// =============================================================================
+
+// Update program field in database
+async function updateProgramInDatabase({ eventId, programId, field, value, userId }) {
+  try {
+    console.log(`💾 [SIMPLE] Updating database: ${field} = ${value} for program ${programId}`);
+    
+    const Table = require('./models/Table');
+    
+    // Update the specific program field in the programSchedule array
+    const result = await Table.updateOne(
+      { 
+        _id: eventId,
+        'programSchedule._id': programId 
+      },
+      { 
+        $set: { 
+          [`programSchedule.$.${field}`]: value,
+          [`programSchedule.$.lastModified`]: new Date(),
+          [`programSchedule.$.lastModifiedBy`]: userId
+        } 
+      }
+    );
+    
+    if (result.matchedCount === 0) {
+      console.warn(`⚠️ [SIMPLE] Program not found: ${programId} in event ${eventId}`);
+      throw new Error('Program not found');
+    }
+    
+    if (result.modifiedCount === 0) {
+      console.warn(`⚠️ [SIMPLE] No changes made to program ${programId}`);
+    } else {
+      console.log(`✅ [SIMPLE] Database updated successfully: ${field} = ${value}`);
+    }
+    
+  } catch (error) {
+    console.error(`❌ [SIMPLE] Database update failed:`, error);
+    throw error;
+  }
+}
 
 // CORS configuration
 const corsOptions = {
