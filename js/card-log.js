@@ -21,6 +21,29 @@ let isActivelyEditing = false; // Track if user is actively editing
 let lastInputTime = 0; // Track when user last typed
 let deferredUpdate = null; // Store deferred updates
 
+// Function to refresh owner status and update collaborative system
+function refreshOwnerStatus(newOwnerStatus) {
+  const oldOwnerStatus = isOwner;
+  isOwner = newOwnerStatus;
+  window.isOwner = isOwner; // Ensure window.isOwner is also set
+  
+  console.log(`[CARD-LOG] Owner status updated: ${oldOwnerStatus} → ${isOwner}`);
+  
+  // Update collaborative system if it exists
+  if (window.cardLogCollaborationManager) {
+    console.log('[CARD-LOG] Refreshing collaborative system access control');
+    refreshAllRowAccessControl();
+  }
+  
+  // Also broadcast owner status change to other systems that might need it
+  if (window.isOwner !== oldOwnerStatus) {
+    const event = new CustomEvent('ownerStatusChanged', { 
+      detail: { isOwner: window.isOwner } 
+    });
+    window.dispatchEvent(event);
+  }
+}
+
 // Add a fallback to reset the processing flag if it gets stuck
 setInterval(() => {
   if (processingSocketEvent && Date.now() - lastEventTime > 5000) {
@@ -927,7 +950,9 @@ async function loadCardLog() {
   if (!res.ok) return console.error('Failed to load table data');
   const table = await res.json();
   const userId = getUserIdFromToken();
-  isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
+  // Set owner status using the new refresh function
+  const newOwnerStatus = Array.isArray(table.owners) && table.owners.includes(userId);
+  refreshOwnerStatus(newOwnerStatus);
   
   // Extract any custom cameras from the loaded data
   if (table.cardLog && Array.isArray(table.cardLog)) {
@@ -1747,51 +1772,34 @@ window.testAccessControl = function() {
     const disabledSelects = Array.from(selects).filter(select => select.disabled).length;
     
     console.log(`[TEST] Row ${index + 1}: user="${rowUser}", canEdit=${canEdit}, readonly=${isReadonly}, readonlyInputs=${readonlyInputs}/${inputs.length}, disabledSelects=${disabledSelects}/${selects.length}`);
-    if (row.title) console.log(`[TEST] Row ${index + 1} tooltip: "${row.title}"`);
   });
 };
 
-// Helper function to clear all readonly styling for owners
-window.clearOwnerRestrictions = function() {
-  if (!isOwner) {
-    console.log('[ACCESS] Not an owner, cannot clear restrictions');
-    return;
+// Helper to force refresh collaborative system (useful for deployment cache issues)
+window.forceRefreshCollaborativeSystem = function() {
+  console.log('[DEPLOY] Force refreshing collaborative system for deployment...');
+  
+  // Refresh owner status
+  refreshOwnerStatus(isOwner);
+  
+  // Refresh collaborative system if loaded
+  if (window.cardLogCollaborationManager) {
+    // Force re-check owner status in collaborative system
+    window.cardLogCollaborationManager.canEditRow = function(rowUser) {
+      if (!rowUser) return true;
+      if (window.isOwner || isOwner) return true; // Check both variables
+      const currentUser = this.getCurrentUserName();
+      return rowUser === currentUser;
+    };
+    console.log('[DEPLOY] Collaborative system access control updated');
   }
   
-  console.log('[ACCESS] Clearing all readonly restrictions for owner...');
-  
-  const allRows = document.querySelectorAll('.card-log-row');
-  allRows.forEach((row, index) => {
-    // Remove readonly styling and tooltips
-    row.classList.remove('readonly-row');
-    row.title = '';
-    
-    // Enable all inputs
-    const inputs = row.querySelectorAll('input');
-    inputs.forEach(input => {
-      input.readOnly = false;
-    });
-    
-    // Enable all selects (except user select which is owner-only anyway)
-    const selects = row.querySelectorAll('select');
-    selects.forEach(select => {
-      if (select.classList.contains('camera-select')) {
-        select.disabled = false;
-        
-        // Ensure add new camera option exists
-        const addCameraOption = select.querySelector('[value="add-new-camera"]');
-        if (!addCameraOption) {
-          const option = new Option('➕ Add New Camera', 'add-new-camera');
-          select.appendChild(option);
-        }
-      }
-      // User select is already controlled by isOwner in the original logic
-    });
-    
-    console.log(`[ACCESS] Cleared restrictions for row ${index + 1}`);
+  // Clear any access denied notifications
+  document.querySelectorAll('.access-denied-notification').forEach(notification => {
+    notification.remove();
   });
   
-  console.log(`[ACCESS] Cleared restrictions for ${allRows.length} rows`);
+  console.log('[DEPLOY] Collaborative system refresh complete');
 };
 
 // Refresh access control for all existing rows (useful when user permissions change)

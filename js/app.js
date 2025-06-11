@@ -274,28 +274,15 @@ function injectPageContent(html, page, id) {
 
   // CRITICAL FIX: Add cache busting to prevent old corrupted JS from loading
   function loadPageScript(page, callback) {
-    const existingScript = document.getElementById('page-script');
-    if (existingScript) {
-      existingScript.remove();
-    }
-    
-    // Cache buster timestamp to force fresh JS
+    // Generate cache buster - use current timestamp for aggressive cache invalidation
     const cacheBuster = Date.now();
     
     const script = document.createElement('script');
-    script.id = 'page-script';
-    
-    // Add cache buster to force browser to fetch latest version
     script.src = `js/${page}.js?v=${cacheBuster}`;
-    
-    script.onload = () => {
-      console.log(`✅ Loaded fresh ${page}.js with cache buster: ${cacheBuster}`);
-      if (callback) callback();
-    };
-    
-    script.onerror = (err) => {
-      console.error(`❌ Failed to load ${page}.js:`, err);
-      // Fallback: try without cache buster
+    script.onload = callback;
+    script.onerror = () => {
+      console.warn(`Failed to load js/${page}.js with cache buster, trying without`);
+      // Fallback: try loading without cache buster
       const fallbackScript = document.createElement('script');
       fallbackScript.id = 'page-script';
       fallbackScript.src = `js/${page}.js`;

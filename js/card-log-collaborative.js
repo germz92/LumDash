@@ -112,31 +112,41 @@ class CardLogCollaborationManager {
   }
 
   async initialize() {
-    currentUserId = this.getCurrentUserId();
-    currentUserName = this.getCurrentUserName();
-    currentEventId = localStorage.getItem('eventId');
-
-    if (!currentEventId) {
-      throw new Error('No event ID found');
-    }
-
-    this.setupSocketListeners();
-    this.setupFieldTracking();
-    this.addCollaborativeStyles();
-
-    // Check if we're already in the event room (card-log.js might have joined it)
-    if (!window.__cardLogEventRoomJoined) {
-      // Join the event room for real-time updates
-      window.socket.emit('joinEventRoom', {
-        eventId: currentEventId,
-        userId: currentUserId,
-        userName: currentUserName
+    try {
+      console.log('🔧 Initializing card log collaboration...');
+      
+      // Get current event and user info
+      currentEventId = localStorage.getItem('eventId');
+      currentUserId = this.getCurrentUserId();
+      currentUserName = this.getCurrentUserName();
+      
+      if (!currentEventId) {
+        console.warn('❌ No current event ID found');
+        return false;
+      }
+      
+      console.log(`📋 Card log collaboration context: Event ${currentEventId}, User ${currentUserName} (${currentUserId})`);
+      
+      // Setup socket listeners and field tracking
+      this.setupSocketListeners();
+      this.setupFieldTracking();
+      this.addCollaborativeStyles();
+      
+      // Listen for owner status changes from main system
+      window.addEventListener('ownerStatusChanged', (event) => {
+        console.log('[COLLAB] Owner status changed:', event.detail.isOwner);
+        // Force refresh all row access control when owner status changes
+        if (typeof refreshAllRowAccessControl === 'function') {
+          refreshAllRowAccessControl();
+        }
       });
       
-      window.__cardLogEventRoomJoined = true;
-      console.log(`📡 Joined card log collaboration for event: ${currentEventId}`);
-    } else {
-      console.log(`📡 Already in event room for: ${currentEventId}`);
+      console.log('✅ Card log collaboration initialized successfully');
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Failed to initialize card log collaboration:', error);
+      return false;
     }
   }
 
