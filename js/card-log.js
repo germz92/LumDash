@@ -900,6 +900,12 @@ window.initPage = async function(id) {
   
   // Load collaborative system
   await loadCardLogCollaborativeSystem();
+  
+  // Fix any existing DOM structure issues for collaborative system compatibility
+  fixExistingCardLogStructure();
+  
+  // Refresh access control for all rows to ensure owners can edit everything
+  refreshAllRowAccessControl();
 };
 
 async function loadUsers() {
@@ -977,6 +983,9 @@ async function loadCardLog() {
   
   // Fix any existing DOM structure issues for collaborative system compatibility
   fixExistingCardLogStructure();
+  
+  // Refresh access control for all rows to ensure owners can edit everything
+  refreshAllRowAccessControl();
 }
 
 // Load custom cameras from localStorage
@@ -1199,8 +1208,11 @@ function addRow(date, entry = {}) {
   // Apply initial access control
   updateRowAccessControl(row, userValue);
 
-  // Only add camera change listener if user can edit this row
+  // Add camera change listener - owners can always edit, others only if they own the row
   if (canEdit) {
+    // Mark that we've added listeners to prevent duplicates
+    cameraSelect.setAttribute('data-listeners-added', 'true');
+    
     cameraSelect.addEventListener('change', function () {
       if (this.value === 'add-new-camera') {
         const newCamera = prompt('Enter new camera name:');
@@ -1591,14 +1603,17 @@ function canEditRow(rowUser) {
 function updateRowAccessControl(row, rowUser) {
   const canEdit = canEditRow(rowUser);
   
-  // Update input fields
+  // Debug logging
+  console.log(`[ACCESS] Row user: "${rowUser}", Current user: "${getCurrentUserName()}", Is owner: ${isOwner}, Can edit: ${canEdit}`);
+  
+  // Update input fields - owners can always edit
   const inputs = row.querySelectorAll('input');
   inputs.forEach(input => {
     input.readOnly = !canEdit;
     input.setAttribute('data-original-value', input.value);
   });
   
-  // Update select fields (except user select which only owners can modify)
+  // Update select fields - owners can always edit
   const selects = row.querySelectorAll('select');
   selects.forEach(select => {
     if (select.classList.contains('camera-select')) {
@@ -1620,7 +1635,7 @@ function updateRowAccessControl(row, rowUser) {
     select.setAttribute('data-original-value', select.value);
   });
   
-  // Update delete button - always show for all users (all users can delete any row)
+  // Update delete button - owners can delete any row, others can only delete their own rows
   const deleteBtn = row.querySelector('.delete-row-btn');
   if (!deleteBtn) {
     // Add delete button if it doesn't exist
@@ -1630,13 +1645,17 @@ function updateRowAccessControl(row, rowUser) {
     }
   }
   
-  // Update visual styling
-  if (canEdit) {
+  // Update visual styling - owners should NEVER see readonly styling
+  if (isOwner || canEdit) {
+    // Owners can edit everything, clear any readonly styling
     row.classList.remove('readonly-row');
     row.title = '';
+    console.log(`[ACCESS] Removed readonly styling for ${isOwner ? 'owner' : 'row owner'}`);
   } else {
+    // Non-owners editing someone else's row
     row.classList.add('readonly-row');
-    row.title = 'This row belongs to another user and cannot be edited';
+    row.title = `This row belongs to ${rowUser} and cannot be edited`;
+    console.log(`[ACCESS] Applied readonly styling - not owner and not row owner`);
   }
 }
 
@@ -1707,4 +1726,137 @@ window.testFieldIdentification = function() {
     }
   });
 };
+
+// Debug helper to test access control
+window.testAccessControl = function() {
+  console.log('[TEST] Testing access control...');
+  console.log(`[TEST] Current user is owner: ${isOwner}`);
+  console.log(`[TEST] Current user name: "${getCurrentUserName()}"`);
+  
+  const allRows = document.querySelectorAll('.card-log-row');
+  console.log(`[TEST] Found ${allRows.length} rows`);
+  
+  allRows.forEach((row, index) => {
+    const rowUser = row.getAttribute('data-user') || '';
+    const canEdit = canEditRow(rowUser);
+    const isReadonly = row.classList.contains('readonly-row');
+    
+    const inputs = row.querySelectorAll('input');
+    const selects = row.querySelectorAll('select');
+    const readonlyInputs = Array.from(inputs).filter(input => input.readOnly).length;
+    const disabledSelects = Array.from(selects).filter(select => select.disabled).length;
+    
+    console.log(`[TEST] Row ${index + 1}: user="${rowUser}", canEdit=${canEdit}, readonly=${isReadonly}, readonlyInputs=${readonlyInputs}/${inputs.length}, disabledSelects=${disabledSelects}/${selects.length}`);
+    if (row.title) console.log(`[TEST] Row ${index + 1} tooltip: "${row.title}"`);
+  });
+};
+
+// Helper function to clear all readonly styling for owners
+window.clearOwnerRestrictions = function() {
+  if (!isOwner) {
+    console.log('[ACCESS] Not an owner, cannot clear restrictions');
+    return;
+  }
+  
+  console.log('[ACCESS] Clearing all readonly restrictions for owner...');
+  
+  const allRows = document.querySelectorAll('.card-log-row');
+  allRows.forEach((row, index) => {
+    // Remove readonly styling and tooltips
+    row.classList.remove('readonly-row');
+    row.title = '';
+    
+    // Enable all inputs
+    const inputs = row.querySelectorAll('input');
+    inputs.forEach(input => {
+      input.readOnly = false;
+    });
+    
+    // Enable all selects (except user select which is owner-only anyway)
+    const selects = row.querySelectorAll('select');
+    selects.forEach(select => {
+      if (select.classList.contains('camera-select')) {
+        select.disabled = false;
+        
+        // Ensure add new camera option exists
+        const addCameraOption = select.querySelector('[value="add-new-camera"]');
+        if (!addCameraOption) {
+          const option = new Option('➕ Add New Camera', 'add-new-camera');
+          select.appendChild(option);
+        }
+      }
+      // User select is already controlled by isOwner in the original logic
+    });
+    
+    console.log(`[ACCESS] Cleared restrictions for row ${index + 1}`);
+  });
+  
+  console.log(`[ACCESS] Cleared restrictions for ${allRows.length} rows`);
+};
+
+// Refresh access control for all existing rows (useful when user permissions change)
+function refreshAllRowAccessControl() {
+  console.log('[ACCESS] Refreshing access control for all rows...');
+  
+  const allRows = document.querySelectorAll('.card-log-row');
+  allRows.forEach(row => {
+    const rowUser = row.getAttribute('data-user') || '';
+    updateRowAccessControl(row, rowUser);
+    
+    // Re-add event listeners for owners on rows they can now edit
+    if (isOwner) {
+      const cameraSelect = row.querySelector('.camera-select');
+      if (cameraSelect && !cameraSelect.hasAttribute('data-listeners-added')) {
+        // Mark that we've added listeners to prevent duplicates
+        cameraSelect.setAttribute('data-listeners-added', 'true');
+        
+        cameraSelect.addEventListener('change', function () {
+          if (this.value === 'add-new-camera') {
+            const newCamera = prompt('Enter new camera name:');
+            if (newCamera && newCamera.trim()) {
+              const trimmedCamera = newCamera.trim();
+              
+              // Check if camera already exists
+              if (!cameras.includes(trimmedCamera) && !customCameras.includes(trimmedCamera)) {
+                customCameras.push(trimmedCamera);
+                cameras.push(trimmedCamera);
+                
+                // Save custom cameras to localStorage for persistence
+                localStorage.setItem(`customCameras_${localStorage.getItem('eventId')}`, JSON.stringify(customCameras));
+                
+                // Add to current dropdown
+                const option = new Option(trimmedCamera, trimmedCamera, true, true);
+                this.insertBefore(option, this.querySelector('[value="add-new-camera"]'));
+                
+                // Update all other camera dropdowns to include the new camera
+                updateAllCameraDropdowns();
+                
+                // Trigger save to persist the change
+                debounceSave();
+                
+                console.log(`[CARD-LOG] Added new camera: ${trimmedCamera}`);
+              } else {
+                alert('Camera already exists!');
+                this.value = '';
+              }
+            } else {
+              this.value = '';
+            }
+          }
+        });
+      }
+    }
+  });
+  
+  // Additional check: If user is owner, ensure no restrictions remain
+  if (isOwner) {
+    console.log('[ACCESS] Double-checking: clearing any remaining owner restrictions...');
+    allRows.forEach(row => {
+      row.classList.remove('readonly-row');
+      row.title = '';
+    });
+  }
+  
+  console.log(`[ACCESS] Refreshed access control for ${allRows.length} rows`);
+}
 })();

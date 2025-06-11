@@ -577,8 +577,14 @@ class CardLogCollaborationManager {
   canEditRow(rowUser) {
     if (!rowUser) return true; // Allow if no user is set
     
-    // Check if user is owner (can edit all rows)
+    // Check if user is owner (can edit all rows) - check both window.isOwner and call the main system
     if (window.isOwner) return true;
+    
+    // Also check if the main card log system allows editing (as a fallback)
+    if (typeof window.canEditRow === 'function') {
+      const mainSystemResult = window.canEditRow(rowUser);
+      if (mainSystemResult) return true;
+    }
     
     // Non-owners can only edit their own rows
     const currentUser = this.getCurrentUserName();
@@ -763,5 +769,29 @@ function cleanupCardLogCollaborativeSystem() {
 
 window.loadCardLogCollaborativeSystem = loadCardLogCollaborativeSystem;
 window.cleanupCardLogCollaborativeSystem = cleanupCardLogCollaborativeSystem;
+
+// Debug function to test collaborative system access control
+window.testCollaborativeAccess = function() {
+  console.log('[COLLAB-TEST] Testing collaborative system access control...');
+  
+  if (!cardLogCollaborationManager) {
+    console.log('[COLLAB-TEST] ❌ Collaborative system not loaded');
+    return;
+  }
+  
+  console.log(`[COLLAB-TEST] window.isOwner: ${window.isOwner}`);
+  console.log(`[COLLAB-TEST] window.canEditRow function exists: ${typeof window.canEditRow === 'function'}`);
+  
+  const testUsers = ['Chris Angeles', 'Elizabeth Schultz', 'Gabby Mostamand', 'Tammy B'];
+  testUsers.forEach(user => {
+    const canEdit = cardLogCollaborationManager.canEditRow(user);
+    console.log(`[COLLAB-TEST] Can edit row owned by "${user}": ${canEdit}`);
+    
+    if (typeof window.canEditRow === 'function') {
+      const mainSystemResult = window.canEditRow(user);
+      console.log(`[COLLAB-TEST] Main system says can edit "${user}": ${mainSystemResult}`);
+    }
+  });
+};
 
 console.log('✅ Card log collaborative system module loaded'); 
