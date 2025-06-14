@@ -1405,18 +1405,37 @@ window.resetFilterSettings = resetFilterSettings;
 // Call setupTextareaResize for each textarea on page load
 document.querySelectorAll('.auto-expand').forEach(setupTextareaResize);
 
-function cleanupSchedulePage() {
-  // Cleanup collaborative features first
+window.cleanupSchedulePage = function cleanupSchedulePage() {
+  console.log('🧹 [CLEANUP] cleanupSchedulePage called');
+  
+  // Cleanup simple collaborative features first
+  if (window.SimpleCollab && window.__simpleCollabInitialized) {
+    console.log('🧹 Cleaning up simple collaborative schedule features...');
+    try {
+      window.SimpleCollab.cleanup();
+      window.__simpleCollabInitialized = false;
+      console.log('✅ Simple collaborative features cleaned up');
+    } catch (error) {
+      console.error('❌ Error cleaning up simple collaborative features:', error);
+    }
+  } else {
+    console.log('🚫 No simple collaboration to clean up');
+  }
+  
+  // Legacy cleanup for old collaborative system
   if (window.CollaborativeSchedule && window.__collaborativeScheduleInitialized) {
-    console.log('🧹 Cleaning up collaborative schedule features...');
+    console.log('🧹 Cleaning up legacy collaborative schedule features...');
     try {
       window.CollaborativeSchedule.cleanup();
       window.__collaborativeScheduleInitialized = false;
-      console.log('✅ Collaborative features cleaned up');
+      console.log('✅ Legacy collaborative features cleaned up');
     } catch (error) {
-      console.error('❌ Error cleaning up collaborative features:', error);
+      console.error('❌ Error cleaning up legacy collaborative features:', error);
     }
   }
+  
+  // Stop event ID monitoring
+  stopEventIdMonitoring();
   
   // Remove schedule-page class from body
   document.body.classList.remove('schedule-page');
@@ -1472,8 +1491,20 @@ function cleanupSchedulePage() {
     clearTimeout(saveTimeout);
   }
   
+  // Remove collaboration UI elements
+  const collabElements = document.querySelectorAll('#active-collab-users, .editing-badge, .collaboration-notification');
+  collabElements.forEach(el => el.remove());
+  
+  // Remove collaboration styles
+  const collabStyles = document.querySelectorAll('#collab-users-styles, #collab-notification-styles');
+  collabStyles.forEach(style => style.remove());
+  
+  // Clear collaboration state
+  currentEventId = null;
+  
   // Reset the initialization guard when cleaned up
   window.__scheduleJsLoaded = false;
+  window.__simpleCollabLoaded = false;
 }
 
 function handleNavClick(e) {

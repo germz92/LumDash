@@ -62,20 +62,49 @@ class CardLogOperationalTransform {
   static transform(op1, op2) {
     // Handle transformation conflicts between two operations
     if (op1.data.date === op2.data.date && op1.data.rowIndex === op2.data.rowIndex && op1.data.field === op2.data.field) {
-      // Same field being edited - use timestamp to determine priority
-      if (op1.timestamp < op2.timestamp) {
-        return { ...op2, transformed: true };
-      } else {
-        return { ...op1, transformed: true };
+      // Same field being edited - use timestamp and user priority to determine resolution
+      console.log(`🔀 Conflict detected: ${op1.userId} vs ${op2.userId} on ${op1.data.field}`);
+      
+      // If same user, keep latest
+      if (op1.userId === op2.userId) {
+        return op1.timestamp > op2.timestamp ? op1 : op2;
       }
+      
+      // Different users - merge values intelligently
+      const mergedValue = this.mergeValues(op1.data.value, op2.data.value, op1.userId, op2.userId);
+      
+      return {
+        ...op2,
+        data: { ...op2.data, value: mergedValue },
+        transformed: true,
+        originalConflict: { op1: op1.data.value, op2: op2.data.value }
+      };
     }
     return op2; // No conflict
   }
 
   static mergeValues(val1, val2, user1, user2) {
-    // Simple merge strategy - could be enhanced
+    // Enhanced merge strategy for card log fields
     if (val1 === val2) return val1;
-    return `${val1} | ${val2}`;
+    
+    // Handle empty values
+    if (!val1 || val1.trim() === '') return val2;
+    if (!val2 || val2.trim() === '') return val1;
+    
+    // For card numbers, try to keep the most recent non-empty value
+    if (this.isCardNumber(val1) && this.isCardNumber(val2)) {
+      // Keep the longer/more complete value
+      return val1.length >= val2.length ? val1 : val2;
+    }
+    
+    // For other fields, create a merged value with conflict indicator
+    return `${val1} / ${val2}`;
+  }
+  
+  static isCardNumber(value) {
+    if (!value) return false;
+    // Check if it looks like a card number (digits, letters, common card formats)
+    return /^[0-9a-zA-Z\-_cf]+$/i.test(value.toString().trim());
   }
 }
 
@@ -112,31 +141,41 @@ class CardLogCollaborationManager {
   }
 
   async initialize() {
-    currentUserId = this.getCurrentUserId();
-    currentUserName = this.getCurrentUserName();
-    currentEventId = localStorage.getItem('eventId');
-
-    if (!currentEventId) {
-      throw new Error('No event ID found');
-    }
-
-    this.setupSocketListeners();
-    this.setupFieldTracking();
-    this.addCollaborativeStyles();
-
-    // Check if we're already in the event room (card-log.js might have joined it)
-    if (!window.__cardLogEventRoomJoined) {
-      // Join the event room for real-time updates
-      window.socket.emit('joinEventRoom', {
-        eventId: currentEventId,
-        userId: currentUserId,
-        userName: currentUserName
+    try {
+      console.log('🔧 Initializing card log collaboration...');
+      
+      // Get current event and user info
+      currentEventId = localStorage.getItem('eventId');
+      currentUserId = this.getCurrentUserId();
+      currentUserName = this.getCurrentUserName();
+      
+      if (!currentEventId) {
+        console.warn('❌ No current event ID found');
+        return false;
+      }
+      
+      console.log(`📋 Card log collaboration context: Event ${currentEventId}, User ${currentUserName} (${currentUserId})`);
+      
+      // Setup socket listeners and field tracking
+      this.setupSocketListeners();
+      this.setupFieldTracking();
+      this.addCollaborativeStyles();
+      
+      // Listen for owner status changes from main system
+      window.addEventListener('ownerStatusChanged', (event) => {
+        console.log('[COLLAB] Owner status changed:', event.detail.isOwner);
+        // Force refresh all row access control when owner status changes
+        if (typeof refreshAllRowAccessControl === 'function') {
+          refreshAllRowAccessControl();
+        }
       });
       
-      window.__cardLogEventRoomJoined = true;
-      console.log(`📡 Joined card log collaboration for event: ${currentEventId}`);
-    } else {
-      console.log(`📡 Already in event room for: ${currentEventId}`);
+      console.log('✅ Card log collaboration initialized successfully');
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Failed to initialize card log collaboration:', error);
+      return false;
     }
   }
 
@@ -145,13 +184,18 @@ class CardLogCollaborationManager {
 
     // Handle incoming card log operations
     window.socket.on('cardLogOperationReceived', (data) => {
+      // Safety check: Only process if on card-log page
+      if (!document.querySelector('.card-log-page') && !document.querySelector('#card-log-container')) {
+        return;
+      }
+      
       console.log('📨 Received card log operation:', data);
       this.handleIncomingOperation(data);
     });
 
-    // Handle user presence updates
-    window.socket.on('userJoined', (data) => this.handleUserJoined(data));
-    window.socket.on('userLeft', (data) => this.handleUserLeft(data));
+    // Handle user presence updates (card-log specific)
+    window.socket.on('cardLogUserJoined', (data) => this.handleUserJoined(data));
+    window.socket.on('cardLogUserLeft', (data) => this.handleUserLeft(data));
     window.socket.on('presenceUpdate', (data) => this.handlePresenceUpdate(data));
 
     // Handle field editing indicators
@@ -298,6 +342,11 @@ class CardLogCollaborationManager {
   }
 
   handleIncomingOperation(data) {
+    // Safety check: Only process if on card-log page
+    if (!document.querySelector('.card-log-page') && !document.querySelector('#card-log-container')) {
+      return;
+    }
+    
     if (data.userId === currentUserId) {
       console.log('🔄 Ignoring own operation');
       return;
@@ -343,30 +392,65 @@ class CardLogCollaborationManager {
   }
 
   showChangeNotification(userName, operation) {
+    const isConflict = operation.transformed && operation.originalConflict;
+    
     const notification = document.createElement('div');
-    notification.className = 'collaboration-notification';
-    notification.textContent = `${userName} updated ${operation.data.field}`;
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #4CAF50;
-      color: white;
-      padding: 10px 15px;
-      border-radius: 4px;
-      z-index: 10000;
-      font-size: 14px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    `;
+    notification.className = `collaboration-notification ${isConflict ? 'conflict-notification' : ''}`;
+    
+    if (isConflict) {
+      notification.innerHTML = `
+        <div class="conflict-header">⚠️ Conflict Resolved</div>
+        <div class="conflict-details">
+          ${userName} and you edited the same field.<br>
+          <small>Original values: "${operation.originalConflict.op1}" / "${operation.originalConflict.op2}"</small><br>
+          <small>Merged to: "${operation.data.value}"</small>
+        </div>
+      `;
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #FF9800;
+        color: white;
+        padding: 12px 16px;
+        border-radius: 6px;
+        z-index: 10000;
+        font-size: 13px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        max-width: 300px;
+        border-left: 4px solid #F57C00;
+      `;
+    } else {
+      notification.textContent = `${userName} updated ${operation.data.field}`;
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #4CAF50;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 4px;
+        z-index: 10000;
+        font-size: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      `;
+    }
     
     document.body.appendChild(notification);
     
+    // Show conflicts longer than regular notifications
+    const timeout = isConflict ? 8000 : 3000;
     setTimeout(() => {
       notification.remove();
-    }, 3000);
+    }, timeout);
   }
 
   handleUserJoined(data) {
+    // Safety check: Only process if on card-log page
+    if (!document.querySelector('.card-log-page') && !document.querySelector('#card-log-container')) {
+      return;
+    }
+    
     console.log(`👋 User joined card log: ${data.userName}`);
     
     cardLogPresenceSystem.activeUsers.set(data.userId, {
@@ -378,6 +462,11 @@ class CardLogCollaborationManager {
   }
 
   handleUserLeft(data) {
+    // Safety check: Only process if on card-log page
+    if (!document.querySelector('.card-log-page') && !document.querySelector('#card-log-container')) {
+      return;
+    }
+    
     console.log(`👋 User left card log: ${data.userName}`);
     
     cardLogPresenceSystem.activeUsers.delete(data.userId);
@@ -385,6 +474,11 @@ class CardLogCollaborationManager {
   }
 
   handlePresenceUpdate(data) {
+    // Safety check: Only process if on card-log page
+    if (!document.querySelector('.card-log-page') && !document.querySelector('#card-log-container')) {
+      return;
+    }
+    
     if (data.userId !== currentUserId) {
       cardLogPresenceSystem.activeUsers.set(data.userId, {
         name: data.userName,
@@ -395,6 +489,11 @@ class CardLogCollaborationManager {
   }
 
   handleFieldEditingUpdate(data, action) {
+    // Safety check: Only process if on card-log page
+    if (!document.querySelector('.card-log-page') && !document.querySelector('#card-log-container')) {
+      return;
+    }
+    
     const { fieldId, userId, userName } = data;
     
     if (userId === currentUserId) return; // Don't show our own editing indicators
@@ -577,8 +676,14 @@ class CardLogCollaborationManager {
   canEditRow(rowUser) {
     if (!rowUser) return true; // Allow if no user is set
     
-    // Check if user is owner (can edit all rows)
+    // Check if user is owner (can edit all rows) - check both window.isOwner and call the main system
     if (window.isOwner) return true;
+    
+    // Also check if the main card log system allows editing (as a fallback)
+    if (typeof window.canEditRow === 'function') {
+      const mainSystemResult = window.canEditRow(rowUser);
+      if (mainSystemResult) return true;
+    }
     
     // Non-owners can only edit their own rows
     const currentUser = this.getCurrentUserName();
@@ -763,5 +868,29 @@ function cleanupCardLogCollaborativeSystem() {
 
 window.loadCardLogCollaborativeSystem = loadCardLogCollaborativeSystem;
 window.cleanupCardLogCollaborativeSystem = cleanupCardLogCollaborativeSystem;
+
+// Debug function to test collaborative system access control
+window.testCollaborativeAccess = function() {
+  console.log('[COLLAB-TEST] Testing collaborative system access control...');
+  
+  if (!cardLogCollaborationManager) {
+    console.log('[COLLAB-TEST] ❌ Collaborative system not loaded');
+    return;
+  }
+  
+  console.log(`[COLLAB-TEST] window.isOwner: ${window.isOwner}`);
+  console.log(`[COLLAB-TEST] window.canEditRow function exists: ${typeof window.canEditRow === 'function'}`);
+  
+  const testUsers = ['Chris Angeles', 'Elizabeth Schultz', 'Gabby Mostamand', 'Tammy B'];
+  testUsers.forEach(user => {
+    const canEdit = cardLogCollaborationManager.canEditRow(user);
+    console.log(`[COLLAB-TEST] Can edit row owned by "${user}": ${canEdit}`);
+    
+    if (typeof window.canEditRow === 'function') {
+      const mainSystemResult = window.canEditRow(user);
+      console.log(`[COLLAB-TEST] Main system says can edit "${user}": ${mainSystemResult}`);
+    }
+  });
+};
 
 console.log('✅ Card log collaborative system module loaded'); 

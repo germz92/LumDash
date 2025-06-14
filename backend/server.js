@@ -173,6 +173,71 @@ io.on('connection', (socket) => {
       console.log(`Socket.IO: User ${userId} left event room: ${roomName}`);
     }
   });
+
+  // Schedule-specific collaboration handlers
+  socket.on('joinScheduleCollaboration', (data) => {
+    const { eventId, userId, userName, userColor } = data;
+    if (eventId && userId) {
+      const roomName = `event-${eventId}`;
+      
+      console.log(`Socket.IO: User ${userName} (${userId}) joined schedule collaboration in room: ${roomName}`);
+      
+      // Broadcast to other users in the room that this user joined schedule collaboration
+      socket.to(roomName).emit('scheduleUserJoined', {
+        userId,
+        userName,
+        userColor,
+        timestamp: Date.now()
+      });
+    }
+  });
+  
+  socket.on('leaveScheduleCollaboration', (data) => {
+    const { eventId, userId } = data;
+    if (eventId && userId) {
+      const roomName = `event-${eventId}`;
+      
+      // Broadcast to other users that this user left schedule collaboration
+      socket.to(roomName).emit('scheduleUserLeft', {
+        userId,
+        timestamp: Date.now()
+      });
+      
+      console.log(`Socket.IO: User ${userId} left schedule collaboration in room: ${roomName}`);
+    }
+  });
+
+  // Card-log-specific collaboration handlers
+  socket.on('joinCardLogCollaboration', (data) => {
+    const { eventId, userId, userName } = data;
+    if (eventId && userId) {
+      const roomName = `event-${eventId}`;
+      
+      console.log(`Socket.IO: User ${userName} (${userId}) joined card-log collaboration in room: ${roomName}`);
+      
+      // Broadcast to other users in the room that this user joined card-log collaboration
+      socket.to(roomName).emit('cardLogUserJoined', {
+        userId,
+        userName,
+        timestamp: Date.now()
+      });
+    }
+  });
+  
+  socket.on('leaveCardLogCollaboration', (data) => {
+    const { eventId, userId } = data;
+    if (eventId && userId) {
+      const roomName = `event-${eventId}`;
+      
+      // Broadcast to other users that this user left card-log collaboration
+      socket.to(roomName).emit('cardLogUserLeft', {
+        userId,
+        timestamp: Date.now()
+      });
+      
+      console.log(`Socket.IO: User ${userId} left card-log collaboration in room: ${roomName}`);
+    }
+  });
   
   socket.on('startFieldEdit', (data) => {
     const { eventId, fieldId, userId, userName, userColor } = data;
