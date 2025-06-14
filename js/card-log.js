@@ -838,8 +838,15 @@ function cleanupCardLogPage() {
         eventId: tableId,
         userId: getUserIdFromToken()
       });
+      
+      // Leave card-log-specific collaboration
+      window.socket.emit('leaveCardLogCollaboration', {
+        eventId: tableId,
+        userId: getUserIdFromToken()
+      });
+      
       window.__cardLogEventRoomJoined = false;
-      console.log(`[CARD-LOG] Left event room: event-${tableId}`);
+      console.log(`[CARD-LOG] Left event room and card-log collaboration: event-${tableId}`);
     }
   }
   
@@ -904,8 +911,16 @@ window.initPage = async function(id) {
       userId: getUserIdFromToken(),
       userName: getCurrentUserName()
     });
+    
+    // Join card-log-specific collaboration
+    window.socket.emit('joinCardLogCollaboration', {
+      eventId: tableId,
+      userId: getUserIdFromToken(),
+      userName: getCurrentUserName()
+    });
+    
     window.__cardLogEventRoomJoined = true;
-    console.log(`[CARD-LOG] Joined event room: event-${tableId}`);
+    console.log(`[CARD-LOG] Joined event room and card-log collaboration: event-${tableId}`);
   }
 
   // Set up Socket.IO event listeners after everything is loaded
@@ -2024,4 +2039,142 @@ function refreshAllRowAccessControl() {
   
   console.log(`[ACCESS] Refreshed access control for ${allRows.length} rows`);
 }
+
+// Enhanced backup system for collaborative editing
+function createCardLogBackup() {
+  try {
+    const eventId = localStorage.getItem('eventId');
+    if (!eventId) return;
+    
+    // Get current card log data from the DOM
+    const cardLogData = extractCardLogFromDOM();
+    
+    if (cardLogData && cardLogData.length > 0) {
+      const backup = {
+        timestamp: Date.now(),
+        eventId: eventId,
+        data: cardLogData,
+        version: 'v2.0'
+      };
+      
+      // Store in localStorage with rotation (keep last 5 backups)
+      const backupKey = `cardlog_backup_${eventId}`;
+      const existingBackups = JSON.parse(localStorage.getItem(backupKey) || '[]');
+      
+      // Add new backup
+      existingBackups.unshift(backup);
+      
+      // Keep only last 5 backups
+      if (existingBackups.length > 5) {
+        existingBackups.splice(5);
+      }
+      
+      localStorage.setItem(backupKey, JSON.stringify(existingBackups));
+      console.log(`💾 Card log backup created: ${cardLogData.length} entries`);
+    }
+  } catch (error) {
+    console.error('❌ Failed to create card log backup:', error);
+  }
+}
+
+function extractCardLogFromDOM() {
+  const cardLogData = [];
+  
+  document.querySelectorAll('.day-section').forEach(daySection => {
+    const date = daySection.getAttribute('data-date');
+    if (!date) return;
+    
+    const entries = [];
+    daySection.querySelectorAll('.card-log-row').forEach(row => {
+      const entry = {
+        _id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        camera: row.querySelector('[data-field="camera"]')?.value || '',
+        card1: row.querySelector('[data-field="card1"]')?.value || '',
+        card2: row.querySelector('[data-field="card2"]')?.value || '',
+        user: row.querySelector('[data-field="user"]')?.value || ''
+      };
+      
+      // Only add non-empty entries
+      if (entry.camera || entry.card1 || entry.card2 || entry.user) {
+        entries.push(entry);
+      }
+    });
+    
+    if (entries.length > 0) {
+      cardLogData.push({
+        _id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        date: date,
+        entries: entries
+      });
+    }
+  });
+  
+  return cardLogData;
+}
+
+function recoverFromBackup() {
+  const eventId = localStorage.getItem('eventId');
+  if (!eventId) return null;
+  
+  const backupKey = `cardlog_backup_${eventId}`;
+  const backups = JSON.parse(localStorage.getItem(backupKey) || '[]');
+  
+  if (backups.length === 0) return null;
+  
+  // Show recovery UI
+  const recoveryModal = document.createElement('div');
+  recoveryModal.innerHTML = `
+    <div class="recovery-modal" style="
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0; 
+      background: rgba(0,0,0,0.8); z-index: 100000; 
+      display: flex; align-items: center; justify-content: center;
+    ">
+      <div class="recovery-content" style="
+        background: white; padding: 30px; border-radius: 10px; 
+        max-width: 500px; width: 90%;
+      ">
+        <h3>🔄 Data Recovery Available</h3>
+        <p>Found ${backups.length} backup(s) for this event:</p>
+        <div class="backup-list">
+          ${backups.map((backup, index) => `
+            <div class="backup-item" style="
+              border: 1px solid #ddd; padding: 10px; margin: 5px 0; 
+              border-radius: 5px; cursor: pointer;
+            " onclick="restoreBackup(${index})">
+              <strong>Backup ${index + 1}</strong><br>
+              <small>${new Date(backup.timestamp).toLocaleString()}</small><br>
+              <small>${backup.data.length} days of data</small>
+            </div>
+          `).join('')}
+        </div>
+        <div style="margin-top: 20px; text-align: right;">
+          <button onclick="this.closest('.recovery-modal').remove()" 
+                  style="margin-right: 10px; padding: 8px 16px;">Cancel</button>
+          <button onclick="restoreBackup(0)" 
+                  style="padding: 8px 16px; background: #4CAF50; color: white; border: none; border-radius: 4px;">
+            Restore Latest
+          </button>
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(recoveryModal);
+  
+  window.restoreBackup = function(backupIndex) {
+    const backup = backups[backupIndex];
+    if (backup && backup.data) {
+      // Restore the data
+      localStorage.setItem('cardlog_recovery_data', JSON.stringify(backup.data));
+      location.reload();
+    }
+  };
+}
+
+// Auto-backup every 30 seconds during editing
+let autoBackupInterval = setInterval(() => {
+  if (document.querySelector('.card-log-row')) {
+    createCardLogBackup();
+  }
+}, 30000);
 })();

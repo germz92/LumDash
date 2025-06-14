@@ -9,7 +9,8 @@ const collabState = {
   currentUser: null,
   activeEditors: new Map(), // fieldId -> {userId, userName, color}
   isEnabled: false,
-  eventId: null
+  eventId: null,
+  activeUsers: new Map() // userId -> { userName, color, joinedAt }
 };
 
 // User colors for editing indicators
@@ -25,8 +26,13 @@ let colorIndex = 0;
 // =============================================================================
 
 function init(eventId, userId, userName) {
-  // Generate unique session ID for this browser window/tab
-  const sessionId = 'session_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+  // Safety check: Only initialize on schedule page
+  if (!document.querySelector('.schedule-page')) {
+    console.log('🚫 Simple collaboration disabled - not on schedule page');
+    return;
+  }
+
+  const sessionId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
   
   collabState.eventId = eventId;
   collabState.currentUser = {
@@ -58,16 +64,41 @@ function init(eventId, userId, userName) {
         userName: userName,
         userColor: collabState.currentUser.color
       });
-      console.log(`📡 Joined event room for collaboration: event-${eventId}`);
+      
+      // Emit schedule-specific join event
+      window.socket.emit('joinScheduleCollaboration', {
+        eventId: eventId,
+        userId: userId,
+        userName: userName,
+        userColor: collabState.currentUser.color
+      });
+      
+      console.log(`📡 Joined event room for schedule collaboration: event-${eventId}`);
+      
+      // Add current user to active users
+      collabState.activeUsers.set(userId, {
+        userName: userName,
+        color: collabState.currentUser.color,
+        joinedAt: Date.now()
+      });
+      updateActiveUsersDisplay();
     }
   } else {
     console.warn('⚠️ Socket not available - collaboration disabled');
   }
 }
 
+// Store handler references for proper cleanup
+const socketHandlers = {};
+
 function setupSocketListeners() {
   // Listen for field changes from other users
-  window.socket.on('fieldUpdated', (data) => {
+  socketHandlers.fieldUpdated = (data) => {
+    // Safety check: Only process if on schedule page
+    if (!document.querySelector('.schedule-page')) {
+      return;
+    }
+    
     console.log('🔍 [DEBUG] Received fieldUpdated event:', data);
     if (data.eventId === collabState.eventId && data.sessionId !== collabState.currentUser.sessionId) {
       console.log('✅ [DEBUG] Processing remote field update');
@@ -77,10 +108,16 @@ function setupSocketListeners() {
       console.log(`   My eventId: ${collabState.eventId}, received: ${data.eventId}`);
       console.log(`   My sessionId: ${collabState.currentUser.sessionId}, received: ${data.sessionId}`);
     }
-  });
+  };
+  window.socket.on('fieldUpdated', socketHandlers.fieldUpdated);
   
   // Listen for editing status
-  window.socket.on('userStartedEditing', (data) => {
+  socketHandlers.userStartedEditing = (data) => {
+    // Safety check: Only process if on schedule page
+    if (!document.querySelector('.schedule-page')) {
+      return;
+    }
+    
     console.log('🔍 [DEBUG] Received userStartedEditing event:', data);
     if (data.eventId === collabState.eventId && data.sessionId !== collabState.currentUser.sessionId) {
       console.log('✅ [DEBUG] Processing editing indicator');
@@ -88,9 +125,15 @@ function setupSocketListeners() {
     } else {
       console.log('❌ [DEBUG] Ignoring editing start - eventId or sessionId mismatch');
     }
-  });
+  };
+  window.socket.on('userStartedEditing', socketHandlers.userStartedEditing);
   
-  window.socket.on('userStoppedEditing', (data) => {
+  socketHandlers.userStoppedEditing = (data) => {
+    // Safety check: Only process if on schedule page
+    if (!document.querySelector('.schedule-page')) {
+      return;
+    }
+    
     console.log('🔍 [DEBUG] Received userStoppedEditing event:', data);
     if (data.eventId === collabState.eventId && data.sessionId !== collabState.currentUser.sessionId) {
       console.log('✅ [DEBUG] Processing editing stop');
@@ -98,10 +141,16 @@ function setupSocketListeners() {
     } else {
       console.log('❌ [DEBUG] Ignoring editing stop - eventId or sessionId mismatch');
     }
-  });
+  };
+  window.socket.on('userStoppedEditing', socketHandlers.userStoppedEditing);
 
   // Listen for structural changes
-  window.socket.on('programAdded', (data) => {
+  socketHandlers.programAdded = (data) => {
+    // Safety check: Only process if on schedule page
+    if (!document.querySelector('.schedule-page')) {
+      return;
+    }
+    
     console.log('🔍 [DEBUG] Received programAdded event:', data);
     console.log(`🔍 [DEBUG] Session comparison - My: ${collabState.currentUser.sessionId}, Received: ${data.sessionId}`);
     if (data.eventId === collabState.eventId && data.sessionId !== collabState.currentUser.sessionId) {
@@ -110,9 +159,15 @@ function setupSocketListeners() {
     } else {
       console.log('❌ [DEBUG] Ignoring own program addition or eventId mismatch');
     }
-  });
+  };
+  window.socket.on('programAdded', socketHandlers.programAdded);
 
-  window.socket.on('programDeleted', (data) => {
+  socketHandlers.programDeleted = (data) => {
+    // Safety check: Only process if on schedule page
+    if (!document.querySelector('.schedule-page')) {
+      return;
+    }
+    
     console.log('🔍 [DEBUG] Received programDeleted event:', data);
     console.log(`🔍 [DEBUG] Session comparison - My: ${collabState.currentUser.sessionId}, Received: ${data.sessionId}`);
     if (data.eventId === collabState.eventId && data.sessionId !== collabState.currentUser.sessionId) {
@@ -121,15 +176,60 @@ function setupSocketListeners() {
     } else {
       console.log('❌ [DEBUG] Ignoring own program deletion or eventId mismatch');
     }
-  });
+  };
+  window.socket.on('programDeleted', socketHandlers.programDeleted);
 
-  window.socket.on('scheduleReloaded', (data) => {
+  socketHandlers.scheduleReloaded = (data) => {
+    // Safety check: Only process if on schedule page
+    if (!document.querySelector('.schedule-page')) {
+      return;
+    }
+    
     console.log('🔍 [DEBUG] Received scheduleReloaded event:', data);
     if (data.eventId === collabState.eventId && data.sessionId !== collabState.currentUser.sessionId) {
       console.log('✅ [DEBUG] Reloading schedule due to structural changes');
       handleRemoteScheduleReload();
     }
-  });
+  };
+  window.socket.on('scheduleReloaded', socketHandlers.scheduleReloaded);
+
+  // =============================================================================
+  // USER PRESENCE HANDLERS (NEW)
+  // =============================================================================
+
+  // Listen for users joining the schedule collaboration room
+  socketHandlers.scheduleUserJoined = (data) => {
+    // Safety check: Only process if collaboration is enabled and on schedule page
+    if (!collabState.isEnabled || !document.querySelector('.schedule-page')) {
+      return;
+    }
+    
+    console.log('👥 [DEBUG] Received scheduleUserJoined event:', data);
+    if (data.userId !== collabState.currentUser.id) {
+      console.log('✅ [DEBUG] Processing user joined');
+      handleUserJoined(data);
+    } else {
+      console.log('❌ [DEBUG] Ignoring own join event');
+    }
+  };
+  window.socket.on('scheduleUserJoined', socketHandlers.scheduleUserJoined);
+
+  // Listen for users leaving the schedule collaboration room
+  socketHandlers.scheduleUserLeft = (data) => {
+    // Safety check: Only process if collaboration is enabled and on schedule page
+    if (!collabState.isEnabled || !document.querySelector('.schedule-page')) {
+      return;
+    }
+    
+    console.log('👋 [DEBUG] Received scheduleUserLeft event:', data);
+    if (data.userId !== collabState.currentUser.id) {
+      console.log('✅ [DEBUG] Processing user left');
+      handleUserLeft(data);
+    } else {
+      console.log('❌ [DEBUG] Ignoring own leave event');
+    }
+  };
+  window.socket.on('scheduleUserLeft', socketHandlers.scheduleUserLeft);
 }
 
 function attachFieldListeners() {
@@ -329,11 +429,11 @@ function showUpdateFeedback(element, userName) {
 // =============================================================================
 
 function showEditingIndicator(data) {
-  const { programId, field, userName, color } = data;
+  const { programId, field, userName, color, userId } = data;
   const fieldKey = `${programId}-${field}`;
   
   // Store editor info
-  collabState.activeEditors.set(fieldKey, { userName, color });
+  collabState.activeEditors.set(fieldKey, { userName, color, userId });
   
   // Find field element
   const fieldElement = document.querySelector(
@@ -399,11 +499,41 @@ function hideEditingIndicator(data) {
   }
 }
 
+function hideEditingIndicatorByFieldKey(fieldKey) {
+  // Remove from active editors
+  collabState.activeEditors.delete(fieldKey);
+  
+  // Parse field key to get programId and field
+  const [programId, field] = fieldKey.split('-');
+  
+  // Find field element
+  const fieldElement = document.querySelector(
+    `[data-program-id="${programId}"] [data-field="${field}"]`
+  );
+  
+  if (!fieldElement) return;
+  
+  // Clear visual indicators
+  fieldElement.style.borderLeft = '';
+  fieldElement.style.boxShadow = '';
+  
+  // Remove badge
+  const badge = fieldElement.parentNode.querySelector('.editing-badge');
+  if (badge) {
+    badge.remove();
+  }
+}
+
 // =============================================================================
 // UTILITY FUNCTIONS
 // =============================================================================
 
 function isScheduleField(element) {
+  // Safety check: Only work on schedule page
+  if (!document.querySelector('.schedule-page')) {
+    return false;
+  }
+  
   return element.closest('.program-entry') && 
          element.matches('input, textarea') && 
          element.hasAttribute('data-field');
@@ -457,13 +587,22 @@ function handleRemoteScheduleReload() {
 }
 
 function showNotification(message, type = 'info') {
+  // Define colors for different notification types
+  const colors = {
+    'info': '#4ECDC4',
+    'join': '#45B7D1',
+    'leave': '#FFA726',
+    'error': '#FF6B6B',
+    'success': '#4CAF50'
+  };
+  
   // Simple notification system
   const notification = document.createElement('div');
   notification.style.cssText = `
     position: fixed;
     top: 20px;
     right: 20px;
-    background: ${type === 'info' ? '#4ECDC4' : '#FF6B6B'};
+    background: ${colors[type] || colors.info};
     color: white;
     padding: 12px 20px;
     border-radius: 8px;
@@ -473,7 +612,18 @@ function showNotification(message, type = 'info') {
     max-width: 300px;
     animation: slideIn 0.3s ease-out;
   `;
-  notification.textContent = message;
+  
+  // Add icon based on type
+  const icons = {
+    'join': '👥',
+    'leave': '👋',
+    'info': 'ℹ️',
+    'error': '❌',
+    'success': '✅'
+  };
+  
+  const icon = icons[type] || '';
+  notification.textContent = `${icon} ${message}`.trim();
   
   // Add animation CSS if not exists
   if (!document.getElementById('collab-notification-styles')) {
@@ -544,10 +694,45 @@ function broadcastScheduleReload() {
 }
 
 function cleanup() {
+  console.log('🧹 [CLEANUP] Starting simple collaboration cleanup...');
+  
   // Remove event listeners
   document.removeEventListener('focusin', handleFieldFocus);
   document.removeEventListener('focusout', handleFieldBlur);
   document.removeEventListener('input', handleFieldInput);
+  
+  // Remove socket event listeners using specific handler references
+  if (window.socket) {
+    if (socketHandlers.fieldUpdated) {
+      window.socket.off('fieldUpdated', socketHandlers.fieldUpdated);
+    }
+    if (socketHandlers.userStartedEditing) {
+      window.socket.off('userStartedEditing', socketHandlers.userStartedEditing);
+    }
+    if (socketHandlers.userStoppedEditing) {
+      window.socket.off('userStoppedEditing', socketHandlers.userStoppedEditing);
+    }
+    if (socketHandlers.programAdded) {
+      window.socket.off('programAdded', socketHandlers.programAdded);
+    }
+    if (socketHandlers.programDeleted) {
+      window.socket.off('programDeleted', socketHandlers.programDeleted);
+    }
+    if (socketHandlers.scheduleReloaded) {
+      window.socket.off('scheduleReloaded', socketHandlers.scheduleReloaded);
+    }
+    if (socketHandlers.scheduleUserJoined) {
+      window.socket.off('scheduleUserJoined', socketHandlers.scheduleUserJoined);
+    }
+    if (socketHandlers.scheduleUserLeft) {
+      window.socket.off('scheduleUserLeft', socketHandlers.scheduleUserLeft);
+    }
+    
+    // Clear handler references
+    Object.keys(socketHandlers).forEach(key => delete socketHandlers[key]);
+    
+    console.log('🧹 Removed all simple collaboration socket listeners');
+  }
   
   // Clear timeouts
   Object.values(updateTimeouts).forEach(clearTimeout);
@@ -555,9 +740,219 @@ function cleanup() {
   
   // Clear state
   collabState.activeEditors.clear();
+  collabState.activeUsers.clear();
   collabState.isEnabled = false;
+  collabState.eventId = null;
+  collabState.currentUser = null;
   
-  console.log('🧹 Simple collaboration cleaned up');
+  // Remove active users display
+  const usersContainer = document.getElementById('active-collab-users');
+  if (usersContainer) {
+    usersContainer.remove();
+  }
+  
+  // Remove all collaboration-related DOM elements
+  const collabElements = document.querySelectorAll('.editing-badge, .collaboration-notification');
+  collabElements.forEach(el => el.remove());
+  
+  // Remove collaboration styles
+  const collabStyles = document.querySelectorAll('#collab-users-styles, #collab-notification-styles');
+  collabStyles.forEach(style => style.remove());
+  
+  // Leave the event room
+  if (window.socket && collabState.eventId) {
+    window.socket.emit('leaveEventRoom', {
+      eventId: collabState.eventId,
+      userId: collabState.currentUser?.id
+    });
+    
+    // Emit schedule-specific leave event
+    window.socket.emit('leaveScheduleCollaboration', {
+      eventId: collabState.eventId,
+      userId: collabState.currentUser?.id
+    });
+  }
+  
+  // Reset initialization flags
+  window.__simpleCollabInitialized = false;
+  window.__simpleCollabLoaded = false;
+  
+  console.log('🧹 Simple collaboration cleaned up - all listeners removed and state cleared');
+}
+
+// =============================================================================
+// USER PRESENCE HANDLERS
+// =============================================================================
+
+function handleUserJoined(data) {
+  const { userId, userName, userColor } = data;
+  
+  // Add user to active users list
+  collabState.activeUsers.set(userId, {
+    userName: userName || `User ${userId}`,
+    color: userColor || '#888888',
+    joinedAt: Date.now()
+  });
+  
+  console.log(`👥 User joined collaboration: ${userName || userId}`);
+  updateActiveUsersDisplay();
+  showNotification(`${userName || 'A user'} joined the collaboration`, 'join');
+}
+
+function handleUserLeft(data) {
+  const { userId } = data;
+  const userInfo = collabState.activeUsers.get(userId);
+  
+  if (userInfo) {
+    // Remove user from active users
+    collabState.activeUsers.delete(userId);
+    
+    // Clean up any editing indicators for this user
+    const editorsToRemove = [];
+    collabState.activeEditors.forEach((editor, fieldKey) => {
+      if (editor.userId === userId) {
+        editorsToRemove.push(fieldKey);
+      }
+    });
+    
+    editorsToRemove.forEach(fieldKey => {
+      collabState.activeEditors.delete(fieldKey);
+      hideEditingIndicatorByFieldKey(fieldKey);
+    });
+    
+    console.log(`👋 User left collaboration: ${userInfo.userName}`);
+    updateActiveUsersDisplay();
+    showNotification(`${userInfo.userName} left the collaboration`, 'leave');
+  }
+}
+
+// =============================================================================
+// ACTIVE USERS DISPLAY
+// =============================================================================
+
+function updateActiveUsersDisplay() {
+  // Safety check: Only show collaboration UI on schedule page
+  if (!document.querySelector('.schedule-page')) {
+    console.log('🚫 Skipping collaboration UI update - not on schedule page');
+    return;
+  }
+
+  // Find or create the active users container
+  let usersContainer = document.getElementById('active-collab-users');
+  if (!usersContainer) {
+    usersContainer = document.createElement('div');
+    usersContainer.id = 'active-collab-users';
+    usersContainer.className = 'active-users-indicator';
+    
+    // Insert at the top of the schedule page
+    const scheduleContainer = document.querySelector('.schedule-page');
+    if (scheduleContainer) {
+      scheduleContainer.insertBefore(usersContainer, scheduleContainer.firstChild);
+    } else {
+      // This shouldn't happen due to the safety check above, but just in case
+      console.warn('⚠️ No schedule container found for collaboration UI');
+      return;
+    }
+  }
+  
+  // Generate HTML for active users
+  const activeUserCount = collabState.activeUsers.size;
+  let html = '';
+  
+  if (activeUserCount > 0) {
+    html = `
+      <div class="collab-header">
+        <span class="collab-title">👥 ${activeUserCount} user${activeUserCount !== 1 ? 's' : ''} collaborating</span>
+      </div>
+      <div class="active-users-list">
+    `;
+    
+    collabState.activeUsers.forEach((userInfo, userId) => {
+      const isCurrentUser = userId === collabState.currentUser.id;
+      html += `
+        <div class="active-user ${isCurrentUser ? 'current-user' : ''}" data-user-id="${userId}">
+          <div class="user-avatar" style="background-color: ${userInfo.color}">
+            ${userInfo.userName.charAt(0).toUpperCase()}
+          </div>
+          <span class="user-name">${userInfo.userName}${isCurrentUser ? ' (you)' : ''}</span>
+        </div>
+      `;
+    });
+    
+    html += '</div>';
+  }
+  
+  usersContainer.innerHTML = html;
+  
+  // Add CSS if not already present
+  if (!document.getElementById('collab-users-styles')) {
+    const styles = document.createElement('style');
+    styles.id = 'collab-users-styles';
+    styles.textContent = `
+      .active-users-indicator {
+        background: #f8f9fa;
+        border: 1px solid #e9ecef;
+        border-radius: 8px;
+        padding: 12px;
+        margin-bottom: 16px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+      }
+      
+      .collab-header {
+        margin-bottom: 8px;
+      }
+      
+      .collab-title {
+        font-weight: 600;
+        color: #495057;
+        font-size: 14px;
+      }
+      
+      .active-users-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+      }
+      
+      .active-user {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        background: white;
+        padding: 4px 8px;
+        border-radius: 16px;
+        border: 1px solid #dee2e6;
+        font-size: 12px;
+      }
+      
+      .active-user.current-user {
+        background: #e3f2fd;
+        border-color: #1976d2;
+      }
+      
+      .user-avatar {
+        width: 20px;
+        height: 20px;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: 10px;
+      }
+      
+      .user-name {
+        color: #495057;
+        font-weight: 500;
+      }
+      
+      .active-user.current-user .user-name {
+        color: #1976d2;
+      }
+    `;
+    document.head.appendChild(styles);
+  }
 }
 
 // =============================================================================

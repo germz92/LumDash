@@ -62,20 +62,49 @@ class CardLogOperationalTransform {
   static transform(op1, op2) {
     // Handle transformation conflicts between two operations
     if (op1.data.date === op2.data.date && op1.data.rowIndex === op2.data.rowIndex && op1.data.field === op2.data.field) {
-      // Same field being edited - use timestamp to determine priority
-      if (op1.timestamp < op2.timestamp) {
-        return { ...op2, transformed: true };
-      } else {
-        return { ...op1, transformed: true };
+      // Same field being edited - use timestamp and user priority to determine resolution
+      console.log(`🔀 Conflict detected: ${op1.userId} vs ${op2.userId} on ${op1.data.field}`);
+      
+      // If same user, keep latest
+      if (op1.userId === op2.userId) {
+        return op1.timestamp > op2.timestamp ? op1 : op2;
       }
+      
+      // Different users - merge values intelligently
+      const mergedValue = this.mergeValues(op1.data.value, op2.data.value, op1.userId, op2.userId);
+      
+      return {
+        ...op2,
+        data: { ...op2.data, value: mergedValue },
+        transformed: true,
+        originalConflict: { op1: op1.data.value, op2: op2.data.value }
+      };
     }
     return op2; // No conflict
   }
 
   static mergeValues(val1, val2, user1, user2) {
-    // Simple merge strategy - could be enhanced
+    // Enhanced merge strategy for card log fields
     if (val1 === val2) return val1;
-    return `${val1} | ${val2}`;
+    
+    // Handle empty values
+    if (!val1 || val1.trim() === '') return val2;
+    if (!val2 || val2.trim() === '') return val1;
+    
+    // For card numbers, try to keep the most recent non-empty value
+    if (this.isCardNumber(val1) && this.isCardNumber(val2)) {
+      // Keep the longer/more complete value
+      return val1.length >= val2.length ? val1 : val2;
+    }
+    
+    // For other fields, create a merged value with conflict indicator
+    return `${val1} / ${val2}`;
+  }
+  
+  static isCardNumber(value) {
+    if (!value) return false;
+    // Check if it looks like a card number (digits, letters, common card formats)
+    return /^[0-9a-zA-Z\-_cf]+$/i.test(value.toString().trim());
   }
 }
 
@@ -155,13 +184,18 @@ class CardLogCollaborationManager {
 
     // Handle incoming card log operations
     window.socket.on('cardLogOperationReceived', (data) => {
+      // Safety check: Only process if on card-log page
+      if (!document.querySelector('.card-log-page') && !document.querySelector('#card-log-container')) {
+        return;
+      }
+      
       console.log('📨 Received card log operation:', data);
       this.handleIncomingOperation(data);
     });
 
-    // Handle user presence updates
-    window.socket.on('userJoined', (data) => this.handleUserJoined(data));
-    window.socket.on('userLeft', (data) => this.handleUserLeft(data));
+    // Handle user presence updates (card-log specific)
+    window.socket.on('cardLogUserJoined', (data) => this.handleUserJoined(data));
+    window.socket.on('cardLogUserLeft', (data) => this.handleUserLeft(data));
     window.socket.on('presenceUpdate', (data) => this.handlePresenceUpdate(data));
 
     // Handle field editing indicators
@@ -308,6 +342,11 @@ class CardLogCollaborationManager {
   }
 
   handleIncomingOperation(data) {
+    // Safety check: Only process if on card-log page
+    if (!document.querySelector('.card-log-page') && !document.querySelector('#card-log-container')) {
+      return;
+    }
+    
     if (data.userId === currentUserId) {
       console.log('🔄 Ignoring own operation');
       return;
@@ -353,30 +392,65 @@ class CardLogCollaborationManager {
   }
 
   showChangeNotification(userName, operation) {
+    const isConflict = operation.transformed && operation.originalConflict;
+    
     const notification = document.createElement('div');
-    notification.className = 'collaboration-notification';
-    notification.textContent = `${userName} updated ${operation.data.field}`;
-    notification.style.cssText = `
-      position: fixed;
-      top: 20px;
-      right: 20px;
-      background: #4CAF50;
-      color: white;
-      padding: 10px 15px;
-      border-radius: 4px;
-      z-index: 10000;
-      font-size: 14px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-    `;
+    notification.className = `collaboration-notification ${isConflict ? 'conflict-notification' : ''}`;
+    
+    if (isConflict) {
+      notification.innerHTML = `
+        <div class="conflict-header">⚠️ Conflict Resolved</div>
+        <div class="conflict-details">
+          ${userName} and you edited the same field.<br>
+          <small>Original values: "${operation.originalConflict.op1}" / "${operation.originalConflict.op2}"</small><br>
+          <small>Merged to: "${operation.data.value}"</small>
+        </div>
+      `;
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #FF9800;
+        color: white;
+        padding: 12px 16px;
+        border-radius: 6px;
+        z-index: 10000;
+        font-size: 13px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+        max-width: 300px;
+        border-left: 4px solid #F57C00;
+      `;
+    } else {
+      notification.textContent = `${userName} updated ${operation.data.field}`;
+      notification.style.cssText = `
+        position: fixed;
+        top: 20px;
+        right: 20px;
+        background: #4CAF50;
+        color: white;
+        padding: 10px 15px;
+        border-radius: 4px;
+        z-index: 10000;
+        font-size: 14px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+      `;
+    }
     
     document.body.appendChild(notification);
     
+    // Show conflicts longer than regular notifications
+    const timeout = isConflict ? 8000 : 3000;
     setTimeout(() => {
       notification.remove();
-    }, 3000);
+    }, timeout);
   }
 
   handleUserJoined(data) {
+    // Safety check: Only process if on card-log page
+    if (!document.querySelector('.card-log-page') && !document.querySelector('#card-log-container')) {
+      return;
+    }
+    
     console.log(`👋 User joined card log: ${data.userName}`);
     
     cardLogPresenceSystem.activeUsers.set(data.userId, {
@@ -388,6 +462,11 @@ class CardLogCollaborationManager {
   }
 
   handleUserLeft(data) {
+    // Safety check: Only process if on card-log page
+    if (!document.querySelector('.card-log-page') && !document.querySelector('#card-log-container')) {
+      return;
+    }
+    
     console.log(`👋 User left card log: ${data.userName}`);
     
     cardLogPresenceSystem.activeUsers.delete(data.userId);
@@ -395,6 +474,11 @@ class CardLogCollaborationManager {
   }
 
   handlePresenceUpdate(data) {
+    // Safety check: Only process if on card-log page
+    if (!document.querySelector('.card-log-page') && !document.querySelector('#card-log-container')) {
+      return;
+    }
+    
     if (data.userId !== currentUserId) {
       cardLogPresenceSystem.activeUsers.set(data.userId, {
         name: data.userName,
@@ -405,6 +489,11 @@ class CardLogCollaborationManager {
   }
 
   handleFieldEditingUpdate(data, action) {
+    // Safety check: Only process if on card-log page
+    if (!document.querySelector('.card-log-page') && !document.querySelector('#card-log-container')) {
+      return;
+    }
+    
     const { fieldId, userId, userName } = data;
     
     if (userId === currentUserId) return; // Don't show our own editing indicators
