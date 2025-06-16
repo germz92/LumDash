@@ -52,6 +52,18 @@
   font-size: 16px;
 }
 
+.chat-header-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.chat-header-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .chat-subtitle {
   font-size: 12px;
   font-weight: 400;
@@ -235,9 +247,74 @@
 
 /* Desktop: Keep floating chat button visible */
 @media (min-width: 769px) {
-  .chat-button {
-    display: flex; /* Show floating button on desktop */
+  .chat-button,
+  *[class*="page"] .chat-button,
+  *[class*="schedule"] .chat-button,
+  *[class*="crew"] .chat-button,
+  *[class*="general"] .chat-button,
+  *[class*="gear"] .chat-button,
+  *[class*="card-log"] .chat-button,
+  *[class*="travel"] .chat-button,
+  *[class*="shotlist"] .chat-button,
+  *[class*="events"] .chat-button {
+    display: flex !important; /* Show floating button on desktop */
   }
+}
+
+/* Enhanced message content formatting */
+.message-content p {
+  margin: 0 0 8px 0;
+  line-height: 1.4;
+}
+
+.message-content p:last-child {
+  margin-bottom: 0;
+}
+
+.message-content ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.message-content li {
+  margin: 4px 0;
+  line-height: 1.3;
+}
+
+.message-content strong {
+  font-weight: 600;
+  color: #333;
+}
+
+.message-content em {
+  font-style: italic;
+  color: #555;
+}
+
+.message-content code {
+  background: #f5f5f5;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-family: 'Courier New', monospace;
+  font-size: 0.9em;
+}
+
+.message-content .time {
+  background: #e8f4fd;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  color: #1976d2;
+  font-size: 0.9em;
+}
+
+.message-content .date {
+  background: #f3e5f5;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-weight: 500;
+  color: #7b1fa2;
+  font-size: 0.9em;
 }
 
 /* Scrollbar styling for chat messages */
@@ -259,19 +336,52 @@
   background: #999;
 }
 
-/* Global chat consistency overrides for ALL pages */
-.chat-panel {
+/* CRITICAL: Global chat consistency overrides for ALL pages */
+/* These styles ensure the chat widget looks identical across all pages */
+
+/* Chat Panel - Core Container */
+.chat-panel,
+*[class*="page"] .chat-panel,
+*[class*="schedule"] .chat-panel,
+*[class*="crew"] .chat-panel,
+*[class*="general"] .chat-panel,
+*[class*="gear"] .chat-panel,
+*[class*="card-log"] .chat-panel,
+*[class*="travel"] .chat-panel,
+*[class*="shotlist"] .chat-panel,
+*[class*="events"] .chat-panel {
   position: fixed !important;
+  bottom: 170px !important;
+  right: 20px !important;
+  width: 350px !important;
+  height: 500px !important;
   z-index: 1601 !important;
   font-family: 'Roboto', Arial, sans-serif !important;
   border: 1px solid #e0e0e0 !important;
   border-radius: 15px !important;
   background: white !important;
   box-shadow: 0 8px 30px rgba(0, 0, 0, 0.15) !important;
+  display: none !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
 }
 
-.chat-button {
+/* Chat Button - Floating Button */
+.chat-button,
+*[class*="page"] .chat-button,
+*[class*="schedule"] .chat-button,
+*[class*="crew"] .chat-button,
+*[class*="general"] .chat-button,
+*[class*="gear"] .chat-button,
+*[class*="card-log"] .chat-button,
+*[class*="travel"] .chat-button,
+*[class*="shotlist"] .chat-button,
+*[class*="events"] .chat-button {
   position: fixed !important;
+  bottom: 100px !important;
+  right: 20px !important;
   z-index: 1600 !important;
   width: 60px !important;
   height: 60px !important;
@@ -280,6 +390,115 @@
   color: white !important;
   font-size: 28px !important;
   box-shadow: 0 4px 20px rgba(204, 0, 7, 0.3) !important;
+  border: none !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.3s ease !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+  font-weight: normal !important;
+  text-decoration: none !important;
+  outline: none !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  min-width: 60px !important;
+  max-width: 60px !important;
+  min-height: 60px !important;
+  max-height: 60px !important;
+}
+
+/* Chat Header - Consistent across all pages */
+.chat-header,
+*[class*="page"] .chat-header,
+*[class*="schedule"] .chat-header,
+*[class*="crew"] .chat-header,
+*[class*="general"] .chat-header,
+*[class*="gear"] .chat-header,
+*[class*="card-log"] .chat-header,
+*[class*="travel"] .chat-header,
+*[class*="shotlist"] .chat-header,
+*[class*="events"] .chat-header {
+  padding: 15px 20px !important;
+  background: linear-gradient(135deg, #cc0007, #b30006) !important;
+  color: white !important;
+  display: flex !important;
+  justify-content: space-between !important;
+  align-items: center !important;
+  font-weight: 600 !important;
+  font-size: 16px !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+  border: none !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  min-height: auto !important;
+  max-height: auto !important;
+  width: auto !important;
+  min-width: auto !important;
+  max-width: auto !important;
+}
+
+/* Chat Messages Area - Consistent across all pages */
+.chat-messages,
+*[class*="page"] .chat-messages,
+*[class*="schedule"] .chat-messages,
+*[class*="crew"] .chat-messages,
+*[class*="general"] .chat-messages,
+*[class*="gear"] .chat-messages,
+*[class*="card-log"] .chat-messages,
+*[class*="travel"] .chat-messages,
+*[class*="shotlist"] .chat-messages,
+*[class*="events"] .chat-messages {
+  flex: 1 !important;
+  padding: 15px !important;
+  overflow-y: auto !important;
+  background: #f9f9f9 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 12px !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+  font-size: 14px !important;
+  line-height: 1.4 !important;
+  border: none !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  width: auto !important;
+  min-width: auto !important;
+  max-width: auto !important;
+  min-height: auto !important;
+  max-height: auto !important;
+}
+
+/* Chat Input Container - Consistent across all pages */
+.chat-input-container,
+*[class*="page"] .chat-input-container,
+*[class*="schedule"] .chat-input-container,
+*[class*="crew"] .chat-input-container,
+*[class*="general"] .chat-input-container,
+*[class*="gear"] .chat-input-container,
+*[class*="card-log"] .chat-input-container,
+*[class*="travel"] .chat-input-container,
+*[class*="shotlist"] .chat-input-container,
+*[class*="events"] .chat-input-container {
+  padding: 15px !important;
+  background: white !important;
+  border-top: 1px solid #e0e0e0 !important;
+  display: flex !important;
+  gap: 10px !important;
+  align-items: center !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+  border: none !important;
+  border-top: 1px solid #e0e0e0 !important;
+  margin: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  width: auto !important;
+  min-width: auto !important;
+  max-width: auto !important;
+  min-height: auto !important;
+  max-height: auto !important;
 }
 
 /* Schedule page specific positioning (inherits global styles above) */
@@ -291,61 +510,196 @@
   z-index: 1602 !important; /* Above schedule header */
 }
 
-/* Override schedule page button styles for chat buttons */
-.schedule-page .chat-panel .close-chat-btn,
-.schedule-page .chat-panel .send-btn {
-  padding: 5px !important;
-  font-size: 20px !important;
-  border-radius: 50% !important;
+/* Chat Input Field - Consistent across all pages */
+.chat-input,
+*[class*="page"] .chat-input,
+*[class*="schedule"] .chat-input,
+*[class*="crew"] .chat-input,
+*[class*="general"] .chat-input,
+*[class*="gear"] .chat-input,
+*[class*="card-log"] .chat-input,
+*[class*="travel"] .chat-input,
+*[class*="shotlist"] .chat-input,
+*[class*="events"] .chat-input {
+  flex: 1 !important;
+  padding: 12px 15px !important;
+  border: 1px solid #ddd !important;
+  border-radius: 25px !important;
+  font-size: 14px !important;
+  outline: none !important;
+  transition: border-color 0.2s !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+  background: white !important;
+  color: #333 !important;
+  margin: 0 !important;
   box-shadow: none !important;
+  width: auto !important;
+  min-width: auto !important;
+  max-width: none !important;
+  min-height: auto !important;
+  max-height: auto !important;
+  height: auto !important;
+  line-height: 1.4 !important;
   font-weight: normal !important;
-  transition: background 0.2s !important;
+  text-decoration: none !important;
+  box-sizing: border-box !important;
 }
 
-.schedule-page .chat-panel .close-chat-btn {
-  background: transparent !important;
-  color: white !important;
-  width: 40px !important;
-  height: 40px !important;
-  padding: 8px !important;
-}
-
-.schedule-page .chat-panel .send-btn {
+/* Send Button - Consistent across all pages */
+.send-btn,
+*[class*="page"] .send-btn,
+*[class*="schedule"] .send-btn,
+*[class*="crew"] .send-btn,
+*[class*="general"] .send-btn,
+*[class*="gear"] .send-btn,
+*[class*="card-log"] .send-btn,
+*[class*="travel"] .send-btn,
+*[class*="shotlist"] .send-btn,
+*[class*="events"] .send-btn {
   background: #cc0007 !important;
   color: white !important;
+  border: none !important;
+  border-radius: 50% !important;
   width: 45px !important;
   height: 45px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  cursor: pointer !important;
+  transition: all 0.2s !important;
+  font-size: 20px !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+  margin: 0 !important;
   padding: 0 !important;
+  box-shadow: none !important;
+  min-width: 45px !important;
+  max-width: 45px !important;
+  min-height: 45px !important;
+  max-height: 45px !important;
+  outline: none !important;
+  font-weight: normal !important;
+  text-decoration: none !important;
+  box-sizing: border-box !important;
 }
 
-.schedule-page .chat-panel .close-chat-btn:hover {
-  background: rgba(255, 255, 255, 0.2) !important;
-}
-
-.schedule-page .chat-panel .send-btn:hover {
-  background: #b30006 !important;
-  transform: scale(1.05) !important;
-}
-
-/* Global chat element consistency overrides */
-.chat-header {
-  padding: 15px 20px !important;
-  background: linear-gradient(135deg, #cc0007, #b30006) !important;
+/* Close Button - Consistent across all pages */
+.close-chat-btn,
+*[class*="page"] .close-chat-btn,
+*[class*="schedule"] .close-chat-btn,
+*[class*="crew"] .close-chat-btn,
+*[class*="general"] .close-chat-btn,
+*[class*="gear"] .close-chat-btn,
+*[class*="card-log"] .close-chat-btn,
+*[class*="travel"] .close-chat-btn,
+*[class*="shotlist"] .close-chat-btn,
+*[class*="events"] .close-chat-btn {
+  background: transparent !important;
+  border: none !important;
   color: white !important;
-  font-weight: 600 !important;
-  font-size: 16px !important;
+  cursor: pointer !important;
+  padding: 8px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: background 0.2s !important;
+  font-size: 20px !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+  width: 40px !important;
+  height: 40px !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  outline: none !important;
+  font-weight: normal !important;
+  text-decoration: none !important;
+  box-sizing: border-box !important;
 }
 
-.chat-messages {
-  background: #f9f9f9 !important;
-  padding: 15px !important;
-  overflow-y: auto !important;
+/* Auto-play and Conversation Mode Buttons - Consistent across all pages */
+.auto-play-toggle-btn,
+.conversation-mode-btn,
+*[class*="page"] .auto-play-toggle-btn,
+*[class*="page"] .conversation-mode-btn,
+*[class*="schedule"] .auto-play-toggle-btn,
+*[class*="schedule"] .conversation-mode-btn,
+*[class*="crew"] .auto-play-toggle-btn,
+*[class*="crew"] .conversation-mode-btn,
+*[class*="general"] .auto-play-toggle-btn,
+*[class*="general"] .conversation-mode-btn,
+*[class*="gear"] .auto-play-toggle-btn,
+*[class*="gear"] .conversation-mode-btn,
+*[class*="card-log"] .auto-play-toggle-btn,
+*[class*="card-log"] .conversation-mode-btn,
+*[class*="travel"] .auto-play-toggle-btn,
+*[class*="travel"] .conversation-mode-btn,
+*[class*="shotlist"] .auto-play-toggle-btn,
+*[class*="shotlist"] .conversation-mode-btn,
+*[class*="events"] .auto-play-toggle-btn,
+*[class*="events"] .conversation-mode-btn {
+  background: transparent !important;
+  border: none !important;
+  color: white !important;
+  cursor: pointer !important;
+  padding: 8px !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.2s !important;
+  font-size: 18px !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+  width: 40px !important;
+  height: 40px !important;
+  margin: 0 !important;
+  box-shadow: none !important;
+  min-width: 40px !important;
+  max-width: 40px !important;
+  min-height: 40px !important;
+  max-height: 40px !important;
+  outline: none !important;
+  font-weight: normal !important;
+  text-decoration: none !important;
+  box-sizing: border-box !important;
+  opacity: 0.7 !important;
 }
 
-.chat-input-container {
-  padding: 15px !important;
-  background: white !important;
-  border-top: 1px solid #e0e0e0 !important;
+/* Material Symbols Icons - Consistent across all pages */
+.chat-panel .material-symbols-outlined,
+.chat-button .material-symbols-outlined,
+*[class*="page"] .chat-panel .material-symbols-outlined,
+*[class*="page"] .chat-button .material-symbols-outlined,
+*[class*="schedule"] .chat-panel .material-symbols-outlined,
+*[class*="schedule"] .chat-button .material-symbols-outlined,
+*[class*="crew"] .chat-panel .material-symbols-outlined,
+*[class*="crew"] .chat-button .material-symbols-outlined,
+*[class*="general"] .chat-panel .material-symbols-outlined,
+*[class*="general"] .chat-button .material-symbols-outlined,
+*[class*="gear"] .chat-panel .material-symbols-outlined,
+*[class*="gear"] .chat-button .material-symbols-outlined,
+*[class*="card-log"] .chat-panel .material-symbols-outlined,
+*[class*="card-log"] .chat-button .material-symbols-outlined,
+*[class*="travel"] .chat-panel .material-symbols-outlined,
+*[class*="travel"] .chat-button .material-symbols-outlined,
+*[class*="shotlist"] .chat-panel .material-symbols-outlined,
+*[class*="shotlist"] .chat-button .material-symbols-outlined,
+*[class*="events"] .chat-panel .material-symbols-outlined,
+*[class*="events"] .chat-button .material-symbols-outlined {
+  font-family: 'Material Symbols Outlined' !important;
+  font-size: inherit !important;
+  color: inherit !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  text-decoration: none !important;
+  font-weight: normal !important;
+  line-height: 1 !important;
 }
 
 /* Streaming typing cursor animation */
@@ -362,26 +716,106 @@
   51%, 100% { opacity: 0; }
 }
 
-.chat-input {
-  border: 1px solid #ddd !important;
-  border-radius: 25px !important;
-  padding: 12px 15px !important;
-  font-size: 14px !important;
-  font-family: 'Roboto', Arial, sans-serif !important;
+/* Voice Controls */
+
+.voice-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 8px;
+  padding-left: 8px;
 }
 
-.send-btn {
-  background: #cc0007 !important;
-  color: white !important;
-  border-radius: 50% !important;
-  width: 45px !important;
-  height: 45px !important;
-  font-size: 20px !important;
+.voice-play-btn {
+  background: transparent;
+  border: 1px solid #ddd;
+  color: #666;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-size: 16px;
+  min-width: 32px;
+  height: 28px;
+}
+
+.voice-play-btn:hover {
+  background: #f5f5f5;
+  border-color: #cc0007;
+  color: #cc0007;
+}
+
+.voice-play-btn.loading {
+  cursor: not-allowed;
+  opacity: 0.6;
+}
+
+.voice-play-btn.loading:hover {
+  background: transparent;
+  border-color: #ddd;
+  color: #666;
+}
+
+/* Animations for voice controls */
+@keyframes voice-pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.1); }
+}
+
+
+
+/* Auto-play Toggle Button */
+.auto-play-toggle-btn {
+  background: transparent;
+  border: none;
+  color: white;
+  cursor: pointer;
+  padding: 8px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+  font-size: 18px;
+  width: 40px;
+  height: 40px;
+  opacity: 0.7;
+}
+
+.auto-play-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  opacity: 1;
+}
+
+.auto-play-toggle-btn.active {
+  opacity: 1;
+  background: rgba(255, 255, 255, 0.15);
+}
+
+.auto-play-toggle-btn.active .material-symbols-outlined {
+  animation: auto-play-spin 3s linear infinite;
+}
+
+@keyframes auto-play-spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
 
 @media (max-width: 768px) {
   /* Mobile positioning - consistent across ALL pages */
-  .chat-panel {
+  .chat-panel,
+  *[class*="page"] .chat-panel,
+  *[class*="schedule"] .chat-panel,
+  *[class*="crew"] .chat-panel,
+  *[class*="general"] .chat-panel,
+  *[class*="gear"] .chat-panel,
+  *[class*="card-log"] .chat-panel,
+  *[class*="travel"] .chat-panel,
+  *[class*="shotlist"] .chat-panel,
+  *[class*="events"] .chat-panel {
     bottom: 140px !important;
     right: 20px !important;
     left: 20px !important;
@@ -390,16 +824,307 @@
   }
   
   /* Prevent zoom on iOS when typing - input must be at least 16px */
-  .chat-input {
+  .chat-input,
+  *[class*="page"] .chat-input,
+  *[class*="schedule"] .chat-input,
+  *[class*="crew"] .chat-input,
+  *[class*="general"] .chat-input,
+  *[class*="gear"] .chat-input,
+  *[class*="card-log"] .chat-input,
+  *[class*="travel"] .chat-input,
+  *[class*="shotlist"] .chat-input,
+  *[class*="events"] .chat-input {
     font-size: 16px !important;
   }
   
-  /* Schedule page specific mobile adjustments */
-  .schedule-page .chat-panel {
-    bottom: 140px !important; /* Match other pages positioning */
-    right: 20px !important;
-    left: 20px !important;
-    width: calc(100vw - 40px) !important;
-    height: 450px !important; /* Match other pages height */
+  /* Hide floating chat button on mobile (using navbar button instead) */
+  .chat-button,
+  *[class*="page"] .chat-button,
+  *[class*="schedule"] .chat-button,
+  *[class*="crew"] .chat-button,
+  *[class*="general"] .chat-button,
+  *[class*="gear"] .chat-button,
+  *[class*="card-log"] .chat-button,
+  *[class*="travel"] .chat-button,
+  *[class*="shotlist"] .chat-button,
+  *[class*="events"] .chat-button {
+    display: none !important;
+  }
+}
+
+/* Chat Header Controls - Consistent across all pages */
+.chat-header-controls,
+*[class*="page"] .chat-header-controls,
+*[class*="schedule"] .chat-header-controls,
+*[class*="crew"] .chat-header-controls,
+*[class*="general"] .chat-header-controls,
+*[class*="gear"] .chat-header-controls,
+*[class*="card-log"] .chat-header-controls,
+*[class*="travel"] .chat-header-controls,
+*[class*="shotlist"] .chat-header-controls,
+*[class*="events"] .chat-header-controls {
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+}
+
+.chat-header-left,
+*[class*="page"] .chat-header-left,
+*[class*="schedule"] .chat-header-left,
+*[class*="crew"] .chat-header-left,
+*[class*="general"] .chat-header-left,
+*[class*="gear"] .chat-header-left,
+*[class*="card-log"] .chat-header-left,
+*[class*="travel"] .chat-header-left,
+*[class*="shotlist"] .chat-header-left,
+*[class*="events"] .chat-header-left {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+}
+
+.chat-subtitle,
+*[class*="page"] .chat-subtitle,
+*[class*="schedule"] .chat-subtitle,
+*[class*="crew"] .chat-subtitle,
+*[class*="general"] .chat-subtitle,
+*[class*="gear"] .chat-subtitle,
+*[class*="card-log"] .chat-subtitle,
+*[class*="travel"] .chat-subtitle,
+*[class*="shotlist"] .chat-subtitle,
+*[class*="events"] .chat-subtitle {
+  font-size: 12px !important;
+  color: rgba(255, 255, 255, 0.8) !important;
+  font-weight: normal !important;
+  margin-top: 2px !important;
+  margin-bottom: 0 !important;
+  margin-left: 0 !important;
+  margin-right: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  background: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+  line-height: 1.2 !important;
+}
+
+/* Conversation Mode Button Enhanced States */
+.conversation-mode-btn {
+  background: linear-gradient(135deg, #6c757d, #5a6268);
+  border: none;
+  border-radius: 50%;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-left: 8px;
+}
+
+.conversation-mode-btn:hover {
+  background: linear-gradient(135deg, #5a6268, #495057);
+  transform: scale(1.05);
+}
+
+.conversation-mode-btn.active {
+  background: linear-gradient(135deg, #4CAF50, #45a049);
+  box-shadow: 0 0 15px rgba(76, 175, 80, 0.4);
+}
+
+.conversation-mode-btn.active.listening {
+  background: linear-gradient(135deg, #2196F3, #1976D2);
+  animation: conversationPulse 1s infinite;
+  box-shadow: 0 0 20px rgba(33, 150, 243, 0.6);
+}
+
+.conversation-mode-btn.active.processing {
+  background: linear-gradient(135deg, #FF9800, #F57C00);
+  animation: processingRotate 2s infinite linear;
+  box-shadow: 0 0 15px rgba(255, 152, 0, 0.5);
+}
+
+.conversation-mode-btn.active.speaking {
+  background: linear-gradient(135deg, #9C27B0, #7B1FA2);
+  animation: speakingPulse 1.5s infinite;
+  box-shadow: 0 0 20px rgba(156, 39, 176, 0.5);
+}
+
+@keyframes conversationPulse {
+  0%, 100% { 
+    transform: scale(1);
+    box-shadow: 0 0 15px rgba(33, 150, 243, 0.4);
+  }
+  50% { 
+    transform: scale(1.1);
+    box-shadow: 0 0 25px rgba(33, 150, 243, 0.8);
+  }
+}
+
+@keyframes processingRotate {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+@keyframes speakingPulse {
+  0%, 100% { 
+    box-shadow: 0 0 15px rgba(156, 39, 176, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 25px rgba(156, 39, 176, 0.7);
+  }
+}
+
+.conversation-mode-btn .material-symbols-outlined {
+  font-size: 20px;
+  color: white;
+  font-family: 'Material Symbols Outlined' !important;
+}
+
+/* Conversation Mode Indicators */
+.chat-panel.conversation-mode {
+  border: 2px solid #4CAF50;
+  box-shadow: 0 0 20px rgba(76, 175, 80, 0.3);
+}
+
+.chat-panel.conversation-mode.listening {
+  border-color: #2196F3;
+  box-shadow: 0 0 20px rgba(33, 150, 243, 0.4);
+  animation: listeningPulse 2s infinite;
+}
+
+.chat-panel.conversation-mode.processing {
+  border-color: #FF9800;
+  box-shadow: 0 0 20px rgba(255, 152, 0, 0.4);
+}
+
+.chat-panel.conversation-mode.speaking {
+  border-color: #9C27B0;
+  box-shadow: 0 0 20px rgba(156, 39, 176, 0.4);
+  animation: speakingPulse 1.5s infinite;
+}
+
+@keyframes listeningPulse {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(33, 150, 243, 0.4);
+    transform: scale(1);
+  }
+  50% { 
+    box-shadow: 0 0 30px rgba(33, 150, 243, 0.6);
+    transform: scale(1.02);
+  }
+}
+
+@keyframes speakingPulse {
+  0%, 100% { 
+    box-shadow: 0 0 20px rgba(156, 39, 176, 0.4);
+  }
+  50% { 
+    box-shadow: 0 0 25px rgba(156, 39, 176, 0.6);
+  }
+}
+
+
+
+/* Conversation mode indicator */
+.conversation-mode-indicator {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  padding: 4px 8px;
+  background: rgba(76, 175, 80, 0.9);
+  color: white;
+  border-radius: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  display: none;
+}
+
+.chat-panel.conversation-mode .conversation-mode-indicator {
+  display: block;
+}
+
+.chat-panel.conversation-mode.listening .conversation-mode-indicator {
+  background: rgba(33, 150, 243, 0.9);
+}
+
+.chat-panel.conversation-mode.listening .conversation-mode-indicator::after {
+  content: " • Listening";
+}
+
+.chat-panel.conversation-mode.processing .conversation-mode-indicator {
+  background: rgba(255, 152, 0, 0.9);
+}
+
+.chat-panel.conversation-mode.processing .conversation-mode-indicator::after {
+  content: " • Processing";
+}
+
+.chat-panel.conversation-mode.speaking .conversation-mode-indicator {
+  background: rgba(156, 39, 176, 0.9);
+}
+
+.chat-panel.conversation-mode.speaking .conversation-mode-indicator::after {
+  content: " • Speaking";
+}
+
+.conversation-mode-indicator::before {
+  content: "🎙️";
+}
+
+/* Speech Recognition Visual Feedback */
+.chat-input.listening {
+  border-color: #ff4444 !important;
+  box-shadow: 0 0 0 2px rgba(255, 68, 68, 0.3) !important;
+  animation: input-listening 1.5s infinite ease-in-out;
+}
+
+@keyframes input-listening {
+  0%, 100% { 
+    box-shadow: 0 0 0 2px rgba(255, 68, 68, 0.3);
+  }
+  50% { 
+    box-shadow: 0 0 0 4px rgba(255, 68, 68, 0.1);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 480px) {
+  .chat-header-controls {
+    gap: 4px !important;
+  }
+  
+  .auto-play-toggle-btn,
+  .conversation-mode-btn {
+    width: 36px !important;
+    height: 36px !important;
+    font-size: 18px !important;
+  }
+  
+  .send-btn {
+    width: 40px !important;
+    height: 40px !important;
+    font-size: 18px !important;
+  }
+  
+  .chat-input-container {
+    gap: 6px !important;
+    padding: 12px !important;
   }
 } 
