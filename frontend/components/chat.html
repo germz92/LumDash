@@ -4,27 +4,16 @@
 </div>
 
 <div id="chatPanel" class="chat-panel">
-  <div class="conversation-mode-indicator"></div>
   <div class="chat-header">
-    <div class="chat-header-left">
-      <strong>Luma</strong>
-      <span class="chat-subtitle">Event Assistant</span>
-    </div>
-    <div class="chat-header-controls">
-      <button id="conversationModeBtn" class="conversation-mode-btn" title="Start voice conversation" style="display: none;">
-        <span class="material-symbols-outlined">voice_over_off</span>
-      </button>
-      <button id="autoPlayToggleBtn" class="auto-play-toggle-btn" title="Auto-play disabled" style="display: none;">
-        <span class="material-symbols-outlined">pause_circle</span>
-      </button>
-      <button id="closeChatBtn" class="close-chat-btn">
-        <span class="material-symbols-outlined">close</span>
-      </button>
-    </div>
+    <strong>Luma</strong>
+    <span class="chat-subtitle">Event Assistant</span>
+    <button id="closeChatBtn" class="close-chat-btn">
+      <span class="material-symbols-outlined">close</span>
+    </button>
   </div>
   <div id="chatMessages" class="chat-messages"></div>
   <div class="chat-input-container">
-    <input id="chatInput" type="text" placeholder="Type a message or start voice conversation..." class="chat-input">
+    <input id="chatInput" type="text" placeholder="Ask Luma about this event..." class="chat-input">
     <button id="sendBtn" class="send-btn">
       <span class="material-symbols-outlined">send</span>
     </button>

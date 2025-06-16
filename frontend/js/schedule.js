@@ -1453,7 +1453,7 @@ window.cleanupSchedulePage = function cleanupSchedulePage() {
     input.removeEventListener('change', handleSearchInput);
   });
 
-  // Navigation container should persist across pages, so don't clear it
+  // Note: Navigation container is managed by main app.js, not page-specific cleanup
 
   // Remove scroll event listener
   if (window.scheduleScrollHandler) {
@@ -2422,7 +2422,24 @@ function setupDateFilterOptions() {
   }
 }
 
-// Removed problematic setupBottomNavigation monitoring that was interfering with navigation
+// Monitor setupBottomNavigation calls
+const originalSetupBottomNavigation = window.setupBottomNavigation;
+if (originalSetupBottomNavigation) {
+  window.setupBottomNavigation = function(...args) {
+    console.log(`[MONITOR] setupBottomNavigation called with args:`, args);
+    logEventIdState('BEFORE_SETUP_BOTTOM_NAV_CALL');
+    
+    const result = originalSetupBottomNavigation.apply(this, args);
+    
+    logEventIdState('AFTER_SETUP_BOTTOM_NAV_CALL');
+    console.log(`[MONITOR] setupBottomNavigation completed`);
+    
+    return result;
+  };
+  console.log(`[MONITOR] setupBottomNavigation monitoring installed`);
+} else {
+  console.warn(`[MONITOR] setupBottomNavigation not found for monitoring`);
+}
 
 // Test smart update functionality
 window.testScheduleSmartUpdate = function(programId, testData) {

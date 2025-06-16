@@ -465,29 +465,14 @@
         align-self: center;
     }
 
-    .schedule-page .program-container input,
-    .schedule-page .program-container textarea,
-    .schedule-page .program-container select,
-    .schedule-page .program-container button,
-    .schedule-page .top-controls input,
-    .schedule-page .top-controls textarea,
-    .schedule-page .top-controls select,
-    .schedule-page .top-controls button {
+    .schedule-page input,
+    .schedule-page textarea,
+    .schedule-page select,
+    .schedule-page button {
         font-size: 16px !important;
         width: 100% !important;
         min-width: 0 !important;
         box-sizing: border-box;
-    }
-
-    /* Ensure chat widget is never affected by schedule page styles */
-    .schedule-page .chat-panel input,
-    .schedule-page .chat-panel textarea,
-    .schedule-page .chat-panel select,
-    .schedule-page .chat-panel button {
-        font-size: 14px !important;
-        width: auto !important;
-        min-width: auto !important;
-        box-sizing: border-box !important;
     }
 
     .schedule-page .show-notes-btn,
