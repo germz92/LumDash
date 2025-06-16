@@ -47,6 +47,15 @@ if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_ap
   console.log('⚠️  OpenAI API key not configured - chat feature disabled');
 }
 
+// Configure Eleven Labs
+let elevenLabsConfigured = false;
+if (process.env.ELEVENLABS_API_KEY && process.env.ELEVENLABS_API_KEY !== 'your_elevenlabs_api_key_here') {
+  elevenLabsConfigured = true;
+  console.log('✅ Eleven Labs configured successfully');
+} else {
+  console.log('⚠️  Eleven Labs API key not configured - voice feature disabled');
+}
+
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -785,57 +794,147 @@ app.post('/api/chat/:tableId', authenticate, async (req, res) => {
       }
     }
 
+    // Debug: Log the program schedule data being passed to AI
+    console.log('🤖 [AI DEBUG] Program schedule data:', JSON.stringify(eventData.programSchedule, null, 2));
+    console.log('🤖 [AI DEBUG] Program schedule count:', eventData.programSchedule?.length || 0);
+
     // Create context-aware prompt with better personality and instructions
-    const systemPrompt = `You are Luma, an AI assistant specialized in event photography and production management. You're helping manage the event "${table.title}".
+    const systemPrompt = `
+You are Luma, a friendly AI assistant for event photography management. You help photographers organize their events, manage equipment, and provide practical advice.
 
-CURRENT DATE & TIME CONTEXT:
-- Today's Date: ${currentDateTime.date} (${currentDateTime.dayOfWeek})
-- Current Time: ${currentDateTime.time}
-- Event Status: ${eventStatus}
-${eventDates.start ? `- Event Start Date: ${eventDates.start}` : ''}
-${eventDates.end ? `- Event End Date: ${eventDates.end}` : ''}
+CURRENT CONTEXT:
+- Event: ${table ? table.title : 'No specific event'}
+- Client: ${table?.general?.client || 'Not specified'}
+- Event dates: ${table?.general?.start || 'Not set'} to ${table?.general?.end || 'Not set'}
+- User is on: ${pageContext?.currentPage || 'Unknown page'}
+- Current section: ${pageContext?.activeTab || pageContext?.currentView || 'Main view'}
 
-USER CONTEXT:
-- Current Page: ${pageContext.currentPage || 'unknown'}
-- Active Tab/Section: ${pageContext.activeTab || 'none'}
-- Browser Language: ${pageContext.browserLanguage || 'en-US'}
+EVENT DATA AVAILABLE:
+${eventData.general && Object.keys(eventData.general).length > 0 ? `
+GENERAL EVENT INFO:
+- Client: ${eventData.general.client || 'Not specified'}
+- Start Date: ${eventData.general.start || 'Not set'}
+- End Date: ${eventData.general.end || 'Not set'}
+- Location: ${eventData.general.location || 'Not specified'}
+- Description: ${eventData.general.description || 'No description'}
+- Contact: ${eventData.general.contact || 'No contact info'}
+- Notes: ${eventData.general.notes || 'No notes'}
+` : ''}
 
-INTRODUCTION: Always introduce yourself as "Hi! I'm Luma, your AI assistant for ${table.title}." when greeting new users or when the conversation starts fresh.
+${eventData.programSchedule && eventData.programSchedule.length > 0 ? `
+PROGRAM SCHEDULE:
+${eventData.programSchedule.map(item => {
+  // Convert 24-hour time to 12-hour format for better readability
+  const formatTime = (time) => {
+    if (!time) return 'No time';
+    const match = time.match(/^(\d{1,2}):(\d{2})$/);
+    if (!match) return time;
+    const [, hours, minutes] = match;
+    const hour = parseInt(hours);
+    const period = hour >= 12 ? 'PM' : 'AM';
+    const displayHour = hour === 0 ? 12 : hour > 12 ? hour - 12 : hour;
+    const minText = minutes === '00' ? '' : `:${minutes}`;
+    return `${displayHour}${minText} ${period}`;
+  };
+  
+  const startTime = formatTime(item.startTime);
+  const endTime = formatTime(item.endTime);
+  const timeRange = startTime === 'No time' && endTime === 'No time' ? 'Time TBD' : 
+                   endTime === 'No time' ? `${startTime}` : `${startTime} to ${endTime}`;
+  
+  return `- ${item.name || 'Untitled'}: ${timeRange}${item.location ? ` at ${item.location}` : ''}${item.date ? ` on ${item.date}` : ''}${item.done ? ' ✓' : ''}`;
+}).join('\n')}
+` : 'No program schedule available.'}
 
-PERSONALITY: Be friendly, professional, and proactive. Think like an experienced event coordinator who understands photography workflows, production schedules, and team coordination. Use time-aware language (e.g., "later today", "tomorrow", "next week").
+${eventData.rows && eventData.rows.length > 0 ? `
+CREW ASSIGNMENTS:
+${eventData.rows.map(row => `- ${row.name || 'Unnamed'}: ${row.role || 'No role'} (${row.email || 'No email'})`).join('\n')}
+` : 'No crew assignments available.'}
 
-CONTEXT AWARENESS: This is user ${req.user.fullName}. Remember details from your conversations and build upon them. If someone asks follow-up questions, reference previous parts of the conversation naturally. Be aware of timing relative to the event dates.
+${eventData.shotlists && eventData.shotlists.length > 0 ? `
+SHOT LISTS:
+${eventData.shotlists.map(shot => `- ${shot.description || shot.title || 'Untitled shot'}: ${shot.location || 'No location'} ${shot.time ? `at ${shot.time}` : ''}`).join('\n')}
+` : 'No shot lists available.'}
 
-IMPORTANT: For all times and schedules, display them exactly as they appear in the data without any timezone conversion. Do not adjust times to local timezone - show all times as stored in the system.
+${eventData.cardLog && eventData.cardLog.length > 0 ? `
+CARD LOG:
+${eventData.cardLog.map(card => `- Card ${card.cardNumber || 'Unknown'}: ${card.shots || 0} shots, ${card.status || 'No status'} ${card.notes ? `(${card.notes})` : ''}`).join('\n')}
+` : 'No card log entries.'}
 
-EVENT DATA ACCESS:
-${JSON.stringify(eventData, null, 2)}
+${eventData.tasks && eventData.tasks.length > 0 ? `
+TASKS:
+${eventData.tasks.map(task => `- ${task.title || 'Untitled task'}${task.deadline ? ` (Due: ${task.deadline})` : ''} ${task.completed ? '✓' : '○'}`).join('\n')}
+` : ''}
 
-EXPERTISE AREAS & SEARCH GUIDANCE:
-- 📅 SCHEDULE: For timing questions ("when is keynote", "what's next"), search programSchedule array by session name, speaker, or location. Be aware of current time and suggest what's happening now/next.
-- 👥 CREW: For team questions ("who's shooting", "photographer assignments"), check rows array for crew assignments and schedules. Consider current date for active assignments.
-- 📷 GEAR: For equipment questions ("what cameras", "lens list"), examine gear.lists by category (Cameras, Lenses, Lighting, etc.). Check availability against current event dates.
-- 💾 CARDS: For memory card tracking ("card status", "which cards used"), check cardLog array by date. Use current date to show today's card usage.
-- 🗺️ MAPS/DOCS: For location/document questions ("floor plan", "venue map"), search documents array by filename and type
-- 📸 SHOTLISTS: For shot planning questions ("what shots needed", "photo checklist", "which shots completed"), check shotlists array by list name and shot items. Prioritize based on event timing.
-- ✈️ LOGISTICS: For travel/accommodation ("hotel info", "flight details"), check travel and accommodation arrays. Alert about upcoming departures/arrivals.
-- ✅ TASKS: For to-do items ("what needs doing", "deadlines"), review tasks array. Prioritize by urgency relative to current date and event dates.
+${eventData.gear && Object.keys(eventData.gear).length > 0 ? `
+GEAR INFORMATION:
+Available gear lists and equipment data.
+` : ''}
 
-CONTEXTUAL INTELLIGENCE:
-- Weather Awareness: If someone asks about outdoor shoots, remind them to check weather
-- Pre-Event Phase: Focus on preparation, planning, gear checks, team coordination
-- During Event: Focus on real-time coordination, troubleshooting, schedule adjustments
-- Post-Event: Focus on wrap-up tasks, file organization, equipment returns
+${eventData.travel && eventData.travel.length > 0 ? `
+TRAVEL INFORMATION:
+${eventData.travel.map(trip => `- ${trip.type || 'Travel'}: ${trip.departure || 'No departure'} to ${trip.arrival || 'No arrival'} ${trip.date ? `on ${trip.date}` : ''}`).join('\n')}
+` : ''}
 
-RESPONSE STYLE:
-- Be conversational but precise
-- Use relevant emojis sparingly for clarity
-- Provide specific times, names, and details when available
-- Reference time context naturally ("Since it's Monday morning..." or "With the event starting tomorrow...")
-- If information is missing, suggest exactly where/how to add it
-- Offer proactive help ("Also, I notice..." or "You might also want to know...")
-- Alert about time-sensitive items (deadlines approaching, schedules starting soon)
-- Keep responses under 200 words unless detailed explanations are needed`;
+${eventData.accommodation && eventData.accommodation.length > 0 ? `
+ACCOMMODATION:
+${eventData.accommodation.map(acc => `- ${acc.name || 'Unnamed'}: ${acc.address || 'No address'} ${acc.checkIn ? `(Check-in: ${acc.checkIn})` : ''}`).join('\n')}
+` : ''}
+
+${eventData.adminNotes && eventData.adminNotes.length > 0 ? `
+ADMIN NOTES:
+${eventData.adminNotes.map(note => `- ${note.content || note.text || 'Empty note'} ${note.timestamp ? `(${note.timestamp})` : ''}`).join('\n')}
+` : ''}
+
+COMMUNICATION STYLE:
+${pageContext?.conversationMode ? `
+🎤 VOICE CONVERSATION MODE:
+- Keep responses SHORT and natural (1-3 sentences)
+- Use everyday language, like talking to a friend
+- Ask follow-up questions to keep the conversation going
+- Avoid technical jargon and long explanations
+- Sound conversational and engaging
+- Use contractions (I'll, you're, it's, etc.)
+` : `
+💬 TEXT MODE:
+- Provide clear, well-organized responses
+- Use bullet points and formatting for readability
+- Include helpful details and step-by-step guidance
+- Structure information logically
+`}
+
+WHAT YOU HELP WITH:
+• Event planning and scheduling
+• Photography equipment and gear management
+• Client communication and project organization
+• Photography tips and techniques
+• LumDash platform features and navigation
+
+RESPONSE APPROACH:
+- Be genuinely helpful and encouraging
+- Use simple, clear language
+- When you don't know specific details about their event, say so and offer general help
+- Suggest relevant LumDash features naturally
+- Stay focused on photography and event management topics
+- If asked about unrelated topics, politely redirect: "I'm here to help with your photography events and business!"
+- **CRITICAL: Always convert 24-hour times to 12-hour format (09:00 → 9:00 AM, 14:30 → 2:30 PM, 22:00 → 10:00 PM)**
+
+SEARCHING FOR SPECIFIC EVENTS:
+- When asked about specific events like "keynote", "presentation", "ceremony", etc., search through the program schedule for items with names containing those keywords (case-insensitive)
+- If no exact match is found, look for similar or related terms
+- If the program schedule is empty or doesn't contain the requested information, clearly state that no schedule information is available and suggest they add it to the program schedule
+
+FORMATTING FOR READABILITY:
+- Use short paragraphs (2-3 sentences max)
+- Include line breaks between different topics
+- Use bullet points for lists
+- Bold important information when helpful
+- **ALWAYS use 12-hour time format with AM/PM (2:30 PM, 9:00 AM, never 14:30 or 09:00)**
+- Convert any 24-hour times you see in the data to 12-hour format before mentioning them
+- Use friendly, conversational transitions
+
+Remember: You're here to make event photography easier and more organized!
+`;
 
     // Build messages array with conversation history for context awareness
     const messages = [
@@ -849,6 +948,17 @@ RESPONSE STYLE:
     // Add the current message
     messages.push({ role: "user", content: message });
 
+    // Adjust model parameters based on conversation mode
+    const modelParams = {
+      model: "gpt-4o-mini",
+      messages: messages,
+      max_tokens: pageContext?.conversationMode ? 150 : 600, // Shorter responses for conversation mode
+      temperature: pageContext?.conversationMode ? 0.7 : 0.3, // More creative for conversation
+      presence_penalty: pageContext?.conversationMode ? 0.3 : 0.1, // Encourage variety in conversation
+      frequency_penalty: pageContext?.conversationMode ? 0.2 : 0.1, // Reduce repetition in conversation
+      stream: true // Enable streaming
+    };
+
     // Set up Server-Sent Events for streaming response
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',
@@ -858,15 +968,7 @@ RESPONSE STYLE:
       'Access-Control-Allow-Headers': 'Content-Type, Authorization'
     });
 
-    const stream = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: messages,
-      max_tokens: 600, // Increased for more detailed responses
-      temperature: 0.3, // Lower temperature for more consistent/accurate responses
-      presence_penalty: 0.1, // Slight penalty to encourage focused responses
-      frequency_penalty: 0.1, // Slight penalty to avoid repetition
-      stream: true // Enable streaming
-    });
+    const stream = await openai.chat.completions.create(modelParams);
 
     let fullResponse = '';
 
@@ -904,6 +1006,126 @@ RESPONSE STYLE:
       if (!res.headersSent) {
         res.status(500).json({ error: errorMessage });
       }
+    }
+  }
+});
+
+// VOICE SYNTHESIS ENDPOINT (Eleven Labs)
+app.post('/api/voice/synthesize', authenticate, async (req, res) => {
+  try {
+    const { text, voice = 'Rachel' } = req.body;
+    
+    if (!text) {
+      return res.status(400).json({ error: 'Text is required' });
+    }
+
+    // Check if Eleven Labs is configured
+    if (!elevenLabsConfigured) {
+      return res.status(503).json({ 
+        error: 'Voice synthesis feature is not available. Please configure Eleven Labs API key.' 
+      });
+    }
+
+    console.log('🎙️ Original text:', text.substring(0, 100) + '...');
+    console.log('🔑 Using voice ID:', voice);
+    console.log('🔑 API key exists:', !!process.env.ELEVENLABS_API_KEY);
+    console.log('🔑 API key length:', process.env.ELEVENLABS_API_KEY?.length);
+
+    // Clean text for better pronunciation
+    let cleanedText = text
+      // Remove HTML tags
+      .replace(/<[^>]*>/g, '')
+      // Remove markdown formatting characters
+      .replace(/\*\*/g, '') // Remove bold markdown
+      .replace(/\*/g, '') // Remove asterisks
+      .replace(/`/g, '') // Remove backticks
+      .replace(/#{1,6}\s*/g, '') // Remove markdown headers
+      .replace(/\[([^\]]+)\]\([^)]+\)/g, '$1') // Convert markdown links to just text
+      .replace(/_{1,2}([^_]+)_{1,2}/g, '$1') // Remove underline markdown
+      // Skip time conversion here since it's already done in the AI system prompt
+      // Convert time ranges
+      .replace(/(\d{1,2}(?::\d{2})?\s*(?:AM|PM))\s*[-–—to]+\s*(\d{1,2}(?::\d{2})?\s*(?:AM|PM))/gi, '$1 to $2')
+      // Clean up bullet points and list markers
+      .replace(/^[\s]*[-•*]\s*/gm, '') // Remove bullet points at start of lines
+      .replace(/^\d+\.\s*/gm, '') // Remove numbered list markers
+      // Normalize whitespace
+      .replace(/\s+/g, ' ')
+      .trim();
+
+    // Limit text length for better pronunciation (Eleven Labs works better with shorter texts)
+    if (cleanedText.length > 500) {
+      // Find a good breaking point (sentence end)
+      const sentences = cleanedText.match(/[^\.!?]+[\.!?]+/g);
+      if (sentences && sentences.length > 1) {
+        let truncated = '';
+        for (const sentence of sentences) {
+          if ((truncated + sentence).length <= 500) {
+            truncated += sentence;
+          } else {
+            break;
+          }
+        }
+        cleanedText = truncated || cleanedText.substring(0, 500);
+      } else {
+        cleanedText = cleanedText.substring(0, 500);
+      }
+    }
+
+    console.log('🎙️ Cleaned text for synthesis:', cleanedText.substring(0, 100) + '...');
+
+    // Generate speech using Eleven Labs REST API
+    const elevenLabsResponse = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voice}`, {
+      method: 'POST',
+      headers: {
+        'Accept': 'audio/mpeg',
+        'Content-Type': 'application/json',
+        'xi-api-key': process.env.ELEVENLABS_API_KEY
+      },
+      body: JSON.stringify({
+        text: cleanedText,
+        model_id: 'eleven_monolingual_v1',
+        voice_settings: {
+          stability: 0.75,
+          similarity_boost: 0.85,
+          style: 0.0,
+          use_speaker_boost: true
+        }
+      })
+    });
+
+    if (!elevenLabsResponse.ok) {
+      throw new Error(`Eleven Labs API error: ${elevenLabsResponse.status} ${elevenLabsResponse.statusText}`);
+    }
+
+    // Set appropriate headers for audio response
+    res.setHeader('Content-Type', 'audio/mpeg');
+    res.setHeader('Content-Disposition', 'inline; filename="speech.mp3"');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+
+    // Convert the response to a buffer and pipe it to the client
+    const audioBuffer = await elevenLabsResponse.arrayBuffer();
+    const audioData = Buffer.from(audioBuffer);
+    res.send(audioData);
+
+    console.log('✅ Voice synthesis completed successfully');
+
+  } catch (error) {
+    console.error('Voice synthesis error:', error);
+    
+    let errorMessage = 'Voice synthesis service temporarily unavailable. Please try again later.';
+    
+    if (error.message && error.message.includes('429')) {
+      errorMessage = 'Eleven Labs quota exceeded. Please check your billing at elevenlabs.io/account';
+    } else if (error.message && error.message.includes('401')) {
+      errorMessage = 'Invalid Eleven Labs API key. Please check your configuration.';
+    } else if (error.message && error.message.includes('422')) {
+      errorMessage = 'Invalid voice or text parameters.';
+    } else if (error.message && error.message.includes('Eleven Labs API error')) {
+      errorMessage = error.message;
+    }
+
+    if (!res.headersSent) {
+      res.status(500).json({ error: errorMessage });
     }
   }
 });
