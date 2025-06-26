@@ -68,13 +68,21 @@ gearInventorySchema.methods.getAvailableQuantity = function(checkOutDate, checkI
   
   const reqStart = normalizeDate(checkOutDate);
   const reqEnd = normalizeDate(checkInDate);
+  const now = new Date();
+  now.setUTCHours(0, 0, 0, 0);
   
   let reservedQuantity = 0;
   
-  // Check active reservations for date overlaps
+  // Check active reservations for date overlaps (excluding expired reservations)
   this.reservations.forEach(reservation => {
     const resStart = normalizeDate(reservation.checkOutDate);
     const resEnd = normalizeDate(reservation.checkInDate);
+    
+    // Skip expired reservations (automatically checked in)
+    // Items are assumed to be returned exactly on their check-in date
+    if (resEnd < now) {
+      return; // This reservation has expired, don't count it
+    }
     
     // Check for overlap: (startA <= endB) && (endA >= startB)
     if (reqStart <= resEnd && reqEnd >= resStart) {
