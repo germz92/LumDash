@@ -86,7 +86,27 @@ const tableSchema = new mongoose.Schema({
       default: {}
     },
     checkOutDate: String,
-    checkInDate: String
+    checkInDate: String,
+    // New: Gear list management for the new system
+    gearLists: [{
+      name: {
+        type: String,
+        required: true,
+        default: 'Main List'
+      },
+      createdAt: {
+        type: Date,
+        default: Date.now
+      },
+      createdBy: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User'
+      }
+    }],
+    currentList: {
+      type: String,
+      default: 'Main List'
+    }
   },
   travel: [
     {

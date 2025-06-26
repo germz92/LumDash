@@ -1,65 +1,65 @@
 const mongoose = require('mongoose');
 
-// Serial numbers must be unique for all gear inventory items. This is enforced by a unique index in the schema.
+// Helper function to normalize dates to UTC midnight
+function normalizeDate(dateStr) {
+  if (!dateStr) return null;
+  const date = new Date(dateStr);
+  date.setUTCHours(0, 0, 0, 0);
+  return date;
+}
+
+// Simplified GearInventory schema designed for the current cart-to-gear system
 const gearInventorySchema = new mongoose.Schema({
-  label: { type: String, required: true, unique: true }, // e.g., "Canon R5 Body #1"
+  // Basic item information
+  label: { type: String, required: true }, // e.g., "Canon R5 Body #1"
   category: { type: String, required: true }, // e.g., "Camera"
   serial: { 
     type: String,
-    required: true, // Make serial required
-    unique: true, // Enforce uniqueness
+    required: true,
+    unique: true,
     sparse: true,
-    set: v => v === '' ? 'N/A' : v // Convert empty strings to "N/A" as default value
+    set: v => v === '' ? 'N/A' : v
   },
-  // NEW: Quantity support for items like batteries
   quantity: { 
     type: Number, 
-    default: 1, // Default to 1 for backward compatibility
+    default: 1,
     min: 1 
   },
-  // NEW: Track reservations for quantity items
+  
+  // Current active reservations (the single source of truth)
   reservations: [{
-    eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Table' },
-    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-    quantity: { type: Number, required: true },
-    checkOutDate: Date,
-    checkInDate: Date,
+    eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Table', required: true },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+    quantity: { type: Number, required: true, min: 1 },
+    checkOutDate: { type: Date, required: true, set: normalizeDate },
+    checkInDate: { type: Date, required: true, set: normalizeDate },
     createdAt: { type: Date, default: Date.now }
   }],
-  status: { type: String, enum: ['available', 'checked_out'], default: 'available' },
-  checkedOutBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
-  checkedOutEvent: { type: mongoose.Schema.Types.ObjectId, ref: 'Table', default: null },
-  checkOutDate: Date,
-  checkInDate: Date,
-  history: [
-    {
-      user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
-      event: { type: mongoose.Schema.Types.ObjectId, ref: 'Table' },
-      checkOutDate: Date,
-      checkInDate: Date,
-      // NEW: Track quantity in history for quantity items
-      quantity: { type: Number, default: 1 }
-    }
-  ]
+  
+  // Historical data (only for completed/past reservations)
+  history: [{
+    eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Table' },
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    quantity: { type: Number, default: 1 },
+    checkOutDate: { type: Date, set: normalizeDate },
+    checkInDate: { type: Date, set: normalizeDate },
+    returnedAt: Date,
+    createdAt: { type: Date, default: Date.now }
+  }]
+}, {
+  timestamps: true
 });
 
-// Add a pre-save hook to ensure empty serial values are handled correctly
+// Pre-save hook for serial handling
 gearInventorySchema.pre('save', function(next) {
-  // If serial is an empty string, set it to "N/A"
   if (!this.serial || this.serial === '') {
     this.serial = 'N/A';
   }
   next();
 });
 
-// NEW: Method to get available quantity for given dates
+// Method to get available quantity for given dates
 gearInventorySchema.methods.getAvailableQuantity = function(checkOutDate, checkInDate) {
-  if (this.quantity === 1) {
-    // For single items, use existing logic
-    return this.status === 'available' ? 1 : 0;
-  }
-  
-  // For quantity items, calculate available quantity
   const normalizeDate = (dateStr) => {
     const date = new Date(dateStr);
     date.setUTCHours(0, 0, 0, 0);
@@ -71,7 +71,7 @@ gearInventorySchema.methods.getAvailableQuantity = function(checkOutDate, checkI
   
   let reservedQuantity = 0;
   
-  // Check current reservations for overlaps
+  // Check active reservations for date overlaps
   this.reservations.forEach(reservation => {
     const resStart = normalizeDate(reservation.checkOutDate);
     const resEnd = normalizeDate(reservation.checkInDate);
@@ -85,7 +85,7 @@ gearInventorySchema.methods.getAvailableQuantity = function(checkOutDate, checkI
   return Math.max(0, this.quantity - reservedQuantity);
 };
 
-// NEW: Method to reserve quantity
+// Method to reserve quantity
 gearInventorySchema.methods.reserveQuantity = function(eventId, userId, quantity, checkOutDate, checkInDate) {
   const availableQty = this.getAvailableQuantity(checkOutDate, checkInDate);
   
@@ -93,7 +93,7 @@ gearInventorySchema.methods.reserveQuantity = function(eventId, userId, quantity
     throw new Error(`Only ${availableQty} units available for the requested dates`);
   }
   
-  // Add reservation
+  // Add reservation (single source of truth) - dates will be normalized by setter
   this.reservations.push({
     eventId,
     userId,
@@ -102,89 +102,76 @@ gearInventorySchema.methods.reserveQuantity = function(eventId, userId, quantity
     checkInDate
   });
   
-  // Add to history
-  this.history.push({
-    user: userId,
-    event: eventId,
-    checkOutDate,
-    checkInDate,
-    quantity
-  });
-  
-  // Update status if this is a single-quantity item
-  if (this.quantity === 1) {
-    this.status = 'checked_out';
-    this.checkedOutBy = userId;
-    this.checkedOutEvent = eventId;
-    this.checkOutDate = checkOutDate;
-    this.checkInDate = checkInDate;
-  }
+  console.log(`[RESERVE] Reserved ${quantity} units of ${this.label} for event ${eventId}`);
 };
 
-// NEW: Method to release quantity reservation
-gearInventorySchema.methods.releaseQuantity = function(eventId, checkOutDate, checkInDate, quantityToRelease = null) {
-  console.log(`[RELEASE DEBUG] Called with:`, { eventId, checkOutDate, checkInDate, quantityToRelease });
-  const normalizeDate = (dateStr) => {
-    const date = new Date(dateStr);
-    date.setUTCHours(0, 0, 0, 0);
-    return date;
-  };
-  const reqStart = normalizeDate(checkOutDate);
-  const reqEnd = normalizeDate(checkInDate);
-
-  // Overlap function
-  const rangesOverlap = (startA, endA, startB, endB) => (startA <= endB && endA >= startB);
-
-  if (quantityToRelease === null || quantityToRelease === undefined) {
-    // Release ALL reservations for this event and overlapping dates
-    const originalCount = this.reservations.length;
-    this.reservations = this.reservations.filter(reservation => {
-      if (reservation.eventId.toString() !== eventId.toString()) return true;
-      const resStart = normalizeDate(reservation.checkOutDate);
-      const resEnd = normalizeDate(reservation.checkInDate);
-      // Remove if date ranges overlap
-      const shouldRemove = rangesOverlap(resStart, resEnd, reqStart, reqEnd);
-      return !shouldRemove;
-    });
-    console.log(`[RELEASE DEBUG] Release ALL: removed ${originalCount - this.reservations.length} reservations`);
-  } else {
-    // Release specific quantity for this event and overlapping dates
-    let remainingToRelease = quantityToRelease;
-    const originalCount = this.reservations.length;
-    const newReservations = [];
-    for (const reservation of this.reservations) {
-      if (reservation.eventId.toString() !== eventId.toString() || remainingToRelease <= 0) {
-        newReservations.push(reservation);
-        continue;
-      }
-      const resStart = normalizeDate(reservation.checkOutDate);
-      const resEnd = normalizeDate(reservation.checkInDate);
-      // Use overlap logic
-      if (rangesOverlap(resStart, resEnd, reqStart, reqEnd)) {
-        if (reservation.quantity <= remainingToRelease) {
-          remainingToRelease -= reservation.quantity;
-        } else {
-          const modifiedReservation = { ...reservation.toObject() };
-          modifiedReservation.quantity = reservation.quantity - remainingToRelease;
-          remainingToRelease = 0;
-          newReservations.push(modifiedReservation);
-        }
-      } else {
-        newReservations.push(reservation);
-      }
+// Method to release quantity reservation
+gearInventorySchema.methods.releaseQuantity = function(eventId, userId, quantity) {
+  console.log(`[RELEASE] Releasing ${quantity} units of ${this.label} for event ${eventId}, user ${userId}`);
+  
+  const originalCount = this.reservations.length;
+  
+  // Find and remove matching reservations
+  let remainingToRelease = quantity;
+  const newReservations = [];
+  
+  for (const reservation of this.reservations) {
+    if (remainingToRelease <= 0) {
+      newReservations.push(reservation);
+      continue;
     }
-    this.reservations = newReservations;
-    console.log(`[RELEASE DEBUG] Release SPECIFIC: processed ${originalCount - this.reservations.length} reservations, ${remainingToRelease} units still to release`);
+    
+    // Match by event and user
+    if (reservation.eventId.toString() === eventId.toString() && 
+        reservation.userId.toString() === userId.toString()) {
+      
+      if (reservation.quantity <= remainingToRelease) {
+        // Remove entire reservation
+        remainingToRelease -= reservation.quantity;
+        console.log(`[RELEASE] Removed reservation of ${reservation.quantity} units`);
+      } else {
+        // Reduce reservation quantity
+        const newReservation = { ...reservation.toObject() };
+        newReservation.quantity = reservation.quantity - remainingToRelease;
+        newReservations.push(newReservation);
+        console.log(`[RELEASE] Reduced reservation from ${reservation.quantity} to ${newReservation.quantity} units`);
+        remainingToRelease = 0;
+      }
+    } else {
+      newReservations.push(reservation);
+    }
   }
+  
+  this.reservations = newReservations;
+  console.log(`[RELEASE] Released ${quantity - remainingToRelease} units, ${remainingToRelease} remaining to release`);
+  
+  return quantity - remainingToRelease; // Return how much was actually released
+};
 
-  // Update status for single-quantity items
-  if (this.quantity === 1) {
-    this.status = 'available';
-    this.checkedOutBy = null;
-    this.checkedOutEvent = null;
-    this.checkOutDate = null;
-    this.checkInDate = null;
-  }
+// Method to move reservation to history (when item is actually returned)
+gearInventorySchema.methods.moveToHistory = function(eventId, userId) {
+  const reservationsToMove = this.reservations.filter(res => 
+    res.eventId.toString() === eventId.toString() && 
+    res.userId.toString() === userId.toString()
+  );
+  
+  // Move to history - dates will be normalized by setter
+  reservationsToMove.forEach(res => {
+    this.history.push({
+      eventId: res.eventId,
+      userId: res.userId,
+      quantity: res.quantity,
+      checkOutDate: res.checkOutDate,
+      checkInDate: res.checkInDate,
+      returnedAt: new Date()
+    });
+  });
+  
+  // Remove from active reservations
+  this.reservations = this.reservations.filter(res => 
+    !(res.eventId.toString() === eventId.toString() && 
+      res.userId.toString() === userId.toString())
+  );
 };
 
 module.exports = mongoose.model('GearInventory', gearInventorySchema); 
