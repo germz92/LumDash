@@ -945,68 +945,25 @@
             <div class="loading-spinner"></div>
             <p>Loading gear...</p>
         </div>
-        </div>
-
-    <!-- Bottom Navigation -->
-    <nav class="bottom-nav-material" id="bottomNav">
-        <a href="#" id="navHome" data-page="general"><span class="material-symbols-outlined">home</span><span>Home</span></a>
-        <a href="#" id="navCrew" data-page="crew"><span class="material-symbols-outlined">group</span><span>Crew</span></a>
-        <a href="#" id="navLuma" class="chat-button-nav"><span class="material-symbols-outlined">lightbulb_2</span><span>Luma</span></a>
-        <a href="#" id="navSchedule" data-page="schedule"><span class="material-symbols-outlined">calendar_today</span><span>Schedule</span></a>
-        <a href="#" id="navShotlist" data-page="shotlist"><span class="material-symbols-outlined">checklist</span><span>Shotlist</span></a>
-        
-        <!-- Dropdown menu for Travel, Gear, Cards, Map, Exit -->
-        <div class="nav-dropdown" id="navMore">
-            <a href="#" class="dropdown-toggle active">
-                <span class="material-symbols-outlined">more_horiz</span>
-                <span>More</span>
-            </a>
-            <div class="dropdown-menu" id="dropdownMenu">
-                <a href="#" data-page="travel-accommodation">
-                    <span class="material-symbols-outlined">flight_takeoff</span>
-                    <span>Travel</span>
-                </a>
-                <a href="#" data-page="gear" class="active">
-                    <span class="material-symbols-outlined">photo_camera</span>
-                    <span>Gear</span>
-                </a>
-                <a href="#" data-page="card-log">
-                    <span class="material-symbols-outlined">sd_card</span>
-                    <span>Cards</span>
-                </a>
-                <a href="#" data-page="documents">
-                    <span class="material-symbols-outlined">map</span>
-                    <span>Map</span>
-                </a>
-                <a href="#" data-page="shotlist" class="mobile-shotlist-dropdown">
-                    <span class="material-symbols-outlined">checklist</span>
-                    <span>Shotlist</span>
-                </a>
-                <a href="#" id="navExit" data-page="events">
-                    <span class="material-symbols-outlined">exit_to_app</span>
-                    <span>Exit</span>
-                </a>
-            </div>
-        </div>
-    </nav>
+    </div>
 
     <!-- Action Buttons -->
-        <div class="action-buttons">
-            <div class="action-buttons-content">
-                <button class="btn btn-primary" onclick="addItems()" id="addItemsBtn">
-                    <span class="material-symbols-outlined">add_shopping_cart</span>
-                    Add Items
-                </button>
-                <button class="btn btn-secondary" onclick="viewCart()" id="viewCartBtn">
-                    <span class="material-symbols-outlined">shopping_cart</span>
-                    View Cart
-                </button>
-                <button class="btn btn-secondary" onclick="manageInventory()" id="manageInventoryBtn" style="display: none;">
-                    <span class="material-symbols-outlined">inventory</span>
-                    Manage Inventory
-                </button>
-            </div>
+    <div class="action-buttons">
+        <div class="action-buttons-content">
+            <button class="btn btn-primary" onclick="addItems()" id="addItemsBtn">
+                <span class="material-symbols-outlined">add_shopping_cart</span>
+                Add Items
+            </button>
+            <button class="btn btn-secondary" onclick="viewCart()" id="viewCartBtn">
+                <span class="material-symbols-outlined">shopping_cart</span>
+                View Cart
+            </button>
+            <button class="btn btn-secondary" onclick="manageInventory()" id="manageInventoryBtn" style="display: none;">
+                <span class="material-symbols-outlined">inventory</span>
+                Manage Inventory
+            </button>
         </div>
+    </div>
 
     <!-- New Package Modal -->
     <div id="newPackageModal" class="modal">
@@ -1115,17 +1072,15 @@
             </div>
             <div class="modal-footer">
                 <button class="package-btn" onclick="closeCreateTemplateModal()">Cancel</button>
-                <button class="package-btn primary" onclick="createTemplateFromModal()">Create Template</button>
+                <button class="package-btn primary" onclick="createTemplate()">Create Template</button>
             </div>
         </div>
-          </div>
-  
-        <!-- Load config and chat scripts -->
-        <script src="../js/config.js"></script>
-        <script src="../js/chat.js"></script>
-        
-        <script>
-        // Page-specific variables
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/app.js"></script>
+    <script src="../js/chat.js"></script>
+    <script>
         let currentEvent = null;
         let currentGear = [];
         let gearLists = [];
@@ -1133,9 +1088,169 @@
         let packageTemplates = [];
         let currentTemplateId = null;
         let currentTemplate = null;
-        let currentEventId = null;
         let eventId = null;
         let currentUser = null;
+
+        // Load shared bottom navigation - SIMPLIFIED VERSION  
+        async function loadBottomNavigation() {
+            console.log('🚀 Starting bottom navigation setup...');
+            
+            const container = document.getElementById('bottomNavContainer');
+            if (!container) {
+                console.error('❌ bottomNavContainer element not found');
+                return;
+            }
+            
+            // Always use the direct navigation HTML (skip fetch complexity)
+            console.log('📝 Injecting navigation HTML directly...');
+            container.innerHTML = `
+                <!-- Bottom nav -->
+                <nav class="bottom-nav-material" id="bottomNav">
+                  <a href="#" id="navHome" data-page="general"><span class="material-symbols-outlined">home</span><span>Home</span></a>
+                  <a href="#" id="navCrew" data-page="crew"><span class="material-symbols-outlined">group</span><span>Crew</span></a>
+                  <a href="#" id="navLuma" class="chat-button-nav"><span class="material-symbols-outlined">lightbulb_2</span><span>Luma</span></a>
+                  <a href="#" id="navSchedule" data-page="schedule"><span class="material-symbols-outlined">calendar_today</span><span>Schedule</span></a>
+                  <a href="#" id="navShotlist" data-page="shotlist"><span class="material-symbols-outlined">checklist</span><span>Shotlist</span></a>
+                  
+                  <!-- Dropdown menu for Travel, Gear, Cards, Map, Shotlist (mobile), Exit -->
+                  <div class="nav-dropdown" id="navMore">
+                    <a href="#" class="dropdown-toggle">
+                      <span class="material-symbols-outlined">more_horiz</span>
+                      <span>More</span>
+                    </a>
+                    <div class="dropdown-menu" id="dropdownMenu">
+                      <a href="#" data-page="travel-accommodation">
+                        <span class="material-symbols-outlined">flight_takeoff</span>
+                        <span>Travel</span>
+                      </a>
+                      <a href="#" data-page="gear">
+                        <span class="material-symbols-outlined">photo_camera</span>
+                        <span>Gear</span>
+                      </a>
+                      <a href="#" data-page="card-log">
+                        <span class="material-symbols-outlined">sd_card</span>
+                        <span>Cards</span>
+                      </a>
+                      <a href="#" data-page="documents">
+                        <span class="material-symbols-outlined">map</span>
+                        <span>Map</span>
+                      </a>
+                      <a href="#" data-page="shotlist" class="mobile-shotlist-dropdown">
+                        <span class="material-symbols-outlined">checklist</span>
+                        <span>Shotlist</span>
+                      </a>
+                      <a href="#" id="navExit" data-page="events">
+                        <span class="material-symbols-outlined">exit_to_app</span>
+                        <span>Exit</span>
+                      </a>
+                    </div>
+                  </div>
+                </nav> 
+            `;
+            
+            const navContainer = document.getElementById('bottomNav');
+            if (!navContainer) {
+                console.error('❌ bottomNav element not found after injection');
+                return;
+            }
+            
+            console.log('✅ Navigation HTML injected successfully');
+            
+            // Simple setup without relying on complex SPA functions
+            setupGearPageNavigation(navContainer);
+        }
+        
+        // Standalone navigation setup specifically for gear page
+        function setupGearPageNavigation(navContainer) {
+            console.log('🔧 Setting up gear page navigation...');
+            
+            // Set up all navigation links
+            const navLinks = navContainer.querySelectorAll('a[data-page]');
+            navLinks.forEach(link => {
+                if (link.closest('.dropdown-menu')) return; // Skip dropdown items for now
+                
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const page = link.getAttribute('data-page');
+                    console.log(`🖱️ Nav link clicked: ${page}`);
+                    
+                    if (page !== 'gear') {
+                        if (page === 'events') {
+                            window.location.href = `../dashboard.html#events`;
+                        } else {
+                            window.location.href = `../dashboard.html?eventId=${eventId}&page=${page}`;
+                        }
+                    }
+                });
+            });
+            
+            // Set up chat button
+            const chatButton = navContainer.querySelector('.chat-button-nav');
+            if (chatButton) {
+                chatButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('💬 Chat button clicked');
+                    
+                    // Try to open chat
+                    if (typeof openChat === 'function') {
+                        openChat();
+                    } else if (window.chatWidget) {
+                        window.chatWidget.toggleChat();
+                    } else {
+                        window.location.href = `../components/chat.html?eventId=${eventId}`;
+                    }
+                });
+            }
+            
+            // Set up dropdown menu
+            const dropdownToggle = navContainer.querySelector('.dropdown-toggle');
+            const dropdownMenu = navContainer.querySelector('.dropdown-menu');
+            
+            if (dropdownToggle && dropdownMenu) {
+                dropdownToggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    dropdownMenu.classList.toggle('show');
+                });
+                
+                // Setup dropdown links
+                const dropdownLinks = dropdownMenu.querySelectorAll('a[data-page]');
+                dropdownLinks.forEach(link => {
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const page = link.getAttribute('data-page');
+                        dropdownMenu.classList.remove('show');
+                        
+                        if (page !== 'gear') {
+                            if (page === 'events') {
+                                window.location.href = `../dashboard.html#events`;
+                            } else {
+                                window.location.href = `../dashboard.html?eventId=${eventId}&page=${page}`;
+                            }
+                        }
+                    });
+                });
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(e) {
+                    if (!dropdownToggle.contains(e.target) && !dropdownMenu.contains(e.target)) {
+                        dropdownMenu.classList.remove('show');
+                    }
+                });
+            }
+            
+            // Mark gear as active
+            const gearLink = navContainer.querySelector('a[data-page="gear"]');
+            if (gearLink) {
+                gearLink.classList.add('active');
+            }
+            
+            const moreToggle = navContainer.querySelector('.dropdown-toggle');
+            if (moreToggle) {
+                moreToggle.classList.add('active');
+            }
+            
+            console.log('✅ Gear page navigation setup complete');
+        }
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', async function() {
@@ -1146,14 +1261,13 @@
                 return;
             }
 
+            // Load the shared bottom navigation
+            await loadBottomNavigation();
+
             checkUserRole();
             loadEvent();
             await loadGearLists(); // Wait for gear lists to load before loading gear
             loadGear();
-            setupBottomNavigation();
-            
-            // Initialize chat widget after everything else is set up
-            setTimeout(initializeChatWidget, 100);
         });
 
         // Load event data
@@ -2622,346 +2736,7 @@
             window.location.href = `inventory-management.html`;
         }
 
-        // Setup bottom navigation - matches main dashboard exactly
-        function setupBottomNavigation() {
-            const navContainer = document.getElementById('bottomNav');
-            if (!navContainer) {
-                console.error('No navigation container found');
-                return;
-            }
-
-            console.log('Setting up bottom navigation for gear page');
-
-            // Track current navigation mode
-            let currentIsDesktop = window.innerWidth >= 768;
-            console.log(`Screen width: ${window.innerWidth}px, using ${currentIsDesktop ? 'desktop' : 'mobile'} navigation`);
-            
-            if (currentIsDesktop) {
-                setupDesktopNavigation(navContainer);
-            } else {
-                setupMobileNavigation(navContainer);
-            }
-            
-            // Handle window resize to switch between desktop and mobile navigation
-            const resizeHandler = () => {
-                const newIsDesktop = window.innerWidth >= 768;
-                if (newIsDesktop !== currentIsDesktop) {
-                    console.log(`Screen size changed from ${currentIsDesktop ? 'desktop' : 'mobile'} to ${newIsDesktop ? 'desktop' : 'mobile'} navigation`);
-                    currentIsDesktop = newIsDesktop; // Update the tracked state
-                    if (newIsDesktop) {
-                        setupDesktopNavigation(navContainer);
-                    } else {
-                        setupMobileNavigation(navContainer);
-                    }
-                }
-            };
-            
-            // Remove any existing resize listener to avoid duplicates
-            if (window.__navigationResizeHandler) {
-                window.removeEventListener('resize', window.__navigationResizeHandler);
-            }
-            window.__navigationResizeHandler = resizeHandler;
-            window.addEventListener('resize', resizeHandler);
-            
-            console.log('Bottom navigation setup complete');
-        }
-
-        // Desktop navigation: show all buttons directly - matches main dashboard exactly
-        function setupDesktopNavigation(navContainer) {
-            console.log('Setting up desktop navigation with all buttons visible');
-            
-            // Reset any mobile-specific styles
-            navContainer.style.display = '';
-            navContainer.style.gridTemplateColumns = '';
-            navContainer.style.gap = '';
-            
-            // Show all regular navigation items (including Luma button)
-            const regularNavItems = navContainer.querySelectorAll('a[data-page]:not(.desktop-nav-item), .chat-button-nav');
-            regularNavItems.forEach(item => {
-                if (!item.closest('.dropdown-menu')) {
-                    item.style.display = 'flex';
-                    // Reset any mobile grid positioning
-                    item.style.gridColumn = '';
-                }
-            });
-            
-            // Hide the dropdown container
-            const navDropdown = navContainer.querySelector('.nav-dropdown');
-            if (navDropdown) {
-                navDropdown.style.display = 'none';
-                navDropdown.style.gridColumn = '';
-            }
-            
-            // Create and add the dropdown items as direct navigation buttons
-            const dropdownItems = [
-                { page: 'travel-accommodation', icon: 'flight_takeoff', label: 'Travel' },
-                { page: 'gear', icon: 'photo_camera', label: 'Gear' },
-                { page: 'card-log', icon: 'sd_card', label: 'Cards' },
-                { page: 'documents', icon: 'map', label: 'Map' },
-                { page: 'events', icon: 'exit_to_app', label: 'Exit' }
-            ];
-            
-            // Remove any existing desktop nav items we added previously
-            navContainer.querySelectorAll('.desktop-nav-item').forEach(item => item.remove());
-            
-            // Add the dropdown items as direct navigation links
-            dropdownItems.forEach(item => {
-                const navLink = document.createElement('a');
-                navLink.href = '#';
-                navLink.setAttribute('data-page', item.page);
-                navLink.className = 'desktop-nav-item';
-                if (item.page === 'gear') {
-                    navLink.classList.add('active');
-                }
-                navLink.innerHTML = `
-                    <span class="material-symbols-outlined">${item.icon}</span>
-                    <span>${item.label}</span>
-                `;
-                
-                // Add click handler
-                navLink.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const page = navLink.getAttribute('data-page');
-                    console.log(`Desktop nav link clicked: ${page}, using eventId: ${eventId}`);
-                    
-                    if (page !== 'gear') {
-                        if (page === 'events') {
-                            window.location.href = `../dashboard.html#events`;
-                        } else {
-                            // Navigate to main dashboard with the specific page
-                            window.location.href = `../dashboard.html?eventId=${eventId}&page=${page}`;
-                        }
-                    }
-                });
-                
-                navContainer.appendChild(navLink);
-            });
-            
-            // Set up navigation for existing regular nav links
-            setupRegularNavLinks(navContainer);
-            
-            // Update active navigation state
-            updateActiveNavigation('gear');
-        }
-
-        // Mobile navigation: use dropdown menu - matches main dashboard exactly
-        function setupMobileNavigation(navContainer) {
-            console.log('Setting up mobile navigation with dropdown menu');
-            
-            // Apply mobile grid layout (this will be handled by CSS media queries, but ensure it's not overridden)
-            navContainer.style.display = '';
-            navContainer.style.gridTemplateColumns = '';
-            navContainer.style.gap = '';
-            
-            // Show only specific navigation items for mobile
-            const regularNavItems = navContainer.querySelectorAll('a[data-page]:not(.desktop-nav-item)');
-            regularNavItems.forEach(item => {
-                if (!item.closest('.dropdown-menu')) {
-                    // Show only core navigation items in mobile mode
-                    const page = item.getAttribute('data-page');
-                    if (['general', 'crew', 'schedule', 'shotlist'].includes(page) || item.classList.contains('chat-button-nav')) {
-                        item.style.display = 'flex';
-                    } else {
-                        item.style.display = 'none';
-                    }
-                    // Reset any explicit grid column assignments (let CSS handle it)
-                    item.style.gridColumn = '';
-                }
-            });
-            
-            // Show the dropdown container
-            const navDropdown = navContainer.querySelector('.nav-dropdown');
-            if (navDropdown) {
-                navDropdown.style.display = 'flex';
-                navDropdown.style.gridColumn = '';
-            }
-            
-            // Remove any desktop nav items we added
-            navContainer.querySelectorAll('.desktop-nav-item').forEach(item => item.remove());
-            
-            // Set up navigation for regular nav links
-            setupRegularNavLinks(navContainer);
-            
-            // Set up dropdown menu functionality
-            setupDropdownMenu();
-            
-            // Update active navigation state
-            updateActiveNavigation('gear');
-        }
-
-        // Helper function to set up regular navigation links - matches main dashboard exactly
-        function setupRegularNavLinks(navContainer) {
-            const navLinks = navContainer.querySelectorAll('a[data-page]');
-            console.log('Found', navLinks.length, 'navigation links with data-page attribute');
-            
-            navLinks.forEach(link => {
-                // Skip if this is inside a dropdown menu (will be handled separately)
-                if (link.closest('.dropdown-menu')) {
-                    console.log('Skipping dropdown menu link:', link.getAttribute('data-page'));
-                    return;
-                }
-                
-                // Skip if this is a desktop nav item (already has handler)
-                if (link.classList.contains('desktop-nav-item')) {
-                    return;
-                }
-                
-                console.log('Setting up navigation for:', link.getAttribute('data-page'));
-                
-                // Remove any existing click listeners to avoid duplicates
-                const newLink = link.cloneNode(true);
-                link.parentNode.replaceChild(newLink, link);
-                
-                newLink.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const page = newLink.getAttribute('data-page');
-                    console.log(`Regular nav link clicked: ${page}, using eventId: ${eventId}`);
-                    
-                    // Close dropdown menu if it's open
-                    const dropdownMenu = document.getElementById('dropdownMenu');
-                    if (dropdownMenu && dropdownMenu.classList.contains('show')) {
-                        console.log('Closing dropdown menu due to regular nav link click');
-                        dropdownMenu.classList.remove('show');
-                    }
-                    
-                    if (page !== 'gear') {
-                        if (page === 'events') {
-                            window.location.href = `../dashboard.html#events`;
-                        } else {
-                            // Navigate to main dashboard with the specific page
-                            window.location.href = `../dashboard.html?eventId=${eventId}&page=${page}`;
-                        }
-                    }
-                });
-            });
-            
-            // Set up the chat button in navbar (for both mobile and desktop)
-            const chatNavButton = navContainer.querySelector('.chat-button-nav');
-            if (chatNavButton) {
-                console.log('Setting up chat button in navbar');
-                
-                // Remove any existing click listeners to avoid duplicates
-                const newChatButton = chatNavButton.cloneNode(true);
-                chatNavButton.parentNode.replaceChild(newChatButton, chatNavButton);
-                
-                newChatButton.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    console.log('Chat navbar button clicked');
-                    
-                    // Close dropdown menu if it's open
-                    const dropdownMenu = document.getElementById('dropdownMenu');
-                    if (dropdownMenu && dropdownMenu.classList.contains('show')) {
-                        console.log('Closing dropdown menu due to chat button click');
-                        dropdownMenu.classList.remove('show');
-                    }
-                    
-                    // Toggle chat widget - use the same interface as the main dashboard
-                    if (window.chatWidget) {
-                        window.chatWidget.toggleChat();
-                    } else {
-                        // Initialize chat if not already done
-                        if (typeof window.initChat === 'function') {
-                            window.initChat(eventId);
-                            // Try to toggle after initialization
-                            setTimeout(() => {
-                                if (window.chatWidget) {
-                                    window.chatWidget.toggleChat();
-                                }
-                            }, 100);
-                        } else {
-                            console.error('Chat system not available');
-                        }
-                    }
-                });
-            }
-        }
-
-        // Setup dropdown menu functionality - matches main dashboard exactly
-        function setupDropdownMenu() {
-            const dropdownToggle = document.querySelector('.dropdown-toggle');
-            const dropdownMenu = document.getElementById('dropdownMenu');
-            
-            if (!dropdownToggle || !dropdownMenu) {
-                console.log('Dropdown elements not found, skipping dropdown setup');
-                return;
-            }
-            
-            console.log('Setting up dropdown menu functionality');
-            
-            // Remove existing event listeners to avoid duplicates
-            const newToggle = dropdownToggle.cloneNode(true);
-            dropdownToggle.parentNode.replaceChild(newToggle, dropdownToggle);
-            
-            const toggleHandler = function(e) {
-                e.preventDefault();
-                console.log('Dropdown toggle clicked');
-                dropdownMenu.classList.toggle('show');
-            };
-            
-            const documentHandler = function(e) {
-                if (!newToggle.contains(e.target) && !dropdownMenu.contains(e.target)) {
-                    if (dropdownMenu.classList.contains('show')) {
-                        console.log('Clicking outside dropdown, closing menu');
-                        dropdownMenu.classList.remove('show');
-                    }
-                }
-            };
-            
-            newToggle.addEventListener('click', toggleHandler);
-            document.addEventListener('click', documentHandler);
-            
-            // Set up dropdown menu links
-            const dropdownLinks = dropdownMenu.querySelectorAll('a[data-page]');
-            console.log('Found', dropdownLinks.length, 'dropdown links');
-            
-            dropdownLinks.forEach(link => {
-                const linkHandler = function(e) {
-                    e.preventDefault();
-                    const page = link.getAttribute('data-page');
-                    console.log(`Dropdown link clicked: ${page}, using eventId: ${eventId}`);
-                    
-                    // Close the dropdown
-                    dropdownMenu.classList.remove('show');
-                    
-                    if (page !== 'gear') {
-                        if (page === 'events') {
-                            window.location.href = `../dashboard.html#events`;
-                        } else {
-                            // Navigate to main dashboard with the specific page
-                            window.location.href = `../dashboard.html?eventId=${eventId}&page=${page}`;
-                        }
-                    }
-                };
-                
-                // Remove existing listeners and add new one
-                const newLink = link.cloneNode(true);
-                link.parentNode.replaceChild(newLink, link);
-                newLink.addEventListener('click', linkHandler);
-            });
-        }
-
-        // Update active navigation state - matches main dashboard exactly
-        function updateActiveNavigation(currentPage) {
-            console.log('Updating active navigation for page:', currentPage);
-
-            const allNavItems = document.querySelectorAll('.bottom-nav-material a, .bottom-nav-material .dropdown-toggle');
-
-            allNavItems.forEach(item => {
-                item.classList.remove('active');
-                const iconElement = item.querySelector('span.material-symbols-outlined');
-                
-                if (iconElement) {
-                    // Reset icon to default state
-                    const page = item.getAttribute('data-page');
-                    if (page === 'gear' && currentPage === 'gear') {
-                        item.classList.add('active');
-                    } else if (item.classList.contains('dropdown-toggle') && 
-                               ['travel-accommodation', 'gear', 'card-log', 'documents', 'events'].includes(currentPage)) {
-                        item.classList.add('active');
-                    }
-                }
-            });
-        }
+        // All navigation functions removed - now using shared navigation from app.js
 
         // Utility functions
         function updateDateInputs() {
@@ -3019,20 +2794,6 @@
                 closeNewPackageModal();
             }
         }
-
-        // Initialize chat widget after page setup is complete
-        function initializeChatWidget() {
-            console.log('Initializing chat widget for gear page');
-            if (typeof window.initChat === 'function' && eventId) {
-                window.initChat(eventId);
-            } else {
-                console.log('Chat initialization deferred - eventId or initChat not available yet');
-                // Try again after a short delay
-                setTimeout(initializeChatWidget, 500);
-            }
-        }
-
-
     </script>
 </body>
 </html>

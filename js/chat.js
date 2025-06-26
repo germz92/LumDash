@@ -24,14 +24,19 @@ class ChatWidget {
     if (!document.querySelector('link[href*="chat.css"]')) {
       const cssLink = document.createElement('link');
       cssLink.rel = 'stylesheet';
-      cssLink.href = 'css/chat.css';
+      // Check if we're in a subdirectory (like pages/)
+      const isInSubDir = window.location.pathname.includes('/pages/');
+      cssLink.href = isInSubDir ? '../css/chat.css' : 'css/chat.css';
       document.head.appendChild(cssLink);
     }
 
     // Load HTML if not already loaded
     if (!document.getElementById('chatButton')) {
       try {
-        const response = await fetch('components/chat.html');
+        // Check if we're in a subdirectory (like pages/)
+        const isInSubDir = window.location.pathname.includes('/pages/');
+        const chatHtmlPath = isInSubDir ? '../components/chat.html' : 'components/chat.html';
+        const response = await fetch(chatHtmlPath);
         const html = await response.text();
         document.body.insertAdjacentHTML('beforeend', html);
       } catch (error) {

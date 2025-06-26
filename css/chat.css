@@ -233,10 +233,27 @@
   }
 }
 
-/* Desktop: Keep floating chat button visible */
+/* Desktop: Show floating chat button in lower right corner */
 @media (min-width: 769px) {
   .chat-button {
     display: flex; /* Show floating button on desktop */
+    position: fixed !important;
+    bottom: 100px !important; /* Position above the navbar */
+    right: 20px !important;
+    width: 60px !important;
+    height: 60px !important;
+    background: #cc0007 !important;
+    color: white !important;
+    border-radius: 50% !important;
+    box-shadow: 0 4px 20px rgba(204, 0, 7, 0.3) !important;
+    z-index: 1600 !important;
+    font-size: 28px !important;
+  }
+  
+  .chat-button:hover {
+    background: #b30006 !important;
+    transform: scale(1.1) !important;
+    box-shadow: 0 6px 25px rgba(204, 0, 7, 0.4) !important;
   }
 }
 

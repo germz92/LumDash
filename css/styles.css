@@ -436,7 +436,7 @@ body:has(.bottom-nav-material) #page-container {
     display: none !important;
   }
   
-  /* Hide navbar chat button on desktop (using floating button instead) */
+  /* Hide navbar chat button on desktop (will use floating button instead) */
   .bottom-nav-material .chat-button-nav {
     display: none !important;
   }

@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Inventory - LumDash</title>
+    <link rel="icon" href="assets/favicon.png" type="image/png">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet">
+    <link rel="stylesheet" href="css/general.css">
+    <style>
+        body {
+            font-family: 'Roboto', Arial, sans-serif;
+            background: linear-gradient(135deg, #f5f7fa 0%, #e9ecf3 100%);
+            margin: 0;
+            padding: 0;
+            min-height: 100vh;
+            padding-bottom: 120px; /* Space for cart button */
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .header {
+            background: white;
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 24px;
+            border-left: 4px solid #cc0007;
+        }
+
+        .header h1 {
+            margin: 0 0 8px 0;
+            color: #333;
+            font-size: 28px;
+            font-weight: 700;
+        }
+
+        .header-info {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header p {
+            margin: 0;
+            color: #666;
+            font-size: 16px;
+        }
+
+        .date-info {
+            background: #f8f9fa;
+            padding: 8px 16px;
+            border-radius: 8px;
+            font-size: 14px;
+            color: #495057;
+            border: 1px solid #dee2e6;
+        }
+
+        .back-button {
+            background: #6c757d;
+            color: white;
+            border: none;
+            padding: 12px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 20px;
+            transition: all 0.2s ease;
+        }
+
+        .back-button:hover {
+            background: #5a6268;
+            transform: translateY(-2px);
+        }
+
+        .search-section {
+            background: white;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            margin-bottom: 24px;
+        }
+
+        .search-box {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .search-box input {
+            flex: 1;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 16px;
+            transition: all 0.2s ease;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: #cc0007;
+            box-shadow: 0 0 0 3px rgba(204, 0, 7, 0.1);
+        }
+
+        .category-filter {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+        }
+
+        .category-btn {
+            padding: 8px 16px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            color: #495057;
+        }
+
+        .category-btn.active {
+            background: #cc0007;
+            color: white;
+            border-color: #cc0007;
+        }
+
+        .category-btn:hover {
+            border-color: #cc0007;
+            color: #cc0007;
+        }
+
+        .category-btn.active:hover {
+            color: white;
+        }
+
+        .inventory-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 24px;
+        }
+
+        .inventory-item {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e0e0e0;
+            transition: all 0.2s ease;
+        }
+
+        .inventory-item:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+        }
+
+        .item-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 16px;
+        }
+
+        .item-details h3 {
+            margin: 0 0 8px 0;
+            color: #333;
+            font-size: 18px;
+            font-weight: 600;
+        }
+
+        .item-brand {
+            color: #666;
+            font-size: 14px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .item-model {
+            color: #333;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .item-category {
+            background: #f8f9fa;
+            color: #495057;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .item-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-bottom: 16px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #666;
+            font-weight: 500;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .info-value {
+            font-size: 14px;
+            color: #333;
+            font-weight: 500;
+        }
+
+        .serial-code {
+            font-family: 'Courier New', monospace;
+            background: #f1f3f4;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-size: 13px;
+        }
+
+        .item-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+            text-decoration: none;
+        }
+
+        .btn-primary {
+            background: #cc0007;
+            color: white;
+        }
+
+        .btn-primary:hover:not(:disabled) {
+            background: #a30006;
+            transform: translateY(-1px);
+        }
+
+        .btn-secondary {
+            background: #6c757d;
+            color: white;
+        }
+
+        .btn-success {
+            background: #28a745;
+            color: white;
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .status-available {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-in-cart {
+            background: #cce5ff;
+            color: #0056b3;
+        }
+
+        .status-out-of-stock {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status-partial {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .cart-button-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: white;
+            padding: 20px;
+            box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.1);
+            border-top: 1px solid #e0e0e0;
+            z-index: 1000;
+        }
+
+        .cart-button-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 16px;
+        }
+
+        .cart-button {
+            background: #cc0007;
+            color: white;
+            border: none;
+            padding: 16px 32px;
+            border-radius: 12px;
+            cursor: pointer;
+            font-size: 18px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 12px rgba(204, 0, 7, 0.3);
+        }
+
+        .cart-button:hover {
+            background: #a30006;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 16px rgba(204, 0, 7, 0.4);
+        }
+
+        .cart-count {
+            background: white;
+            color: #cc0007;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            min-width: 24px;
+            text-align: center;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .loading-spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #cc0007;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 16px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #666;
+        }
+
+        .empty-icon {
+            font-size: 64px;
+            color: #ccc;
+            margin-bottom: 16px;
+        }
+
+        /* Modal Styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 2000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(2px);
+        }
+
+        .modal-content {
+            background: white;
+            margin: 10% auto;
+            padding: 0;
+            border-radius: 16px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            width: 90%;
+            max-width: 500px;
+            max-height: 70vh;
+            overflow: hidden;
+        }
+
+        .modal-header {
+            padding: 24px;
+            border-bottom: 1px solid #e0e0e0;
+            background: #f8f9fa;
+        }
+
+        .modal-header h3 {
+            margin: 0;
+            color: #333;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .modal-body {
+            padding: 24px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .modal-footer {
+            padding: 20px 24px;
+            border-top: 1px solid #e0e0e0;
+            background: #f8f9fa;
+            display: flex;
+            gap: 12px;
+            justify-content: flex-end;
+        }
+
+        .serial-option {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 16px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            margin-bottom: 12px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .serial-option:hover {
+            border-color: #cc0007;
+            background: rgba(204, 0, 7, 0.05);
+        }
+
+        .serial-option.selected {
+            border-color: #cc0007;
+            background: rgba(204, 0, 7, 0.1);
+        }
+
+        .serial-info {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+        }
+
+        .quantity-input {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .quantity-input input {
+            width: 80px;
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            text-align: center;
+            font-size: 16px;
+        }
+
+        @media (max-width: 768px) {
+            .container {
+                padding: 12px;
+            }
+
+            .inventory-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .header-info {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .category-filter {
+                gap: 6px;
+            }
+
+            .category-btn {
+                font-size: 13px;
+                padding: 6px 12px;
+            }
+
+            .modal-content {
+                margin: 5% auto;
+                width: 95%;
+            }
+
+            .cart-button-content {
+                flex-direction: column;
+                gap: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <button class="back-button" onclick="goBack()">
+            <span class="material-symbols-outlined">arrow_back</span>
+            Back to Gear List
+        </button>
+
+        <div class="header">
+            <div class="header-info">
+                <div>
+                    <h1>Inventory</h1>
+                    <p>Browse and add items to your cart for reservation</p>
+                </div>
+                <div class="date-info" id="dateInfo">
+                    Loading dates...
+                </div>
+            </div>
+        </div>
+
+        <div class="search-section">
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search inventory..." onkeyup="filterInventory()">
+                <span class="material-symbols-outlined">search</span>
+            </div>
+            <div class="category-filter">
+                <button class="category-btn active" onclick="filterByCategory('all')">All</button>
+                <button class="category-btn" onclick="filterByCategory('Camera')">Cameras</button>
+                <button class="category-btn" onclick="filterByCategory('Lenses')">Lenses</button>
+                <button class="category-btn" onclick="filterByCategory('Lighting')">Lighting</button>
+                <button class="category-btn" onclick="filterByCategory('Support')">Support</button>
+                <button class="category-btn" onclick="filterByCategory('Accessories')">Accessories</button>
+            </div>
+        </div>
+
+        <div id="inventoryContainer" class="loading">
+            <div class="loading-spinner"></div>
+            <p>Loading inventory...</p>
+        </div>
+    </div>
+
+    <!-- Cart Button -->
+    <div class="cart-button-container">
+        <div class="cart-button-content">
+            <button class="cart-button" onclick="viewCart()" id="cartButton">
+                <span class="material-symbols-outlined">shopping_cart</span>
+                View Cart
+                <span class="cart-count" id="cartCount">0</span>
+            </button>
+        </div>
+    </div>
+
+    <!-- Serial Selection Modal -->
+    <div id="serialModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h3 id="modalTitle">Select Serial Number</h3>
+            </div>
+            <div class="modal-body" id="modalBody">
+                <!-- Serial options will be populated here -->
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+                <button class="btn btn-primary" onclick="addSelectedToCart()" id="addToCartBtn">Add to Cart</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/config.js"></script>
+    <script>
+        let currentInventory = [];
+        let filteredInventory = [];
+        let currentCart = null;
+        let eventId = null;
+        let selectedSerial = null;
+        let selectedQuantity = 1;
+        let currentItemForModal = null;
+
+        // Initialize page
+        document.addEventListener('DOMContentLoaded', function() {
+            eventId = new URLSearchParams(window.location.search).get('eventId');
+            if (!eventId) {
+                alert('No event ID provided');
+                window.history.back();
+                return;
+            }
+
+            loadInventory();
+            loadCart();
+            loadDateInfo();
+        });
+
+        // Load inventory items
+        async function loadInventory() {
+            try {
+                // Try to load with availability calculations first
+                let response = await fetch(`${API_BASE}/api/gear-inventory/available/${eventId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                // If that fails (no dates set), fall back to regular inventory
+                if (!response.ok) {
+                    console.log('Could not load inventory with availability, falling back to regular inventory');
+                    response = await fetch(`${API_BASE}/api/gear-inventory`, {
+                        headers: {
+                            'Authorization': `Bearer ${localStorage.getItem('token')}`
+                        }
+                    });
+                }
+
+                if (!response.ok) {
+                    throw new Error('Failed to load inventory');
+                }
+
+                currentInventory = await response.json();
+                filteredInventory = [...currentInventory];
+                renderInventory();
+            } catch (error) {
+                console.error('Error loading inventory:', error);
+                document.getElementById('inventoryContainer').innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">⚠️</div>
+                        <h3>Failed to load inventory</h3>
+                        <p>Please refresh the page to try again.</p>
+                    </div>
+                `;
+            }
+        }
+
+        // Load cart
+        async function loadCart() {
+            try {
+                console.log('Loading cart for eventId:', eventId);
+                const token = localStorage.getItem('token');
+                console.log('Using token:', token ? 'Present' : 'Missing');
+                
+                const response = await fetch(`${API_BASE}/api/carts/${eventId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${token}`
+                    }
+                });
+
+                console.log('Cart API response status:', response.status);
+                
+                if (response.ok) {
+                    currentCart = await response.json();
+                    console.log('Cart loaded successfully:', currentCart);
+                    updateCartButton();
+                } else {
+                    console.error('Failed to load cart:', response.status, response.statusText);
+                    try {
+                        const errorData = await response.json();
+                        console.error('Error details:', errorData);
+                    } catch (e) {
+                        const errorText = await response.text();
+                        console.error('Error details (text):', errorText);
+                    }
+                    // Initialize empty cart for UI purposes
+                    currentCart = { items: [] };
+                    updateCartButton();
+                }
+            } catch (error) {
+                console.error('Error loading cart:', error);
+                // Initialize empty cart for UI purposes
+                currentCart = { items: [] };
+                updateCartButton();
+            }
+        }
+
+        // Load date info
+        async function loadDateInfo() {
+            try {
+                const response = await fetch(`${API_BASE}/api/tables/${eventId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (response.ok) {
+                    const event = await response.json();
+                    const checkOut = event.gear?.checkOutDate || 'Not set';
+                    const checkIn = event.gear?.checkInDate || 'Not set';
+                    
+                    document.getElementById('dateInfo').innerHTML = `
+                        <strong>Dates:</strong> ${formatDate(checkOut)} → ${formatDate(checkIn)}
+                    `;
+                }
+            } catch (error) {
+                console.error('Error loading date info:', error);
+            }
+        }
+
+        // Render inventory
+        function renderInventory() {
+            const container = document.getElementById('inventoryContainer');
+            
+            if (filteredInventory.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-state">
+                        <div class="empty-icon">📦</div>
+                        <h3>No items found</h3>
+                        <p>Try adjusting your search or filter criteria.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            // Group items by brand + model
+            const groupedItems = {};
+            filteredInventory.forEach(item => {
+                const labelParts = (item.label || '').split(' ');
+                const brand = labelParts[0] || 'Unknown';
+                const model = labelParts.slice(1).join(' ') || 'Unknown';
+                const key = `${brand} ${model}`;
+                
+                if (!groupedItems[key]) {
+                    groupedItems[key] = {
+                        brand,
+                        model,
+                        category: item.category,
+                        items: [],
+                        totalAvailable: 0,
+                        totalQuantity: 0,
+                        hasItemsInCart: false
+                    };
+                }
+                
+                groupedItems[key].items.push(item);
+                groupedItems[key].totalQuantity += (item.quantity || 1);
+                
+                // Calculate availability and cart status
+                const inCart = isItemInCart(item._id);
+                const availableQty = getAvailableQuantity(item);
+                
+                if (inCart) {
+                    groupedItems[key].hasItemsInCart = true;
+                } else {
+                    groupedItems[key].totalAvailable += availableQty;
+                }
+            });
+
+            const inventoryHTML = `
+                <div class="inventory-grid">
+                    ${Object.values(groupedItems).map(group => {
+                        let statusBadge, actionButton;
+                        
+                        if (group.hasItemsInCart && group.totalAvailable === 0) {
+                            statusBadge = `<span class="status-badge status-in-cart">In Cart</span>`;
+                            actionButton = `<button class="btn btn-success" disabled>
+                                <span class="material-symbols-outlined">check</span>
+                                In Cart
+                            </button>`;
+                        } else if (group.totalAvailable === 0) {
+                            statusBadge = `<span class="status-badge status-out-of-stock">Out of Stock</span>`;
+                            actionButton = `<button class="btn btn-secondary" disabled>
+                                <span class="material-symbols-outlined">block</span>
+                                Out of Stock
+                            </button>`;
+                        } else {
+                            statusBadge = `<span class="status-badge status-available">${group.totalAvailable} Available</span>`;
+                            if (group.hasItemsInCart) {
+                                statusBadge += ` <span class="status-badge status-partial">Partial in Cart</span>`;
+                            }
+                            actionButton = `<button class="btn btn-primary" onclick="addToCartGrouped('${group.brand}', '${group.model}')">
+                                <span class="material-symbols-outlined">add_shopping_cart</span>
+                                Add to Cart
+                            </button>`;
+                        }
+
+                        return `
+                            <div class="inventory-item">
+                                <div class="item-header">
+                                    <div class="item-details">
+                                        <div class="item-brand">${group.brand}</div>
+                                        <h3 class="item-model">${group.model}</h3>
+                                    </div>
+                                    <div class="item-category">${group.category}</div>
+                                </div>
+                                
+                                <div class="item-info">
+                                    <div class="info-item">
+                                        <div class="info-label">Units Available</div>
+                                        <div class="info-value">${group.totalAvailable}</div>
+                                    </div>
+                                    <div class="info-item">
+                                        <div class="info-label">Total Units</div>
+                                        <div class="info-value">${group.totalQuantity}</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="item-actions">
+                                    ${statusBadge}
+                                    ${actionButton}
+                                </div>
+                            </div>
+                        `;
+                    }).join('')}
+                </div>
+            `;
+
+            container.innerHTML = inventoryHTML;
+        }
+
+        // Add to cart (for individual items - legacy)
+        async function addToCart(inventoryId) {
+            const item = currentInventory.find(i => i._id === inventoryId);
+            if (!item) return;
+
+            // Check if there are multiple similar items (same brand/model)
+            const similarItems = getSimilarItems(item);
+            
+            if (similarItems.length > 1) {
+                // Show serial selection modal
+                showSerialModal(item, similarItems);
+            } else {
+                // Add directly to cart
+                await addItemToCart(inventoryId, 1, null);
+            }
+        }
+
+        // Add to cart (for grouped items)
+        function addToCartGrouped(brand, model) {
+            // Find all items with this brand/model combination
+            const groupItems = currentInventory.filter(item => {
+                const labelParts = (item.label || '').split(' ');
+                const itemBrand = labelParts[0] || 'Unknown';
+                const itemModel = labelParts.slice(1).join(' ') || 'Unknown';
+                return itemBrand === brand && itemModel === model;
+            });
+
+            if (groupItems.length === 0) return;
+
+            // Show serial selection modal with all available units
+            showSerialModalForGroup(brand, model, groupItems);
+        }
+
+        // Show serial selection modal (legacy - for individual items)
+        function showSerialModal(item, similarItems) {
+            currentItemForModal = item;
+            selectedSerial = null;
+            selectedQuantity = 1;
+
+            const labelParts = item.label.split(' ');
+            const brand = labelParts[0] || 'Unknown';
+            const model = labelParts.slice(1).join(' ') || 'Unknown';
+
+            document.getElementById('modalTitle').textContent = `Select Serial - ${brand} ${model}`;
+            
+            // Check if all items have N/A serials (no real serial numbers)
+            const hasRealSerials = similarItems.some(item => item.serial && item.serial !== 'N/A');
+            
+            // Update description based on whether there are real serials
+            const description = hasRealSerials 
+                ? 'Choose a specific serial number or select "No Preference" to reserve any available unit.'
+                : 'This item has no serial numbers. You can reserve any available unit.';
+            
+            const modalBody = document.getElementById('modalBody');
+            modalBody.innerHTML = `
+                <p style="margin-bottom: 16px; color: #666;">
+                    ${description}
+                </p>
+                
+                ${hasRealSerials ? `
+                    <div class="serial-option" onclick="selectSerial(null)">
+                        <div class="serial-info">
+                            <div><strong>No Preference</strong></div>
+                            <div style="font-size: 13px; color: #666;">Reserve any available unit</div>
+                        </div>
+                        <div style="color: #28a745; font-weight: 600;">
+                            ${getAvailableQuantity(item)} available
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${similarItems.map(similarItem => {
+                    const availableQty = getAvailableQuantity(similarItem);
+                    if (availableQty === 0) return '';
+                    
+                    const displayText = similarItem.serial === 'N/A' ? 'No Serial Number' : `Serial: ${similarItem.serial}`;
+                    
+                    return `
+                        <div class="serial-option" onclick="selectSerial('${similarItem.serial}', '${similarItem._id}')">
+                            <div class="serial-info">
+                                <div><strong>${displayText}</strong></div>
+                                <div style="font-size: 13px; color: #666;">${similarItem.label}</div>
+                            </div>
+                            <div style="color: #28a745; font-weight: 600;">
+                                ${availableQty} available
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+
+                <div class="quantity-input">
+                    <label for="quantityInput"><strong>Quantity:</strong></label>
+                    <input type="number" id="quantityInput" value="1" min="1" onchange="updateQuantity(this.value)">
+                </div>
+            `;
+
+            document.getElementById('serialModal').style.display = 'block';
+        }
+
+        // Show serial selection modal for grouped items
+        function showSerialModalForGroup(brand, model, groupItems) {
+            // Calculate total available across all items in group
+            let totalAvailable = 0;
+            const availableItems = groupItems.filter(item => {
+                const availableQty = getAvailableQuantity(item);
+                if (availableQty > 0 && !isItemInCart(item._id)) {
+                    totalAvailable += availableQty;
+                    return true;
+                }
+                return false;
+            });
+
+            if (availableItems.length === 0) return;
+
+            // Set modal state
+            currentItemForModal = availableItems[0]; // Use first available item as reference
+            selectedSerial = null;
+            selectedQuantity = 1;
+
+            document.getElementById('modalTitle').textContent = `Select Serial - ${brand} ${model}`;
+            
+            // Check if all items have N/A serials (no real serial numbers)
+            const hasRealSerials = availableItems.some(item => item.serial && item.serial !== 'N/A');
+            
+            // Update description based on whether there are real serials
+            const description = hasRealSerials 
+                ? 'Choose a specific serial number or select "No Preference" to reserve any available unit.'
+                : 'This item has no serial numbers. You can reserve any available unit.';
+            
+            const modalBody = document.getElementById('modalBody');
+            modalBody.innerHTML = `
+                <p style="margin-bottom: 16px; color: #666;">
+                    ${description}
+                </p>
+                
+                ${hasRealSerials ? `
+                    <div class="serial-option" onclick="selectSerial(null)">
+                        <div class="serial-info">
+                            <div><strong>No Preference</strong></div>
+                            <div style="font-size: 13px; color: #666;">Reserve any available unit</div>
+                        </div>
+                        <div style="color: #28a745; font-weight: 600;">
+                            ${totalAvailable} available
+                        </div>
+                    </div>
+                ` : ''}
+
+                ${availableItems.map(item => {
+                    const availableQty = getAvailableQuantity(item);
+                    const displayText = item.serial === 'N/A' ? 'No Serial Number' : `Serial: ${item.serial}`;
+                    
+                    return `
+                        <div class="serial-option" onclick="selectSerial('${item.serial}', '${item._id}')">
+                            <div class="serial-info">
+                                <div><strong>${displayText}</strong></div>
+                                <div style="font-size: 13px; color: #666;">${item.label}</div>
+                            </div>
+                            <div style="color: #28a745; font-weight: 600;">
+                                ${availableQty} available
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+
+                <div class="quantity-input">
+                    <label for="quantityInput"><strong>Quantity:</strong></label>
+                    <input type="number" id="quantityInput" value="1" min="1" max="${totalAvailable}" onchange="updateQuantity(this.value)">
+                </div>
+            `;
+
+            document.getElementById('serialModal').style.display = 'block';
+        }
+
+        // Select serial
+        function selectSerial(serial, inventoryId = null) {
+            // Remove previous selection
+            document.querySelectorAll('.serial-option').forEach(option => {
+                option.classList.remove('selected');
+            });
+
+            // Add selection to clicked option
+            event.currentTarget.classList.add('selected');
+            
+            selectedSerial = serial;
+            selectedInventoryId = inventoryId || currentItemForModal._id;
+        }
+
+        // Update quantity
+        function updateQuantity(value) {
+            selectedQuantity = parseInt(value) || 1;
+        }
+
+        // Add selected to cart
+        async function addSelectedToCart() {
+            if (!selectedInventoryId) {
+                alert('Please select a serial number option');
+                return;
+            }
+
+            await addItemToCart(selectedInventoryId, selectedQuantity, selectedSerial);
+            closeModal();
+        }
+
+        // Add item to cart (API call)
+        async function addItemToCart(inventoryId, quantity, specificSerial) {
+            try {
+                console.log('Adding item to cart:', { inventoryId, quantity, specificSerial, eventId });
+                console.log('Current cart state:', currentCart);
+                
+                const response = await fetch(`${API_BASE}/api/carts/${eventId}/items`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        inventoryId,
+                        quantity,
+                        specificSerial
+                    })
+                });
+
+                console.log('Add to cart response status:', response.status);
+                const result = await response.json();
+                console.log('Add to cart response:', result);
+
+                if (response.ok) {
+                    currentCart = result;
+                    updateCartButton();
+                    
+                    // Reload inventory to get updated availability calculations
+                    await loadInventory();
+                    
+                    // Show success message
+                    const item = currentInventory.find(i => i._id === inventoryId);
+                    showToast(`Added ${item?.label || 'item'} to cart!`, 'success');
+                } else {
+                    console.error('Failed to add to cart:', result);
+                    alert(result.error || 'Failed to add item to cart');
+                }
+            } catch (error) {
+                console.error('Error adding to cart:', error);
+                alert('Failed to add item to cart. Please try again.');
+            }
+        }
+
+        // Helper functions
+        function isItemInCart(inventoryId) {
+            if (!currentCart || !currentCart.items) return false;
+            return currentCart.items.some(item => item.inventoryId && item.inventoryId._id === inventoryId);
+        }
+
+        function getAvailableQuantity(item) {
+            // Use availableQuantity from backend if available (set by API calls that include dates)
+            if (typeof item.availableQuantity === 'number') {
+                return item.availableQuantity;
+            }
+            
+            // Fallback: return full quantity (doesn't consider reservations or cart items)
+            return item.quantity || 0;
+        }
+
+        function getSimilarItems(item) {
+            const labelParts = item.label.split(' ');
+            const brand = labelParts[0];
+            const model = labelParts[1] || '';
+            
+            return currentInventory.filter(i => 
+                i.category === item.category &&
+                i.label.startsWith(`${brand} ${model}`)
+            );
+        }
+
+        function updateCartButton() {
+            const cartButton = document.getElementById('cartButton');
+            const cartCount = document.getElementById('cartCount');
+            
+            if (currentCart && currentCart.items) {
+                const totalItems = currentCart.items.reduce((total, item) => total + item.quantity, 0);
+                cartCount.textContent = totalItems;
+                
+                if (totalItems > 0) {
+                    cartButton.style.background = '#cc0007';
+                } else {
+                    cartButton.style.background = '#6c757d';
+                }
+            } else {
+                cartCount.textContent = '0';
+                cartButton.style.background = '#6c757d';
+            }
+        }
+
+        // Filter functions
+        function filterInventory() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            const activeCategory = document.querySelector('.category-btn.active').textContent;
+            
+            filteredInventory = currentInventory.filter(item => {
+                const matchesSearch = item.label.toLowerCase().includes(searchTerm) ||
+                                    item.category.toLowerCase().includes(searchTerm) ||
+                                    item.serial.toLowerCase().includes(searchTerm);
+                                    
+                const matchesCategory = activeCategory === 'All' || item.category === activeCategory;
+                
+                return matchesSearch && matchesCategory;
+            });
+            
+            renderInventory();
+        }
+
+        function filterByCategory(category) {
+            // Update active button
+            document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
+            event.currentTarget.classList.add('active');
+            
+            filterInventory();
+        }
+
+        // Modal functions
+        function closeModal() {
+            document.getElementById('serialModal').style.display = 'none';
+            selectedSerial = null;
+            selectedQuantity = 1;
+            currentItemForModal = null;
+        }
+
+        // Navigation
+        function viewCart() {
+            window.location.href = `checkout.html?eventId=${eventId}`;
+        }
+
+        function goBack() {
+            window.location.href = `pages/gear.html?eventId=${eventId}`;
+        }
+
+        // Utility functions
+        function formatDate(dateStr) {
+            if (!dateStr || dateStr === 'Not set') return dateStr;
+            return new Date(dateStr).toLocaleDateString();
+        }
+
+        function showToast(message, type) {
+            // Simple toast notification
+            const toast = document.createElement('div');
+            toast.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'success' ? '#28a745' : '#dc3545'};
+                color: white;
+                padding: 12px 20px;
+                border-radius: 8px;
+                font-weight: 500;
+                z-index: 3000;
+                animation: slideIn 0.3s ease;
+            `;
+            toast.textContent = message;
+            
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.remove();
+            }, 3000);
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('serialModal');
+            if (event.target === modal) {
+                closeModal();
+            }
+        }
+
+        // Listen for inventory updates from other pages (like gear page deletions)
+        let lastInventoryUpdate = localStorage.getItem('inventoryLastUpdated');
+        
+        // Check for updates every 2 seconds
+        setInterval(() => {
+            const currentUpdate = localStorage.getItem('inventoryLastUpdated');
+            if (currentUpdate && currentUpdate !== lastInventoryUpdate) {
+                console.log('Inventory updated in another tab, refreshing...');
+                loadInventory();
+                lastInventoryUpdate = currentUpdate;
+            }
+        }, 2000);
+        
+        // Listen for same-page updates
+        window.addEventListener('inventoryUpdated', () => {
+            console.log('Inventory updated, refreshing...');
+            loadInventory();
+        });
+    </script>
+</body>
+</html> 
