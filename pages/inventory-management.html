@@ -1285,6 +1285,25 @@
         }
 
         // Utility functions
+        function formatDate(dateStr) {
+            if (!dateStr || dateStr === 'Not set') return dateStr;
+            
+            // Handle simple date strings like "2025-07-02" without timezone conversion
+            if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const [year, month, day] = dateStr.split('-').map(Number);
+                return `${month}/${day}/${year}`;
+            }
+            
+            // Parse other date formats and format consistently without timezone issues
+            const date = new Date(dateStr);
+            
+            // Check if the date is valid
+            if (isNaN(date.getTime())) return 'Invalid Date';
+            
+            // Format as MM/DD/YYYY without timezone manipulation
+            return (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear();
+        }
+
         function showToast(message, type) {
             // Remove existing toasts
             document.querySelectorAll('.toast').forEach(toast => toast.remove());
@@ -1408,11 +1427,11 @@
                         const eventEndDate = reservation.eventId?.general?.end;
                         
                         const checkOutDate = gearCheckOutDate ? 
-                            new Date(gearCheckOutDate).toLocaleDateString() : 
-                            (eventStartDate ? new Date(eventStartDate).toLocaleDateString() : 'Not set');
+                            formatDate(gearCheckOutDate) : 
+                            (eventStartDate ? formatDate(eventStartDate) : 'Not set');
                         const checkInDate = gearCheckInDate ? 
-                            new Date(gearCheckInDate).toLocaleDateString() : 
-                            (eventEndDate ? new Date(eventEndDate).toLocaleDateString() : 'Not set');
+                            formatDate(gearCheckInDate) : 
+                            (eventEndDate ? formatDate(eventEndDate) : 'Not set');
 
                     content += `
                         <div class="reservation-card">
@@ -1444,7 +1463,7 @@
                                 </div>
                                 <div class="detail-item">
                                     <span class="detail-label">Reserved</span>
-                                    <span class="detail-value">${new Date(reservation.createdAt).toLocaleDateString()}</span>
+                                    <span class="detail-value">${formatDate(reservation.createdAt)}</span>
                                 </div>
                             </div>
                         </div>

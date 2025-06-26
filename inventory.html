@@ -609,11 +609,12 @@
         let currentCart = null;
         let eventId = null;
         let selectedSerial = null;
+        let selectedInventoryId = null;
         let selectedQuantity = 1;
         let currentItemForModal = null;
 
         // Initialize page
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             eventId = new URLSearchParams(window.location.search).get('eventId');
             if (!eventId) {
                 alert('No event ID provided');
@@ -621,8 +622,9 @@
                 return;
             }
 
-            loadInventory();
-            loadCart();
+            // Load cart first, then inventory (to ensure cart state is available for rendering)
+            await loadCart();
+            await loadInventory();
             loadDateInfo();
         });
 
@@ -759,7 +761,8 @@
                         items: [],
                         totalAvailable: 0,
                         totalQuantity: 0,
-                        hasItemsInCart: false
+                        hasItemsInCart: false,
+                        totalCartQuantity: 0
                     };
                 }
                 
@@ -772,8 +775,27 @@
                 
                 if (inCart) {
                     groupedItems[key].hasItemsInCart = true;
-                } else {
-                    groupedItems[key].totalAvailable += availableQty;
+                    // Find the cart item to get its quantity
+                    const cartItem = currentCart.items.find(cartItem => 
+                        cartItem.inventoryId && cartItem.inventoryId._id === item._id
+                    );
+                    if (cartItem) {
+                        groupedItems[key].totalCartQuantity += cartItem.quantity;
+                    }
+                }
+                
+                // Add available quantity from this specific item
+                groupedItems[key].totalAvailable += availableQty;
+            });
+            
+            // For each group, calculate the correct available quantity
+            Object.values(groupedItems).forEach(group => {
+                // The backend availableQuantity only considers hard reservations, not cart items
+                // We need to subtract cart items from the displayed availability
+                if (group.totalCartQuantity > 0) {
+                    // Calculate how much is actually available for additional reservations
+                    // Available for display = backend available - what's already in cart
+                    group.totalAvailable = Math.max(0, group.totalAvailable - group.totalCartQuantity);
                 }
             });
 
@@ -953,9 +975,10 @@
 
             if (availableItems.length === 0) return;
 
-            // Set modal state
+            // Reset modal state completely to prevent cross-contamination
             currentItemForModal = availableItems[0]; // Use first available item as reference
             selectedSerial = null;
+            selectedInventoryId = null;
             selectedQuantity = 1;
 
             document.getElementById('modalTitle').textContent = `Select Serial - ${brand} ${model}`;
@@ -1010,6 +1033,13 @@
             `;
 
             document.getElementById('serialModal').style.display = 'block';
+            
+            // Auto-select if there's only one option
+            const serialOptions = document.querySelectorAll('.serial-option');
+            if (serialOptions.length === 1) {
+                // Automatically select the single option
+                serialOptions[0].click();
+            }
         }
 
         // Select serial
@@ -1034,7 +1064,7 @@
         // Add selected to cart
         async function addSelectedToCart() {
             if (!selectedInventoryId) {
-                alert('Please select a serial number option');
+                alert('Please select an option before adding to cart');
                 return;
             }
 
@@ -1160,7 +1190,9 @@
         // Modal functions
         function closeModal() {
             document.getElementById('serialModal').style.display = 'none';
+            // Reset all modal state to prevent cross-contamination
             selectedSerial = null;
+            selectedInventoryId = null;
             selectedQuantity = 1;
             currentItemForModal = null;
         }
@@ -1177,7 +1209,21 @@
         // Utility functions
         function formatDate(dateStr) {
             if (!dateStr || dateStr === 'Not set') return dateStr;
-            return new Date(dateStr).toLocaleDateString();
+            
+            // Handle simple date strings like "2025-07-02" without timezone conversion
+            if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const [year, month, day] = dateStr.split('-').map(Number);
+                return `${month}/${day}/${year}`;
+            }
+            
+            // Parse other date formats and format consistently without timezone issues
+            const date = new Date(dateStr);
+            
+            // Check if the date is valid
+            if (isNaN(date.getTime())) return 'Invalid Date';
+            
+            // Format as MM/DD/YYYY without timezone manipulation
+            return (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear();
         }
 
         function showToast(message, type) {

@@ -1436,11 +1436,11 @@
             }
         }
 
-        // Helper function to normalize date strings to avoid timezone issues
+        // Helper function to normalize date strings without timezone issues
         function normalizeDateString(dateStr) {
             if (!dateStr) return null;
-            // Ensure the date string is interpreted as UTC midnight
-            return dateStr + 'T00:00:00.000Z';
+            // Keep dates as simple date strings without timezone manipulation
+            return dateStr;
         }
 
         // Save dates
@@ -1453,12 +1453,26 @@
                 return;
             }
 
-            // Use normalized dates for comparison to avoid timezone issues
-            const checkOutDateNorm = new Date(normalizeDateString(checkOutDate));
-            const checkInDateNorm = new Date(normalizeDateString(checkInDate));
+            // Parse dates without timezone manipulation
+            const checkOutDateNorm = new Date(checkOutDate + 'T00:00:00');
+            const checkInDateNorm = new Date(checkInDate + 'T00:00:00');
+            const today = new Date();
+            today.setHours(0, 0, 0, 0);
 
-            if (checkOutDateNorm >= checkInDateNorm) {
-                alert('Check-in date must be after check-out date');
+            // Validate dates cannot be in the past
+            if (checkOutDateNorm < today) {
+                alert('Check-out date cannot be in the past');
+                return;
+            }
+
+            if (checkInDateNorm < today) {
+                alert('Check-in date cannot be in the past');
+                return;
+            }
+
+            // Check-in date can be same day or after check-out date
+            if (checkInDateNorm < checkOutDateNorm) {
+                alert('Check-in date must be on or after check-out date');
                 return;
             }
 
@@ -1479,23 +1493,26 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE}/api/tables/${eventId}`, {
+                const response = await fetch(`${API_BASE}/api/tables/${eventId}/gear`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     },
                     body: JSON.stringify({
-                        gear: {
-                            ...currentEvent.gear,
-                            checkOutDate: normalizeDateString(checkOutDate),
-                            checkInDate: normalizeDateString(checkInDate)
-                        }
+                        lists: currentEvent.gear?.lists || {},
+                        checkOutDate: checkOutDate,
+                        checkInDate: checkInDate
                     })
                 });
 
                 if (response.ok) {
-                    currentEvent = await response.json();
+                    const result = await response.json();
+                    // Update current event dates locally
+                    if (!currentEvent.gear) currentEvent.gear = {};
+                    currentEvent.gear.checkOutDate = checkOutDate;
+                    currentEvent.gear.checkInDate = checkInDate;
+                    
                     // If there were existing reservations, clear them
                     if (currentGear && currentGear.length > 0) {
                         showToast('Dates saved! Clearing existing reservations...', 'info');
@@ -1741,7 +1758,7 @@
                         <h4 style="margin: 0 0 4px 0; color: #333;">${template.name}</h4>
                         ${template.description ? `<p style="margin: 0 0 8px 0; color: #666; font-size: 14px;">${template.description}</p>` : ''}
                         <div style="font-size: 12px; color: #888;">
-                            ${template.items.length} items • Created ${new Date(template.createdAt).toLocaleDateString()}
+                            ${template.items.length} items • Created ${formatDate(template.createdAt)}
                         </div>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
@@ -2967,10 +2984,30 @@
         function updateDateInputs() {
             if (currentEvent && currentEvent.gear) {
                 if (currentEvent.gear.checkOutDate) {
-                    document.getElementById('checkOutDate').value = currentEvent.gear.checkOutDate.split('T')[0];
+                    // If it's already a date string like "2025-07-02", use it directly
+                    if (typeof currentEvent.gear.checkOutDate === 'string' && currentEvent.gear.checkOutDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        document.getElementById('checkOutDate').value = currentEvent.gear.checkOutDate;
+                    } else {
+                        // Handle other date formats by extracting date part
+                        const checkOutDate = new Date(currentEvent.gear.checkOutDate);
+                        const checkOutDateStr = checkOutDate.getFullYear() + '-' + 
+                            String(checkOutDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                            String(checkOutDate.getDate()).padStart(2, '0');
+                        document.getElementById('checkOutDate').value = checkOutDateStr;
+                    }
                 }
                 if (currentEvent.gear.checkInDate) {
-                    document.getElementById('checkInDate').value = currentEvent.gear.checkInDate.split('T')[0];
+                    // If it's already a date string like "2025-07-02", use it directly
+                    if (typeof currentEvent.gear.checkInDate === 'string' && currentEvent.gear.checkInDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                        document.getElementById('checkInDate').value = currentEvent.gear.checkInDate;
+                    } else {
+                        // Handle other date formats by extracting date part
+                        const checkInDate = new Date(currentEvent.gear.checkInDate);
+                        const checkInDateStr = checkInDate.getFullYear() + '-' + 
+                            String(checkInDate.getMonth() + 1).padStart(2, '0') + '-' + 
+                            String(checkInDate.getDate()).padStart(2, '0');
+                        document.getElementById('checkInDate').value = checkInDateStr;
+                    }
                 }
             }
         }
@@ -2987,6 +3024,25 @@
                 'Power': 'battery_full'
             };
             return icons[category] || 'inventory_2';
+        }
+
+        function formatDate(dateStr) {
+            if (!dateStr || dateStr === 'Not set') return dateStr;
+            
+            // Handle simple date strings like "2025-07-02" without timezone conversion
+            if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
+                const [year, month, day] = dateStr.split('-').map(Number);
+                return `${month}/${day}/${year}`;
+            }
+            
+            // Parse other date formats and format consistently without timezone issues
+            const date = new Date(dateStr);
+            
+            // Check if the date is valid
+            if (isNaN(date.getTime())) return 'Invalid Date';
+            
+            // Format as MM/DD/YYYY without timezone manipulation
+            return (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear();
         }
 
         function showToast(message, type) {
