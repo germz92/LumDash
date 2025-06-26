@@ -228,6 +228,44 @@
             z-index: 10;
         }
 
+        .sortable-header {
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: background-color 0.2s ease;
+            padding: 0;
+            width: 100%;
+        }
+
+        .sortable-header:hover {
+            background-color: #e9ecef;
+        }
+
+        .sort-arrows {
+            display: flex;
+            flex-direction: column;
+            margin-left: 8px;
+            opacity: 0.5;
+        }
+
+        .sort-arrow {
+            font-size: 12px;
+            line-height: 1;
+            color: #6c757d;
+            transition: color 0.2s ease;
+        }
+
+        .sort-arrow.active {
+            color: #cc0007;
+            opacity: 1;
+        }
+
+        .sortable-header:hover .sort-arrows {
+            opacity: 1;
+        }
+
         .inventory-table tr:hover {
             background: #f8f9fa;
         }
@@ -742,7 +780,7 @@
                             <label for="category">Category <span class="required">*</span></label>
                             <select id="category" name="category" required>
                                 <option value="">Select Category</option>
-                                <option value="Camera">Camera</option>
+                                <option value="Cameras">Cameras</option>
                                 <option value="Lenses">Lenses</option>
                                 <option value="Lighting">Lighting</option>
                                 <option value="Support">Support</option>
@@ -783,7 +821,7 @@
                         <input type="text" class="search-input" id="searchInput" placeholder="Search inventory..." onkeyup="filterInventory()">
                         <select class="filter-select" id="categoryFilter" onchange="filterInventory()">
                             <option value="">All Categories</option>
-                            <option value="Camera">Camera</option>
+                            <option value="Cameras">Cameras</option>
                             <option value="Lenses">Lenses</option>
                             <option value="Lighting">Lighting</option>
                             <option value="Support">Support</option>
@@ -864,6 +902,7 @@
         let filteredInventory = [];
         let currentUser = null;
         let editingItemId = null; // Track if we're editing an existing item
+        let currentSort = { field: null, direction: 'asc' }; // Track current sort state
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
@@ -976,10 +1015,42 @@
                 <table class="inventory-table">
                     <thead>
                         <tr>
-                            <th>Brand</th>
-                            <th>Model</th>
-                            <th>Category</th>
-                            <th>Serial</th>
+                            <th>
+                                <div class="sortable-header" onclick="sortInventory('brand')">
+                                    <span>Brand</span>
+                                    <div class="sort-arrows">
+                                        <span class="sort-arrow ${currentSort.field === 'brand' && currentSort.direction === 'asc' ? 'active' : ''}">▲</span>
+                                        <span class="sort-arrow ${currentSort.field === 'brand' && currentSort.direction === 'desc' ? 'active' : ''}">▼</span>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sortable-header" onclick="sortInventory('model')">
+                                    <span>Model</span>
+                                    <div class="sort-arrows">
+                                        <span class="sort-arrow ${currentSort.field === 'model' && currentSort.direction === 'asc' ? 'active' : ''}">▲</span>
+                                        <span class="sort-arrow ${currentSort.field === 'model' && currentSort.direction === 'desc' ? 'active' : ''}">▼</span>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sortable-header" onclick="sortInventory('category')">
+                                    <span>Category</span>
+                                    <div class="sort-arrows">
+                                        <span class="sort-arrow ${currentSort.field === 'category' && currentSort.direction === 'asc' ? 'active' : ''}">▲</span>
+                                        <span class="sort-arrow ${currentSort.field === 'category' && currentSort.direction === 'desc' ? 'active' : ''}">▼</span>
+                                    </div>
+                                </div>
+                            </th>
+                            <th>
+                                <div class="sortable-header" onclick="sortInventory('serial')">
+                                    <span>Serial</span>
+                                    <div class="sort-arrows">
+                                        <span class="sort-arrow ${currentSort.field === 'serial' && currentSort.direction === 'asc' ? 'active' : ''}">▲</span>
+                                        <span class="sort-arrow ${currentSort.field === 'serial' && currentSort.direction === 'desc' ? 'active' : ''}">▼</span>
+                                    </div>
+                                </div>
+                            </th>
                             <th>Quantity</th>
                             <th>Actions</th>
                         </tr>
@@ -1547,6 +1618,62 @@
             document.getElementById('reservationModal').style.display = 'none';
             currentInventoryId = null;
             currentReservations = null;
+        }
+
+        // Sort inventory by field
+        function sortInventory(field) {
+            // Toggle direction if same field, otherwise default to ascending
+            if (currentSort.field === field) {
+                currentSort.direction = currentSort.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                currentSort.field = field;
+                currentSort.direction = 'asc';
+            }
+
+            // Sort the filtered inventory
+            filteredInventory.sort((a, b) => {
+                let valueA, valueB;
+
+                // Extract values based on field
+                switch (field) {
+                    case 'brand':
+                        valueA = (a.label || '').split(' ')[0] || '';
+                        valueB = (b.label || '').split(' ')[0] || '';
+                        break;
+                    case 'model':
+                        valueA = (a.label || '').split(' ').slice(1).join(' ') || '';
+                        valueB = (b.label || '').split(' ').slice(1).join(' ') || '';
+                        break;
+                    case 'category':
+                        valueA = a.category || '';
+                        valueB = b.category || '';
+                        break;
+                    case 'serial':
+                        valueA = a.serial || '';
+                        valueB = b.serial || '';
+                        break;
+                    default:
+                        return 0;
+                }
+
+                // Convert to lowercase for case-insensitive sorting
+                valueA = valueA.toLowerCase();
+                valueB = valueB.toLowerCase();
+
+                // Sort comparison
+                let comparison = 0;
+                if (valueA > valueB) {
+                    comparison = 1;
+                } else if (valueA < valueB) {
+                    comparison = -1;
+                }
+
+                // Apply direction
+                return currentSort.direction === 'desc' ? comparison * -1 : comparison;
+            });
+
+            // Re-render the table
+            renderInventory();
         }
 
         // Close modal when clicking outside
