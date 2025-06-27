@@ -1281,6 +1281,12 @@
             // Group gear by category
             const categories = {};
             currentGear.forEach(item => {
+                // Skip items with null inventoryId (orphaned items)
+                if (!item.inventoryId) {
+                    console.warn('Skipping item with null inventoryId:', item);
+                    return;
+                }
+                
                 const category = item.inventoryId.category || 'Uncategorized';
                 if (!categories[category]) {
                     categories[category] = [];
@@ -1307,9 +1313,11 @@
                         
                         <div class="gear-list">
                             ${items.map(item => {
-                                const labelParts = item.inventoryId.label.split(' ');
-                                const brand = labelParts[0] || 'Unknown';
-                                const model = labelParts.slice(1).join(' ') || 'Unknown';
+                                // Handle cases where inventoryId might be null (shouldn't happen after filtering, but be safe)
+                                const label = item.inventoryId?.label || `${item.brand} ${item.model}`;
+                                const labelParts = label.split(' ');
+                                const brand = labelParts[0] || item.brand || 'Unknown';
+                                const model = labelParts.slice(1).join(' ') || item.model || 'Unknown';
                                 
                                 return `
                                     <div class="gear-item ${item.isPacked ? 'packed' : ''}">
