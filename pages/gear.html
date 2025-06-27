@@ -1168,6 +1168,13 @@
                 if (response.ok) {
                     currentEvent = await response.json();
                     updateDateInputs();
+                    
+                    // Update header with event name and list name
+                    const gearHeader = document.querySelector('.header h1');
+                    if (gearHeader) {
+                        const eventName = currentEvent?.title || 'Event';
+                        gearHeader.textContent = `${eventName} - ${currentListName}`;
+                    }
                 }
             } catch (error) {
                 console.error('Error loading event:', error);
@@ -1261,10 +1268,11 @@
         function renderGear() {
             const container = document.getElementById('gearContainer');
             
-            // Update header to show current list
+            // Update header to show event name and list name
             const gearHeader = document.querySelector('.header h1');
             if (gearHeader) {
-                gearHeader.textContent = `Gear - ${currentListName}`;
+                const eventName = currentEvent?.title || 'Event';
+                gearHeader.textContent = `${eventName} - ${currentListName}`;
             }
             
             if (currentGear.length === 0) {
