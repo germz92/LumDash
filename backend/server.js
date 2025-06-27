@@ -3560,25 +3560,45 @@ app.get('/api/gear-packages/event/:eventId', authenticate, async (req, res) => {
 
     console.log(`[GEAR LOAD] Found ${reservedItems.length} reserved items`);
 
-    // If no items found, return empty result
-    if (!reservedItems || reservedItems.length === 0) {
-      console.log(`[GEAR LOAD] No reserved items found, returning empty array`);
+    // Filter out items with null inventoryId (orphaned items)
+    const validItems = reservedItems.filter(item => item.inventoryId !== null);
+    const orphanedItems = reservedItems.filter(item => item.inventoryId === null);
+    
+    if (orphanedItems.length > 0) {
+      console.warn(`[GEAR LOAD] Found ${orphanedItems.length} orphaned items with null inventoryId, filtering them out`);
+      orphanedItems.forEach(item => {
+        console.warn(`[GEAR LOAD] Orphaned item: ${item._id} - ${item.brand} ${item.model}`);
+      });
+      
+      // Clean up orphaned items asynchronously (don't block the response)
+      ReservedGearItem.deleteMany({ 
+        _id: { $in: orphanedItems.map(item => item._id) }
+      }).then(result => {
+        console.log(`[GEAR LOAD] Cleaned up ${result.deletedCount} orphaned items`);
+      }).catch(err => {
+        console.error(`[GEAR LOAD] Error cleaning up orphaned items:`, err);
+      });
+    }
+
+    // If no valid items found, return empty result
+    if (!validItems || validItems.length === 0) {
+      console.log(`[GEAR LOAD] No valid reserved items found, returning empty array`);
       return res.json({ reservedItems: [] });
     }
     
     // Log sample data for debugging
-    if (reservedItems.length > 0) {
-      console.log(`[GEAR LOAD] Sample reserved item:`, {
-        _id: reservedItems[0]._id,
-        inventoryId: reservedItems[0].inventoryId,
-        quantity: reservedItems[0].quantity,
-        isPacked: reservedItems[0].isPacked,
-        brand: reservedItems[0].brand,
-        model: reservedItems[0].model
+    if (validItems.length > 0) {
+      console.log(`[GEAR LOAD] Sample valid reserved item:`, {
+        _id: validItems[0]._id,
+        inventoryId: validItems[0].inventoryId,
+        quantity: validItems[0].quantity,
+        isPacked: validItems[0].isPacked,
+        brand: validItems[0].brand,
+        model: validItems[0].model
       });
     }
     
-    res.json({ reservedItems: reservedItems });
+    res.json({ reservedItems: validItems });
   } catch (error) {
     console.error('Error getting reserved items for event:', error);
     res.status(500).json({ error: 'Failed to get reserved items' });
