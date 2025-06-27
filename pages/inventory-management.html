@@ -792,8 +792,8 @@
                         </div>
                         
                         <div class="form-group">
-                                            <label for="serial">Serial Number</label>
-                <input type="text" id="serial" name="serial" placeholder="Enter serial number (optional)">
+                            <label for="serial">Serial Number</label>
+                            <input type="text" id="serial" name="serial" placeholder="Enter serial number (optional)">
                         </div>
                         
                         <div class="form-group">
@@ -1117,8 +1117,8 @@
                 return;
             }
 
-            // Check for duplicate serial (only when adding new item or changing serial, and only if serial is provided)
-            if (itemData.serial && itemData.serial.trim() !== '') {
+            // Check for duplicate serial (only when adding new item or changing serial, and only if serial is provided and not N/A)
+            if (itemData.serial && itemData.serial.trim() !== '' && itemData.serial.trim() !== 'N/A') {
                 const existingItem = currentInventory.find(item => item.serial === itemData.serial);
                 if (existingItem && (!editingItemId || existingItem._id !== editingItemId)) {
                     showToast('Serial number already exists', 'error');
