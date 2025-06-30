@@ -2803,11 +2803,11 @@ app.post('/api/gear-inventory', authenticate, async (req, res) => {
     
     // Check for duplicate serial (only if serial is not blank/N/A)
     if (serialValue !== 'N/A') {
-      const existingWithSerial = await GearInventory.findOne({ serial: serialValue });
-      if (existingWithSerial) {
-        return res.status(409).json({ 
-          error: `Duplicate serial: this value already exists.`
-        });
+    const existingWithSerial = await GearInventory.findOne({ serial: serialValue });
+    if (existingWithSerial) {
+      return res.status(409).json({ 
+        error: `Duplicate serial: this value already exists.`
+      });
       }
     }
     
@@ -3556,16 +3556,25 @@ app.get('/api/gear-packages/event/:eventId', authenticate, async (req, res) => {
     const { listName } = req.query; // Get list name from query parameter
     const userId = req.user.id;
 
-    console.log(`[GEAR LOAD] Loading gear for user ${userId}, event ${eventId}, list: ${listName || 'Main List'}`);
+    console.log(`[GEAR LOAD] Loading gear for event ${eventId}, list: ${listName || 'Main List'} (collaborative mode)`);
 
-    // Find reserved gear items for this user and event (this is what the reservation process creates)
+    // Check if user has access to this event
+    const table = await Table.findById(eventId);
+    if (!table) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    
+    if (!table.owners.includes(userId) && !table.sharedWith.includes(userId)) {
+      return res.status(403).json({ error: 'Not authorized to access this event' });
+    }
+
+    // Find ALL reserved gear items for this event and list (collaborative mode)
     const reservedItems = await ReservedGearItem.find({ 
-      userId, 
       eventId,
       listName: listName || 'Main List'
     }).populate('inventoryId', 'label category serial quantity');
 
-    console.log(`[GEAR LOAD] Found ${reservedItems.length} reserved items`);
+    console.log(`[GEAR LOAD] Found ${reservedItems.length} reserved items (all users)`);
 
     // Filter out items with null inventoryId (orphaned items)
     const validItems = reservedItems.filter(item => item.inventoryId !== null);
@@ -3590,7 +3599,14 @@ app.get('/api/gear-packages/event/:eventId', authenticate, async (req, res) => {
     // If no valid items found, return empty result
     if (!validItems || validItems.length === 0) {
       console.log(`[GEAR LOAD] No valid reserved items found, returning empty array`);
-      return res.json({ reservedItems: [] });
+      return res.json({ 
+        reservedItems: [],
+        userPermissions: {
+          canReserve: table.owners.includes(userId) || req.user.role === 'admin',
+          canManageLists: table.owners.includes(userId) || req.user.role === 'admin',
+          canPack: true
+        }
+      });
     }
     
     // Log sample data for debugging
@@ -3605,7 +3621,14 @@ app.get('/api/gear-packages/event/:eventId', authenticate, async (req, res) => {
       });
     }
     
-    res.json({ reservedItems: validItems });
+    res.json({ 
+      reservedItems: validItems,
+      userPermissions: {
+        canReserve: table.owners.includes(userId) || req.user.role === 'admin',
+        canManageLists: table.owners.includes(userId) || req.user.role === 'admin', 
+        canPack: true
+      }
+    });
   } catch (error) {
     console.error('Error getting reserved items for event:', error);
     res.status(500).json({ error: 'Failed to get reserved items' });
@@ -3635,14 +3658,17 @@ app.patch('/api/gear-packages/:itemId/toggle-packed', authenticate, async (req, 
 
     console.log(`[TOGGLE PACKED] Toggling packed status for item ${itemId}, user ${userId}`);
 
-    const reservedItem = await ReservedGearItem.findOne({ 
-      _id: itemId, 
-      userId 
-    });
+    const reservedItem = await ReservedGearItem.findById(itemId);
 
     if (!reservedItem) {
       console.log(`[TOGGLE PACKED] Reserved item not found`);
       return res.status(404).json({ error: 'Reserved item not found' });
+    }
+
+    // Verify user has access to this event
+    const table = await Table.findById(reservedItem.eventId);
+    if (!table || (!table.owners.includes(userId) && !table.sharedWith.includes(userId))) {
+      return res.status(403).json({ error: 'Not authorized to access this event' });
     }
 
     // Toggle packed status (ReservedGearItem uses isPacked field)
@@ -3820,9 +3846,9 @@ app.post('/api/tables/:eventId/gear-lists', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Event not found' });
     }
     
-    // Check access
-    if (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id)) {
-      return res.status(403).json({ error: 'Not authorized to access this event' });
+    // Check access - only owners and admins can create lists
+    if (!table.owners.includes(req.user.id) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only event owners and admins can create gear lists' });
     }
     
     // Check if list name already exists
@@ -3870,9 +3896,9 @@ app.put('/api/tables/:eventId/gear-lists/:listName', authenticate, async (req, r
       return res.status(404).json({ error: 'Event not found' });
     }
     
-    // Check access
-    if (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id)) {
-      return res.status(403).json({ error: 'Not authorized to access this event' });
+    // Check access - only owners and admins can update lists
+    if (!table.owners.includes(req.user.id) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only event owners and admins can update gear lists' });
     }
     
     // Find the list
@@ -3921,9 +3947,9 @@ app.delete('/api/tables/:eventId/gear-lists/:listName', authenticate, async (req
       return res.status(404).json({ error: 'Event not found' });
     }
     
-    // Check access
-    if (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id)) {
-      return res.status(403).json({ error: 'Not authorized to access this event' });
+    // Check access - only owners and admins can delete lists
+    if (!table.owners.includes(req.user.id) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only event owners and admins can delete gear lists' });
     }
     
     // Check if trying to delete Main List
