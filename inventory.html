@@ -146,6 +146,73 @@
             color: white;
         }
 
+        .filter-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 12px;
+            margin-bottom: 8px;
+        }
+
+        .active-filters {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .filter-tag {
+            background: #cc0007;
+            color: white;
+            padding: 4px 8px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .sort-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .sort-control label {
+            font-size: 14px;
+            font-weight: 500;
+            color: #495057;
+        }
+
+        .sort-control select {
+            padding: 6px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            background: white;
+            color: #495057;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .sort-control select:focus {
+            outline: none;
+            border-color: #cc0007;
+            box-shadow: 0 0 0 3px rgba(204, 0, 7, 0.1);
+        }
+
+        .brand-filter {
+            display: flex;
+            gap: 8px;
+            margin-top: 16px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-label {
+            font-size: 14px;
+            font-weight: 600;
+            color: #495057;
+            margin-right: 8px;
+        }
+
         .inventory-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
@@ -559,17 +626,32 @@
                 <input type="text" id="searchInput" placeholder="Search inventory..." onkeyup="filterInventory()">
                 <span class="material-symbols-outlined">search</span>
             </div>
+            <div class="filter-controls">
+                <div class="active-filters" id="activeFilters">
+                    <!-- Active filter tags will appear here -->
+                </div>
+                <div class="sort-control">
+                    <label for="sortSelect">Sort:</label>
+                    <select id="sortSelect" onchange="changeSortOrder()">
+                        <option value="asc">A-Z (Model)</option>
+                        <option value="desc">Z-A (Model)</option>
+                    </select>
+                </div>
+            </div>
             <div class="category-filter">
-                <button class="category-btn active" onclick="filterByCategory('all')">All</button>
-                <button class="category-btn" onclick="filterByCategory('Cameras')">Cameras</button>
-                <button class="category-btn" onclick="filterByCategory('Lenses')">Lenses</button>
-                <button class="category-btn" onclick="filterByCategory('Lighting')">Lighting</button>
-                <button class="category-btn" onclick="filterByCategory('Support')">Support</button>
-                <button class="category-btn" onclick="filterByCategory('Accessories')">Accessories</button>
-                <button class="category-btn" onclick="filterByCategory('Audio')">Audio</button>
-                <button class="category-btn" onclick="filterByCategory('Storage')">Storage</button>
-                <button class="category-btn" onclick="filterByCategory('Power')">Power</button>
-                <button class="category-btn" onclick="filterByCategory('Computers')">Computers</button>
+                <button class="category-btn active" onclick="filterByCategory('all', this)">All</button>
+                <button class="category-btn" onclick="filterByCategory('Cameras', this)">Cameras</button>
+                <button class="category-btn" onclick="filterByCategory('Lenses', this)">Lenses</button>
+                <button class="category-btn" onclick="filterByCategory('Lighting', this)">Lighting</button>
+                <button class="category-btn" onclick="filterByCategory('Support', this)">Support</button>
+                <button class="category-btn" onclick="filterByCategory('Accessories', this)">Accessories</button>
+                <button class="category-btn" onclick="filterByCategory('Audio', this)">Audio</button>
+                <button class="category-btn" onclick="filterByCategory('Storage', this)">Storage</button>
+                <button class="category-btn" onclick="filterByCategory('Power', this)">Power</button>
+                <button class="category-btn" onclick="filterByCategory('Computers', this)">Computers</button>
+            </div>
+            <div class="brand-filter" id="brandFilter">
+                <!-- Brand buttons will be populated dynamically -->
             </div>
         </div>
 
@@ -616,6 +698,9 @@
         let selectedInventoryId = null;
         let selectedQuantity = 1;
         let currentItemForModal = null;
+        let currentCategory = 'all';
+        let currentBrand = 'all';
+        let currentSort = 'asc';
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', async function() {
@@ -658,6 +743,8 @@
 
                 currentInventory = await response.json();
                 filteredInventory = [...currentInventory];
+                setupBrandFilter();
+                updateActiveFiltersDisplay();
                 renderInventory();
             } catch (error) {
                 console.error('Error loading inventory:', error);
@@ -734,6 +821,147 @@
             }
         }
 
+        // Setup brand filter
+        function setupBrandFilter() {
+            const brands = new Set();
+            currentInventory.forEach(item => {
+                const labelParts = (item.label || '').split(' ');
+                const brand = labelParts[0] || 'Unknown';
+                brands.add(brand);
+            });
+            
+            const brandFilter = document.getElementById('brandFilter');
+            brandFilter.innerHTML = `
+                <div class="filter-label">Brand:</div>
+                <button class="category-btn active" onclick="filterByBrand('all', this)">All</button>
+                ${Array.from(brands).sort().map(brand => 
+                    `<button class="category-btn" onclick="filterByBrand('${brand}', this)">${brand}</button>`
+                ).join('')}
+            `;
+        }
+
+        // Filter by category
+        function filterByCategory(category, clickedElement) {
+            console.log('🎯 filterByCategory called with:', category, clickedElement); // Enhanced debug
+            currentCategory = category;
+            
+            // Update active button
+            document.querySelectorAll('.category-filter .category-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Use passed element or find the clicked button
+            const targetBtn = clickedElement || document.querySelector(`.category-filter .category-btn[onclick*="'${category}'"]`);
+            if (targetBtn) {
+                targetBtn.classList.add('active');
+                console.log('✅ Button activated:', targetBtn.textContent);
+            } else {
+                console.log('❌ Could not find target button for category:', category);
+            }
+            
+            console.log('Category filter changed to:', currentCategory); // Debug log
+            updateActiveFiltersDisplay();
+            filterAndRenderInventory();
+        }
+
+        // Filter by brand
+        function filterByBrand(brand, clickedElement) {
+            currentBrand = brand;
+            
+            // Update active button
+            document.querySelectorAll('.brand-filter .category-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Use passed element or find the clicked button
+            const targetBtn = clickedElement || document.querySelector(`.brand-filter .category-btn[onclick*="'${brand}'"]`);
+            if (targetBtn) {
+                targetBtn.classList.add('active');
+            }
+            
+            console.log('Brand filter changed to:', currentBrand); // Debug log
+            updateActiveFiltersDisplay();
+            filterAndRenderInventory();
+        }
+
+        // Change sort order
+        function changeSortOrder() {
+            currentSort = document.getElementById('sortSelect').value;
+            renderInventory();
+        }
+
+        // Filter inventory by search term
+        function filterInventory() {
+            updateActiveFiltersDisplay();
+            filterAndRenderInventory();
+        }
+
+        // Update active filters display
+        function updateActiveFiltersDisplay() {
+            const activeFiltersEl = document.getElementById('activeFilters');
+            const searchTerm = document.getElementById('searchInput').value.trim();
+            
+            let filterTags = [];
+            
+            if (searchTerm) {
+                filterTags.push(`<span class="filter-tag">Search: ${searchTerm}</span>`);
+            }
+            
+            if (currentCategory !== 'all') {
+                filterTags.push(`<span class="filter-tag">Category: ${currentCategory}</span>`);
+            }
+            
+            if (currentBrand !== 'all') {
+                filterTags.push(`<span class="filter-tag">Brand: ${currentBrand}</span>`);
+            }
+            
+            activeFiltersEl.innerHTML = filterTags.join('');
+        }
+
+        // Test function - you can call this in console
+        function testCategoryFilter() {
+            console.log('🧪 Testing category filter...');
+            console.log('Current state - Category:', currentCategory, 'Brand:', currentBrand);
+            filterByCategory('Cameras', null);
+        }
+
+        // Apply all filters and render
+        function filterAndRenderInventory() {
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+            
+            console.log('Applying filters - Category:', currentCategory, 'Brand:', currentBrand, 'Search:', searchTerm); // Debug log
+            
+            filteredInventory = currentInventory.filter(item => {
+                const labelParts = (item.label || '').split(' ');
+                const brand = labelParts[0] || 'Unknown';
+                const model = labelParts.slice(1).join(' ') || 'Unknown';
+                
+                // Apply search filter
+                const matchesSearch = !searchTerm || 
+                    item.label.toLowerCase().includes(searchTerm) ||
+                    item.category.toLowerCase().includes(searchTerm) ||
+                    brand.toLowerCase().includes(searchTerm) ||
+                    model.toLowerCase().includes(searchTerm);
+                
+                // Apply category filter
+                const matchesCategory = currentCategory === 'all' || item.category === currentCategory;
+                
+                // Apply brand filter
+                const matchesBrand = currentBrand === 'all' || brand === currentBrand;
+                
+                // Debug log for items that match all criteria
+                const passes = matchesSearch && matchesCategory && matchesBrand;
+                if (passes) {
+                    console.log(`✓ Item passes: ${item.label} (Category: ${item.category}, Brand: ${brand})`);
+                }
+                
+                return passes;
+            });
+            
+            console.log(`Filtered results: ${filteredInventory.length} items`); // Debug log
+            renderInventory();
+        }
+
         // Render inventory
         function renderInventory() {
             const container = document.getElementById('inventoryContainer');
@@ -791,6 +1019,15 @@
                 // Add available quantity from this specific item
                 groupedItems[key].totalAvailable += availableQty;
             });
+
+            // Sort grouped items by model name
+            const sortedGroups = Object.values(groupedItems).sort((a, b) => {
+                if (currentSort === 'asc') {
+                    return a.model.localeCompare(b.model);
+                } else {
+                    return b.model.localeCompare(a.model);
+                }
+            });
             
             // For each group, calculate the correct available quantity
             Object.values(groupedItems).forEach(group => {
@@ -805,7 +1042,7 @@
 
             const inventoryHTML = `
                 <div class="inventory-grid">
-                    ${Object.values(groupedItems).map(group => {
+                    ${sortedGroups.map(group => {
                         let statusBadge, actionButton;
                         
                         if (group.hasItemsInCart && group.totalAvailable === 0) {
@@ -1054,7 +1291,9 @@
             });
 
             // Add selection to clicked option
-            event.currentTarget.classList.add('selected');
+            if (event && event.currentTarget) {
+                event.currentTarget.classList.add('selected');
+            }
             
             selectedSerial = serial;
             selectedInventoryId = inventoryId || currentItemForModal._id;
@@ -1165,31 +1404,8 @@
             }
         }
 
-        // Filter functions
-        function filterInventory() {
-            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
-            const activeCategory = document.querySelector('.category-btn.active').textContent;
-            
-            filteredInventory = currentInventory.filter(item => {
-                const matchesSearch = item.label.toLowerCase().includes(searchTerm) ||
-                                    item.category.toLowerCase().includes(searchTerm) ||
-                                    item.serial.toLowerCase().includes(searchTerm);
-                                    
-                const matchesCategory = activeCategory === 'All' || item.category === activeCategory;
-                
-                return matchesSearch && matchesCategory;
-            });
-            
-            renderInventory();
-        }
-
-        function filterByCategory(category) {
-            // Update active button
-            document.querySelectorAll('.category-btn').forEach(btn => btn.classList.remove('active'));
-            event.currentTarget.classList.add('active');
-            
-            filterInventory();
-        }
+        // Legacy filter functions (these are replaced by the newer ones above)
+        // Removed duplicate filterInventory and filterByCategory functions
 
         // Modal functions
         function closeModal() {
