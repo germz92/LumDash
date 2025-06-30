@@ -1136,6 +1136,7 @@
         let currentEventId = null;
         let eventId = null;
         let currentUser = null;
+        let userPermissions = { canReserve: false, canManageLists: false, canPack: true };
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', async function() {
@@ -1222,12 +1223,17 @@
                 if (response.ok) {
                     const result = await response.json();
                     currentGear = result.reservedItems || [];
+                    userPermissions = result.userPermissions || { canReserve: false, canManageLists: false, canPack: true };
+                    console.log('User permissions:', userPermissions);
                     renderGear();
                     updateProgress();
+                    updateUIBasedOnPermissions();
                 } else {
                     // No gear reserved yet
                     currentGear = [];
+                    userPermissions = { canReserve: false, canManageLists: false, canPack: true };
                     renderGear();
+                    updateUIBasedOnPermissions();
                 }
             } catch (error) {
                 console.error('Error loading gear:', error);
@@ -1276,11 +1282,15 @@
             }
             
             if (currentGear.length === 0) {
+                const emptyMessage = userPermissions.canReserve 
+                    ? 'Click "Add Items" below to start building your gear list.' 
+                    : 'Event owners can add items to this list.';
+                    
                 container.innerHTML = `
                     <div style="text-align: center; padding: 60px 20px; color: #666;">
                         <div style="font-size: 64px; color: #ccc; margin-bottom: 16px;">📦</div>
                         <h3>No gear in "${currentListName}" yet</h3>
-                        <p>Click "Add Items" below to start building your gear list.</p>
+                        <p>${emptyMessage}</p>
                     </div>
                 `;
                 return;
@@ -1342,10 +1352,12 @@
                                             </div>
                                         </div>
                                         <div class="gear-controls">
-                                            <button class="delete-btn" onclick="deleteGearItem('${item._id}')" 
-                                                    title="Remove from list">
-                                                <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
-                                            </button>
+                                            ${userPermissions.canReserve ? `
+                                                <button class="delete-btn" onclick="deleteGearItem('${item._id}')" 
+                                                        title="Remove from list">
+                                                    <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                                </button>
+                                            ` : ''}
                                         </div>
                                     </div>
                                 `;
@@ -1405,7 +1417,7 @@
         async function deleteGearItem(itemId) {
             console.log('[DELETE] Starting delete process for item:', itemId);
             
-            if (!confirm('Are you sure you want to remove this item from your gear list?')) {
+            if (!confirm('Are you sure you want to remove this item from the gear list?')) {
                 console.log('[DELETE] User cancelled deletion');
                 return;
             }
@@ -2634,6 +2646,43 @@
             } catch (error) {
                 console.error('Error checking user role:', error);
             }
+        }
+
+        // Update UI based on user permissions
+        function updateUIBasedOnPermissions() {
+            console.log('Updating UI based on permissions:', userPermissions);
+            
+            // Show/hide Add Items button
+            const addItemsBtn = document.getElementById('addItemsBtn');
+            if (addItemsBtn) {
+                if (userPermissions.canReserve) {
+                    addItemsBtn.style.display = 'flex';
+                } else {
+                    addItemsBtn.style.display = 'none';
+                }
+            }
+
+            // Show/hide View Cart button (only show if can reserve)
+            const viewCartBtn = document.getElementById('viewCartBtn');
+            if (viewCartBtn) {
+                if (userPermissions.canReserve) {
+                    viewCartBtn.style.display = 'flex';
+                } else {
+                    viewCartBtn.style.display = 'none';
+                }
+            }
+
+            // Update package controls based on permissions
+            const packageControls = document.querySelectorAll('.package-controls button');
+            packageControls.forEach(btn => {
+                if (btn.textContent.includes('Add') || btn.textContent.includes('Create')) {
+                    if (userPermissions.canManageLists) {
+                        btn.style.display = 'inline-flex';
+                    } else {
+                        btn.style.display = 'none';
+                    }
+                }
+            });
         }
 
         // Navigation
