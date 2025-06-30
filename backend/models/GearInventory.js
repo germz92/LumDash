@@ -16,9 +16,24 @@ const gearInventorySchema = new mongoose.Schema({
   serial: { 
     type: String,
     required: true,
-    unique: true,
     sparse: true,
-    set: v => v === '' ? 'N/A' : v
+    set: v => v === '' ? 'N/A' : v,
+    validate: {
+      validator: async function(value) {
+        // Only enforce uniqueness for non-N/A values
+        if (value === 'N/A') {
+          return true; // Allow multiple N/A values
+        }
+        
+        // For actual serial numbers, check for duplicates
+        const count = await this.constructor.countDocuments({
+          serial: value,
+          _id: { $ne: this._id } // Exclude current document when updating
+        });
+        return count === 0;
+      },
+      message: 'Serial number already exists'
+    }
   },
   quantity: { 
     type: Number, 

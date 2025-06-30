@@ -685,7 +685,12 @@ if (!MONGO_URI) {
 }
 
 mongoose.connect(MONGO_URI)
-  .then(() => console.log('MongoDB connected'))
+  .then(async () => {
+    console.log('MongoDB connected');
+    // Fix the serial number index issue
+    const { fixSerialIndex } = require('./fix-index-on-startup');
+    await fixSerialIndex(mongoose);
+  })
   .catch(err => {
     console.error('MongoDB connection error:', err);
     process.exit(1);
@@ -2796,12 +2801,14 @@ app.post('/api/gear-inventory', authenticate, async (req, res) => {
     // Convert empty strings to "N/A"
     const serialValue = serial && typeof serial === 'string' && serial.trim() !== '' ? serial.trim() : 'N/A';
     
-    // Check for duplicate serial (all serials must be unique)
-    const existingWithSerial = await GearInventory.findOne({ serial: serialValue });
-    if (existingWithSerial) {
-      return res.status(409).json({ 
-        error: `Duplicate serial: this value already exists.`
-      });
+    // Check for duplicate serial (only if serial is not blank/N/A)
+    if (serialValue !== 'N/A') {
+      const existingWithSerial = await GearInventory.findOne({ serial: serialValue });
+      if (existingWithSerial) {
+        return res.status(409).json({ 
+          error: `Duplicate serial: this value already exists.`
+        });
+      }
     }
     
     // Note: We allow duplicate labels (same brand+model) as long as serials are different
@@ -2868,8 +2875,8 @@ app.put('/api/gear-inventory/:id', authenticate, async (req, res) => {
     // Convert empty strings to "N/A"
     const serialValue = serial && typeof serial === 'string' && serial.trim() !== '' ? serial.trim() : 'N/A';
     
-    // Check for duplicate serial when changed
-    if (serialValue !== gear.serial) {
+    // Check for duplicate serial when changed (only if serial is not blank/N/A)
+    if (serialValue !== gear.serial && serialValue !== 'N/A') {
       const existingWithSerial = await GearInventory.findOne({ 
         serial: serialValue,
         _id: { $ne: gearId } // Exclude current gear
