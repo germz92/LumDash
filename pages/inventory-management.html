@@ -1183,8 +1183,9 @@
                         filteredInventory = [...currentInventory];
                         showToast('Item updated successfully!', 'success');
                         
-                        // Reset edit mode
-                        cancelEdit();
+                        // Reset edit mode without showing cancelled message
+                        editingItemId = null;
+                        updateFormForEditMode();
                     } else {
                         // Add new item
                         currentInventory.push(itemData);
