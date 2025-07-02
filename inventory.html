@@ -199,9 +199,67 @@
         }
 
         .brand-filter {
+            margin-top: 16px;
+        }
+
+        .brand-filter-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            cursor: pointer;
+            padding: 12px 16px;
+            background: #f8f9fa;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            margin-bottom: 8px;
+        }
+
+        .brand-filter-header:hover {
+            background: #e9ecef;
+            border-color: #cc0007;
+        }
+
+        .brand-filter-header.active {
+            background: #fff5f5;
+            border-color: #cc0007;
+        }
+
+        .brand-filter-title {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #495057;
+        }
+
+        .brand-filter-toggle {
+            transition: transform 0.2s ease;
+        }
+
+        .brand-filter-toggle.expanded {
+            transform: rotate(180deg);
+        }
+
+        .brand-filter-content {
+            display: none;
+            padding: 12px 16px;
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-top: none;
+            border-radius: 0 0 8px 8px;
+            max-height: 200px;
+            overflow-y: auto;
+        }
+
+        .brand-filter-content.show {
+            display: block;
+        }
+
+        .brand-filter-buttons {
             display: flex;
             gap: 8px;
-            margin-top: 16px;
             flex-wrap: wrap;
             align-items: center;
         }
@@ -211,6 +269,31 @@
             font-weight: 600;
             color: #495057;
             margin-right: 8px;
+        }
+
+        /* Mobile responsiveness for brand filter */
+        @media (max-width: 768px) {
+            .brand-filter-header {
+                padding: 10px 12px;
+            }
+
+            .brand-filter-title span:last-child {
+                font-size: 12px;
+            }
+
+            .brand-filter-content {
+                max-height: 150px;
+                padding: 8px 12px;
+            }
+
+            .brand-filter-buttons {
+                gap: 6px;
+            }
+
+            .brand-filter-buttons .category-btn {
+                font-size: 13px;
+                padding: 6px 12px;
+            }
         }
 
         .inventory-grid {
@@ -830,13 +913,27 @@
                 brands.add(brand);
             });
             
+            const brandCount = brands.size;
+            const currentBrandText = currentBrand === 'all' ? 'All Brands' : currentBrand;
+            
             const brandFilter = document.getElementById('brandFilter');
             brandFilter.innerHTML = `
-                <div class="filter-label">Brand:</div>
-                <button class="category-btn active" onclick="filterByBrand('all', this)">All</button>
-                ${Array.from(brands).sort().map(brand => 
-                    `<button class="category-btn" onclick="filterByBrand('${brand}', this)">${brand}</button>`
-                ).join('')}
+                <div class="brand-filter-header" onclick="toggleBrandFilter()">
+                    <div class="brand-filter-title">
+                        <span class="material-symbols-outlined">label</span>
+                        <span>Brand Filter</span>
+                        <span style="color: #666; font-weight: normal;">(${brandCount} brands) - Current: ${currentBrandText}</span>
+                    </div>
+                    <span class="material-symbols-outlined brand-filter-toggle">expand_more</span>
+                </div>
+                <div class="brand-filter-content" id="brandFilterContent">
+                    <div class="brand-filter-buttons">
+                        <button class="category-btn active" onclick="filterByBrand('all', this)">All</button>
+                        ${Array.from(brands).sort().map(brand => 
+                            `<button class="category-btn ${currentBrand === brand ? 'active' : ''}" onclick="filterByBrand('${brand}', this)">${brand}</button>`
+                        ).join('')}
+                    </div>
+                </div>
             `;
         }
 
@@ -864,6 +961,23 @@
             filterAndRenderInventory();
         }
 
+        // Toggle brand filter visibility
+        function toggleBrandFilter() {
+            const content = document.getElementById('brandFilterContent');
+            const header = document.querySelector('.brand-filter-header');
+            const toggle = document.querySelector('.brand-filter-toggle');
+            
+            if (content.classList.contains('show')) {
+                content.classList.remove('show');
+                header.classList.remove('active');
+                toggle.classList.remove('expanded');
+            } else {
+                content.classList.add('show');
+                header.classList.add('active');
+                toggle.classList.add('expanded');
+            }
+        }
+
         // Filter by brand
         function filterByBrand(brand, clickedElement) {
             currentBrand = brand;
@@ -880,6 +994,19 @@
             }
             
             console.log('Brand filter changed to:', currentBrand); // Debug log
+            
+            // Update the header to show current selection
+            const currentBrandText = currentBrand === 'all' ? 'All Brands' : currentBrand;
+            const headerTitle = document.querySelector('.brand-filter-title');
+            if (headerTitle) {
+                const brandCount = document.querySelectorAll('.brand-filter .category-btn').length - 1; // -1 for "All" button
+                headerTitle.innerHTML = `
+                    <span class="material-symbols-outlined">label</span>
+                    <span>Brand Filter</span>
+                    <span style="color: #666; font-weight: normal;">(${brandCount} brands) - Current: ${currentBrandText}</span>
+                `;
+            }
+            
             updateActiveFiltersDisplay();
             filterAndRenderInventory();
         }

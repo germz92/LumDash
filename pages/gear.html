@@ -2694,6 +2694,9 @@
                 if (confirm('No dates set. Would you like to set check-out and check-in dates first?')) {
                     document.getElementById('checkOutDate').focus();
                     return;
+                } else {
+                    // User clicked Cancel, stay on current page
+                    return;
                 }
             }
 

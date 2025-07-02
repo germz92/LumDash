@@ -733,6 +733,23 @@ window.initPage = function(id) {
       };
       
       if (payload.role === 'admin') {
+        // Create admin buttons container if it doesn't exist
+        let adminButtonsContainer = document.getElementById('adminButtonsContainer');
+        if (!adminButtonsContainer) {
+          adminButtonsContainer = document.createElement('div');
+          adminButtonsContainer.id = 'adminButtonsContainer';
+          adminButtonsContainer.style.display = 'flex';
+          adminButtonsContainer.style.gap = '8px';
+          adminButtonsContainer.style.alignItems = 'center';
+          
+          // Insert before logout button
+          const logoutBtn = document.getElementById('logoutBtn');
+          if (logoutBtn && logoutBtn.parentNode) {
+            logoutBtn.parentNode.insertBefore(adminButtonsContainer, logoutBtn);
+          }
+        }
+
+        // Add admin console button
         let adminBtn = document.getElementById('adminConsoleBtn');
         if (!adminBtn) {
           adminBtn = document.createElement('button');
@@ -742,11 +759,26 @@ window.initPage = function(id) {
           adminBtn.onclick = () => {
             window.location.href = '/pages/users.html';
           };
-          // Insert before logout button
-          const logoutBtn = document.getElementById('logoutBtn');
-          if (logoutBtn && logoutBtn.parentNode) {
-            logoutBtn.parentNode.insertBefore(adminBtn, logoutBtn);
-          }
+          adminButtonsContainer.appendChild(adminBtn);
+        }
+
+        // Add inventory management button
+        let inventoryBtn = document.getElementById('inventoryManagementBtn');
+        if (!inventoryBtn) {
+          inventoryBtn = document.createElement('button');
+          inventoryBtn.id = 'inventoryManagementBtn';
+          inventoryBtn.className = 'btn-inventory btn-outlined';
+          inventoryBtn.style.display = 'flex';
+          inventoryBtn.style.alignItems = 'center';
+          inventoryBtn.style.gap = '8px';
+          inventoryBtn.innerHTML = `
+            <span class="material-symbols-outlined">inventory</span>
+            Inventory
+          `;
+          inventoryBtn.onclick = () => {
+            window.location.href = '/pages/inventory-management.html';
+          };
+          adminButtonsContainer.appendChild(inventoryBtn);
         }
       }
     }

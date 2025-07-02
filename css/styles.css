@@ -631,6 +631,7 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
 /* Specific style for less prominent archived events button */
 .btn-archived-toggle.btn-outlined,
 .btn-admin.btn-outlined,
+.btn-inventory.btn-outlined,
 .btn-reset.btn-outlined /* Added for the modal's reset password button */ {
   color: var(--md-sys-color-on-surface-variant); /* Muted text color */
   border-color: var(--md-sys-color-outline); /* Lighter gray border */
@@ -640,6 +641,7 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
 
 .btn-archived-toggle.btn-outlined:hover,
 .btn-admin.btn-outlined:hover,
+.btn-inventory.btn-outlined:hover,
 .btn-reset.btn-outlined:hover {
   background-color: rgba(0,0,0, 0.08); /* Subtle dark hover */
   color: var(--md-sys-color-on-surface); /* Slightly darker text on hover */
@@ -648,6 +650,7 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
 
 .btn-archived-toggle.btn-outlined:active,
 .btn-admin.btn-outlined:active,
+.btn-inventory.btn-outlined:active,
 .btn-reset.btn-outlined:active {
   background-color: rgba(0,0,0, 0.12); /* Subtle dark press */
 }
