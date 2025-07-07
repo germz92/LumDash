@@ -351,8 +351,176 @@ function insertAdminNotesBtn(tableId) {
       window.location.href = `/pages/tasks.html?id=${tableId}`;
     };
     container.appendChild(taskBtn);
+
+    // Add QR Code button for owners, styled like folder icon, to the right
+    const qrBtn = document.createElement('button');
+    qrBtn.innerHTML = '<span class="material-symbols-outlined">qr_code</span>';
+    qrBtn.className = 'qr-code-btn';
+    qrBtn.style = 'margin-bottom: 18px; margin-left: 8px; background: none; color: #888; border: none; border-radius: 8px; padding: 8px; font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;';
+    qrBtn.title = 'QR Code';
+    qrBtn.onclick = () => {
+      showQRCodeModal();
+    };
+    container.appendChild(qrBtn);
   }
   console.log('Folder logs button added for all users');
+}
+
+function showQRCodeModal() {
+  // Create modal overlay
+  const modal = document.createElement('div');
+  modal.id = 'qrCodeModal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    cursor: pointer;
+  `;
+
+  // Create QR code container
+  const qrContainer = document.createElement('div');
+  qrContainer.style.cssText = `
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  `;
+
+  // Create close button
+  const closeBtn = document.createElement('button');
+  closeBtn.innerHTML = '×';
+  closeBtn.style.cssText = `
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    font-size: 30px;
+    color: #666;
+    cursor: pointer;
+    padding: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  `;
+  closeBtn.onclick = (e) => {
+    e.stopPropagation();
+    closeQRCodeModal();
+  };
+
+  // Create QR code image
+  const qrImage = document.createElement('img');
+  qrImage.src = '../assets/qr-code.png'; // QR code that links to https://www.lumtags.com/#/attendee
+  qrImage.alt = 'QR Code for LumTags Attendee';
+  qrImage.style.cssText = `
+    max-width: 100%;
+    max-height: 60vh;
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    cursor: pointer;
+  `;
+  
+  // Make QR code clickable to open the link
+  qrImage.onclick = (e) => {
+    e.stopPropagation();
+    window.open('https://www.lumtags.com/#/attendee', '_blank');
+  };
+
+  // Create title
+  const title = document.createElement('h3');
+  title.textContent = 'LumTags Attendee Portal';
+  title.style.cssText = `
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 24px;
+    text-align: center;
+  `;
+
+  // Create subtitle with link
+  const subtitle = document.createElement('p');
+  subtitle.innerHTML = 'Scan QR code or <a href="https://www.lumtags.com/#/attendee" target="_blank" style="color: #CC0007; text-decoration: none; font-weight: bold;">click here</a> to access the attendee portal';
+  subtitle.style.cssText = `
+    margin: 0 0 20px 0;
+    color: #666;
+    font-size: 16px;
+    text-align: center;
+    max-width: 300px;
+  `;
+
+  // Create URL display
+  const urlDisplay = document.createElement('div');
+  urlDisplay.textContent = 'www.lumtags.com/#/attendee';
+  urlDisplay.style.cssText = `
+    margin: 15px 0 0 0;
+    color: #888;
+    font-size: 14px;
+    text-align: center;
+    font-family: monospace;
+    background: #f5f5f5;
+    padding: 8px 12px;
+    border-radius: 4px;
+    user-select: all;
+  `;
+
+  // Add elements to container
+  qrContainer.appendChild(closeBtn);
+  qrContainer.appendChild(title);
+  qrContainer.appendChild(subtitle);
+  qrContainer.appendChild(qrImage);
+  qrContainer.appendChild(urlDisplay);
+
+  // Add container to modal
+  modal.appendChild(qrContainer);
+
+  // Add modal to document
+  document.body.appendChild(modal);
+
+  // Close modal when clicking outside
+  modal.onclick = (e) => {
+    if (e.target === modal) {
+      closeQRCodeModal();
+    }
+  };
+
+  // Prevent scrolling when modal is open
+  document.body.style.overflow = 'hidden';
+
+  // Handle image load error
+  qrImage.onerror = () => {
+    qrImage.style.display = 'none';
+    const errorMsg = document.createElement('p');
+    errorMsg.textContent = 'QR code image not found. Please add the LumTags QR code as qr-code.png to the assets folder.';
+    errorMsg.style.cssText = `
+      color: #666;
+      text-align: center;
+      margin: 20px;
+      font-size: 16px;
+    `;
+    qrContainer.appendChild(errorMsg);
+  };
+}
+
+function closeQRCodeModal() {
+  const modal = document.getElementById('qrCodeModal');
+  if (modal) {
+    modal.remove();
+    document.body.style.overflow = '';
+  }
 }
 
 function initPage(id) {

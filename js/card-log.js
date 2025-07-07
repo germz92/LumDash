@@ -485,6 +485,35 @@ function setupEventListeners() {
       }
       if (e.target.classList.contains('delete-row-btn')) {
         const row = e.target.closest('tr');
+        
+        // Extract row data for confirmation message
+        const cameraSelect = row.querySelector('.camera-select');
+        const card1Input = row.querySelector('[data-field="card1"]');
+        const card2Input = row.querySelector('[data-field="card2"]');
+        const userSelect = row.querySelector('.user-select');
+        
+        const camera = cameraSelect ? cameraSelect.value : '';
+        const card1 = card1Input ? card1Input.value : '';
+        const card2 = card2Input ? card2Input.value : '';
+        const user = userSelect ? userSelect.value : '';
+        
+        // Create confirmation message with row details
+        let confirmMessage = 'Are you sure you want to delete this row?';
+        const details = [];
+        
+        if (camera) details.push(`Camera: ${camera}`);
+        if (card1) details.push(`Card 1: ${card1}`);
+        if (card2) details.push(`Card 2: ${card2}`);
+        if (user) details.push(`User: ${user}`);
+        
+        if (details.length > 0) {
+          confirmMessage = `Are you sure you want to delete this row?\n\n${details.join('\n')}`;
+        }
+        
+        if (!confirm(confirmMessage)) {
+          return;
+        }
+        
         row.remove();
         saveToMongoDB();
       }

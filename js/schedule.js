@@ -1219,7 +1219,20 @@ function safeDeleteProgram(programIndex) {
   }
   
   const program = tableData.programs[programIndex];
-  console.log(`[SAFE DELETE] Removing program: ${program.name || 'Untitled'} on ${program.date}`);
+  
+  // Create confirmation message with program details
+  const programName = program.name || 'Untitled Program';
+  const programDate = program.date ? formatDate(program.date) : 'Unknown Date';
+  const timeInfo = program.startTime || program.endTime ? 
+    ` at ${formatTo12Hour(program.startTime || '')}${program.endTime ? ' - ' + formatTo12Hour(program.endTime) : ''}` : '';
+  
+  const confirmMessage = `Are you sure you want to delete "${programName}" on ${programDate}${timeInfo}?`;
+  
+  if (!confirm(confirmMessage)) {
+    return;
+  }
+  
+  console.log(`[SAFE DELETE] Removing program: ${programName} on ${program.date}`);
   
   // Broadcast to other users if collaboration is enabled
   if (window.SimpleCollab && window.SimpleCollab.isEnabled()) {

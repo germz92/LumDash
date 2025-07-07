@@ -109,122 +109,107 @@ async function loadTables() {
   const list = document.getElementById('tableList');
   if (list) list.innerHTML = '';
 
-  filteredTables.forEach(table => {
-    const general = table.general || {};
-    const client = general.client || 'N/A';
+  // Check if we're showing archived events
+  if (showArchived) {
+    // For archived events, show single list as before
+    // Reset the list container to use table-cards class for proper layout
+    list.className = 'table-cards';
+    filteredTables.forEach(table => {
+      renderEventCard(table, list, userId);
+    });
+  } else {
+    // For non-archived events, split into Active and All Events sections
+    // Reset the list container to remove table-cards class since we'll use sections
+    list.className = '';
+    // Ensure sections stack vertically
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '0';
     
-    // Format dates consistently with UTC to prevent timezone shifts
-    const formatDate = (dateStr) => {
-      if (!dateStr) return 'N/A';
-      const date = new Date(dateStr);
-      // Use UTC date methods to prevent timezone issues
-      return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric',
-        timeZone: 'UTC' // Prevent timezone shifts
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to start of day for comparison
+    
+    // Helper function to check if an event is active
+    const isEventActive = (table) => {
+      const general = table.general || {};
+      if (!general.start || !general.end) return false;
+      
+      const startDate = new Date(general.start);
+      const endDate = new Date(general.end);
+      startDate.setHours(0, 0, 0, 0);
+      endDate.setHours(0, 0, 0, 0);
+      
+      return today >= startDate && today <= endDate;
+    };
+    
+    // Split events into active and non-active
+    const activeEvents = filteredTables.filter(isEventActive);
+    const nonActiveEvents = filteredTables.filter(table => !isEventActive(table));
+    
+    // Create Active Events section if there are active events
+    if (activeEvents.length > 0) {
+      const activeSection = document.createElement('div');
+      activeSection.className = 'events-section';
+      
+      const activeHeader = document.createElement('h3');
+      activeHeader.className = 'events-section-header';
+      activeHeader.textContent = 'Active Events';
+      activeHeader.style.cssText = `
+        margin: 0 0 16px 0;
+        padding: 12px 0;
+        border-bottom: 2px solid #CC0007;
+        color: #CC0007;
+        font-size: 1.2em;
+        font-weight: 600;
+        text-align: center;
+      `;
+      
+      // Create the cards container with proper flex layout
+      const activeCardsContainer = document.createElement('div');
+      activeCardsContainer.className = 'table-cards';
+      
+      activeSection.appendChild(activeHeader);
+      activeSection.appendChild(activeCardsContainer);
+      
+      activeEvents.forEach(table => {
+        renderEventCard(table, activeCardsContainer, userId);
       });
-    };
-    
-    const start = formatDate(general.start);
-    const end = formatDate(general.end);
-
-    const card = document.createElement('div');
-    card.className = 'table-card';
-
-    const header = document.createElement('div');
-    header.className = 'event-header';
-
-    const title = document.createElement('h3');
-    title.textContent = table.title;
-
-    const details = document.createElement('div');
-    details.className = 'event-details';
-    details.innerHTML = `Client: ${client} <br> ${start} - ${end}`;
-
-    header.appendChild(title);
-    header.appendChild(details);
-
-    const actions = document.createElement('div');
-    actions.className = 'action-buttons';
-
-    const openBtn = document.createElement('button');
-    openBtn.className = 'btn-open';
-    openBtn.textContent = 'Open';
-    openBtn.onclick = () => {
-      const page = 'general'; // Set this to the correct page identifier
-      const tableId = table._id;
-      window.navigate(page, tableId);
-    };
-
-    const isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
-
-    const shareBtn = document.createElement('button');
-    shareBtn.className = 'btn-share';
-    shareBtn.textContent = 'Share';
-    shareBtn.onclick = () => {
-      openShareModal(table._id);
-    };
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'btn-delete';
-    deleteBtn.textContent = 'Delete';
-    deleteBtn.onclick = async () => {
-      if (confirm('Are you sure you want to delete this event?\n\nThis will also release all gear items reserved for this event back to inventory.')) {
-        try {
-          const response = await fetch(`${API_BASE}/api/tables/${table._id}`, {
-          method: 'DELETE',
-          headers: { Authorization: token }
-        });
-          
-          if (response.ok) {
-            const result = await response.json();
-            // Show success message with gear release info
-            if (result.message) {
-              alert(`Event deleted successfully!\n${result.message}`);
-            }
-          } else {
-            const error = await response.json();
-            alert(`Error deleting event: ${error.error || 'Unknown error'}`);
-          }
-        } catch (err) {
-          console.error('Error deleting event:', err);
-          alert('Error deleting event. Please try again.');
-        }
-        loadTables();
-      }
-    };
-
-    // Always add Open button
-    actions.appendChild(openBtn);
-    
-    // Only add Share and Delete buttons for owners
-    if (isOwner) {
-      actions.appendChild(shareBtn);
-      // Add Archive button before Delete for better grouping
-      const archiveBtn = document.createElement('button');
-      archiveBtn.className = 'btn-archive';
-      archiveBtn.textContent = 'Archive';
-      archiveBtn.onclick = async () => {
-        if (confirm('Are you sure you want to archive this event?')) {
-          await fetch(`${API_BASE}/api/tables/${table._id}/archive`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: token
-            },
-            body: JSON.stringify({ archived: true })
-          });
-          loadTables();
-        }
-      };
-      actions.appendChild(archiveBtn);
-      actions.appendChild(deleteBtn);
+      
+      list.appendChild(activeSection);
     }
-
-    card.append(header, actions);
-    if (list) list.appendChild(card);
-  });
+    
+    // Create All Events section
+    if (nonActiveEvents.length > 0) {
+      const allEventsSection = document.createElement('div');
+      allEventsSection.className = 'events-section';
+      
+      const allHeader = document.createElement('h3');
+      allHeader.className = 'events-section-header';
+      allHeader.textContent = 'All Events';
+      allHeader.style.cssText = `
+        margin: ${activeEvents.length > 0 ? '32px' : '0'} 0 16px 0;
+        padding: 12px 0;
+        border-bottom: 2px solid #CC0007;
+        color: #CC0007;
+        font-size: 1.2em;
+        font-weight: 600;
+        text-align: center;
+      `;
+      
+      // Create the cards container with proper flex layout
+      const allCardsContainer = document.createElement('div');
+      allCardsContainer.className = 'table-cards';
+      
+      allEventsSection.appendChild(allHeader);
+      allEventsSection.appendChild(allCardsContainer);
+      
+      nonActiveEvents.forEach(table => {
+        renderEventCard(table, allCardsContainer, userId);
+      });
+      
+      list.appendChild(allEventsSection);
+    }
+  }
 
   renderCalendar(filteredTables);
 
@@ -239,6 +224,124 @@ async function loadTables() {
       cal.style.display = 'none';
     }
   }
+}
+
+// Helper function to render a single event card
+function renderEventCard(table, container, userId) {
+  const general = table.general || {};
+  const client = general.client || 'N/A';
+  
+  // Format dates consistently with UTC to prevent timezone shifts
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    // Use UTC date methods to prevent timezone issues
+    return date.toLocaleDateString('en-US', { 
+      year: 'numeric', 
+      month: 'short', 
+      day: 'numeric',
+      timeZone: 'UTC' // Prevent timezone shifts
+    });
+  };
+  
+  const start = formatDate(general.start);
+  const end = formatDate(general.end);
+
+  const card = document.createElement('div');
+  card.className = 'table-card';
+
+  const header = document.createElement('div');
+  header.className = 'event-header';
+
+  const title = document.createElement('h3');
+  title.textContent = table.title;
+
+  const details = document.createElement('div');
+  details.className = 'event-details';
+  details.innerHTML = `Client: ${client} <br> ${start} - ${end}`;
+
+  header.appendChild(title);
+  header.appendChild(details);
+
+  const actions = document.createElement('div');
+  actions.className = 'action-buttons';
+
+  const openBtn = document.createElement('button');
+  openBtn.className = 'btn-open';
+  openBtn.textContent = 'Open';
+  openBtn.onclick = () => {
+    const page = 'general'; // Set this to the correct page identifier
+    const tableId = table._id;
+    window.navigate(page, tableId);
+  };
+
+  const isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
+
+  const shareBtn = document.createElement('button');
+  shareBtn.className = 'btn-share';
+  shareBtn.textContent = 'Share';
+  shareBtn.onclick = () => {
+    openShareModal(table._id);
+  };
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'btn-delete';
+  deleteBtn.textContent = 'Delete';
+  deleteBtn.onclick = async () => {
+    if (confirm('Are you sure you want to delete this event?\n\nThis will also release all gear items reserved for this event back to inventory.')) {
+      try {
+        const response = await fetch(`${API_BASE}/api/tables/${table._id}`, {
+        method: 'DELETE',
+        headers: { Authorization: token }
+      });
+        
+        if (response.ok) {
+          const result = await response.json();
+          // Show success message with gear release info
+          if (result.message) {
+            alert(`Event deleted successfully!\n${result.message}`);
+          }
+        } else {
+          const error = await response.json();
+          alert(`Error deleting event: ${error.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        console.error('Error deleting event:', err);
+        alert('Error deleting event. Please try again.');
+      }
+      loadTables();
+    }
+  };
+
+  // Always add Open button
+  actions.appendChild(openBtn);
+  
+  // Only add Share and Delete buttons for owners
+  if (isOwner) {
+    actions.appendChild(shareBtn);
+    // Add Archive button before Delete for better grouping
+    const archiveBtn = document.createElement('button');
+    archiveBtn.className = 'btn-archive';
+    archiveBtn.textContent = 'Archive';
+    archiveBtn.onclick = async () => {
+      if (confirm('Are you sure you want to archive this event?')) {
+        await fetch(`${API_BASE}/api/tables/${table._id}/archive`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token
+          },
+          body: JSON.stringify({ archived: true })
+        });
+        loadTables();
+      }
+    };
+    actions.appendChild(archiveBtn);
+    actions.appendChild(deleteBtn);
+  }
+
+  card.append(header, actions);
+  if (container) container.appendChild(card);
 }
 
 function renderCalendar(events) {
