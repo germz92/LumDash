@@ -607,7 +607,7 @@ async function calculateCartItemAvailability(cartItem, cart, allCartItems) {
   
   // For specific serial requests, just return individual item availability
   if (cartItem.specificSerial) {
-    return inventoryItem.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
+    return await inventoryItem.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
   }
   
   // For grouped items, calculate availability across all similar items
@@ -621,7 +621,7 @@ async function calculateCartItemAvailability(cartItem, cart, allCartItems) {
   // Calculate total available quantity across all similar items (ONLY based on reservations)
   let totalAvailable = 0;
   for (const item of similarItems) {
-    totalAvailable += item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
+    totalAvailable += await item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
   }
   
   // For display purposes, show how many MORE can be added for this brand/model
@@ -674,6 +674,7 @@ const ReservedGearItem = require('./models/ReservedGearItem');
 const PackageTemplate = require('./models/PackageTemplate');
 const Cart = require('./models/Cart');
 const FolderLog = require('./models/FolderLog');
+const ManualReservation = require('./models/ManualReservation');
 
 
 
@@ -838,9 +839,9 @@ app.post('/api/chat/:tableId', authenticate, async (req, res) => {
       let gearInventoryWithAvailability = [];
       if (table.gear?.checkOutDate && table.gear?.checkInDate) {
         const allGearInventory = await GearInventory.find();
-        gearInventoryWithAvailability = allGearInventory.map(item => {
-          const availableQty = item.getAvailableQuantity(table.gear.checkOutDate, table.gear.checkInDate);
-          return {
+        for (const item of allGearInventory) {
+          const availableQty = await item.getAvailableQuantity(table.gear.checkOutDate, table.gear.checkInDate);
+          gearInventoryWithAvailability.push({
             _id: item._id,
             label: item.label,
             category: item.category,
@@ -854,8 +855,8 @@ app.post('/api/chat/:tableId', authenticate, async (req, res) => {
               checkOutDate: res.checkOutDate,
               checkInDate: res.checkInDate
             }))
-          };
-        });
+          });
+        }
       }
 
       // Group reserved items by category for better AI understanding
@@ -2288,6 +2289,47 @@ app.get('/api/gear-inventory', authenticate, async (req, res) => {
     res.json(gear);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch gear inventory' });
+  }
+});
+
+// Get inventory with availability for specific date range
+app.get('/api/gear-inventory/availability', authenticate, async (req, res) => {
+  try {
+    const { startDate, endDate } = req.query;
+    
+    if (!startDate || !endDate) {
+      return res.status(400).json({ error: 'Start date and end date are required' });
+    }
+    
+    const gear = await GearInventory.find();
+    
+    // Calculate availability for each item considering both event reservations and manual reservations
+    const gearWithAvailability = await Promise.all(gear.map(async (item) => {
+      try {
+        const availableQty = await item.getAvailableQuantity(startDate, endDate);
+        const reservedQty = item.quantity - availableQty;
+        
+        return {
+          ...item.toObject(),
+          availableQuantity: availableQty,
+          reservedQuantity: reservedQty,
+          isAvailable: availableQty > 0
+        };
+      } catch (error) {
+        console.error(`Error calculating availability for item ${item._id}:`, error);
+        return {
+          ...item.toObject(),
+          availableQuantity: 0,
+          reservedQuantity: item.quantity,
+          isAvailable: false
+        };
+      }
+    }));
+    
+    res.json(gearWithAvailability);
+  } catch (err) {
+    console.error('Error fetching gear inventory with availability:', err);
+    res.status(500).json({ error: 'Failed to fetch gear inventory with availability' });
   }
 });
 
@@ -5256,6 +5298,151 @@ app.put('/api/carts/:eventId/grouped-quantity', authenticate, async (req, res) =
   }
 });
 
+// ========= MANUAL RESERVATIONS API =========
+
+// Get all manual reservations (admin only)
+app.get('/api/manual-reservations', authenticate, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
+    }
+
+    const reservations = await ManualReservation.find({})
+      .populate('inventoryId', 'label category serial quantity')
+      .populate('createdBy', 'fullName email')
+      .sort({ createdAt: -1 });
+
+    res.json(reservations);
+  } catch (error) {
+    console.error('Error fetching manual reservations:', error);
+    res.status(500).json({ error: 'Failed to fetch manual reservations' });
+  }
+});
+
+// Create a new manual reservation (admin only)
+app.post('/api/manual-reservations', authenticate, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
+    }
+
+    const { personName, startDate, endDate, inventoryId, quantity, serial, specificSerialRequested, notes } = req.body;
+
+    // Validate required fields
+    if (!personName || !startDate || !endDate || !inventoryId || !quantity) {
+      return res.status(400).json({ error: 'Missing required fields: personName, startDate, endDate, inventoryId, quantity' });
+    }
+
+    // Validate dates - use the original date strings, let the model handle normalization
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (start >= end) {
+      return res.status(400).json({ error: 'Start date must be before end date' });
+    }
+
+    // Get inventory item
+    const inventoryItem = await GearInventory.findById(inventoryId);
+    if (!inventoryItem) {
+      return res.status(404).json({ error: 'Inventory item not found' });
+    }
+
+    // Check availability
+    const availableQty = await inventoryItem.getAvailableQuantity(startDate, endDate);
+    if (quantity > availableQty) {
+      return res.status(400).json({ 
+        error: `Only ${availableQty} units available for the requested dates (requested ${quantity})` 
+      });
+    }
+
+    // Extract brand and model from label
+    const labelParts = inventoryItem.label.split(' ');
+    const brand = labelParts[0] || 'Unknown';
+    const model = labelParts.slice(1).join(' ') || 'Unknown';
+
+    // Create manual reservation - pass original date strings to let model handle normalization
+    const reservation = new ManualReservation({
+      personName: personName.trim(),
+      startDate: startDate,  // Pass original string, let model normalize
+      endDate: endDate,      // Pass original string, let model normalize
+      inventoryId: inventoryId,
+      brand: brand,
+      model: model,
+      category: inventoryItem.category,
+      quantity: quantity,
+      serial: serial || null,
+      specificSerialRequested: specificSerialRequested || false,
+      createdBy: req.user.id,
+      notes: notes || ''
+    });
+
+    await reservation.save();
+
+    // Populate the response
+    await reservation.populate('inventoryId', 'label category serial quantity');
+    await reservation.populate('createdBy', 'fullName email');
+
+    res.status(201).json({
+      message: 'Manual reservation created successfully',
+      reservation: reservation
+    });
+
+  } catch (error) {
+    console.error('Error creating manual reservation:', error);
+    res.status(500).json({ error: 'Failed to create manual reservation' });
+  }
+});
+
+// Delete a manual reservation (admin only)
+app.delete('/api/manual-reservations/:id', authenticate, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
+    }
+
+    const { id } = req.params;
+
+    const reservation = await ManualReservation.findById(id);
+    if (!reservation) {
+      return res.status(404).json({ error: 'Manual reservation not found' });
+    }
+
+    await ManualReservation.findByIdAndDelete(id);
+
+    res.json({ message: 'Manual reservation deleted successfully' });
+
+  } catch (error) {
+    console.error('Error deleting manual reservation:', error);
+    res.status(500).json({ error: 'Failed to delete manual reservation' });
+  }
+});
+
+// Get manual reservations for a specific inventory item (admin only)
+app.get('/api/manual-reservations/inventory/:inventoryId', authenticate, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
+    }
+
+    const { inventoryId } = req.params;
+
+    const reservations = await ManualReservation.find({ inventoryId })
+      .populate('createdBy', 'fullName email')
+      .sort({ startDate: 1 });
+
+    res.json(reservations);
+
+  } catch (error) {
+    console.error('Error fetching manual reservations for inventory:', error);
+    res.status(500).json({ error: 'Failed to fetch manual reservations' });
+  }
+});
+
+// ========= END MANUAL RESERVATIONS API =========
+
 // SERVER
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));
@@ -5402,6 +5589,40 @@ app.patch('/api/tables/:id', authenticate, async (req, res) => {
     return res.json({ crewRates: table.crewRates });
   }
   res.status(400).json({ error: 'No valid fields to update' });
+});
+
+// PATCH endpoint for archiving events
+app.patch('/api/tables/:id/archive', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === "null") {
+    return res.status(400).json({ error: "Invalid table ID" });
+  }
+  
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    
+    if (!table.owners.includes(req.user.id)) {
+      return res.status(403).json({ error: 'Not authorized - only owners can archive events' });
+    }
+    
+    // Update the archived status
+    table.archived = req.body.archived !== undefined ? req.body.archived : true;
+    await table.save();
+    
+    // Notify clients of the change
+    notifyDataChange('tableArchived', { tableId: table._id, archived: table.archived });
+    
+    res.json({ 
+      message: table.archived ? 'Event archived successfully' : 'Event unarchived successfully',
+      archived: table.archived 
+    });
+    
+  } catch (error) {
+    console.error('Archive endpoint error:', error);
+    res.status(500).json({ error: 'Failed to archive event' });
+  }
 });
 
 // Convert PDF to image
