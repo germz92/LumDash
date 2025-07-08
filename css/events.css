@@ -381,21 +381,29 @@
         padding: 5px 8px;
     }
     .card-container {
-        padding: 8px 2px 12px 2px !important;
+        padding: 12px 8px 16px 8px !important;
         border-radius: 10px !important;
         box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
         margin: 0 auto 12px auto !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
     }
     .table-cards {
         gap: 10px !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        box-sizing: border-box !important;
+        overflow-x: hidden !important;
     }
     .table-card {
         padding: 10px 4px 8px 4px !important;
         border-radius: 8px !important;
-        width: 98vw !important;
+        width: 100% !important;
+        max-width: 100% !important;
         min-width: 0 !important;
-        flex: 1 1 98vw !important;
+        flex: 1 1 100% !important;
         margin-bottom: 4px !important;
+        box-sizing: border-box !important;
     }
     .event-header h3 {
         font-size: 1em !important;
