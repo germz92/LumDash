@@ -293,7 +293,14 @@ async function initSummaryEditor(initialContent = '') {
   }
   
   try {
+    // Clear any existing content (like loading indicator)
+    console.log('Clearing editor element content before Quill initialization');
+    console.log('Editor element current content:', editorElement.innerHTML);
+    editorElement.innerHTML = '';
+    console.log('Editor element cleared, new content:', editorElement.innerHTML);
+    
     // Configure Quill with the formatting options we want
+    console.log('Creating Quill instance...');
     const quill = new Quill(editorElement, {
       theme: 'snow',
       placeholder: 'Enter event summary with rich formatting...',
@@ -306,11 +313,32 @@ async function initSummaryEditor(initialContent = '') {
         ]
       }
     });
+    console.log('Quill instance created, editor element content:', editorElement.innerHTML);
     
     // Set initial content
     if (initialContent) {
       quill.clipboard.dangerouslyPasteHTML(initialContent);
     }
+    
+    // Wait for Quill to fully render
+    await new Promise(resolve => {
+      setTimeout(() => {
+        // Force a refresh of the editor display
+        quill.update();
+        console.log('Quill editor display updated');
+        console.log('Final editor element content:', editorElement.innerHTML);
+        
+        // Double-check that Quill has taken over
+        const hasQuillContent = editorElement.querySelector('.ql-toolbar') || editorElement.querySelector('.ql-container');
+        if (!hasQuillContent) {
+          console.warn('Quill may not have properly initialized - no Quill elements found');
+        } else {
+          console.log('Quill has properly taken over the editor element');
+        }
+        
+        resolve();
+      }, 200);
+    });
     
     console.log('Quill editor initialized successfully');
     return quill;
@@ -976,12 +1004,20 @@ function switchToEdit() {
                 const fallbackTextarea = document.getElementById('summaryFallback') || document.querySelector('.fallback-textarea');
                 if (fallbackTextarea) {
                   console.log('Found fallback textarea, editor is ready');
+                  // Hide the loading indicator since we have a fallback
+                  summaryEditor.style.display = 'none';
                 } else {
                   console.error('No fallback textarea found, summary editing may not work');
+                  // Show error message instead of loading indicator
+                  summaryEditor.innerHTML = '<div style="padding: 20px; text-align: center; color: #cc0007;">Failed to load editor. Please refresh the page.</div>';
                 }
+              } else {
+                console.log('Quill editor is now ready for use');
               }
             } catch (error) {
               console.error('Error during Quill initialization:', error);
+              // Show error message instead of loading indicator
+              summaryEditor.innerHTML = '<div style="padding: 20px; text-align: center; color: #cc0007;">Failed to load editor. Please refresh the page.</div>';
             }
           })();
         }
