@@ -653,6 +653,191 @@
   color: #555; /* Darker gray on hover for feedback */
 }
 
+/* ====== Quill Rich Text Editor Styles ====== */
+.general-page .quill-editor {
+  background: #fff;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+  font-family: 'Roboto', Arial, sans-serif;
+}
+
+.general-page .quill-editor .ql-toolbar {
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  border-bottom: 1px solid #e0e0e0;
+  background: #f9f9f9;
+  border-radius: 8px 8px 0 0;
+  padding: 8px;
+}
+
+.general-page .quill-editor .ql-toolbar .ql-formats {
+  margin-right: 12px;
+}
+
+.general-page .quill-editor .ql-toolbar button {
+  border: none;
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin: 0 2px;
+  background: transparent;
+  color: #333;
+  transition: background-color 0.2s;
+}
+
+.general-page .quill-editor .ql-toolbar button:hover {
+  background: #e0e0e0;
+}
+
+.general-page .quill-editor .ql-toolbar button.ql-active {
+  background: #cc0007;
+  color: #fff;
+}
+
+.general-page .quill-editor .ql-container {
+  border: none;
+  border-radius: 0 0 8px 8px;
+  font-size: 1rem;
+  line-height: 1.4;
+}
+
+.general-page .quill-editor .ql-editor {
+  min-height: 120px;
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 12px;
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #333;
+  font-family: 'Roboto', Arial, sans-serif;
+}
+
+.general-page .quill-editor .ql-editor.ql-blank::before {
+  color: #999;
+  font-style: italic;
+}
+
+.general-page .quill-editor .ql-editor p,
+.general-page .quill-editor .ql-editor li {
+  margin-bottom: 8px;
+}
+
+.general-page .quill-editor .ql-editor ul,
+.general-page .quill-editor .ql-editor ol {
+  padding-left: 24px;
+}
+
+.general-page .quill-editor .ql-editor strong {
+  font-weight: 600;
+}
+
+.general-page .quill-editor .ql-editor em {
+  font-style: italic;
+}
+
+.general-page .quill-editor .ql-editor u {
+  text-decoration: underline;
+}
+
+/* Rich content display styles */
+.general-page .rich-content {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #333;
+  font-family: 'Roboto', Arial, sans-serif;
+}
+
+.general-page .rich-content p {
+  margin-bottom: 12px;
+}
+
+.general-page .rich-content p:last-child {
+  margin-bottom: 0;
+}
+
+.general-page .rich-content ul,
+.general-page .rich-content ol {
+  margin-bottom: 12px;
+  padding-left: 24px;
+}
+
+.general-page .rich-content li {
+  margin-bottom: 4px;
+}
+
+.general-page .rich-content strong {
+  font-weight: 600;
+}
+
+.general-page .rich-content em {
+  font-style: italic;
+}
+
+.general-page .rich-content u {
+  text-decoration: underline;
+}
+
+.general-page .rich-content a {
+  color: #1976d2;
+  text-decoration: underline;
+}
+
+.general-page .rich-content a:hover {
+  text-decoration: none;
+}
+
+/* Fallback textarea styling */
+.general-page #summaryFallback,
+.general-page .fallback-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: 'Roboto', Arial, sans-serif;
+  resize: vertical;
+  box-sizing: border-box;
+  background: #fff;
+  color: #333;
+  line-height: 1.5;
+  transition: border 0.2s, box-shadow 0.2s;
+}
+
+.general-page #summaryFallback:focus,
+.general-page .fallback-textarea:focus {
+  border: 1.5px solid #cc0007;
+  outline: 2px solid #cc0007;
+  background: #fff;
+}
+
+/* Mobile responsiveness for Quill editor */
+@media (max-width: 768px) {
+  .general-page .quill-editor .ql-toolbar {
+    padding: 6px;
+  }
+  
+  .general-page .quill-editor .ql-toolbar .ql-formats {
+    margin-right: 8px;
+  }
+  
+  .general-page .quill-editor .ql-toolbar button {
+    padding: 3px 5px;
+    margin: 0 1px;
+  }
+  
+  .general-page .quill-editor .ql-editor {
+    min-height: 100px;
+    padding: 10px;
+  }
+  
+  .general-page #summaryFallback,
+  .general-page .fallback-textarea {
+    min-height: 100px;
+    padding: 10px;
+  }
+}
+
 /* Desktop layout for info section */
 @media (min-width: 769px) {
   .general-page .info-section {

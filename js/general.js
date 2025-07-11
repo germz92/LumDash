@@ -4,6 +4,7 @@ window.token = window.token || localStorage.getItem('token');
 const params = new URLSearchParams(window.location.search);
 let tableId = params.get('id') || localStorage.getItem('eventId');
 let isOwner = false;
+let summaryQuill = null; // Global Quill instance for the summary editor
 
 // Socket.IO real-time updates
 if (window.socket) {
@@ -142,25 +143,11 @@ function createLinkHTML(value, type) {
   return `<a href="${href}" target="_blank" style="color: #1976d2; text-decoration: underline;">${value}</a>`;
 }
 
+// Enhanced linkifyText function that preserves HTML formatting
 function linkifyText(text) {
   if (!text) return '';
   
-  // First, escape HTML to prevent XSS (but preserve our line breaks)
-  text = text.replace(/&/g, '&amp;')
-             .replace(/</g, '&lt;')
-             .replace(/>/g, '&gt;');
-  
-  // Convert line breaks to HTML: double newlines = paragraphs, single newlines = line breaks
-  text = text.replace(/\r\n/g, '\n'); // Normalize Windows line endings
-  text = text.replace(/\n\s*\n/g, '</p><p>'); // Double line breaks = new paragraph
-  text = text.replace(/\n/g, '<br>'); // Single line breaks = <br>
-  text = `<p>${text}</p>`; // Wrap in paragraph tags
-  
-  // Clean up empty paragraphs
-  text = text.replace(/<p><\/p>/g, '');
-  text = text.replace(/<p>\s*<br>\s*<\/p>/g, '<p></p>');
-  
-  // Handle markdown-style custom links: [Custom Name](URL)
+  // Handle markdown-style custom links first: [Custom Name](URL)
   const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
   text = text.replace(markdownLinkRegex, (match, linkText, url) => {
     let href = url.trim();
@@ -199,6 +186,188 @@ function linkifyText(text) {
   });
   
   return text;
+}
+
+// Function to convert HTML to plain text for editing
+function htmlToPlainText(html) {
+  if (!html) return '';
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+  return tempDiv.textContent || tempDiv.innerText || '';
+}
+
+// Function to dynamically load Quill script
+function loadQuillScript() {
+  return new Promise((resolve, reject) => {
+    // Check if Quill is already loaded
+    if (typeof Quill !== 'undefined' && Quill) {
+      console.log('Quill already loaded');
+      resolve(true);
+      return;
+    }
+    
+    // Check if script is already being loaded
+    if (document.querySelector('script[src*="quill"]')) {
+      console.log('Quill script already in DOM, waiting for load');
+      waitForQuill().then(resolve);
+      return;
+    }
+    
+    console.log('Loading Quill script dynamically...');
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js';
+    script.async = true;
+    
+    // Set a timeout to prevent hanging
+    const timeout = setTimeout(() => {
+      console.error('Quill script loading timed out');
+      script.remove();
+      resolve(false);
+    }, 10000); // 10 second timeout
+    
+    script.onload = () => {
+      clearTimeout(timeout);
+      console.log('Quill script loaded successfully');
+      // Wait a bit for Quill to initialize
+      setTimeout(() => {
+        if (typeof Quill !== 'undefined' && Quill) {
+          resolve(true);
+        } else {
+          console.error('Quill object not available after script load');
+          resolve(false);
+        }
+      }, 100);
+    };
+    
+    script.onerror = (error) => {
+      clearTimeout(timeout);
+      console.error('Failed to load Quill script:', error);
+      // Remove the failed script element
+      script.remove();
+      resolve(false);
+    };
+    
+    // Add script to head
+    document.head.appendChild(script);
+  });
+}
+
+// Function to wait for Quill to be available (fallback)
+function waitForQuill(maxAttempts = 10, interval = 100) {
+  return new Promise((resolve) => {
+    let attempts = 0;
+    
+    const checkQuill = () => {
+      attempts++;
+      
+      if (typeof Quill !== 'undefined' && Quill) {
+        console.log('Quill loaded successfully after', attempts, 'attempts');
+        resolve(true);
+      } else if (attempts >= maxAttempts) {
+        console.warn('Quill failed to load after', maxAttempts, 'attempts');
+        resolve(false);
+      } else {
+        setTimeout(checkQuill, interval);
+      }
+    };
+    
+    checkQuill();
+  });
+}
+
+// Function to initialize Quill editor
+async function initSummaryEditor(initialContent = '') {
+  const editorElement = document.getElementById('summaryEditor');
+  if (!editorElement) {
+    console.error('summaryEditor element not found');
+    return null;
+  }
+  
+  // Load Quill script dynamically
+  const quillLoaded = await loadQuillScript();
+  
+  if (!quillLoaded) {
+    console.error('Quill failed to load, falling back to textarea');
+    createFallbackTextarea(editorElement, initialContent);
+    return null;
+  }
+  
+  try {
+    // Configure Quill with the formatting options we want
+    const quill = new Quill(editorElement, {
+      theme: 'snow',
+      placeholder: 'Enter event summary with rich formatting...',
+      modules: {
+        toolbar: [
+          ['bold', 'italic', 'underline'],
+          [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+          ['link'],
+          ['clean']
+        ]
+      }
+    });
+    
+    // Set initial content
+    if (initialContent) {
+      quill.clipboard.dangerouslyPasteHTML(initialContent);
+    }
+    
+    console.log('Quill editor initialized successfully');
+    return quill;
+  } catch (error) {
+    console.error('Error initializing Quill editor:', error);
+    // Fallback to textarea if Quill initialization fails
+    createFallbackTextarea(editorElement, initialContent);
+    return null;
+  }
+}
+
+// Fallback function to create a textarea if Quill fails
+function createFallbackTextarea(editorElement, initialContent) {
+  // Hide the Quill editor container
+  editorElement.style.display = 'none';
+  
+  // Check if fallback textarea already exists
+  const existingFallback = document.getElementById('summaryFallback');
+  if (existingFallback) {
+    console.log('Fallback textarea already exists');
+    return;
+  }
+  
+  // Create a textarea as fallback
+  const textarea = document.createElement('textarea');
+  textarea.id = 'summaryFallback';
+  textarea.value = htmlToPlainText(initialContent) || '';
+  textarea.placeholder = 'Enter event summary...';
+  textarea.className = 'fallback-textarea';
+  
+  // Insert after the editor element
+  editorElement.parentNode.insertBefore(textarea, editorElement.nextSibling);
+  
+  // Auto-resize the textarea
+  autoResizeTextarea(textarea);
+  textarea.addEventListener('input', () => autoResizeTextarea(textarea));
+  
+  console.log('Fallback textarea created successfully');
+}
+
+// Function to clean up Quill editor
+function destroySummaryEditor() {
+  if (summaryQuill) {
+    summaryQuill = null;
+  }
+  
+  // Also clean up fallback textarea if it exists
+  const fallbackTextarea = document.getElementById('summaryFallback');
+  if (fallbackTextarea) {
+    fallbackTextarea.remove();
+  }
+  
+  // Also clean up by class name in case ID wasn't set
+  const fallbackTextareaByClass = document.querySelector('.fallback-textarea');
+  if (fallbackTextareaByClass) {
+    fallbackTextareaByClass.remove();
+  }
 }
 
 function renderContactRow(data = {}, readOnly = false) {
@@ -534,6 +703,18 @@ function initPage(id) {
   console.log('[GENERAL] initPage called with id:', id);
   
   if (!id || !window.token) return;
+  
+  // Preload Quill script in the background for better UX
+  console.log('Preloading Quill script...');
+  loadQuillScript().then(success => {
+    if (success) {
+      console.log('Quill preloaded successfully');
+    } else {
+      console.log('Quill preload failed, will fallback to textarea when needed');
+    }
+  }).catch(error => {
+    console.log('Error preloading Quill:', error);
+  });
 
   fetch(`${API_BASE}/api/tables/${id}`, {
     headers: { Authorization: window.token }
@@ -562,8 +743,16 @@ function initPage(id) {
           if (field === 'location') {
             div.innerHTML = createLinkHTML(general.location || '', 'address');
           } else if (field === 'eventSummary') {
-            // Make URLs in summary clickable
-            div.innerHTML = linkifyText(general.summary || '');
+            // Display rich HTML content with URL linkification
+            const summaryContent = general.summary || '';
+            if (summaryContent.includes('<') && summaryContent.includes('>')) {
+              // Contains HTML tags, treat as rich content
+              div.innerHTML = linkifyText(summaryContent);
+              div.classList.add('rich-content');
+            } else {
+              // Plain text, apply basic linkification
+              div.innerHTML = linkifyText(summaryContent);
+            }
           } else {
             div.textContent = general[field] || '';
           }
@@ -662,7 +851,7 @@ function initPage(id) {
       
       // Set up navigation using the centralized function from app.js
       if (window.setupBottomNavigation) {
-        window.setupBottomNavigation(navContainer, tableId, 'general'); // Changed page to general
+        window.setupBottomNavigation(null, tableId, 'general'); // Changed page to general
       }
     })
     .catch(err => console.error('Error loading event:', err));
@@ -675,8 +864,25 @@ async function saveGeneralInfo() {
   }
 
   const getText = id => {
-    const el = document.getElementById(id);
-    return el?.tagName === 'TEXTAREA' ? el.value.trim() : el?.textContent.trim() || '';
+    if (id === 'summary') {
+      // Get content from Quill editor if active, otherwise check fallback textarea or read-only div
+      if (summaryQuill) {
+        return summaryQuill.root.innerHTML.trim();
+      } else {
+        // Check for fallback textarea first
+        const fallbackTextarea = document.getElementById('summaryFallback') || document.querySelector('.fallback-textarea');
+        if (fallbackTextarea) {
+          return fallbackTextarea.value.trim();
+        } else {
+          // Fall back to the read-only div
+          const el = document.getElementById(id);
+          return el?.dataset.value || el?.innerHTML || '';
+        }
+      }
+    } else {
+      const el = document.getElementById(id);
+      return el?.tagName === 'TEXTAREA' ? el.value.trim() : el?.textContent.trim() || '';
+    }
   };
 
   // Create the general data object with the exact schema structure expected by the backend
@@ -725,6 +931,8 @@ async function saveGeneralInfo() {
     }
     
     console.log('Save successful!');
+    // Clean up Quill editor before reload
+    destroySummaryEditor();
     window.location.reload();
   } catch (err) {
     console.error('Save error:', err);
@@ -741,23 +949,64 @@ function switchToEdit() {
     const element = document.getElementById(id === 'eventSummary' ? 'summary' : id);
     if (!element) return;
     
-    // If it's already a textarea, preserve its current value
-    if (element.tagName === 'TEXTAREA') {
-      console.log(`[GENERAL] ${id} is already a textarea, preserving value:`, element.value);
-      return; // Already in edit mode, don't change anything
-    }
-    
-    console.log(`[GENERAL] Converting ${id} from div to textarea`);
-    // Convert div to textarea
-    const textarea = document.createElement('textarea');
-    textarea.id = id === 'eventSummary' ? 'summary' : id;
-    textarea.value = element.dataset.value || element.textContent || '';
-    element.replaceWith(textarea);
-    autoResizeTextarea(textarea);
-    
-    // Add input handler for weather field to update icon
-    if (id === 'weather') {
-      textarea.addEventListener('input', updateWeatherIcon);
+    if (id === 'eventSummary') {
+      // Handle event summary with rich text editor
+      const summaryEditor = document.getElementById('summaryEditor');
+      if (summaryEditor) {
+        // Hide the read-only div and show the editor
+        element.style.display = 'none';
+        summaryEditor.style.display = 'block';
+        
+        // Initialize Quill editor if not already initialized
+        if (!summaryQuill) {
+          const currentContent = element.dataset.value || element.innerHTML || '';
+          console.log('Initializing Quill editor with content:', currentContent);
+          
+          // Show loading indicator
+          summaryEditor.innerHTML = '<div style="padding: 20px; text-align: center; color: #666;"><div style="margin-bottom: 10px;">Loading rich text editor...</div><div style="font-size: 12px; color: #999;">This may take a moment on first load</div></div>';
+          
+          // Initialize Quill editor asynchronously
+          (async () => {
+            try {
+              summaryQuill = await initSummaryEditor(currentContent);
+              
+              // If Quill initialization failed, we might have a fallback textarea
+              if (!summaryQuill) {
+                console.log('Quill initialization failed, checking for fallback textarea');
+                const fallbackTextarea = document.getElementById('summaryFallback') || document.querySelector('.fallback-textarea');
+                if (fallbackTextarea) {
+                  console.log('Found fallback textarea, editor is ready');
+                } else {
+                  console.error('No fallback textarea found, summary editing may not work');
+                }
+              }
+            } catch (error) {
+              console.error('Error during Quill initialization:', error);
+            }
+          })();
+        }
+      } else {
+        console.error('summaryEditor element not found');
+      }
+    } else {
+      // Handle other fields with regular textareas
+      if (element.tagName === 'TEXTAREA') {
+        console.log(`[GENERAL] ${id} is already a textarea, preserving value:`, element.value);
+        return; // Already in edit mode, don't change anything
+      }
+      
+      console.log(`[GENERAL] Converting ${id} from div to textarea`);
+      // Convert div to textarea
+      const textarea = document.createElement('textarea');
+      textarea.id = id;
+      textarea.value = element.dataset.value || element.textContent || '';
+      element.replaceWith(textarea);
+      autoResizeTextarea(textarea);
+      
+      // Add input handler for weather field to update icon
+      if (id === 'weather') {
+        textarea.addEventListener('input', updateWeatherIcon);
+      }
     }
   });
 
@@ -781,9 +1030,10 @@ function switchToEdit() {
 }
 
 function addContactRow() {
-  // Check if we're already in edit mode by looking for textareas
-  const summaryEl = document.getElementById('summary');
-  const isAlreadyInEditMode = summaryEl && summaryEl.tagName === 'TEXTAREA';
+  // Check if we're already in edit mode by looking for Quill editor, fallback textarea, or textareas
+  const summaryEditor = document.getElementById('summaryEditor');
+  const fallbackTextarea = document.getElementById('summaryFallback') || document.querySelector('.fallback-textarea');
+  const isAlreadyInEditMode = summaryQuill || (summaryEditor && summaryEditor.style.display !== 'none') || fallbackTextarea;
   
   console.log('[GENERAL] addContactRow called, already in edit mode:', isAlreadyInEditMode);
   
@@ -797,9 +1047,10 @@ function addContactRow() {
 }
 
 function addLocationRow() {
-  // Check if we're already in edit mode by looking for textareas
-  const summaryEl = document.getElementById('summary');
-  const isAlreadyInEditMode = summaryEl && summaryEl.tagName === 'TEXTAREA';
+  // Check if we're already in edit mode by looking for Quill editor, fallback textarea, or textareas
+  const summaryEditor = document.getElementById('summaryEditor');
+  const fallbackTextarea = document.getElementById('summaryFallback') || document.querySelector('.fallback-textarea');
+  const isAlreadyInEditMode = summaryQuill || (summaryEditor && summaryEditor.style.display !== 'none') || fallbackTextarea;
   
   console.log('[GENERAL] addLocationRow called, already in edit mode:', isAlreadyInEditMode);
   
@@ -818,6 +1069,9 @@ window.addContactRow = addContactRow;
 window.addLocationRow = addLocationRow;
 window.saveGeneralInfo = saveGeneralInfo;
 window.switchToEdit = switchToEdit;
+
+// Clean up Quill editor when leaving the page
+window.addEventListener('beforeunload', destroySummaryEditor);
 
 // CLOCK ICON LOGIC
 (function() {
