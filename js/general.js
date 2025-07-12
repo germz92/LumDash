@@ -207,8 +207,12 @@ function loadTinyMCE() {
     }
     
     const script = document.createElement('script');
-    // Use API key from config file
+    // Use API key from config file, fallback to no-api-key for development
     const apiKey = window.TINYMCE_API_KEY || 'no-api-key';
+    
+    // For development/testing, you can temporarily use no-api-key
+    // const apiKey = 'no-api-key'; // Uncomment this line for development
+    
     script.src = `https://cdn.tiny.cloud/1/${apiKey}/tinymce/6/tinymce.min.js`;
     script.onload = () => resolve();
     script.onerror = () => reject(new Error('Failed to load TinyMCE'));

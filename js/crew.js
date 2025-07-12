@@ -215,11 +215,8 @@ function renderTableSection() {
 
     if (isOwner) {
       const deleteDateBtn = document.createElement('button');
+      deleteDateBtn.className = 'delete-date-btn';
       deleteDateBtn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
-      deleteDateBtn.style.background = 'transparent';
-      deleteDateBtn.style.border = 'none';
-      deleteDateBtn.style.cursor = 'pointer';
-      deleteDateBtn.style.fontSize = '18px';
       deleteDateBtn.title = 'Delete Date';
       deleteDateBtn.onclick = () => deleteDate(date);
       headerWrapper.appendChild(deleteDateBtn);

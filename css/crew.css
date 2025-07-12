@@ -392,10 +392,22 @@
   height: 34px;
 }
 
+/* Style for delete date button to match delete row button */
+.crew-page .delete-date-btn {
+  background: transparent !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  color: #888 !important;
+  padding: 4px !important;
+  cursor: pointer;
+  font-size: 16px !important;
+}
+
 /* Style for delete icons */
 .delete-date-btn .material-symbols-outlined,
 .delete-row-btn .material-symbols-outlined {
-  color: #888; /* A medium gray color */
+  color: #888; /* Gray color */
 }
 
 .delete-date-btn:hover .material-symbols-outlined,
