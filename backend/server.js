@@ -5300,6 +5300,132 @@ app.put('/api/carts/:eventId/grouped-quantity', authenticate, async (req, res) =
 
 // ========= MANUAL RESERVATIONS API =========
 
+// Helper function to format reservation email
+function formatReservationEmail(reservations, personName) {
+  const formatDate = (dateStr) => {
+    const date = new Date(dateStr);
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'long', 
+      year: 'numeric', 
+      month: 'long', 
+      day: 'numeric' 
+    });
+  };
+
+  const studioAddress = "Lumetry Media<br>7940 Silverton Ave Ste 101B<br>San Diego, CA 92126";
+  const contactInfo = "Phone: <a href='tel:+18583291444' style='color: #CC0007; text-decoration: none;'>858.329.1444</a><br>Email: <a href='mailto:info@lumetrymedia.com' style='color: #CC0007; text-decoration: none;'>info@lumetrymedia.com</a>";
+
+  // Group reservations by date range
+  const groupedReservations = {};
+  reservations.forEach(reservation => {
+    const key = `${reservation.startDate}_${reservation.endDate}`;
+    if (!groupedReservations[key]) {
+      groupedReservations[key] = {
+        startDate: reservation.startDate,
+        endDate: reservation.endDate,
+        items: []
+      };
+    }
+    groupedReservations[key].items.push(reservation);
+  });
+
+  const dateRanges = Object.values(groupedReservations);
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Gear Reservation Confirmation</title>
+      <style>
+        body { font-family: Arial, sans-serif; line-height: 1.6; color: #333; margin: 0; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { text-align: center; margin-bottom: 30px; padding-bottom: 20px; border-bottom: 2px solid #CC0007; }
+        .logo { color: #CC0007; font-size: 24px; font-weight: bold; margin-bottom: 10px; }
+        .title { color: #333; font-size: 20px; margin: 0; }
+        .section { margin: 25px 0; }
+        .section-title { color: #CC0007; font-size: 18px; font-weight: bold; margin-bottom: 15px; }
+        .item-list { background: #f8f9fa; padding: 20px; border-radius: 6px; margin: 10px 0; }
+        .item { margin: 8px 0; padding: 8px 0; border-bottom: 1px solid #e9ecef; }
+        .item:last-child { border-bottom: none; }
+        .item-name { font-weight: bold; color: #333; }
+        .item-details { color: #666; font-size: 14px; }
+        .date-range { background: #e3f2fd; padding: 15px; border-radius: 6px; margin: 15px 0; }
+        .date-range-title { font-weight: bold; color: #1976d2; margin-bottom: 8px; }
+        .info-box { background: #f5f5f5; padding: 20px; border-radius: 6px; margin: 20px 0; }
+        .info-title { font-weight: bold; color: #333; margin-bottom: 10px; }
+        .footer { text-align: center; margin-top: 30px; padding-top: 20px; border-top: 1px solid #e9ecef; color: #666; font-size: 14px; }
+      </style>
+    </head>
+    <body>
+      <div class="container">
+        <div class="header">
+          <div class="logo">Lumetry Media</div>
+          <h1 class="title">Gear Reservation Confirmation</h1>
+        </div>
+
+        <p>Dear ${personName},</p>
+        <p>Thank you for your gear reservation! Below are the details of your reserved items:</p>
+
+        ${dateRanges.map(dateRange => `
+          <div class="date-range">
+            <div class="date-range-title">Reservation Period</div>
+            <strong>Pickup:</strong> ${formatDate(dateRange.startDate)}<br>
+            <strong>Return:</strong> ${formatDate(dateRange.endDate)}
+          </div>
+
+          <div class="section">
+            <div class="section-title">Reserved Items</div>
+            <div class="item-list">
+              ${dateRange.items.map(item => `
+                <div class="item">
+                  <div class="item-name">${item.brand} ${item.model}</div>
+                  <div class="item-details">
+                    Category: ${item.category} | Quantity: ${item.quantity}
+                    ${item.serial ? ` | Serial: ${item.serial}` : ''}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `).join('')}
+
+        <div class="info-box">
+          <div class="info-title">📍 Studio Address</div>
+          ${studioAddress}
+        </div>
+
+        <div class="info-box">
+          <div class="info-title">📞 Contact Information</div>
+          ${contactInfo}
+        </div>
+
+                 <div class="info-box">
+           <div class="info-title">🕐 Business Hours</div>
+           <strong>Monday - Friday: 8:00 AM - 5:00 PM</strong><br>
+           <em>Closed weekends and holidays</em>
+         </div>
+
+         <div class="section">
+           <p><strong>Important:</strong></p>
+           <ul>
+             <li>Please arrive during business hours (8 AM - 5 PM, Mon-Fri) for pickup and return</li>
+             <li>All items must be returned in the same condition as received</li>
+             <li>Contact us if you have any questions about your reservation</li>
+             <li>Late returns may incur additional fees</li>
+           </ul>
+         </div>
+
+        <div class="footer">
+          <p>This is an automated email from Lumetry Media's LumDash system.</p>
+          <p>If you have any questions, please contact us at info@lumetrymedia.com</p>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
 // Get all manual reservations (admin only)
 app.get('/api/manual-reservations', authenticate, async (req, res) => {
   try {
@@ -5328,11 +5454,11 @@ app.post('/api/manual-reservations', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
     }
 
-    const { personName, startDate, endDate, inventoryId, quantity, serial, specificSerialRequested, notes } = req.body;
+    const { personName, personEmail, startDate, endDate, inventoryId, quantity, serial, specificSerialRequested, notes } = req.body;
 
     // Validate required fields
-    if (!personName || !startDate || !endDate || !inventoryId || !quantity) {
-      return res.status(400).json({ error: 'Missing required fields: personName, startDate, endDate, inventoryId, quantity' });
+    if (!personName || !personEmail || !startDate || !endDate || !inventoryId || !quantity) {
+      return res.status(400).json({ error: 'Missing required fields: personName, personEmail, startDate, endDate, inventoryId, quantity' });
     }
 
     // Validate dates - use the original date strings, let the model handle normalization
@@ -5364,6 +5490,7 @@ app.post('/api/manual-reservations', authenticate, async (req, res) => {
     // Create manual reservation - pass original date strings to let model handle normalization
     const reservation = new ManualReservation({
       personName: personName.trim(),
+      personEmail: personEmail.trim().toLowerCase(),
       startDate: startDate,  // Pass original string, let model normalize
       endDate: endDate,      // Pass original string, let model normalize
       inventoryId: inventoryId,
@@ -5382,6 +5509,31 @@ app.post('/api/manual-reservations', authenticate, async (req, res) => {
     // Populate the response
     await reservation.populate('inventoryId', 'label category serial quantity');
     await reservation.populate('createdBy', 'fullName email');
+
+    // Send confirmation email
+    try {
+      // Find all reservations for this person and date range to send one comprehensive email
+      const allPersonReservations = await ManualReservation.find({
+        personEmail: personEmail.trim().toLowerCase(),
+        startDate: startDate,
+        endDate: endDate
+      }).populate('inventoryId', 'label category serial quantity');
+
+      const emailHtml = formatReservationEmail(allPersonReservations, personName);
+
+      const msg = {
+        to: personEmail.trim().toLowerCase(),
+        from: process.env.SENDGRID_FROM_EMAIL,
+        subject: 'Gear Reservation Confirmation - Lumetry Media',
+        html: emailHtml
+      };
+
+      await sgMail.send(msg);
+      console.log(`Reservation confirmation email sent to ${personEmail}`);
+    } catch (emailError) {
+      console.error('Failed to send reservation confirmation email:', emailError);
+      // Don't fail the request if email fails - reservation was created successfully
+    }
 
     res.status(201).json({
       message: 'Manual reservation created successfully',
@@ -5416,6 +5568,56 @@ app.delete('/api/manual-reservations/:id', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Error deleting manual reservation:', error);
     res.status(500).json({ error: 'Failed to delete manual reservation' });
+  }
+});
+
+// Send email summary for manual reservations (admin only)
+app.post('/api/manual-reservations/send-email', authenticate, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
+    }
+
+    const { personName, personEmail, startDate, endDate } = req.body;
+
+    // Validate required fields
+    if (!personName || !personEmail || !startDate || !endDate) {
+      return res.status(400).json({ error: 'Missing required fields: personName, personEmail, startDate, endDate' });
+    }
+
+    // Find all reservations for this person and date range
+    const reservations = await ManualReservation.find({
+      personName: personName,
+      startDate: startDate,
+      endDate: endDate
+    }).populate('inventoryId', 'label category serial quantity');
+
+    if (reservations.length === 0) {
+      return res.status(404).json({ error: 'No reservations found for the specified criteria' });
+    }
+
+    // Generate and send email
+    const emailHtml = formatReservationEmail(reservations, personName);
+
+    const msg = {
+      to: personEmail.trim().toLowerCase(),
+      from: process.env.SENDGRID_FROM_EMAIL,
+      subject: 'Gear Reservation Summary - Lumetry Media',
+      html: emailHtml
+    };
+
+    await sgMail.send(msg);
+    console.log(`Reservation summary email sent to ${personEmail}`);
+
+    res.json({ 
+      message: `Email summary sent successfully to ${personEmail}`,
+      reservationCount: reservations.length
+    });
+
+  } catch (error) {
+    console.error('Error sending reservation email summary:', error);
+    res.status(500).json({ error: 'Failed to send email summary' });
   }
 });
 

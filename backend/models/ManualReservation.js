@@ -7,6 +7,12 @@ const manualReservationSchema = new mongoose.Schema({
     required: true,
     trim: true
   },
+  personEmail: {
+    type: String,
+    required: true,
+    trim: true,
+    lowercase: true
+  },
   
   // Reservation dates
   startDate: {
