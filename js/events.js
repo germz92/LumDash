@@ -114,6 +114,10 @@ async function loadTables() {
     // For archived events, show single list as before
     // Reset the list container to use table-cards class for proper layout
     list.className = 'table-cards';
+    // Reset inline styles that might have been set for non-archived view
+    list.style.display = '';
+    list.style.flexDirection = '';
+    list.style.gap = '';
     filteredTables.forEach(table => {
       renderEventCard(table, list, userId);
     });

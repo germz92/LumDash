@@ -872,6 +872,11 @@
                         </div>
                         
                         <div class="form-group">
+                            <label for="personEmail">Email Address <span class="required">*</span></label>
+                            <input type="email" id="personEmail" name="personEmail" required placeholder="Enter email address">
+                        </div>
+                        
+                        <div class="form-group">
                             <label for="startDate">Start Date <span class="required">*</span></label>
                             <input type="date" id="startDate" name="startDate" required>
                         </div>
@@ -1543,6 +1548,7 @@
             
             document.getElementById('manualReservationForm').style.display = 'none';
             document.getElementById('personName').value = '';
+            document.getElementById('personEmail').value = '';
             document.getElementById('startDate').value = '';
             document.getElementById('endDate').value = '';
             document.getElementById('notes').value = '';
@@ -1694,13 +1700,21 @@
         // Create manual reservation
         async function createManualReservation() {
             const personName = document.getElementById('personName').value.trim();
+            const personEmail = document.getElementById('personEmail').value.trim();
             const startDate = document.getElementById('startDate').value;
             const endDate = document.getElementById('endDate').value;
             const notes = document.getElementById('notes').value.trim();
 
             // Validate form
-            if (!personName || !startDate || !endDate) {
+            if (!personName || !personEmail || !startDate || !endDate) {
                 showToast('Please fill in all required fields', 'error');
+                return;
+            }
+
+            // Validate email format
+            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+            if (!emailRegex.test(personEmail)) {
+                showToast('Please enter a valid email address', 'error');
                 return;
             }
 
@@ -1734,6 +1748,7 @@
                         },
                         body: JSON.stringify({
                             personName: personName,
+                            personEmail: personEmail,
                             startDate: startDate,
                             endDate: endDate,
                             inventoryId: item.inventoryId,
@@ -1861,7 +1876,18 @@
                                     </div>
                                 </td>
                                 <td data-label="Actions">
-                                    <div class="actions">
+                                    <div class="actions" style="display: flex; gap: 8px; flex-wrap: wrap;">
+                                        ${group.items[0].personEmail ? `
+                                            <button class="btn btn-info btn-sm" onclick="sendEmailSummary('${group.personName}', '${group.items[0].personEmail}', '${group.startDate}', '${group.endDate}')">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">email</span>
+                                                Send Email
+                                            </button>
+                                        ` : `
+                                            <button class="btn btn-secondary btn-sm" disabled title="No email available for this reservation">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">email_disabled</span>
+                                                No Email
+                                            </button>
+                                        `}
                                         <button class="btn btn-danger btn-sm" onclick="deleteManualReservationGroup('${group.personName}', '${group.startDate}', '${group.endDate}')">
                                             <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
                                             Delete
@@ -1955,6 +1981,41 @@
             } catch (error) {
                 console.error('Error deleting manual reservation:', error);
                 showToast('Failed to delete manual reservation', 'error');
+            }
+        }
+
+        // Send email summary for manual reservations
+        async function sendEmailSummary(personName, personEmail, startDate, endDate) {
+            if (!confirm(`Send email summary to ${personName} at ${personEmail}?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/manual-reservations/send-email`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        personName: personName,
+                        personEmail: personEmail,
+                        startDate: startDate,
+                        endDate: endDate
+                    })
+                });
+
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to send email summary');
+                }
+
+                const data = await response.json();
+                showToast(`Email summary sent successfully to ${personEmail}`, 'success');
+
+            } catch (error) {
+                console.error('Error sending email summary:', error);
+                showToast(`Failed to send email: ${error.message}`, 'error');
             }
         }
 
