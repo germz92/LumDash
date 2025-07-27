@@ -1972,29 +1972,17 @@ app.delete('/api/tables/:id', authenticate, async (req, res) => {
     
     console.log(`[DELETE EVENT] Found ${gearItems.length} gear items associated with this event`);
     
-    // Release all reservations for this event from each gear item
+    // BULLETPROOF ATOMIC CLEANUP - Remove all reservations for this event
+    try {
+      await AtomicReservationService.cleanupEventReservations(req.params.id);
+      console.log(`[DELETE EVENT] ✅ Atomically cleaned up all reservations for event ${req.params.id}`);
+    } catch (cleanupError) {
+      console.error(`[DELETE EVENT] ❌ Failed to cleanup reservations:`, cleanupError.message);
+      // Continue with event deletion even if cleanup fails
+    }
+    
+    // Legacy cleanup for single-quantity items (backward compatibility)
     for (const gear of gearItems) {
-      console.log(`[DELETE EVENT] Processing gear item: ${gear.label} (${gear._id})`);
-      
-      const originalReservationCount = gear.reservations?.length || 0;
-      const originalHistoryCount = gear.history?.length || 0;
-      
-      // Remove all reservations for this event
-      if (gear.reservations && gear.reservations.length > 0) {
-        gear.reservations = gear.reservations.filter(reservation => 
-          reservation.eventId.toString() !== req.params.id.toString()
-        );
-        console.log(`[DELETE EVENT] Removed ${originalReservationCount - gear.reservations.length} reservations from ${gear.label}`);
-      }
-      
-      // Remove all history entries for this event
-      if (gear.history && gear.history.length > 0) {
-        gear.history = gear.history.filter(entry => 
-          !entry.event || entry.event.toString() !== req.params.id.toString()
-        );
-        console.log(`[DELETE EVENT] Removed ${originalHistoryCount - gear.history.length} history entries from ${gear.label}`);
-      }
-      
       // Update status for single-quantity items if they were checked out for this event
       if (gear.quantity === 1 && gear.checkedOutEvent && gear.checkedOutEvent.toString() === req.params.id.toString()) {
         gear.status = 'available';
@@ -2002,11 +1990,9 @@ app.delete('/api/tables/:id', authenticate, async (req, res) => {
         gear.checkedOutEvent = null;
         gear.checkOutDate = null;
         gear.checkInDate = null;
+        await gear.save();
         console.log(`[DELETE EVENT] Reset status to available for ${gear.label}`);
       }
-      
-      await gear.save();
-      console.log(`[DELETE EVENT] Successfully updated ${gear.label}`);
     }
     
     // Now delete the table
@@ -2351,14 +2337,16 @@ app.get('/api/gear-inventory/available/:eventId', authenticate, async (req, res)
     
     const gear = await GearInventory.find();
     
-    // Calculate availability for each item (only considering hard reservations)
-    const gearWithAvailability = gear.map(item => {
-      const availableQty = item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
+    // Calculate availability using BULLETPROOF atomic service
+    const gearWithAvailability = await Promise.all(gear.map(async (item) => {
+      const availableQty = await AtomicReservationService.getAvailableQuantity(
+        item._id, cart.checkOutDate, cart.checkInDate  // Don't exclude current event
+      );
       return {
         ...item.toObject(),
         availableQuantity: availableQty
       };
-    });
+    }));
     
     res.json(gearWithAvailability);
   } catch (err) {
@@ -2417,7 +2405,7 @@ app.post('/api/gear-inventory/checkout', authenticate, async (req, res) => {
           message: `Reservation updated to ${newQuantity} units`, 
           gear,
           reservedQuantity: newQuantity,
-          availableQuantity: gear.getAvailableQuantity(checkOutDate, checkInDate)
+          availableQuantity: await gear.getAvailableQuantity(checkOutDate, checkInDate)
         });
       } else {
         // Create new reservation
@@ -2428,7 +2416,7 @@ app.post('/api/gear-inventory/checkout', authenticate, async (req, res) => {
           message: `${quantity} units reserved`, 
           gear,
           reservedQuantity: quantity,
-          availableQuantity: gear.getAvailableQuantity(checkOutDate, checkInDate)
+          availableQuantity: await gear.getAvailableQuantity(checkOutDate, checkInDate)
         });
       }
     }
@@ -2619,7 +2607,7 @@ app.post('/api/gear-inventory/checkin', authenticate, async (req, res) => {
         await removeGearFromEventLists(eventId, gearId, gear.label, quantity);
       }
       
-      const availableQty = gear.getAvailableQuantity(checkOutDate, checkInDate);
+      const availableQty = await gear.getAvailableQuantity(checkOutDate, checkInDate);
       return res.json({ 
         message: 'Quantity reservation released', 
         gear,
@@ -3503,86 +3491,19 @@ app.delete('/api/inventory/:inventoryId/reservations/all', authenticate, async (
   }
 });
 
-// ========= ATOMIC RESERVATION HELPERS =========
+// ========= ATOMIC RESERVATION SERVICE =========
+const AtomicReservationService = require('./services/AtomicReservationService');
 
-// Helper function to create atomic reservation (both GearInventory and ReservedGearItem)
+// Legacy helper for backward compatibility (now uses bulletproof service)
 async function createAtomicReservation(inventoryId, eventId, userId, quantity, checkOutDate, checkInDate, listName, serial = null, specificSerialRequested = false) {
-  const session = await mongoose.startSession();
-  
-  try {
-    let reservedItem = null;
-    
-    await session.withTransaction(async () => {
-      // 1. Reserve in GearInventory (availability engine)
-      const inventoryItem = await GearInventory.findById(inventoryId).session(session);
-      if (!inventoryItem) {
-        throw new Error('Inventory item not found');
-      }
-      
-      // Check availability before reserving
-      const availableQty = inventoryItem.getAvailableQuantity(checkOutDate, checkInDate);
-      if (quantity > availableQty) {
-        throw new Error(`Only ${availableQty} units available for the requested dates`);
-      }
-      
-      inventoryItem.reserveQuantity(eventId, userId, quantity, checkOutDate, checkInDate);
-      await inventoryItem.save({ session });
-      
-      // 2. Create ReservedGearItem (user-facing reservation)
-      const labelParts = inventoryItem.label.split(' ');
-      reservedItem = new ReservedGearItem({
-        eventId: eventId,
-        userId: userId,
-        listName: listName,
-        inventoryId: inventoryItem._id,
-        brand: labelParts[0] || 'Unknown',
-        model: labelParts.slice(1).join(' ') || 'Unknown',
-        category: inventoryItem.category,
-        quantity: quantity,
-        serial: serial,
-        specificSerialRequested: specificSerialRequested,
-        isPacked: false
-      });
-      await reservedItem.save({ session });
-      
-      console.log(`[ATOMIC RESERVE] Created reservation: ${quantity}x ${inventoryItem.label} for event ${eventId}`);
-    });
-    
-    return reservedItem;
-    
-  } finally {
-    await session.endSession();
-  }
+  return await AtomicReservationService.createReservation({
+    inventoryId, eventId, userId, quantity, checkOutDate, checkInDate, listName, serial, specificSerialRequested
+  });
 }
 
-// Helper function to release atomic reservation (both models)
+// Legacy helper for backward compatibility (now uses bulletproof service)
 async function releaseAtomicReservation(reservedItemId) {
-  const session = await mongoose.startSession();
-  
-  try {
-    await session.withTransaction(async () => {
-      // Find the ReservedGearItem
-      const reservedItem = await ReservedGearItem.findById(reservedItemId).session(session);
-      if (!reservedItem) {
-        throw new Error('Reserved item not found');
-      }
-      
-      // Release from GearInventory (availability engine)
-      const inventoryItem = await GearInventory.findById(reservedItem.inventoryId).session(session);
-      if (inventoryItem) {
-        inventoryItem.releaseQuantity(reservedItem.eventId, reservedItem.userId, reservedItem.quantity);
-        await inventoryItem.save({ session });
-      }
-      
-      // Delete ReservedGearItem (user-facing reservation)
-      await ReservedGearItem.findByIdAndDelete(reservedItemId, { session });
-      
-      console.log(`[ATOMIC RELEASE] Released reservation: ${reservedItem.quantity}x ${reservedItem.brand} ${reservedItem.model}`);
-    });
-    
-  } finally {
-    await session.endSession();
-  }
+  return await AtomicReservationService.releaseReservation(reservedItemId);
 }
 
 // ========= END ATOMIC RESERVATION HELPERS =========
@@ -3663,8 +3584,13 @@ app.get('/api/gear-packages/event/:eventId', authenticate, async (req, res) => {
       });
     }
     
+    // Get manual items for the current list
+    const currentGearList = table.gear?.gearLists?.find(list => list.name === (listName || 'Main List'));
+    const manualItems = currentGearList?.manualItems || [];
+
     res.json({ 
       reservedItems: validItems,
+      manualItems: manualItems,
       userPermissions: {
         canReserve: table.owners.includes(userId) || req.user.role === 'admin',
         canManageLists: table.owners.includes(userId) || req.user.role === 'admin', 
@@ -4066,6 +3992,136 @@ app.delete('/api/tables/:eventId/gear-lists/:listName', authenticate, async (req
   } catch (error) {
     console.error('Error deleting gear list:', error);
     res.status(500).json({ error: 'Failed to delete gear list' });
+  }
+});
+
+// MANUAL ITEMS API ENDPOINTS
+// Add manual item to gear list
+app.post('/api/tables/:eventId/gear-lists/:listName/manual-items', authenticate, async (req, res) => {
+  try {
+    const { eventId, listName } = req.params;
+    const { text } = req.body;
+    
+    if (!text || !text.trim()) {
+      return res.status(400).json({ error: 'Item text is required' });
+    }
+    
+    const table = await Table.findById(eventId);
+    if (!table) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    
+    // Check permissions - only owners and admins can add manual items
+    if (!table.owners.includes(req.user.id) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only event owners and admins can add manual items' });
+    }
+    
+    // Find the gear list
+    const gearList = table.gear?.gearLists?.find(list => list.name === listName);
+    if (!gearList) {
+      return res.status(404).json({ error: 'Gear list not found' });
+    }
+    
+    // Add manual item
+    if (!gearList.manualItems) {
+      gearList.manualItems = [];
+    }
+    
+    const newItem = {
+      text: text.trim(),
+      completed: false,
+      createdBy: req.user.id,
+      createdAt: new Date()
+    };
+    
+    gearList.manualItems.push(newItem);
+    await table.save();
+    
+    res.status(201).json({ 
+      message: 'Manual item added successfully',
+      item: newItem
+    });
+  } catch (error) {
+    console.error('Error adding manual item:', error);
+    res.status(500).json({ error: 'Failed to add manual item' });
+  }
+});
+
+// Toggle manual item completion
+app.patch('/api/tables/:eventId/gear-lists/:listName/manual-items/:itemId/toggle', authenticate, async (req, res) => {
+  try {
+    const { eventId, listName, itemId } = req.params;
+    
+    const table = await Table.findById(eventId);
+    if (!table) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    
+    // Check access to the event
+    if (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Not authorized to access this event' });
+    }
+    
+    // Find the gear list
+    const gearList = table.gear?.gearLists?.find(list => list.name === listName);
+    if (!gearList) {
+      return res.status(404).json({ error: 'Gear list not found' });
+    }
+    
+    // Find the manual item
+    const manualItem = gearList.manualItems?.find(item => item._id.toString() === itemId);
+    if (!manualItem) {
+      return res.status(404).json({ error: 'Manual item not found' });
+    }
+    
+    // Toggle completion status
+    manualItem.completed = !manualItem.completed;
+    await table.save();
+    
+    res.json({ 
+      message: 'Manual item updated successfully',
+      item: manualItem
+    });
+  } catch (error) {
+    console.error('Error toggling manual item:', error);
+    res.status(500).json({ error: 'Failed to toggle manual item' });
+  }
+});
+
+// Delete manual item
+app.delete('/api/tables/:eventId/gear-lists/:listName/manual-items/:itemId', authenticate, async (req, res) => {
+  try {
+    const { eventId, listName, itemId } = req.params;
+    
+    const table = await Table.findById(eventId);
+    if (!table) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    
+    // Check permissions - only owners and admins can delete manual items
+    if (!table.owners.includes(req.user.id) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only event owners and admins can delete manual items' });
+    }
+    
+    // Find the gear list
+    const gearList = table.gear?.gearLists?.find(list => list.name === listName);
+    if (!gearList) {
+      return res.status(404).json({ error: 'Gear list not found' });
+    }
+    
+    // Find and remove the manual item
+    const itemIndex = gearList.manualItems?.findIndex(item => item._id.toString() === itemId);
+    if (itemIndex === -1) {
+      return res.status(404).json({ error: 'Manual item not found' });
+    }
+    
+    gearList.manualItems.splice(itemIndex, 1);
+    await table.save();
+    
+    res.json({ message: 'Manual item deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting manual item:', error);
+    res.status(500).json({ error: 'Failed to delete manual item' });
   }
 });
 
@@ -4652,11 +4708,18 @@ app.get('/api/carts/:eventId', authenticate, async (req, res) => {
         return res.status(404).json({ error: 'Event not found' });
       }
 
+      // Validate that event has proper gear dates set
+      if (!event.gear?.checkOutDate || !event.gear?.checkInDate) {
+        return res.status(400).json({ 
+          error: 'Event must have checkout and checkin dates set before items can be added to cart. Please set dates in the gear section of this event.' 
+        });
+      }
+
       cart = new Cart({
         userId,
         eventId,
-        checkOutDate: event.gear?.checkOutDate || new Date(),
-        checkInDate: event.gear?.checkInDate || new Date(),
+        checkOutDate: event.gear.checkOutDate,
+        checkInDate: event.gear.checkInDate,
         items: []
       });
       await cart.save();
@@ -4695,11 +4758,18 @@ app.post('/api/carts/:eventId/items', authenticate, async (req, res) => {
         return res.status(404).json({ error: 'Event not found' });
       }
 
+      // Validate that event has proper gear dates set
+      if (!event.gear?.checkOutDate || !event.gear?.checkInDate) {
+        return res.status(400).json({ 
+          error: 'Event must have checkout and checkin dates set before items can be added to cart. Please set dates in the gear section of this event.' 
+        });
+      }
+
       cart = new Cart({
         userId,
         eventId,
-        checkOutDate: event.gear?.checkOutDate || new Date(),
-        checkInDate: event.gear?.checkInDate || new Date(),
+        checkOutDate: event.gear.checkOutDate,
+        checkInDate: event.gear.checkInDate,
         items: []
       });
     }
@@ -4721,7 +4791,7 @@ app.post('/api/carts/:eventId/items', authenticate, async (req, res) => {
     // Calculate total available quantity across all similar items (ONLY based on reservations)
     let totalAvailableQty = 0;
     for (const item of similarItems) {
-      totalAvailableQty += item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
+      totalAvailableQty += await item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
     }
     
     // Check how many of this brand/model are already in the cart
@@ -4804,7 +4874,7 @@ app.put('/api/carts/:eventId/items/:itemId', authenticate, async (req, res) => {
     // Calculate total available quantity across all similar items (ONLY based on reservations)
     let totalAvailableQty = 0;
     for (const item of similarItems) {
-      totalAvailableQty += item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
+      totalAvailableQty += await item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
     }
     
     // Check how many of this brand/model are already in the cart (excluding this item)
@@ -4921,139 +4991,103 @@ app.post('/api/carts/:eventId/reserve', authenticate, async (req, res) => {
     const eventTable = await Table.findById(eventId);
     const currentListName = eventTable?.gear?.currentList || 'Main List';
 
-    // Process each cart item
+    // BULLETPROOF ATOMIC BULK RESERVATION
+    // Prepare all reservations for atomic bulk processing
+    const reservationRequests = [];
+    
     for (const cartItem of cart.items) {
-      try {
-        if (cartItem.specificSerialRequested && cartItem.serial) {
-          // Handle specific serial request
-          const inventoryItem = cartItem.inventoryId;
+      if (cartItem.specificSerialRequested && cartItem.serial) {
+        // Handle specific serial request
+        reservationRequests.push({
+          inventoryId: cartItem.inventoryId._id,
+          eventId,
+          userId,
+          quantity: cartItem.quantity,
+          checkOutDate: cart.checkOutDate,
+          checkInDate: cart.checkInDate,
+          listName: currentListName,
+          serial: cartItem.serial,
+          specificSerialRequested: true
+        });
+      } else {
+        // Handle grouped items (same brand/model) - need to split into individual units
+        const baseItem = cartItem.inventoryId;
+        const labelParts = baseItem.label.split(' ');
+        const brand = labelParts[0];
+        const model = labelParts.slice(1).join(' ');
+        
+        // Find all similar items (same brand/model/category)
+        const similarItems = await GearInventory.find({
+          category: baseItem.category,
+          label: { $regex: `^${brand}\\s+${model}`, $options: 'i' }
+        }).sort({ serial: 1 }); // Sort by serial for consistent allocation
+        
+        let remainingToReserve = cartItem.quantity;
+        
+        // Prepare reservations for similar items in order
+        for (const item of similarItems) {
+          if (remainingToReserve <= 0) break;
           
-          // Check if item is still available
-          const availableQty = inventoryItem.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
-          if (cartItem.quantity > availableQty) {
-            errors.push({
-              item: inventoryItem.label,
-              requested: cartItem.quantity,
-              available: availableQty,
-              message: `${inventoryItem.label} (Serial: ${cartItem.serial}): Only ${availableQty} available (requested ${cartItem.quantity})`
-            });
-            continue;
-          }
-
-          // Reserve the specific item
-          inventoryItem.reserveQuantity(
-            eventId,
-            userId,
-            cartItem.quantity,
-            cart.checkOutDate,
-            cart.checkInDate
+          // Check availability using NEW atomic service
+          const availableQty = await AtomicReservationService.getAvailableQuantity(
+            item._id, cart.checkOutDate, cart.checkInDate  // Don't exclude current event
           );
-          await inventoryItem.save();
           
-          // Create ReservedGearItem entry for gear page
-          const reservedItem = new ReservedGearItem({
-            eventId: eventId,
-            userId: userId,
-            listName: currentListName,
-            inventoryId: inventoryItem._id,
-            brand: inventoryItem.label.split(' ')[0] || 'Unknown',
-            model: inventoryItem.label.split(' ').slice(1).join(' ') || 'Unknown',
-            category: inventoryItem.category || 'Accessories',
-            quantity: cartItem.quantity,
-            serial: cartItem.serial,
-            specificSerialRequested: true,
-            isPacked: false
-          });
-          await reservedItem.save();
-
-          reservationResults.push({
-            item: inventoryItem.label,
-            quantity: cartItem.quantity,
-            serial: cartItem.serial,
-            status: 'reserved'
-          });
-
-        } else {
-          // Handle "no preference" request - find available units with same brand/model
-          const baseItem = cartItem.inventoryId;
-          const labelParts = baseItem.label.split(' ');
-          const brand = labelParts[0];
-          const model = labelParts.slice(1).join(' ');
-
-          // Find all items with same brand/model/category
-          const similarItems = await GearInventory.find({
-            category: baseItem.category,
-            label: { $regex: `^${brand}\\s+${model}`, $options: 'i' }
-          }).sort({ serial: 1 }); // Sort alphabetically by serial
-
-          let remainingToReserve = cartItem.quantity;
-          const reservedUnits = [];
-
-          // Reserve units in alphabetical order by serial
-          for (const item of similarItems) {
-            if (remainingToReserve <= 0) break;
-
-            const availableQty = item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
-            if (availableQty > 0) {
-              const quantityToReserve = Math.min(remainingToReserve, availableQty);
-              
-              item.reserveQuantity(
-                eventId,
-                userId,
-                quantityToReserve,
-                cart.checkOutDate,
-                cart.checkInDate
-              );
-              await item.save();
-
-              // Create ReservedGearItem entry for gear page
-              const reservedItem = new ReservedGearItem({
-                eventId: eventId,
-                userId: userId,
-                listName: currentListName,
-                inventoryId: item._id,
-                brand: item.label.split(' ')[0] || 'Unknown',
-                model: item.label.split(' ').slice(1).join(' ') || 'Unknown',
-                category: item.category || 'Accessories',
-                quantity: quantityToReserve,
-                serial: item.serial,
-                specificSerialRequested: false,
-                isPacked: false
-              });
-              await reservedItem.save();
-
-              reservedUnits.push({
-                item: item.label,
-                quantity: quantityToReserve,
-                serial: item.serial,
-                status: 'reserved'
-              });
-
-              remainingToReserve -= quantityToReserve;
-            }
-          }
-
-          // Add to results
-          reservationResults.push(...reservedUnits);
-
-          // Check if we couldn't reserve all requested units
-          if (remainingToReserve > 0) {
-            errors.push({
-              item: `${brand} ${model}`,
-              requested: cartItem.quantity,
-              available: cartItem.quantity - remainingToReserve,
-              message: `${brand} ${model}: Only ${cartItem.quantity - remainingToReserve} units available (requested ${cartItem.quantity})`
+          if (availableQty > 0) {
+            const quantityToReserve = Math.min(remainingToReserve, availableQty);
+            
+            reservationRequests.push({
+              inventoryId: item._id,
+              eventId,
+              userId,
+              quantity: quantityToReserve,
+              checkOutDate: cart.checkOutDate,
+              checkInDate: cart.checkInDate,
+              listName: currentListName,
+              serial: item.serial,
+              specificSerialRequested: false
             });
+            
+            remainingToReserve -= quantityToReserve;
           }
         }
-
-      } catch (err) {
-        console.error(`Error reserving ${cartItem.inventoryId.label}:`, err);
-        errors.push({
-          item: cartItem.inventoryId.label,
-          message: err.message
+        
+        // Track if we couldn't reserve all requested units
+        if (remainingToReserve > 0) {
+          errors.push({
+            item: `${brand} ${model}`,
+            requested: cartItem.quantity,
+            available: cartItem.quantity - remainingToReserve,
+            message: `${brand} ${model}: Only ${cartItem.quantity - remainingToReserve} units available (requested ${cartItem.quantity})`
+          });
+        }
+      }
+    }
+    
+    // Execute ALL reservations atomically (all succeed or all fail)
+    try {
+      console.log(`[CART RESERVE] Processing ${reservationRequests.length} reservations atomically`);
+      
+      const createdReservations = await AtomicReservationService.createBulkReservations(reservationRequests);
+      
+      // Convert to response format
+      for (const reservation of createdReservations) {
+        reservationResults.push({
+          item: `${reservation.brand} ${reservation.model}`,
+          quantity: reservation.quantity,
+          serial: reservation.serial,
+          status: 'reserved'
         });
       }
+      
+      console.log(`[CART RESERVE] ✅ Successfully reserved ${createdReservations.length} items atomically`);
+      
+    } catch (bulkError) {
+      console.error(`[CART RESERVE] ❌ Bulk reservation failed:`, bulkError.message);
+      errors.push({
+        item: 'Bulk Reservation',
+        message: `Reservation failed: ${bulkError.message}`
+      });
     }
 
     // Clear cart after successful reservations
@@ -5107,7 +5141,9 @@ app.get('/api/inventory/:id/available-serials', authenticate, async (req, res) =
 
     const availableSerials = [];
     for (const item of similarItems) {
-      const availableQty = item.getAvailableQuantity(checkOutDate, checkInDate);
+      const availableQty = await AtomicReservationService.getAvailableQuantity(
+        item._id, checkOutDate, checkInDate  // Don't exclude current event
+      );
       if (availableQty > 0) {
         availableSerials.push({
           id: item._id,
@@ -5177,7 +5213,7 @@ app.put('/api/carts/:eventId/grouped-quantity', authenticate, async (req, res) =
       // Check total available quantity
       let totalAvailableQty = 0;
       for (const item of inventoryItems) {
-        totalAvailableQty += item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
+        totalAvailableQty += await item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
       }
       
       if (newQuantity > totalAvailableQty) {
@@ -5193,7 +5229,7 @@ app.put('/api/carts/:eventId/grouped-quantity', authenticate, async (req, res) =
         if (remainingToAdd <= 0) break;
 
         // Check availability for this specific item
-        const availableQty = inventoryItem.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
+        const availableQty = await inventoryItem.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
         console.log(`[GROUPED QUANTITY] Item ${inventoryItem.serial}: ${availableQty} available`);
 
         if (availableQty > 0) {
