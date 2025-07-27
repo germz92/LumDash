@@ -783,7 +783,7 @@
         let currentItemForModal = null;
         let currentCategory = 'all';
         let currentBrand = 'all';
-                let currentSort = 'asc';
+        let currentSort = 'asc';
 
         // Button loading state functions
         function showButtonLoading(button) {
@@ -1569,8 +1569,8 @@
             showButtonLoading(addToCartBtn);
             
             try {
-                await addItemToCart(selectedInventoryId, selectedQuantity, selectedSerial);
-                closeModal();
+            await addItemToCart(selectedInventoryId, selectedQuantity, selectedSerial);
+            closeModal();
             } catch (error) {
                 console.error('Error adding selected item to cart:', error);
                 // Error will be shown by addItemToCart
