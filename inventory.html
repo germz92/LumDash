@@ -783,7 +783,36 @@
         let currentItemForModal = null;
         let currentCategory = 'all';
         let currentBrand = 'all';
-        let currentSort = 'asc';
+                let currentSort = 'asc';
+
+        // Button loading state functions
+        function showButtonLoading(button) {
+            if (!button) return;
+            
+            // Store original content
+            button.setAttribute('data-original-html', button.innerHTML);
+            
+            // Show loading state
+            button.innerHTML = `
+                <div class="loading-spinner" style="width: 16px; height: 16px; border: 2px solid #ffffff40; border-top: 2px solid #ffffff; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px;"></div>
+                Adding...
+            `;
+            button.disabled = true;
+            button.style.cursor = 'not-allowed';
+        }
+
+        function hideButtonLoading(button) {
+            if (!button) return;
+            
+            // Restore original content
+            const originalHtml = button.getAttribute('data-original-html');
+            if (originalHtml) {
+                button.innerHTML = originalHtml;
+                button.removeAttribute('data-original-html');
+            }
+            button.disabled = false;
+            button.style.cursor = 'pointer';
+        }
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', async function() {
@@ -827,8 +856,9 @@
                 currentInventory = await response.json();
                 filteredInventory = [...currentInventory];
                 setupBrandFilter();
+                restoreCategoryFilterState();
                 updateActiveFiltersDisplay();
-                renderInventory();
+                filterAndRenderInventory();
             } catch (error) {
                 console.error('Error loading inventory:', error);
                 document.getElementById('inventoryContainer').innerHTML = `
@@ -904,6 +934,22 @@
             }
         }
 
+        // Restore category filter active state after reload
+        function restoreCategoryFilterState() {
+            // Remove active class from all category buttons
+            document.querySelectorAll('.category-filter .category-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            
+            // Add active class to the current category button
+            const currentCategoryBtn = document.querySelector(`.category-filter .category-btn[onclick*="'${currentCategory}'"]`) ||
+                                     document.querySelector('.category-filter .category-btn'); // fallback to first button
+            
+            if (currentCategoryBtn) {
+                currentCategoryBtn.classList.add('active');
+            }
+        }
+
         // Setup brand filter
         function setupBrandFilter() {
             const brands = new Set();
@@ -928,13 +974,22 @@
                 </div>
                 <div class="brand-filter-content" id="brandFilterContent">
                     <div class="brand-filter-buttons">
-                        <button class="category-btn active" onclick="filterByBrand('all', this)">All</button>
-                        ${Array.from(brands).sort().map(brand => 
-                            `<button class="category-btn ${currentBrand === brand ? 'active' : ''}" onclick="filterByBrand('${brand}', this)">${brand}</button>`
-                        ).join('')}
+                        <button class="category-btn brand-filter-btn ${currentBrand === 'all' ? 'active' : ''}" data-brand="all">All</button>
+                        ${Array.from(brands).sort().map(brand => {
+                            const safeBrand = (brand || '').replace(/"/g, '&quot;');
+                            return `<button class="category-btn brand-filter-btn ${currentBrand === brand ? 'active' : ''}" data-brand="${safeBrand}">${brand}</button>`;
+                        }).join('')}
                     </div>
                 </div>
             `;
+            
+            // Add event listeners for brand filter buttons
+            document.querySelectorAll('.brand-filter-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const brand = this.getAttribute('data-brand').replace(/&quot;/g, '"');
+                    filterByBrand(brand, this);
+                });
+            });
         }
 
         // Filter by category
@@ -980,6 +1035,7 @@
 
         // Filter by brand
         function filterByBrand(brand, clickedElement) {
+            // No need to decode - values come directly from data attributes
             currentBrand = brand;
             
             // Update active button
@@ -1189,7 +1245,12 @@
                             if (group.hasItemsInCart) {
                                 statusBadge += ` <span class="status-badge status-partial">Partial in Cart</span>`;
                             }
-                            actionButton = `<button class="btn btn-primary" onclick="addToCartGrouped('${group.brand}', '${group.model}')">
+                            // Use data attributes instead of onclick to avoid escaping issues
+                            // Escape double quotes for HTML attributes
+                            const safeBrand = (group.brand || '').replace(/"/g, '&quot;');
+                            const safeModel = (group.model || '').replace(/"/g, '&quot;');
+                            
+                            actionButton = `<button class="btn btn-primary add-to-cart-btn" data-brand="${safeBrand}" data-model="${safeModel}">
                                 <span class="material-symbols-outlined">add_shopping_cart</span>
                                 Add to Cart
                             </button>`;
@@ -1227,6 +1288,22 @@
             `;
 
             container.innerHTML = inventoryHTML;
+            
+            // Add event listeners for Add to Cart buttons (using event delegation)
+            document.querySelectorAll('.add-to-cart-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const brand = this.getAttribute('data-brand').replace(/&quot;/g, '"');
+                    const model = this.getAttribute('data-model').replace(/&quot;/g, '"');
+                    
+                    // Show loading state
+                    showButtonLoading(this);
+                    
+                    // Call the async function and handle completion
+                    addToCartGrouped(brand, model, this).finally(() => {
+                        hideButtonLoading(this);
+                    });
+                });
+            });
         }
 
         // Add to cart (for individual items - legacy)
@@ -1247,7 +1324,9 @@
         }
 
         // Add to cart (for grouped items)
-        function addToCartGrouped(brand, model) {
+        async function addToCartGrouped(brand, model, clickedButton = null) {
+            // No need to decode - values come directly from data attributes
+            
             // Find all items with this brand/model combination
             const groupItems = currentInventory.filter(item => {
                 const labelParts = (item.label || '').split(' ');
@@ -1258,7 +1337,36 @@
 
             if (groupItems.length === 0) return;
 
-            // Show serial selection modal with all available units
+            // Calculate total available units across all items in the group
+            let totalAvailableUnits = 0;
+            let availableItems = [];
+            
+            groupItems.forEach(item => {
+                const availableQty = getAvailableQuantity(item);
+                if (availableQty > 0 && !isItemInCart(item._id)) {
+                    totalAvailableUnits += availableQty;
+                    availableItems.push({ item, availableQty });
+                }
+            });
+
+            // If exactly 1 unit available total, add directly without modal
+            if (totalAvailableUnits === 1) {
+                const singleAvailableItem = availableItems[0].item;
+                console.log('Only 1 unit available, adding directly:', singleAvailableItem.label);
+                try {
+                    await addItemToCart(singleAvailableItem._id, 1, singleAvailableItem.serial !== 'N/A' ? singleAvailableItem.serial : null);
+                } catch (error) {
+                    console.error('Error adding item to cart:', error);
+                    // Error will be shown by addItemToCart, just ensure button loading is hidden
+                }
+                return;
+            }
+
+            // Multiple units available, show modal for selection
+            // Hide button loading since user will now interact with modal
+            if (clickedButton) {
+                hideButtonLoading(clickedButton);
+            }
             showSerialModalForGroup(brand, model, groupItems);
         }
 
@@ -1307,7 +1415,7 @@
                     const displayText = similarItem.serial === 'N/A' ? 'No Serial Number' : `Serial: ${similarItem.serial}`;
                     
                     return `
-                        <div class="serial-option" onclick="selectSerial('${similarItem.serial}', '${similarItem._id}')">
+                        <div class="serial-option serial-select-btn" data-serial="${(similarItem.serial || '').replace(/"/g, '&quot;')}" data-inventory-id="${similarItem._id}">
                             <div class="serial-info">
                                 <div><strong>${displayText}</strong></div>
                                 <div style="font-size: 13px; color: #666;">${similarItem.label}</div>
@@ -1326,6 +1434,15 @@
             `;
 
             document.getElementById('serialModal').style.display = 'block';
+            
+            // Add event listeners for serial selection buttons
+            document.querySelectorAll('.serial-select-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const serial = this.getAttribute('data-serial').replace(/&quot;/g, '"');
+                    const inventoryId = this.getAttribute('data-inventory-id');
+                    selectSerial(serial, inventoryId);
+                });
+            });
         }
 
         // Show serial selection modal for grouped items
@@ -1382,7 +1499,7 @@
                     const displayText = item.serial === 'N/A' ? 'No Serial Number' : `Serial: ${item.serial}`;
                     
                     return `
-                        <div class="serial-option" onclick="selectSerial('${item.serial}', '${item._id}')">
+                        <div class="serial-option serial-select-btn" data-serial="${(item.serial || '').replace(/"/g, '&quot;')}" data-inventory-id="${item._id}">
                             <div class="serial-info">
                                 <div><strong>${displayText}</strong></div>
                                 <div style="font-size: 13px; color: #666;">${item.label}</div>
@@ -1401,6 +1518,15 @@
             `;
 
             document.getElementById('serialModal').style.display = 'block';
+            
+            // Add event listeners for serial selection buttons
+            document.querySelectorAll('.serial-select-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const serial = this.getAttribute('data-serial').replace(/&quot;/g, '"');
+                    const inventoryId = this.getAttribute('data-inventory-id');
+                    selectSerial(serial, inventoryId);
+                });
+            });
             
             // Auto-select if there's only one option
             const serialOptions = document.querySelectorAll('.serial-option');
@@ -1422,6 +1548,7 @@
             event.currentTarget.classList.add('selected');
             }
             
+            // No need to decode - serial comes directly from data attribute
             selectedSerial = serial;
             selectedInventoryId = inventoryId || currentItemForModal._id;
         }
@@ -1438,8 +1565,18 @@
                 return;
             }
 
-            await addItemToCart(selectedInventoryId, selectedQuantity, selectedSerial);
-            closeModal();
+            const addToCartBtn = document.getElementById('addToCartBtn');
+            showButtonLoading(addToCartBtn);
+            
+            try {
+                await addItemToCart(selectedInventoryId, selectedQuantity, selectedSerial);
+                closeModal();
+            } catch (error) {
+                console.error('Error adding selected item to cart:', error);
+                // Error will be shown by addItemToCart
+            } finally {
+                hideButtonLoading(addToCartBtn);
+            }
         }
 
         // Add item to cart (API call)
@@ -1537,6 +1674,13 @@
         // Modal functions
         function closeModal() {
             document.getElementById('serialModal').style.display = 'none';
+            
+            // Reset button loading state
+            const addToCartBtn = document.getElementById('addToCartBtn');
+            if (addToCartBtn) {
+                hideButtonLoading(addToCartBtn);
+            }
+            
             // Reset all modal state to prevent cross-contamination
             selectedSerial = null;
             selectedInventoryId = null;
