@@ -607,7 +607,9 @@ async function calculateCartItemAvailability(cartItem, cart, allCartItems) {
   
   // For specific serial requests, just return individual item availability
   if (cartItem.specificSerial) {
-    return await inventoryItem.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
+    return await AtomicReservationService.getAvailableQuantity(
+      inventoryItem._id, cart.checkOutDate, cart.checkInDate
+    );
   }
   
   // For grouped items, calculate availability across all similar items
@@ -618,10 +620,12 @@ async function calculateCartItemAvailability(cartItem, cart, allCartItems) {
     label: { $regex: `^${brand} ${model}`, $options: 'i' }
   });
   
-  // Calculate total available quantity across all similar items (ONLY based on reservations)
+  // Calculate total available quantity using BULLETPROOF atomic service
   let totalAvailable = 0;
   for (const item of similarItems) {
-    totalAvailable += await item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
+    totalAvailable += await AtomicReservationService.getAvailableQuantity(
+      item._id, cart.checkOutDate, cart.checkInDate
+    );
   }
   
   // For display purposes, show how many MORE can be added for this brand/model
@@ -840,7 +844,9 @@ app.post('/api/chat/:tableId', authenticate, async (req, res) => {
       if (table.gear?.checkOutDate && table.gear?.checkInDate) {
         const allGearInventory = await GearInventory.find();
         for (const item of allGearInventory) {
-          const availableQty = await item.getAvailableQuantity(table.gear.checkOutDate, table.gear.checkInDate);
+          const availableQty = await AtomicReservationService.getAvailableQuantity(
+            item._id, table.gear.checkOutDate, table.gear.checkInDate
+          );
           gearInventoryWithAvailability.push({
             _id: item._id,
             label: item.label,
@@ -2289,10 +2295,12 @@ app.get('/api/gear-inventory/availability', authenticate, async (req, res) => {
     
     const gear = await GearInventory.find();
     
-    // Calculate availability for each item considering both event reservations and manual reservations
+    // Calculate availability using BULLETPROOF atomic service
     const gearWithAvailability = await Promise.all(gear.map(async (item) => {
       try {
-        const availableQty = await item.getAvailableQuantity(startDate, endDate);
+        const availableQty = await AtomicReservationService.getAvailableQuantity(
+          item._id, startDate, endDate
+        );
         const reservedQty = item.quantity - availableQty;
         
         return {
@@ -2405,18 +2413,31 @@ app.post('/api/gear-inventory/checkout', authenticate, async (req, res) => {
           message: `Reservation updated to ${newQuantity} units`, 
           gear,
           reservedQuantity: newQuantity,
-          availableQuantity: await gear.getAvailableQuantity(checkOutDate, checkInDate)
+          availableQuantity: await AtomicReservationService.getAvailableQuantity(
+            gear._id, checkOutDate, checkInDate
+          )
         });
       } else {
-        // Create new reservation
-        gear.reserveQuantity(eventId, req.user.id, quantity, checkOutDate, checkInDate);
-        await gear.save();
+        // Create new reservation using BULLETPROOF atomic service
+        await AtomicReservationService.createReservation({
+          inventoryId: gearId,
+          eventId,
+          userId: req.user.id,
+          quantity,
+          checkOutDate,
+          checkInDate,
+          listName: 'Main List', // Default list for direct checkout
+          serial: gear.serial,
+          specificSerialRequested: gear.serial && gear.serial !== 'N/A'
+        });
         
         return res.json({ 
           message: `${quantity} units reserved`, 
           gear,
           reservedQuantity: quantity,
-          availableQuantity: await gear.getAvailableQuantity(checkOutDate, checkInDate)
+          availableQuantity: await AtomicReservationService.getAvailableQuantity(
+            gear._id, checkOutDate, checkInDate
+          )
         });
       }
     }
@@ -2607,7 +2628,9 @@ app.post('/api/gear-inventory/checkin', authenticate, async (req, res) => {
         await removeGearFromEventLists(eventId, gearId, gear.label, quantity);
       }
       
-      const availableQty = await gear.getAvailableQuantity(checkOutDate, checkInDate);
+      const availableQty = await AtomicReservationService.getAvailableQuantity(
+        gear._id, checkOutDate, checkInDate
+      );
       return res.json({ 
         message: 'Quantity reservation released', 
         gear,
@@ -4788,10 +4811,12 @@ app.post('/api/carts/:eventId/items', authenticate, async (req, res) => {
       label: { $regex: `^${brand} ${model}`, $options: 'i' }
     });
     
-    // Calculate total available quantity across all similar items (ONLY based on reservations)
+    // Calculate total available quantity using BULLETPROOF atomic service
     let totalAvailableQty = 0;
     for (const item of similarItems) {
-      totalAvailableQty += await item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
+      totalAvailableQty += await AtomicReservationService.getAvailableQuantity(
+        item._id, cart.checkOutDate, cart.checkInDate
+      );
     }
     
     // Check how many of this brand/model are already in the cart
@@ -4871,10 +4896,12 @@ app.put('/api/carts/:eventId/items/:itemId', authenticate, async (req, res) => {
       label: { $regex: `^${brand} ${model}`, $options: 'i' }
     });
     
-    // Calculate total available quantity across all similar items (ONLY based on reservations)
+    // Calculate total available quantity using BULLETPROOF atomic service
     let totalAvailableQty = 0;
     for (const item of similarItems) {
-      totalAvailableQty += await item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
+      totalAvailableQty += await AtomicReservationService.getAvailableQuantity(
+        item._id, cart.checkOutDate, cart.checkInDate
+      );
     }
     
     // Check how many of this brand/model are already in the cart (excluding this item)
@@ -5210,10 +5237,12 @@ app.put('/api/carts/:eventId/grouped-quantity', authenticate, async (req, res) =
         label: { $regex: `^${brand}\\s+${model}`, $options: 'i' }
       }).sort({ serial: 1 }); // Sort by serial for sequential allocation
 
-      // Check total available quantity
+      // Check total available quantity using BULLETPROOF atomic service
       let totalAvailableQty = 0;
       for (const item of inventoryItems) {
-        totalAvailableQty += await item.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
+        totalAvailableQty += await AtomicReservationService.getAvailableQuantity(
+          item._id, cart.checkOutDate, cart.checkInDate
+        );
       }
       
       if (newQuantity > totalAvailableQty) {
@@ -5228,8 +5257,10 @@ app.put('/api/carts/:eventId/grouped-quantity', authenticate, async (req, res) =
       for (const inventoryItem of inventoryItems) {
         if (remainingToAdd <= 0) break;
 
-        // Check availability for this specific item
-        const availableQty = await inventoryItem.getAvailableQuantity(cart.checkOutDate, cart.checkInDate);
+        // Check availability using BULLETPROOF atomic service
+        const availableQty = await AtomicReservationService.getAvailableQuantity(
+          inventoryItem._id, cart.checkOutDate, cart.checkInDate
+        );
         console.log(`[GROUPED QUANTITY] Item ${inventoryItem.serial}: ${availableQty} available`);
 
         if (availableQty > 0) {
@@ -5510,8 +5541,10 @@ app.post('/api/manual-reservations', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Inventory item not found' });
     }
 
-    // Check availability
-    const availableQty = await inventoryItem.getAvailableQuantity(startDate, endDate);
+    // Check availability using BULLETPROOF atomic service
+    const availableQty = await AtomicReservationService.getAvailableQuantity(
+      inventoryId, startDate, endDate
+    );
     if (quantity > availableQty) {
       return res.status(400).json({ 
         error: `Only ${availableQty} units available for the requested dates (requested ${quantity})` 
