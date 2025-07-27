@@ -873,6 +873,182 @@
                 line-height: 1.3;
             }
         }
+
+        /* Manual Items Styles - Match Regular Categories */
+        .manual-items-category {
+            margin-top: 20px;
+            /* Use same styling as regular gear categories */
+        }
+
+        .add-manual-item-section {
+            margin-top: 16px;
+            padding: 16px;
+            border-top: 1px solid #e0e4e7;
+            background: #f8f9fa;
+        }
+
+        .add-manual-btn {
+            width: 100%;
+            padding: 12px 16px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            transition: all 0.2s ease;
+        }
+
+        .add-manual-btn:hover {
+            background: #0056b3;
+            transform: translateY(-1px);
+        }
+
+        .add-manual-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .add-manual-form input {
+            padding: 12px 16px;
+            border: 2px solid #e0e4e7;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: border-color 0.2s ease;
+            margin-bottom: 8px;
+        }
+
+        .add-manual-form input:focus {
+            outline: none;
+            border-color: #007bff;
+            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
+        }
+
+        .form-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .form-actions .action-btn {
+            flex: 1;
+            padding: 10px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.2s ease;
+        }
+
+        .add-btn {
+            background: #22c55e;
+            color: white;
+        }
+
+        .add-btn:hover {
+            background: #16a34a;
+        }
+
+        .cancel-btn {
+            background: #6b7280;
+            color: white;
+        }
+
+        .cancel-btn:hover {
+            background: #4b5563;
+        }
+
+        .empty-category {
+            text-align: center;
+            padding: 40px 20px;
+            color: #6b7280;
+        }
+
+        .empty-category .material-symbols-outlined {
+            font-size: 48px;
+            color: #d1d5db;
+            margin-bottom: 12px;
+        }
+
+        .empty-category p {
+            margin: 0 0 8px 0;
+            font-size: 16px;
+            font-weight: 500;
+        }
+
+        .empty-category small {
+            font-size: 14px;
+            color: #9ca3af;
+        }
+
+        /* Manual Items Layout Fixes */
+        .manual-items-category .gear-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+            padding: 16px 20px;
+            background: white;
+            border-bottom: 1px solid #e0e4e7;
+        }
+
+        .manual-items-category .gear-item:last-child {
+            border-bottom: none;
+        }
+
+        .manual-items-category .item-content {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex: 1;
+        }
+
+        .manual-items-category .item-details {
+            flex: 1;
+        }
+
+        .manual-items-category .item-name {
+            font-size: 16px;
+            font-weight: 600;
+            color: #374151;
+            margin-bottom: 4px;
+        }
+
+        .manual-items-category .item-info {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .manual-items-category .item-meta {
+            font-size: 12px;
+            color: #6b7280;
+        }
+
+        .manual-items-category .item-actions {
+            flex-shrink: 0;
+        }
+
+        .manual-items-category .delete-btn {
+            padding: 8px;
+            background: #ef4444;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .manual-items-category .delete-btn:hover {
+            background: #dc2626;
+            transform: scale(1.05);
+        }
     </style>
 </head>
 <body>
@@ -1128,6 +1304,7 @@
         // Page-specific variables
         let currentEvent = null;
         let currentGear = [];
+        let manualItems = [];
         let gearLists = [];
         let currentListName = 'Main List';
         let packageTemplates = [];
@@ -1223,6 +1400,7 @@
                 if (response.ok) {
                     const result = await response.json();
                     currentGear = result.reservedItems || [];
+                    manualItems = result.manualItems || [];
                     userPermissions = result.userPermissions || { canReserve: false, canManageLists: false, canPack: true };
                     console.log('User permissions:', userPermissions);
                     renderGear();
@@ -1231,6 +1409,7 @@
                 } else {
                     // No gear reserved yet
                     currentGear = [];
+                    manualItems = [];
                     userPermissions = { canReserve: false, canManageLists: false, canPack: true };
                     renderGear();
                     updateUIBasedOnPermissions();
@@ -1367,17 +1546,110 @@
                 `;
             }).join('');
 
-            container.innerHTML = `<div class="categories-grid">${categoriesHTML}</div>`;
+            // Render manual items section
+            const manualItemsHTML = renderManualItems();
+            
+            container.innerHTML = `
+                <div class="categories-grid">${categoriesHTML}</div>
+                ${manualItemsHTML}
+            `;
         }
 
-        // Update progress
+        // Render manual items section
+        function renderManualItems() {
+            if (!manualItems || manualItems.length === 0) {
+                // Show empty state only if user can manage lists (add items)
+                if (!userPermissions.canManageLists) {
+                    return ''; // Hide section entirely for non-managers when empty
+                }
+            }
+
+            const manualItemsHTML = manualItems.map(item => {
+                return `
+                    <div class="gear-item ${item.completed ? 'packed' : ''}">
+                        <div class="item-content">
+                            <label class="checkbox-container">
+                                <input type="checkbox" ${item.completed ? 'checked' : ''} 
+                                       onchange="toggleManualItem('${item._id}')" class="checkbox">
+                                <span class="checkmark"></span>
+                            </label>
+                            <div class="item-details">
+                                <div class="item-name">${item.text}</div>
+                                <div class="item-info">
+                                    <span class="item-meta">Added ${formatDate(item.createdAt)}</span>
+                                </div>
+                            </div>
+                        </div>
+                        ${userPermissions.canManageLists ? `
+                            <div class="item-actions">
+                                <button class="action-btn delete-btn" onclick="deleteManualItem('${item._id}')" 
+                                        title="Delete manual item">
+                                    <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                </button>
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            const addButtonHTML = userPermissions.canManageLists ? `
+                <div class="add-manual-item-section">
+                    <div class="add-manual-form" id="addManualForm" style="display: none;">
+                        <input type="text" id="manualItemInput" placeholder="Enter item name (e.g., Rental Camera)" maxlength="100">
+                        <div class="form-actions">
+                            <button type="button" onclick="addManualItem()" class="action-btn add-btn">Add</button>
+                            <button type="button" onclick="cancelAddManualItem()" class="action-btn cancel-btn">Cancel</button>
+                        </div>
+                    </div>
+                    <button onclick="showAddManualForm()" class="add-manual-btn" id="showAddManualBtn">
+                        <span class="material-symbols-outlined">add</span>
+                        Add Manual Item
+                    </button>
+                </div>
+            ` : '';
+
+            return `
+                <div class="gear-category manual-items-category">
+                    <div class="category-header">
+                        <h3 class="category-title">
+                            <span class="material-symbols-outlined">checklist</span>
+                            Manual Items
+                            ${manualItems.length > 0 ? `<span class="item-count">${manualItems.length}</span>` : ''}
+                        </h3>
+
+                    </div>
+                    <div class="category-content">
+                        ${manualItems.length > 0 ? `
+                            <div class="gear-items">
+                                ${manualItemsHTML}
+                            </div>
+                        ` : `
+                            <div class="empty-category">
+                                <span class="material-symbols-outlined">checklist</span>
+                                <p>No manual items added yet</p>
+                                <small>Add custom items like "Rental Camera" or "Extra Batteries" that aren't in inventory</small>
+                            </div>
+                        `}
+                        ${addButtonHTML}
+                    </div>
+                </div>
+            `;
+        }
+
+        // Update progress (including manual items)
         function updateProgress() {
-            const totalItems = currentGear.length;
-            const packedItems = currentGear.filter(item => item.isPacked).length;
-            const percentage = totalItems > 0 ? Math.round((packedItems / totalItems) * 100) : 0;
+            const gearItems = currentGear.length;
+            const packedGear = currentGear.filter(item => item.isPacked).length;
+            
+            const manualItemsCount = manualItems.length;
+            const completedManualItems = manualItems.filter(item => item.completed).length;
+            
+            const totalItems = gearItems + manualItemsCount;
+            const totalPacked = packedGear + completedManualItems;
+            const percentage = totalItems > 0 ? Math.round((totalPacked / totalItems) * 100) : 0;
 
             document.getElementById('totalCount').textContent = totalItems;
-            document.getElementById('packedCount').textContent = packedItems;
+            document.getElementById('packedCount').textContent = totalPacked;
             document.getElementById('progressFill').style.width = `${percentage}%`;
         }
 
@@ -1412,6 +1684,133 @@
                 alert('Failed to update packing status');
             }
         }
+
+        // MANUAL ITEMS FUNCTIONS
+        // Show add manual item form
+        function showAddManualForm() {
+            document.getElementById('addManualForm').style.display = 'block';
+            document.getElementById('showAddManualBtn').style.display = 'none';
+            document.getElementById('manualItemInput').focus();
+        }
+
+        // Cancel add manual item
+        function cancelAddManualItem() {
+            document.getElementById('addManualForm').style.display = 'none';
+            document.getElementById('showAddManualBtn').style.display = 'block';
+            document.getElementById('manualItemInput').value = '';
+        }
+
+        // Add manual item
+        async function addManualItem() {
+            const input = document.getElementById('manualItemInput');
+            const text = input.value.trim();
+            
+            if (!text) {
+                alert('Please enter an item name');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/tables/${eventId}/gear-lists/${encodeURIComponent(currentListName)}/manual-items`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({ text })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    manualItems.push(result.item);
+                    cancelAddManualItem();
+                    renderGear();
+                    updateProgress();
+                    showToast('Manual item added successfully!', 'success');
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Failed to add manual item');
+                }
+            } catch (error) {
+                console.error('Error adding manual item:', error);
+                alert('Failed to add manual item. Please try again.');
+            }
+        }
+
+        // Toggle manual item completion
+        async function toggleManualItem(itemId) {
+            const item = manualItems.find(i => i._id === itemId);
+            if (!item) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/tables/${eventId}/gear-lists/${encodeURIComponent(currentListName)}/manual-items/${itemId}/toggle`, {
+                    method: 'PATCH',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (response.ok) {
+                    item.completed = !item.completed;
+                    renderGear();
+                    updateProgress();
+                } else {
+                    // Revert checkbox
+                    const checkbox = event.target;
+                    checkbox.checked = !checkbox.checked;
+                    alert('Failed to update item status');
+                }
+            } catch (error) {
+                console.error('Error toggling manual item:', error);
+                // Revert checkbox
+                const checkbox = event.target;
+                checkbox.checked = !checkbox.checked;
+                alert('Failed to update item status');
+            }
+        }
+
+        // Delete manual item
+        async function deleteManualItem(itemId) {
+            const item = manualItems.find(i => i._id === itemId);
+            if (!item) return;
+
+            if (!confirm(`Delete "${item.text}"?`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/tables/${eventId}/gear-lists/${encodeURIComponent(currentListName)}/manual-items/${itemId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (response.ok) {
+                    manualItems = manualItems.filter(i => i._id !== itemId);
+                    renderGear();
+                    updateProgress();
+                    showToast('Manual item deleted', 'success');
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Failed to delete manual item');
+                }
+            } catch (error) {
+                console.error('Error deleting manual item:', error);
+                alert('Failed to delete manual item. Please try again.');
+            }
+        }
+
+        // Handle Enter key in manual item input
+        document.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter') {
+                const manualInput = document.getElementById('manualItemInput');
+                if (manualInput && document.activeElement === manualInput) {
+                    e.preventDefault();
+                    addManualItem();
+                }
+            }
+        });
 
         // Delete gear item
         async function deleteGearItem(itemId) {
