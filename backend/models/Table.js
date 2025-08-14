@@ -61,7 +61,7 @@ const tableSchema = new mongoose.Schema({
     end: String,
     client: String,
     attendees: Number,
-    budget: String,
+    airport: String,
     summary: { type: String, default: "" },
     contacts: [
       {
@@ -101,26 +101,7 @@ const tableSchema = new mongoose.Schema({
       createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
-      },
-      manualItems: [{
-        text: {
-          type: String,
-          required: true
-        },
-        completed: {
-          type: Boolean,
-          default: false
-        },
-        createdBy: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
-          required: true
-        },
-        createdAt: {
-          type: Date,
-          default: Date.now
-        }
-      }]
+      }
     }],
     currentList: {
       type: String,
