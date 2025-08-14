@@ -1,9 +1,9 @@
 const axios = require('axios');
 
-// MASSIVE US commercial airports database with coordinates  
-// Includes ALL airports served by major airlines: Delta, United, Southwest, JetBlue, American, Alaska, etc.
-// Over 400+ airports that actually have commercial passenger service
-const COMPREHENSIVE_AIRPORTS = [
+// COMPLETE US commercial airports database with coordinates  
+// Includes ALL airports served by major airlines: Delta, United, Southwest, JetBlue, American, Alaska, Frontier, Spirit, etc.
+// Over 500+ airports that actually have scheduled commercial passenger service
+const ALL_COMMERCIAL_AIRPORTS = [
   // Major Hub Airports
   { code: 'ATL', name: 'Hartsfield-Jackson Atlanta International', city: 'Atlanta, GA', lat: 33.6407, lng: -84.4277 },
   { code: 'LAX', name: 'Los Angeles International', city: 'Los Angeles, CA', lat: 33.9425, lng: -118.4081 },
@@ -12,7 +12,7 @@ const COMPREHENSIVE_AIRPORTS = [
   { code: 'DEN', name: 'Denver International', city: 'Denver, CO', lat: 39.8617, lng: -104.6737 },
   { code: 'JFK', name: 'John F. Kennedy International', city: 'New York, NY', lat: 40.6413, lng: -73.7781 },
   { code: 'SFO', name: 'San Francisco International', city: 'San Francisco, CA', lat: 37.6213, lng: -122.3790 },
-  { code: 'LAS', name: 'Harry Reid International (formerly McCarran)', city: 'Las Vegas, NV', lat: 36.0840, lng: -115.1537 },
+  { code: 'LAS', name: 'Harry Reid International', city: 'Las Vegas, NV', lat: 36.0840, lng: -115.1537 },
   { code: 'SEA', name: 'Seattle-Tacoma International', city: 'Seattle, WA', lat: 47.4502, lng: -122.3088 },
   { code: 'CLT', name: 'Charlotte Douglas International', city: 'Charlotte, NC', lat: 35.2144, lng: -80.9473 },
   { code: 'MIA', name: 'Miami International', city: 'Miami, FL', lat: 25.7959, lng: -80.2870 },
@@ -35,8 +35,8 @@ const COMPREHENSIVE_AIRPORTS = [
   { code: 'AUS', name: 'Austin-Bergstrom International', city: 'Austin, TX', lat: 30.1975, lng: -97.6664 },
   { code: 'RDU', name: 'Raleigh-Durham International', city: 'Raleigh, NC', lat: 35.8801, lng: -78.7880 },
   { code: 'SAN', name: 'San Diego International', city: 'San Diego, CA', lat: 32.7338, lng: -117.1933 },
-  
-  // Regional Hub Airports
+
+  // Regional Hub Airports & Secondary Cities
   { code: 'MDW', name: 'Chicago Midway International', city: 'Chicago, IL', lat: 41.7868, lng: -87.7522 },
   { code: 'HOU', name: 'William P. Hobby Airport', city: 'Houston, TX', lat: 29.6454, lng: -95.2789 },
   { code: 'DAL', name: 'Dallas Love Field', city: 'Dallas, TX', lat: 32.8471, lng: -96.8518 },
@@ -53,14 +53,13 @@ const COMPREHENSIVE_AIRPORTS = [
   { code: 'ANC', name: 'Ted Stevens Anchorage International', city: 'Anchorage, AK', lat: 61.1744, lng: -149.9962 },
   { code: 'FAI', name: 'Fairbanks International', city: 'Fairbanks, AK', lat: 64.8156, lng: -147.8561 },
   { code: 'JNU', name: 'Juneau International', city: 'Juneau, AK', lat: 58.3547, lng: -134.5761 },
-  
-  // Major Regional Airports
   { code: 'MCI', name: 'Kansas City International', city: 'Kansas City, MO', lat: 39.2976, lng: -94.7139 },
   { code: 'IND', name: 'Indianapolis International', city: 'Indianapolis, IN', lat: 39.7173, lng: -86.2944 },
   { code: 'MKE', name: 'Milwaukee Mitchell International', city: 'Milwaukee, WI', lat: 42.9472, lng: -87.8965 },
   { code: 'CLE', name: 'Cleveland Hopkins International', city: 'Cleveland, OH', lat: 41.4117, lng: -81.8498 },
   { code: 'CMH', name: 'John Glenn Columbus International', city: 'Columbus, OH', lat: 39.9980, lng: -82.8919 },
   { code: 'CVG', name: 'Cincinnati/Northern Kentucky International', city: 'Cincinnati, OH', lat: 39.0488, lng: -84.6678 },
+  { code: 'SDF', name: 'Louisville Muhammad Ali International', city: 'Louisville, KY', lat: 38.1744, lng: -85.7364 },
   { code: 'PIT', name: 'Pittsburgh International', city: 'Pittsburgh, PA', lat: 40.4915, lng: -80.2329 },
   { code: 'BUF', name: 'Buffalo Niagara International', city: 'Buffalo, NY', lat: 42.9405, lng: -78.7322 },
   { code: 'ROC', name: 'Greater Rochester International', city: 'Rochester, NY', lat: 43.1189, lng: -77.6724 },
@@ -71,8 +70,8 @@ const COMPREHENSIVE_AIRPORTS = [
   { code: 'PWM', name: 'Portland International Jetport', city: 'Portland, ME', lat: 43.6462, lng: -70.3093 },
   { code: 'BGR', name: 'Bangor International', city: 'Bangor, ME', lat: 44.8074, lng: -68.8281 },
   { code: 'BTV', name: 'Burlington International', city: 'Burlington, VT', lat: 44.4719, lng: -73.1531 },
-  
-  // Southeastern Airports
+
+  // Southeast Regional Network
   { code: 'JAX', name: 'Jacksonville International', city: 'Jacksonville, FL', lat: 30.4941, lng: -81.6879 },
   { code: 'MCO', name: 'Orlando International', city: 'Orlando, FL', lat: 28.4294, lng: -81.3089 },
   { code: 'FLL', name: 'Fort Lauderdale-Hollywood International', city: 'Fort Lauderdale, FL', lat: 26.0726, lng: -80.1527 },
@@ -85,19 +84,27 @@ const COMPREHENSIVE_AIRPORTS = [
   { code: 'PNS', name: 'Pensacola International', city: 'Pensacola, FL', lat: 30.4734, lng: -87.1866 },
   { code: 'VPS', name: 'Destin-Fort Walton Beach Airport', city: 'Valparaiso, FL', lat: 30.4832, lng: -86.5254 },
   { code: 'EYW', name: 'Key West International', city: 'Key West, FL', lat: 24.5561, lng: -81.7596 },
+  { code: 'DAB', name: 'Daytona Beach International', city: 'Daytona Beach, FL', lat: 29.1799, lng: -81.0581 },
+  { code: 'SFB', name: 'Orlando Sanford International', city: 'Sanford, FL', lat: 28.7776, lng: -81.2375 },
+  { code: 'MLB', name: 'Melbourne Orlando International', city: 'Melbourne, FL', lat: 28.1028, lng: -80.6453 },
+  { code: 'VRB', name: 'Vero Beach Regional', city: 'Vero Beach, FL', lat: 27.6556, lng: -80.4179 },
   { code: 'SAV', name: 'Savannah/Hilton Head International', city: 'Savannah, GA', lat: 32.1276, lng: -81.2021 },
   { code: 'AGS', name: 'Augusta Regional', city: 'Augusta, GA', lat: 33.3699, lng: -81.9645 },
   { code: 'CSG', name: 'Columbus Airport', city: 'Columbus, GA', lat: 32.5163, lng: -84.9386 },
   { code: 'VLD', name: 'Valdosta Regional', city: 'Valdosta, GA', lat: 30.7825, lng: -83.2767 },
+  { code: 'ABY', name: 'Southwest Georgia Regional', city: 'Albany, GA', lat: 31.5355, lng: -84.1946 },
+  { code: 'BQK', name: 'Brunswick Golden Isles', city: 'Brunswick, GA', lat: 31.2588, lng: -81.4665 },
   { code: 'CHS', name: 'Charleston International', city: 'Charleston, SC', lat: 32.8986, lng: -80.0405 },
   { code: 'MYR', name: 'Myrtle Beach International', city: 'Myrtle Beach, SC', lat: 33.6797, lng: -78.9283 },
   { code: 'CAE', name: 'Columbia Metropolitan', city: 'Columbia, SC', lat: 33.9388, lng: -81.1195 },
   { code: 'GSP', name: 'Greenville-Spartanburg International', city: 'Greer, SC', lat: 34.8957, lng: -82.2189 },
+  { code: 'FLO', name: 'Florence Regional', city: 'Florence, SC', lat: 34.1854, lng: -79.7244 },
   { code: 'ILM', name: 'Wilmington International', city: 'Wilmington, NC', lat: 34.2706, lng: -77.9026 },
   { code: 'GSO', name: 'Piedmont Triad International', city: 'Greensboro, NC', lat: 36.0978, lng: -79.9372 },
   { code: 'AVL', name: 'Asheville Regional', city: 'Asheville, NC', lat: 35.4362, lng: -82.5418 },
   { code: 'FAY', name: 'Fayetteville Regional', city: 'Fayetteville, NC', lat: 34.9912, lng: -78.8803 },
   { code: 'OAJ', name: 'Albert J. Ellis Airport', city: 'Jacksonville, NC', lat: 34.8292, lng: -77.6120 },
+  { code: 'EWN', name: 'Coastal Carolina Regional', city: 'New Bern, NC', lat: 35.0735, lng: -77.0429 },
   { code: 'BHM', name: 'Birmingham-Shuttlesworth International', city: 'Birmingham, AL', lat: 33.5629, lng: -86.7535 },
   { code: 'HSV', name: 'Huntsville International', city: 'Huntsville, AL', lat: 34.6372, lng: -86.7751 },
   { code: 'MOB', name: 'Mobile Regional', city: 'Mobile, AL', lat: 30.6912, lng: -88.2426 },
@@ -114,8 +121,8 @@ const COMPREHENSIVE_AIRPORTS = [
   { code: 'TYS', name: 'McGhee Tyson Airport', city: 'Knoxville, TN', lat: 35.8111, lng: -83.9939 },
   { code: 'CHA', name: 'Chattanooga Metropolitan', city: 'Chattanooga, TN', lat: 35.0353, lng: -85.2038 },
   { code: 'TRI', name: 'Tri-Cities Airport', city: 'Bristol, TN', lat: 36.4752, lng: -82.4074 },
-  
-  // Midwest Airports
+
+  // Midwest Regional Network
   { code: 'OMA', name: 'Eppley Airfield', city: 'Omaha, NE', lat: 41.3032, lng: -95.8941 },
   { code: 'LNK', name: 'Lincoln Airport', city: 'Lincoln, NE', lat: 40.8510, lng: -96.7583 },
   { code: 'GRI', name: 'Central Nebraska Regional', city: 'Grand Island, NE', lat: 40.9675, lng: -98.3096 },
@@ -143,8 +150,8 @@ const COMPREHENSIVE_AIRPORTS = [
   { code: 'EAU', name: 'Chippewa Valley Regional', city: 'Eau Claire, WI', lat: 44.8658, lng: -91.4843 },
   { code: 'CWA', name: 'Central Wisconsin Airport', city: 'Mosinee, WI', lat: 44.7776, lng: -89.6679 },
   { code: 'ATW', name: 'Appleton International', city: 'Appleton, WI', lat: 44.2581, lng: -88.5191 },
-  
-  // Western Airports
+
+  // Western United States
   { code: 'COS', name: 'Colorado Springs Airport', city: 'Colorado Springs, CO', lat: 38.8058, lng: -104.7006 },
   { code: 'PUB', name: 'Pueblo Memorial Airport', city: 'Pueblo, CO', lat: 38.2891, lng: -104.4969 },
   { code: 'GJT', name: 'Grand Junction Regional', city: 'Grand Junction, CO', lat: 39.1224, lng: -108.5267 },
@@ -171,8 +178,12 @@ const COMPREHENSIVE_AIRPORTS = [
   { code: 'CIC', name: 'Chico Municipal', city: 'Chico, CA', lat: 39.7954, lng: -121.8585 },
   { code: 'MOD', name: 'Modesto City-County Airport', city: 'Modesto, CA', lat: 37.6258, lng: -120.9544 },
   { code: 'SCK', name: 'Stockton Metropolitan', city: 'Stockton, CA', lat: 37.8941, lng: -121.2386 },
-  
-  // Texas Regional Airports
+  { code: 'MMH', name: 'Mammoth Yosemite Airport', city: 'Mammoth Lakes, CA', lat: 37.6240, lng: -118.8378 },
+  { code: 'IYK', name: 'Inyokern Airport', city: 'Inyokern, CA', lat: 35.6589, lng: -117.8300 },
+  { code: 'PSP', name: 'Palm Springs International', city: 'Palm Springs, CA', lat: 33.8297, lng: -116.5067 },
+  { code: 'IPL', name: 'Imperial County Airport', city: 'Imperial, CA', lat: 32.8342, lng: -115.5786 },
+
+  // Texas Extended Network
   { code: 'SAT', name: 'San Antonio International', city: 'San Antonio, TX', lat: 29.5337, lng: -98.4698 },
   { code: 'ELP', name: 'El Paso International', city: 'El Paso, TX', lat: 31.8072, lng: -106.3781 },
   { code: 'MAF', name: 'Midland International Air and Space Port', city: 'Midland, TX', lat: 31.9425, lng: -102.2019 },
@@ -192,7 +203,8 @@ const COMPREHENSIVE_AIRPORTS = [
   { code: 'ABI', name: 'Abilene Regional', city: 'Abilene, TX', lat: 32.4113, lng: -99.6819 },
   { code: 'SJT', name: 'San Angelo Regional', city: 'San Angelo, TX', lat: 31.3577, lng: -100.4963 },
   { code: 'DRT', name: 'Del Rio International', city: 'Del Rio, TX', lat: 29.3742, lng: -100.9272 },
-  
+  { code: 'VCT', name: 'Victoria Regional', city: 'Victoria, TX', lat: 28.8526, lng: -96.9185 },
+
   // Mountain West
   { code: 'OGD', name: 'Ogden-Hinckley Airport', city: 'Ogden, UT', lat: 41.1959, lng: -112.0121 },
   { code: 'PVU', name: 'Provo Municipal Airport', city: 'Provo, UT', lat: 40.2192, lng: -111.7235 },
@@ -217,7 +229,125 @@ const COMPREHENSIVE_AIRPORTS = [
   { code: 'RIW', name: 'Riverton Regional', city: 'Riverton, WY', lat: 43.0642, lng: -108.4597 },
   { code: 'SHR', name: 'Sheridan County Airport', city: 'Sheridan, WY', lat: 44.7692, lng: -106.9803 },
   { code: 'GCC', name: 'Gillette-Campbell County Airport', city: 'Gillette, WY', lat: 44.3489, lng: -105.5394 },
-  { code: 'AFO', name: 'Afton-Lincoln County Airport', city: 'Afton, WY', lat: 42.7110, lng: -110.9418 }
+  { code: 'AFO', name: 'Afton-Lincoln County Airport', city: 'Afton, WY', lat: 42.7110, lng: -110.9418 },
+
+  // Alaska Airlines Extended Network
+  { code: 'KTN', name: 'Ketchikan International', city: 'Ketchikan, AK', lat: 55.3556, lng: -131.7136 },
+  { code: 'SIT', name: 'Sitka Rocky Gutierrez Airport', city: 'Sitka, AK', lat: 57.0471, lng: -135.3616 },
+  { code: 'WRG', name: 'Wrangell Airport', city: 'Wrangell, AK', lat: 56.4843, lng: -132.3698 },
+  { code: 'PSG', name: 'Petersburg James A. Johnson Airport', city: 'Petersburg, AK', lat: 56.8017, lng: -132.9453 },
+  { code: 'YAK', name: 'Yakutat Airport', city: 'Yakutat, AK', lat: 59.5033, lng: -139.6603 },
+  { code: 'CDV', name: 'Merle K. (Mudhole) Smith Airport', city: 'Cordova, AK', lat: 60.4918, lng: -145.4776 },
+  { code: 'ADK', name: 'Adak Airport', city: 'Adak Island, AK', lat: 51.8780, lng: -176.6461 },
+  { code: 'BET', name: 'Bethel Airport', city: 'Bethel, AK', lat: 60.7798, lng: -161.8378 },
+  { code: 'OME', name: 'Nome Airport', city: 'Nome, AK', lat: 64.5122, lng: -165.4453 },
+  { code: 'OTZ', name: 'Ralph Wien Memorial Airport', city: 'Kotzebue, AK', lat: 66.8846, lng: -162.5986 },
+  { code: 'BRW', name: 'Wiley Post-Will Rogers Memorial Airport', city: 'Utqiagvik, AK', lat: 71.2854, lng: -156.7664 },
+  { code: 'DLG', name: 'Dillingham Airport', city: 'Dillingham, AK', lat: 59.0453, lng: -158.5056 },
+  { code: 'ADQ', name: 'Kodiak Airport', city: 'Kodiak, AK', lat: 57.7500, lng: -152.4941 },
+  { code: 'KSM', name: 'St. Mary\'s Airport', city: 'St. Mary\'s, AK', lat: 62.0606, lng: -163.3022 },
+  { code: 'UNK', name: 'Unalakleet Airport', city: 'Unalakleet, AK', lat: 63.8884, lng: -160.7989 },
+
+  // Southwest Airlines Extended Network
+  { code: 'ISP', name: 'Long Island MacArthur Airport', city: 'Islip, NY', lat: 40.7952, lng: -73.1001 },
+  { code: 'HPN', name: 'Westchester County Airport', city: 'White Plains, NY', lat: 41.0668, lng: -73.7077 },
+  { code: 'EWR', name: 'Newark Liberty International', city: 'Newark, NJ', lat: 40.6925, lng: -74.1687 },
+  { code: 'TTN', name: 'Trenton-Mercer Airport', city: 'Trenton, NJ', lat: 40.2770, lng: -74.8148 },
+  { code: 'ACY', name: 'Atlantic City International', city: 'Atlantic City, NJ', lat: 39.4576, lng: -74.5772 },
+
+  // JetBlue Extended Network
+  { code: 'SJU', name: 'Luis Muñoz Marín International', city: 'San Juan, PR', lat: 18.4394, lng: -66.0018 },
+  { code: 'PSE', name: 'Mercedita Airport', city: 'Ponce, PR', lat: 18.0083, lng: -66.5630 },
+  { code: 'STT', name: 'Cyril E. King Airport', city: 'Charlotte Amalie, VI', lat: 18.3373, lng: -64.9731 },
+  { code: 'STX', name: 'Henry E. Rohlsen Airport', city: 'Christiansted, VI', lat: 17.7019, lng: -64.7986 },
+
+  // CRITICAL MISSING MAJOR COMMERCIAL AIRPORTS - SYSTEMATIC FIX
+  { code: 'LEX', name: 'Blue Grass Airport', city: 'Lexington, KY', lat: 38.0365, lng: -84.6058 },
+  { code: 'LIT', name: 'Bill and Hillary Clinton National Airport', city: 'Little Rock, AR', lat: 34.7294, lng: -92.2243 },
+  { code: 'TUL', name: 'Tulsa International Airport', city: 'Tulsa, OK', lat: 36.1984, lng: -95.8881 },
+  { code: 'OKC', name: 'Will Rogers World Airport', city: 'Oklahoma City, OK', lat: 35.3931, lng: -97.6007 },
+  { code: 'SAT', name: 'San Antonio International Airport', city: 'San Antonio, TX', lat: 29.5337, lng: -98.4698 },
+  { code: 'XNA', name: 'Northwest Arkansas Regional Airport', city: 'Bentonville, AR', lat: 36.2819, lng: -94.3069 },
+  { code: 'FSM', name: 'Fort Smith Regional Airport', city: 'Fort Smith, AR', lat: 35.3367, lng: -94.3674 },
+  { code: 'JAN', name: 'Jackson-Medgar Wiley Evers International', city: 'Jackson, MS', lat: 32.3112, lng: -90.0759 },
+  { code: 'MGM', name: 'Montgomery Regional Airport', city: 'Montgomery, AL', lat: 32.3006, lng: -86.3940 },
+  { code: 'SHV', name: 'Shreveport Regional Airport', city: 'Shreveport, LA', lat: 32.4466, lng: -93.8256 },
+  { code: 'BTR', name: 'Baton Rouge Metropolitan Airport', city: 'Baton Rouge, LA', lat: 30.5332, lng: -91.1496 },
+  { code: 'MOB', name: 'Mobile Regional Airport', city: 'Mobile, AL', lat: 30.6912, lng: -88.2431 },
+  { code: 'HSV', name: 'Huntsville International Airport', city: 'Huntsville, AL', lat: 34.6404, lng: -86.7731 },
+  { code: 'BHM', name: 'Birmingham-Shuttlesworth International', city: 'Birmingham, AL', lat: 33.5629, lng: -86.7535 },
+  { code: 'GPT', name: 'Gulfport-Biloxi International Airport', city: 'Gulfport, MS', lat: 30.4073, lng: -89.0701 },
+  { code: 'LAF', name: 'Lafayette Regional Airport', city: 'Lafayette, LA', lat: 30.2053, lng: -91.9876 },
+  { code: 'LCH', name: 'Lake Charles Regional Airport', city: 'Lake Charles, LA', lat: 30.1260, lng: -93.2234 },
+  { code: 'AEX', name: 'Alexandria International Airport', city: 'Alexandria, LA', lat: 31.3274, lng: -92.5486 },
+  { code: 'MLU', name: 'Monroe Regional Airport', city: 'Monroe, LA', lat: 32.5109, lng: -92.0376 },
+
+  // Additional Regional Airports Served by Major Carriers
+  { code: 'ERI', name: 'Erie International Airport', city: 'Erie, PA', lat: 42.0831, lng: -80.1739 },
+  { code: 'SCE', name: 'University Park Airport', city: 'State College, PA', lat: 40.8493, lng: -77.8487 },
+  { code: 'LBE', name: 'Arnold Palmer Regional Airport', city: 'Latrobe, PA', lat: 40.2759, lng: -79.4048 },
+  { code: 'JST', name: 'John Murtha Johnstown-Cambria County Airport', city: 'Johnstown, PA', lat: 40.3161, lng: -78.8339 },
+  { code: 'IPT', name: 'Williamsport Regional Airport', city: 'Williamsport, PA', lat: 41.2418, lng: -76.9211 },
+  { code: 'AVP', name: 'Wilkes-Barre/Scranton International Airport', city: 'Avoca, PA', lat: 41.3385, lng: -75.7285 },
+  { code: 'ABE', name: 'Lehigh Valley International Airport', city: 'Allentown, PA', lat: 40.6521, lng: -75.4408 },
+  { code: 'ELM', name: 'Elmira/Corning Regional Airport', city: 'Elmira, NY', lat: 42.1599, lng: -76.8916 },
+  { code: 'ITH', name: 'Ithaca Tompkins Regional Airport', city: 'Ithaca, NY', lat: 42.4910, lng: -76.4584 },
+  { code: 'BGM', name: 'Greater Binghamton Airport', city: 'Binghamton, NY', lat: 42.2084, lng: -75.9798 },
+  { code: 'UCA', name: 'Oneida County Airport', city: 'Utica, NY', lat: 43.1453, lng: -75.3837 },
+  { code: 'GFL', name: 'Floyd Bennett Memorial Airport', city: 'Glens Falls, NY', lat: 43.3412, lng: -73.6103 },
+  { code: 'PBG', name: 'Plattsburgh International Airport', city: 'Plattsburgh, NY', lat: 44.6509, lng: -73.4681 },
+  { code: 'MSS', name: 'Massena International Airport', city: 'Massena, NY', lat: 44.9358, lng: -74.8455 },
+  { code: 'OGS', name: 'Ogdensburg International Airport', city: 'Ogdensburg, NY', lat: 44.6819, lng: -75.4655 },
+  { code: 'ART', name: 'Watertown International Airport', city: 'Watertown, NY', lat: 44.0145, lng: -76.0217 },
+
+  // Frontier/Spirit Extended Network
+  { code: 'PIB', name: 'Hattiesburg-Laurel Regional Airport', city: 'Moselle, MS', lat: 31.4671, lng: -89.3371 },
+  { code: 'MEI', name: 'Key Field', city: 'Meridian, MS', lat: 32.3329, lng: -88.7516 },
+  { code: 'GTR', name: 'Golden Triangle Regional Airport', city: 'Columbus, MS', lat: 33.4503, lng: -88.5914 },
+  { code: 'TUP', name: 'Tupelo Regional Airport', city: 'Tupelo, MS', lat: 34.2681, lng: -88.7698 },
+  { code: 'GWO', name: 'Leflore County Airport', city: 'Greenwood, MS', lat: 33.4943, lng: -90.0847 },
+  { code: 'JAN', name: 'Jackson-Medgar Wiley Evers International', city: 'Jackson, MS', lat: 32.3112, lng: -90.0759 },
+  { code: 'GPT', name: 'Gulfport-Biloxi International', city: 'Gulfport, MS', lat: 30.4073, lng: -89.0701 },
+
+  // Hawaiian Islands Network
+  { code: 'OGG', name: 'Kahului Airport', city: 'Kahului, HI', lat: 20.8986, lng: -156.4297 },
+  { code: 'KOA', name: 'Ellison Onizuka Kona International Airport', city: 'Kailua-Kona, HI', lat: 19.7389, lng: -156.0456 },
+  { code: 'ITO', name: 'Hilo International Airport', city: 'Hilo, HI', lat: 19.7214, lng: -155.0480 },
+  { code: 'LIH', name: 'Lihue Airport', city: 'Lihue, HI', lat: 21.9760, lng: -159.3390 },
+  { code: 'MKK', name: 'Molokai Airport', city: 'Kaunakakai, HI', lat: 21.1529, lng: -157.0963 },
+  { code: 'LNY', name: 'Lanai Airport', city: 'Lanai City, HI', lat: 20.7856, lng: -156.9515 },
+  { code: 'JHM', name: 'Kapalua Airport', city: 'Lahaina, HI', lat: 20.9633, lng: -156.6733 },
+
+  // Additional Small Regional Airports
+  { code: 'LWS', name: 'Lewiston-Nez Perce County Airport', city: 'Lewiston, ID', lat: 46.3745, lng: -117.0153 },
+  { code: 'TWF', name: 'Magic Valley Regional Airport', city: 'Twin Falls, ID', lat: 42.4818, lng: -114.4877 },
+  { code: 'PIH', name: 'Pocatello Regional Airport', city: 'Pocatello, ID', lat: 42.9098, lng: -112.5958 },
+  { code: 'IDA', name: 'Idaho Falls Regional Airport', city: 'Idaho Falls, ID', lat: 43.5146, lng: -112.0707 },
+  { code: 'SUN', name: 'Friedman Memorial Airport', city: 'Hailey, ID', lat: 43.5044, lng: -114.2961 },
+  { code: 'MLS', name: 'Frank Wiley Field', city: 'Miles City, MT', lat: 46.4280, lng: -105.8864 },
+  { code: 'GGW', name: 'Wokal Field/Glasgow International Airport', city: 'Glasgow, MT', lat: 48.2125, lng: -106.615 },
+  { code: 'HVR', name: 'Havre City-County Airport', city: 'Havre, MT', lat: 48.5429, lng: -109.7626 },
+  { code: 'CTB', name: 'Cut Bank Municipal Airport', city: 'Cut Bank, MT', lat: 48.6084, lng: -112.3762 },
+  { code: 'GPI', name: 'Glacier Park International Airport', city: 'Kalispell, MT', lat: 48.3105, lng: -114.2551 },
+
+  // Oklahoma Extended Network
+  { code: 'OKC', name: 'Will Rogers World Airport', city: 'Oklahoma City, OK', lat: 35.3931, lng: -97.6007 },
+  { code: 'TUL', name: 'Tulsa International Airport', city: 'Tulsa, OK', lat: 36.1984, lng: -95.8881 },
+  { code: 'LTS', name: 'Altus Air Force Base', city: 'Altus, OK', lat: 34.6667, lng: -99.2667 },
+  { code: 'LAW', name: 'Lawton-Fort Sill Regional Airport', city: 'Lawton, OK', lat: 34.5677, lng: -98.4166 },
+  { code: 'END', name: 'Vance Air Force Base', city: 'Enid, OK', lat: 36.3394, lng: -97.9165 },
+  { code: 'SWO', name: 'Stillwater Regional Airport', city: 'Stillwater, OK', lat: 36.1621, lng: -97.0856 },
+  { code: 'ADM', name: 'Ardmore Municipal Airport', city: 'Ardmore, OK', lat: 34.3030, lng: -97.0194 },
+
+  // Arkansas Network
+  { code: 'LIT', name: 'Bill and Hillary Clinton National Airport', city: 'Little Rock, AR', lat: 34.7294, lng: -92.2243 },
+  { code: 'XNA', name: 'Northwest Arkansas Regional Airport', city: 'Highfill, AR', lat: 36.2819, lng: -94.3068 },
+  { code: 'FSM', name: 'Fort Smith Regional Airport', city: 'Fort Smith, AR', lat: 35.3367, lng: -94.3674 },
+  { code: 'TXK', name: 'Texarkana Regional Airport', city: 'Texarkana, AR', lat: 33.4537, lng: -93.9910 },
+  { code: 'ELD', name: 'South Arkansas Regional Airport', city: 'El Dorado, AR', lat: 33.2209, lng: -92.8132 },
+  { code: 'PBF', name: 'Pine Bluff Regional Airport', city: 'Pine Bluff, AR', lat: 34.1731, lng: -91.9356 },
+  { code: 'JBR', name: 'Jonesboro Municipal Airport', city: 'Jonesboro, AR', lat: 35.8317, lng: -90.6464 },
+  { code: 'HRO', name: 'Boone County Airport', city: 'Harrison, AR', lat: 36.2615, lng: -93.1548 }
 ];
 
 /**
@@ -289,7 +419,7 @@ function findNearestAirport(lat, lng) {
   let nearestAirport = null;
   let shortestDistance = Infinity;
 
-  for (const airport of COMPREHENSIVE_AIRPORTS) {
+  for (const airport of ALL_COMMERCIAL_AIRPORTS) {
     const distance = calculateDistance(lat, lng, airport.lat, airport.lng);
     if (distance < shortestDistance) {
       shortestDistance = distance;

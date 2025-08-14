@@ -1822,7 +1822,7 @@ app.put('/api/tables/:id/general', authenticate, async (req, res) => {
 });
 
 // AIRPORT LOOKUP API
-const { findNearestAirportByAddress } = require('./services/comprehensiveAirportService');
+const { findNearestAirportByAddress } = require('./services/allAirlinesAirportService');
 
 app.post('/api/airport-lookup', authenticate, async (req, res) => {
   try {
