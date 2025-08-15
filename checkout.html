@@ -372,6 +372,18 @@
             box-shadow: 0 6px 16px rgba(204, 0, 7, 0.4);
         }
 
+        .btn-danger {
+            background: #dc3545;
+            color: white;
+            border: 2px solid #dc3545;
+        }
+
+        .btn-danger:hover:not(:disabled) {
+            background: #c82333;
+            border-color: #bd2130;
+            transform: translateY(-2px);
+        }
+
         .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
@@ -409,6 +421,19 @@
             display: flex;
             align-items: center;
             gap: 12px;
+        }
+
+        /* Tablet Responsive Styles */
+        @media (max-width: 992px) {
+            .action-buttons-content {
+                flex-direction: column;
+                gap: 12px;
+            }
+            
+            .btn {
+                width: 100%;
+                max-width: none;
+            }
         }
 
         /* Mobile Responsive Styles */
@@ -457,14 +482,15 @@
                 padding: 8px 16px;
             }
             
-            .action-buttons {
+            .action-buttons-content {
                 flex-direction: column;
                 gap: 12px;
             }
             
-            .action-btn {
+            .btn {
                 width: 100%;
                 justify-content: center;
+                max-width: none;
             }
         }
 
@@ -532,6 +558,10 @@
                 <span class="material-symbols-outlined">add_shopping_cart</span>
                 Add More Items
             </button>
+            <button class="btn btn-danger" id="emptyCartBtn" disabled>
+                <span class="material-symbols-outlined">delete_sweep</span>
+                Empty Cart
+            </button>
             <button class="btn btn-primary" onclick="reserveItems()" id="reserveBtn" disabled>
                 <span class="material-symbols-outlined">bookmark_add</span>
                 Reserve Items
@@ -544,6 +574,90 @@
         let currentCart = null;
         let eventId = null;
 
+        // Button loading state functions
+        function showQuantityButtonLoading(button, operation) {
+            if (!button) return;
+            
+            // Store original content
+            button.setAttribute('data-original-html', button.innerHTML);
+            
+            // Show loading state with smaller spinner for quantity buttons
+            button.innerHTML = `
+                <div class="loading-spinner" style="width: 12px; height: 12px; border: 2px solid #cc000740; border-top: 2px solid #cc0007; border-radius: 50%; animation: spin 1s linear infinite;"></div>
+            `;
+            button.disabled = true;
+            button.style.cursor = 'not-allowed';
+        }
+
+        function hideQuantityButtonLoading(button) {
+            if (!button) return;
+            
+            // Restore original content
+            const originalHtml = button.getAttribute('data-original-html');
+            if (originalHtml) {
+                button.innerHTML = originalHtml;
+                button.removeAttribute('data-original-html');
+            }
+            button.disabled = false;
+            button.style.cursor = 'pointer';
+        }
+
+        function showRemoveButtonLoading(button) {
+            if (!button) return;
+            
+            // Store original content
+            button.setAttribute('data-original-html', button.innerHTML);
+            
+            // Show loading state
+            button.innerHTML = `
+                <div class="loading-spinner" style="width: 12px; height: 12px; border: 2px solid #ffffff40; border-top: 2px solid #ffffff; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 4px;"></div>
+                Removing...
+            `;
+            button.disabled = true;
+            button.style.cursor = 'not-allowed';
+        }
+
+        function hideRemoveButtonLoading(button) {
+            if (!button) return;
+            
+            // Restore original content
+            const originalHtml = button.getAttribute('data-original-html');
+            if (originalHtml) {
+                button.innerHTML = originalHtml;
+                button.removeAttribute('data-original-html');
+            }
+            button.disabled = false;
+            button.style.cursor = 'pointer';
+        }
+
+        function showEmptyCartLoading(button) {
+            if (!button) return;
+            
+            // Store original content
+            button.setAttribute('data-original-html', button.innerHTML);
+            
+            // Show loading state
+            button.innerHTML = `
+                <div class="loading-spinner" style="width: 16px; height: 16px; border: 2px solid #ffffff40; border-top: 2px solid #ffffff; border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px;"></div>
+                Emptying...
+            `;
+            button.disabled = true;
+            button.style.cursor = 'not-allowed';
+        }
+
+        function hideEmptyCartLoading(button) {
+            if (!button) return;
+            
+            // Restore original content
+            const originalHtml = button.getAttribute('data-original-html');
+            if (originalHtml) {
+                button.innerHTML = originalHtml;
+                button.removeAttribute('data-original-html');
+            }
+            button.disabled = false;
+            button.style.cursor = 'pointer';
+        }
+
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
             eventId = new URLSearchParams(window.location.search).get('eventId');
@@ -551,6 +665,12 @@
                 alert('No event ID provided');
                 window.history.back();
                 return;
+            }
+
+            // Add event listener for empty cart button
+            const emptyCartBtn = document.getElementById('emptyCartBtn');
+            if (emptyCartBtn) {
+                emptyCartBtn.addEventListener('click', emptyCart);
             }
 
             loadCart();
@@ -749,10 +869,14 @@
                                     
                                     <div class="item-controls">
                                         <div class="quantity-controls">
-                                            <button class="quantity-btn" onclick="updateQuantity('${item._id}', ${item.quantity - 1})" 
+                                            <button class="quantity-btn quantity-decrease" 
+                                                    data-item-id="${item._id}" 
+                                                    data-new-quantity="${item.quantity - 1}"
                                                     ${item.quantity <= 1 ? 'disabled' : ''}>−</button>
                                             <span class="quantity-display">${item.quantity}</span>
-                                            <button class="quantity-btn" onclick="updateQuantity('${item._id}', ${item.quantity + 1})"
+                                            <button class="quantity-btn quantity-increase" 
+                                                    data-item-id="${item._id}" 
+                                                    data-new-quantity="${item.quantity + 1}"
                                                     ${(item.availableQuantity || 0) <= 0 ? 'disabled' : ''}>+</button>
                                         </div>
                                         ${item.availableQuantity !== undefined ? `
@@ -762,7 +886,7 @@
                                                 </span>
                                             </div>
                                         ` : ''}
-                                        <button class="remove-btn" onclick="removeItem('${item._id}')">
+                                        <button class="remove-btn remove-item-btn" data-item-id="${item._id}">
                                             <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
                                             Remove
                                         </button>
@@ -775,11 +899,51 @@
             `;
 
             container.innerHTML = cartHTML;
+            
+            // Add event listeners for quantity buttons
+            document.querySelectorAll('.quantity-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    if (this.disabled) return;
+                    
+                    const itemId = this.getAttribute('data-item-id');
+                    const newQuantity = parseInt(this.getAttribute('data-new-quantity'));
+                    
+                    // Show loading state
+                    showQuantityButtonLoading(this);
+                    
+                    // Call the async function and handle completion
+                    updateQuantity(itemId, newQuantity, this).finally(() => {
+                        // Hide loading state (button might be re-rendered, so check if it still exists)
+                        if (document.contains(this)) {
+                            hideQuantityButtonLoading(this);
+                        }
+                    });
+                });
+            });
+            
+            // Add event listeners for remove buttons
+            document.querySelectorAll('.remove-item-btn').forEach(button => {
+                button.addEventListener('click', function() {
+                    const itemId = this.getAttribute('data-item-id');
+                    
+                    // Show loading state
+                    showRemoveButtonLoading(this);
+                    
+                    // Call the async function and handle completion
+                    removeItem(itemId, false, this).finally(() => {
+                        // Hide loading state (button might be re-rendered, so check if it still exists)
+                        if (document.contains(this)) {
+                            hideRemoveButtonLoading(this);
+                        }
+                    });
+                });
+            });
+            
             updateReserveButton();
         }
 
         // Update item quantity
-        async function updateQuantity(itemId, newQuantity) {
+        async function updateQuantity(itemId, newQuantity, clickedButton = null) {
             // If quantity becomes 0, remove the item instead
             if (newQuantity < 1) {
                 await removeItem(itemId, true); // Skip confirmation when reducing to 0
@@ -798,6 +962,10 @@
             if (cartItem && cartItem.availableQuantity !== undefined) {
                 const additionalQuantityNeeded = newQuantity - cartItem.quantity;
                 if (additionalQuantityNeeded > cartItem.availableQuantity) {
+                    // Hide loading state before showing alert
+                    if (clickedButton && document.contains(clickedButton)) {
+                        hideQuantityButtonLoading(clickedButton);
+                    }
                     alert(`Only ${cartItem.availableQuantity} additional units available for this item.`);
                     return;
                 }
@@ -864,7 +1032,7 @@
         }
 
         // Remove item from cart
-        async function removeItem(itemId, skipConfirmation = false) {
+        async function removeItem(itemId, skipConfirmation = false, clickedButton = null) {
             // Check if this is a grouped item
             if (itemId.startsWith('grouped_')) {
                 const groupedItems = currentCart.items.filter(item => 
@@ -874,6 +1042,10 @@
                 );
                 
                 if (!skipConfirmation && !confirm(`Remove all ${groupedItems.length} grouped items from your cart?`)) {
+                    // Hide loading state if user cancels
+                    if (clickedButton && document.contains(clickedButton)) {
+                        hideRemoveButtonLoading(clickedButton);
+                    }
                     return;
                 }
 
@@ -897,6 +1069,10 @@
             }
 
             if (!skipConfirmation && !confirm('Remove this item from your cart?')) {
+                // Hide loading state if user cancels
+                if (clickedButton && document.contains(clickedButton)) {
+                    hideRemoveButtonLoading(clickedButton);
+                }
                 return;
             }
 
@@ -919,6 +1095,48 @@
             } catch (error) {
                 console.error('Error removing item:', error);
                 alert('Failed to remove item. Please try again.');
+            }
+        }
+
+        // Empty cart with confirmation
+        async function emptyCart() {
+            if (!currentCart || !currentCart.items || currentCart.items.length === 0) {
+                alert('Your cart is already empty');
+                return;
+            }
+
+            const itemCount = currentCart.items.length;
+            const confirmMessage = `Are you sure you want to remove all ${itemCount} item${itemCount !== 1 ? 's' : ''} from your cart?\n\nThis action cannot be undone.`;
+            
+            if (!confirm(confirmMessage)) {
+                return;
+            }
+
+            // Show loading state
+            const emptyCartBtn = document.getElementById('emptyCartBtn');
+            showEmptyCartLoading(emptyCartBtn);
+
+            try {
+                const response = await fetch(`${API_BASE}/api/carts/${eventId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+
+                if (response.ok) {
+                    currentCart = { items: [] };
+                    renderCart();
+                    showToast('Cart emptied successfully!', 'success');
+                } else {
+                    const error = await response.json();
+                    alert(error.error || 'Failed to empty cart');
+                }
+            } catch (error) {
+                console.error('Error emptying cart:', error);
+                alert('Failed to empty cart. Please try again.');
+            } finally {
+                hideEmptyCartLoading(emptyCartBtn);
             }
         }
 
@@ -1058,9 +1276,11 @@
 
         function updateReserveButton() {
             const reserveBtn = document.getElementById('reserveBtn');
+            const emptyCartBtn = document.getElementById('emptyCartBtn');
             const hasItems = currentCart && currentCart.items && currentCart.items.length > 0;
             const hasAvailableItems = hasItems && currentCart.items.some(item => isItemAvailable(item));
             
+            // Update Reserve button
             reserveBtn.disabled = !hasAvailableItems;
             
             if (!hasItems) {
@@ -1079,6 +1299,24 @@
                     <span class="material-symbols-outlined">bookmark_add</span>
                     Reserve ${availableCount} Items
                 `;
+            }
+            
+            // Update Empty Cart button
+            if (emptyCartBtn) {
+                emptyCartBtn.disabled = !hasItems;
+                
+                if (!hasItems) {
+                    emptyCartBtn.innerHTML = `
+                        <span class="material-symbols-outlined">delete_sweep</span>
+                        Cart Empty
+                    `;
+                } else {
+                    const itemCount = currentCart.items.length;
+                    emptyCartBtn.innerHTML = `
+                        <span class="material-symbols-outlined">delete_sweep</span>
+                        Empty Cart (${itemCount})
+                    `;
+                }
             }
         }
 

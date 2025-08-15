@@ -389,7 +389,6 @@ function showCrewListModal() {
         ${crewArr.map(({name, email}) => `<li style='margin-bottom:8px;'><strong>${name}</strong>${email ? `<br><a href='mailto:${email}' style='color:#CC0007;text-decoration:underline;'>${email}</a>` : ''}</li>`).join('')}
       </ul>
       <button id='emailEveryoneBtn' style='background:#e0e0e0;color:#333;border:1px solid #bbb;border-radius:8px;padding:10px 22px;font-weight:400;font-size:16px;box-shadow:none;cursor:pointer;'>Email Everyone</button>
-      <button id='sendCalendarInviteBtn' style='background:#CC0007;color:#fff;border:none;border-radius:8px;padding:10px 22px;font-weight:400;font-size:16px;box-shadow:0 2px 8px rgba(204,0,7,0.08);cursor:pointer;'>Send Calendar Invite</button>
       <button id='closeCrewListModalBtn' style='background:#6c757d;color:#fff;border:none;border-radius:8px;padding:10px 22px;font-weight:600;font-size:16px;box-shadow:0 2px 8px rgba(204,0,7,0.08);cursor:pointer;'>Close</button>
     </div>
   `;
@@ -405,78 +404,6 @@ function showCrewListModal() {
       alert('No emails found for crew.');
     }
   };
-  document.getElementById('sendCalendarInviteBtn').onclick = () => {
-    sendCalendarInvite(crewArr);
-  };
-}
-
-function sendCalendarInvite(crewArr) {
-  // Get event details from tableData
-  if (!tableData || !tableData.general) {
-    alert('Event information not available. Please try again.');
-    return;
-  }
-
-  const general = tableData.general;
-  const eventTitle = tableData.title || 'Event';
-  const startDate = general.start;
-  const endDate = general.end;
-
-  if (!startDate || !endDate) {
-    alert('Event dates not set. Please add start and end dates in the General page first.');
-    return;
-  }
-
-  // Convert ISO dates to YYYYMMDD format for Google Calendar
-  const formatDateForCalendar = (isoDate) => {
-    const date = new Date(isoDate);
-    const year = date.getUTCFullYear();
-    const month = String(date.getUTCMonth() + 1).padStart(2, '0');
-    const day = String(date.getUTCDate()).padStart(2, '0');
-    return `${year}${month}${day}`;
-  };
-
-  const startDateFormatted = formatDateForCalendar(startDate);
-  const endDateFormatted = formatDateForCalendar(endDate);
-  
-  // For all-day events, end date should be the day after the last day
-  const endDateObj = new Date(endDate);
-  endDateObj.setUTCDate(endDateObj.getUTCDate() + 1);
-  const endDateFormattedNext = formatDateForCalendar(endDateObj.toISOString());
-
-  // Get crew emails for attendees
-  const crewEmails = crewArr.filter(c => c.email).map(c => c.email).join(',');
-
-  // Get event summary and location from general data
-  const eventSummary = general.summary || '';
-  const eventLocation = general.location || '';
-  
-  // Build description with event summary and crew list
-  let description = '';
-  if (eventSummary) {
-    // Remove HTML tags if present in summary for calendar description
-    const cleanSummary = eventSummary.replace(/<[^>]*>/g, '');
-    description = cleanSummary;
-  }
-  
-  if (crewEmails) {
-    description += `${description ? '\n\n' : ''}Crew members:\n${crewArr.map(c => `• ${c.name}${c.email ? ` (${c.email})` : ''}`).join('\n')}`;
-  }
-
-  // Build Google Calendar URL
-  const calendarParams = new URLSearchParams({
-    action: 'TEMPLATE',
-    text: eventTitle,
-    dates: `${startDateFormatted}/${endDateFormattedNext}`,
-    details: description,
-    location: eventLocation,
-    add: crewEmails || ''
-  });
-
-  const calendarUrl = `https://calendar.google.com/calendar/render?${calendarParams.toString()}`;
-
-  // Open Google Calendar in new tab/window
-  window.open(calendarUrl, '_blank');
 }
 
 async function saveEditById(rowId) {

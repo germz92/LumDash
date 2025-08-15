@@ -54,76 +54,6 @@ function getWeatherIcon(weatherText) {
   return 'cloud'; // Default Material Symbol
 }
 
-// Debounce utility function
-function debounce(func, wait) {
-  let timeout;
-  return function executedFunction(...args) {
-    const later = () => {
-      clearTimeout(timeout);
-      func(...args);
-    };
-    clearTimeout(timeout);
-    timeout = setTimeout(later, wait);
-  };
-}
-
-// Function to lookup nearest airport based on location
-async function lookupNearestAirport() {
-  const locationEl = document.getElementById('location');
-  if (!locationEl || !locationEl.value) return;
-
-  const location = locationEl.value.trim();
-  if (location.length < 3) return; // Wait for at least 3 characters
-
-  try {
-    console.log('Looking up nearest airport for:', location);
-    
-    const response = await fetch(`${API_BASE}/api/airport-lookup`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': window.token
-      },
-      body: JSON.stringify({ address: location })
-    });
-
-    if (response.ok) {
-      const data = await response.json();
-      const airportEl = document.getElementById('airport');
-      
-      if (data.airport && airportEl) {
-        const airportText = `${data.airport.code} - ${data.airport.name} (${data.airport.distance} mi)`;
-        
-        // Update the airport field
-        if (airportEl.tagName === 'TEXTAREA') {
-          airportEl.value = airportText;
-          autoResizeTextarea(airportEl);
-        } else {
-          airportEl.textContent = airportText;
-          airportEl.dataset.value = airportText;
-        }
-        
-        console.log('Updated airport field:', airportText);
-      } else if (airportEl) {
-        // No airport found - clear the field or show a message
-        const noAirportText = 'No nearby airport found';
-        
-        if (airportEl.tagName === 'TEXTAREA') {
-          airportEl.value = noAirportText;
-          autoResizeTextarea(airportEl);
-        } else {
-          airportEl.textContent = noAirportText;
-          airportEl.dataset.value = noAirportText;
-        }
-        
-        console.log('No airport found for location:', location);
-      }
-    }
-  } catch (error) {
-    console.error('Error looking up airport:', error);
-  }
-}
-
 // Function to update the weather label icon based on current weather text
 function updateWeatherIcon() {
   const weatherLabel = document.querySelector('label[for="weather"]');
@@ -716,7 +646,7 @@ function initPage(id) {
       const eventTitleEl = document.getElementById('eventTitle');
       if (eventTitleEl) eventTitleEl.textContent = table.title;
 
-      ['eventSummary', 'location', 'weather', 'attendees', 'airport'].forEach(field => {
+      ['eventSummary', 'location', 'weather', 'attendees', 'budget'].forEach(field => {
         const el = document.getElementById(field === 'eventSummary' ? 'summary' : field);
         if (el) {
           const div = document.createElement('div');
@@ -883,7 +813,7 @@ async function saveGeneralInfo() {
     location: getText('location'),
     weather: getText('weather'),
     attendees: getText('attendees'),
-    airport: getText('airport'),
+    budget: getText('budget'),
     start: document.getElementById('start')?.value || '',
     end: document.getElementById('end')?.value || '',
     contacts: collectContacts(),
@@ -935,7 +865,7 @@ function switchToEdit() {
 
   console.log('[GENERAL] switchToEdit called');
 
-  ['eventSummary', 'location', 'weather', 'attendees', 'airport'].forEach(id => {
+  ['eventSummary', 'location', 'weather', 'attendees', 'budget'].forEach(id => {
     const element = document.getElementById(id === 'eventSummary' ? 'summary' : id);
     if (!element) return;
     
@@ -991,11 +921,6 @@ function switchToEdit() {
       // Add input handler for weather field to update icon
       if (id === 'weather') {
         textarea.addEventListener('input', updateWeatherIcon);
-      }
-      
-      // Add input handler for location field to lookup nearest airport
-      if (id === 'location') {
-        textarea.addEventListener('input', debounce(lookupNearestAirport, 1000));
       }
     }
   });

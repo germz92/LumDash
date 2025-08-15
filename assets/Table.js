@@ -22,7 +22,7 @@ const tableSchema = new mongoose.Schema({
     end: String,
     client: String, // ✅ Added client field
     attendees: Number,
-    airport: String,
+    budget: String,
     contacts: [
       {
         name: String,
