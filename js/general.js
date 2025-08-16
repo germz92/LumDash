@@ -4,6 +4,7 @@ window.token = window.token || localStorage.getItem('token');
 const params = new URLSearchParams(window.location.search);
 let tableId = params.get('id') || localStorage.getItem('eventId');
 let isOwner = false;
+let clockInterval = null; // Global clock interval for time modal
 
 // Socket.IO real-time updates
 if (window.socket) {
@@ -768,6 +769,25 @@ function initPage(id) {
       if (window.setupBottomNavigation) {
         window.setupBottomNavigation(null, tableId, 'general'); // Changed page to general
       }
+      
+      // Initialize clock functionality after DOM is ready
+      // Use multiple attempts to ensure DOM elements are available
+      let clockInitAttempts = 0;
+      const tryInitClock = () => {
+        clockInitAttempts++;
+        const clockBtn = document.getElementById('clockIconBtn');
+        
+        if (clockBtn) {
+          console.log('[CLOCK] Clock button found, initializing...');
+          initializeClock();
+        } else if (clockInitAttempts < 5) {
+          console.log(`[CLOCK] Clock button not ready yet (attempt ${clockInitAttempts}), retrying...`);
+          setTimeout(tryInitClock, 200);
+        } else {
+          console.error('[CLOCK] Failed to find clock button after 5 attempts');
+        }
+      };
+      setTimeout(tryInitClock, 100);
     })
     .catch(err => console.error('Error loading event:', err));
 }
@@ -991,47 +1011,209 @@ window.insertMarkdown = insertMarkdown;
 window.updateMarkdownPreview = updateMarkdownPreview;
 
 // CLOCK ICON LOGIC
-(function() {
+function showTimeModal() {
+  // Create modal overlay
+  const modal = document.createElement('div');
+  modal.id = 'timeModal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.95);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    cursor: pointer;
+    backdrop-filter: blur(5px);
+  `;
+
+  // Create time container
+  const timeContainer = document.createElement('div');
+  timeContainer.style.cssText = `
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 24px;
+    padding: 60px 40px;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  `;
+
+  // Create close button
+  const closeBtn = document.createElement('button');
+  closeBtn.innerHTML = '×';
+  closeBtn.style.cssText = `
+    position: absolute;
+    top: 20px;
+    right: 25px;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    font-size: 40px;
+    color: white;
+    cursor: pointer;
+    padding: 10px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.3s ease;
+  `;
+  closeBtn.onmouseover = () => closeBtn.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+  closeBtn.onmouseout = () => closeBtn.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+  closeBtn.onclick = (e) => {
+    e.stopPropagation();
+    closeTimeModal();
+  };
+
+  // Create time display
+  const timeDisplay = document.createElement('div');
+  timeDisplay.id = 'modalTimeDisplay';
+  timeDisplay.style.cssText = `
+    font-size: clamp(2.5rem, 8vw, 4rem);
+    font-weight: 300;
+    color: white;
+    text-align: center;
+    font-family: 'Roboto', monospace;
+    letter-spacing: 0.1em;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    margin-bottom: 20px;
+  `;
+
+  // Create date display
+  const dateDisplay = document.createElement('div');
+  dateDisplay.id = 'modalDateDisplay';
+  dateDisplay.style.cssText = `
+    font-size: clamp(1rem, 4vw, 1.5rem);
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.9);
+    text-align: center;
+    margin-bottom: 30px;
+  `;
+
+  // Create timezone display
+  const timezoneDisplay = document.createElement('div');
+  timezoneDisplay.style.cssText = `
+    font-size: 1rem;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+  `;
+
+  function updateTime() {
+    const now = new Date();
+    
+    // Format time
+    timeDisplay.textContent = now.toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      hour12: false 
+    });
+    
+    // Format date
+    dateDisplay.textContent = now.toLocaleDateString([], { 
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    // Format timezone
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    timezoneDisplay.textContent = timezone.replace('_', ' ');
+  }
+
+  // Initial time update
+  updateTime();
+  
+  // Start interval for live updates
+  clockInterval = setInterval(updateTime, 1000);
+
+  // Add elements to container
+  timeContainer.appendChild(closeBtn);
+  timeContainer.appendChild(timeDisplay);
+  timeContainer.appendChild(dateDisplay);
+  timeContainer.appendChild(timezoneDisplay);
+
+  // Add container to modal
+  modal.appendChild(timeContainer);
+
+  // Add modal to document
+  document.body.appendChild(modal);
+
+  // Close modal when clicking outside
+  modal.onclick = (e) => {
+    if (e.target === modal) {
+      closeTimeModal();
+    }
+  };
+
+  // Prevent scrolling when modal is open
+  document.body.style.overflow = 'hidden';
+
+  // Handle ESC key
+  const handleEsc = (e) => {
+    if (e.key === 'Escape') {
+      closeTimeModal();
+    }
+  };
+  document.addEventListener('keydown', handleEsc);
+  
+  // Store the event listener for cleanup
+  modal.escHandler = handleEsc;
+
+  console.log('[CLOCK] Time modal opened');
+}
+
+function closeTimeModal() {
+  const modal = document.getElementById('timeModal');
+  if (modal) {
+    // Clear the interval
+    if (clockInterval) {
+      clearInterval(clockInterval);
+      clockInterval = null;
+    }
+    
+    // Remove ESC key listener
+    if (modal.escHandler) {
+      document.removeEventListener('keydown', modal.escHandler);
+    }
+    
+    modal.remove();
+    document.body.style.overflow = '';
+    console.log('[CLOCK] Time modal closed');
+  }
+}
+
+function initializeClock() {
   const clockBtn = document.getElementById('clockIconBtn');
-  const clockPopup = document.getElementById('clockPopup');
-  let clockInterval = null;
 
-  function formatTime(date) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  }
-
-  function showClock() {
-    clockPopup.style.display = 'block';
-    clockPopup.textContent = formatTime(new Date());
-    clockInterval = setInterval(() => {
-      clockPopup.textContent = formatTime(new Date());
-    }, 1000);
-  }
-
-  function hideClock() {
-    clockPopup.style.display = 'none';
-    if (clockInterval) clearInterval(clockInterval);
-    clockInterval = null;
-  }
-
-  if (clockBtn && clockPopup) {
-    let isVisible = false;
-    clockBtn.addEventListener('click', (e) => {
+  if (clockBtn) {
+    console.log('[CLOCK] Clock button found, initializing click handler');
+    
+    // Remove any existing listeners to prevent duplicates
+    clockBtn.removeEventListener('click', window.clockButtonHandler);
+    
+    // Create named handler for easier removal
+    window.clockButtonHandler = (e) => {
+      console.log('[CLOCK] Clock button clicked - opening time modal');
       e.stopPropagation();
-      isVisible = !isVisible;
-      if (isVisible) {
-        showClock();
-      } else {
-        hideClock();
-      }
-    });
-    // Hide popup when clicking outside
-    document.addEventListener('click', (e) => {
-      if (isVisible && !clockPopup.contains(e.target) && e.target !== clockBtn) {
-        hideClock();
-        isVisible = false;
-      }
-    });
+      showTimeModal();
+    };
+    
+    clockBtn.addEventListener('click', window.clockButtonHandler);
+    
+    console.log('[CLOCK] Clock handlers attached successfully');
+  } else {
+    console.warn('[CLOCK] Clock button not found');
   }
-})();
+}
 })();
