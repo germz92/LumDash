@@ -547,22 +547,7 @@
   color: #a30005;
   background-color: #e0e0e0;
 }
-.clock-popup {
-  display: none;
-  position: absolute;
-  top: 40px;
-  right: 0;
-  background: #fff;
-  color: #222;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-  padding: 12px 18px;
-  font-size: 1.5rem;
-  min-width: 120px;
-  text-align: center;
-  z-index: 2100;
-}
+/* Clock popup styles removed - now using fullscreen modal */
 @media (max-width: 600px) {
   .container > div:first-child {
     display: flex !important;
@@ -582,17 +567,11 @@
   .general-page .container {
     padding-top: 10px !important;
   }
-  .clock-popup {
-    font-size: 1rem;
-    min-width: 90px;
-    padding: 8px 10px;
-  }
+  /* Mobile clock popup styles removed */
 }
 
 #clockIconContainer {
-  position: absolute;
-  top: 8px;
-  right: 16px;
+  position: relative;
   z-index: 2100;
   display: inline-block;
 }
