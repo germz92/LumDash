@@ -437,6 +437,17 @@ function insertAdminNotesBtn(tableId) {
   };
   container.appendChild(folderBtn);
 
+  // Add QR Code button for all users, styled like folder icon
+  const qrBtn = document.createElement('button');
+  qrBtn.innerHTML = '<span class="material-symbols-outlined">qr_code</span>';
+  qrBtn.className = 'qr-code-btn';
+  qrBtn.style = 'margin-bottom: 18px; margin-left: 8px; background: none; color: #888; border: none; border-radius: 8px; padding: 8px; font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;';
+  qrBtn.title = 'QR Code';
+  qrBtn.onclick = () => {
+    showQRCodeModal();
+  };
+  container.appendChild(qrBtn);
+
   // Add Task icon button for owners, styled like folder icon, to the right
   if (isOwner) {
     const taskBtn = document.createElement('button');
@@ -448,17 +459,6 @@ function insertAdminNotesBtn(tableId) {
       window.location.href = `/pages/tasks.html?id=${tableId}`;
     };
     container.appendChild(taskBtn);
-
-    // Add QR Code button for owners, styled like folder icon, to the right
-    const qrBtn = document.createElement('button');
-    qrBtn.innerHTML = '<span class="material-symbols-outlined">qr_code</span>';
-    qrBtn.className = 'qr-code-btn';
-    qrBtn.style = 'margin-bottom: 18px; margin-left: 8px; background: none; color: #888; border: none; border-radius: 8px; padding: 8px; font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;';
-    qrBtn.title = 'QR Code';
-    qrBtn.onclick = () => {
-      showQRCodeModal();
-    };
-    container.appendChild(qrBtn);
   }
   console.log('Folder logs button added for all users');
 }
@@ -747,23 +747,7 @@ function initPage(id) {
         btn.style.display = isOwner ? 'inline-block' : 'none';
       });
       
-      // 🔒 Add a "View Only" indicator for non-owners
-      if (!isOwner) {
-        const viewOnlyIndicator = document.createElement('div');
-        viewOnlyIndicator.textContent = 'View Only';
-        viewOnlyIndicator.className = 'view-only-indicator';
-        viewOnlyIndicator.style.position = 'absolute';
-        viewOnlyIndicator.style.top = '20px';
-        viewOnlyIndicator.style.right = '20px';
-        viewOnlyIndicator.style.backgroundColor = '#f0f0f0';
-        viewOnlyIndicator.style.color = '#666';
-        viewOnlyIndicator.style.padding = '6px 12px';
-        viewOnlyIndicator.style.borderRadius = '4px';
-        viewOnlyIndicator.style.fontSize = '14px';
-        viewOnlyIndicator.style.fontWeight = 'bold';
-        document.querySelector('.container').style.position = 'relative';
-        document.querySelector('.container').appendChild(viewOnlyIndicator);
-      }
+      // View Only indicator removed - not needed
       
       // Set up navigation using the centralized function from app.js
       if (window.setupBottomNavigation) {
@@ -772,22 +756,37 @@ function initPage(id) {
       
       // Initialize clock functionality after DOM is ready
       // Use multiple attempts to ensure DOM elements are available
+      console.log('[CLOCK] Starting clock initialization, isOwner:', isOwner, 'isAdmin:', isAdmin());
+      console.log('[CLOCK] Page container content:', document.getElementById('page-container')?.innerHTML?.substring(0, 200));
+      
       let clockInitAttempts = 0;
       const tryInitClock = () => {
         clockInitAttempts++;
         const clockBtn = document.getElementById('clockIconBtn');
+        const clockContainer = document.getElementById('clockIconContainer');
+        
+        console.log(`[CLOCK] Attempt ${clockInitAttempts} - clockBtn:`, !!clockBtn, 'clockContainer:', !!clockContainer);
+        console.log(`[CLOCK] Clock button element:`, clockBtn);
         
         if (clockBtn) {
           console.log('[CLOCK] Clock button found, initializing...');
           initializeClock();
-        } else if (clockInitAttempts < 5) {
+        } else if (clockInitAttempts < 10) { // Increased attempts
           console.log(`[CLOCK] Clock button not ready yet (attempt ${clockInitAttempts}), retrying...`);
-          setTimeout(tryInitClock, 200);
+          setTimeout(tryInitClock, 300); // Increased delay
         } else {
-          console.error('[CLOCK] Failed to find clock button after 5 attempts');
+          console.error('[CLOCK] Failed to find clock button after 10 attempts');
+          console.error('[CLOCK] DOM state:', {
+            clockContainer: !!document.getElementById('clockIconContainer'),
+            clockBtn: !!document.getElementById('clockIconBtn'),
+            adminContainer: !!document.getElementById('adminNotesBtnContainer'),
+            pageContainer: !!document.getElementById('page-container'),
+            generalPage: !!document.querySelector('.general-page')
+          });
+          console.error('[CLOCK] All elements with schedule class:', document.querySelectorAll('.material-symbols-outlined'));
         }
       };
-      setTimeout(tryInitClock, 100);
+      setTimeout(tryInitClock, 500); // Increased initial delay
     })
     .catch(err => console.error('Error loading event:', err));
 }
@@ -1007,11 +1006,10 @@ window.addContactRow = addContactRow;
 window.addLocationRow = addLocationRow;
 window.saveGeneralInfo = saveGeneralInfo;
 window.switchToEdit = switchToEdit;
-window.insertMarkdown = insertMarkdown;
-window.updateMarkdownPreview = updateMarkdownPreview;
 
 // CLOCK ICON LOGIC
 function showTimeModal() {
+  console.log('[CLOCK] showTimeModal called - user type:', {isOwner, isAdmin: isAdmin()});
   // Create modal overlay
   const modal = document.createElement('div');
   modal.id = 'timeModal';
@@ -1195,25 +1193,40 @@ function closeTimeModal() {
 
 function initializeClock() {
   const clockBtn = document.getElementById('clockIconBtn');
+  
+  console.log('[CLOCK] initializeClock called, button found:', !!clockBtn);
+  console.log('[CLOCK] Button element details:', clockBtn);
 
   if (clockBtn) {
     console.log('[CLOCK] Clock button found, initializing click handler');
+    console.log('[CLOCK] Button is visible:', clockBtn.offsetParent !== null);
+    console.log('[CLOCK] Button computed style:', window.getComputedStyle(clockBtn).display);
     
     // Remove any existing listeners to prevent duplicates
-    clockBtn.removeEventListener('click', window.clockButtonHandler);
+    if (window.clockButtonHandler) {
+      clockBtn.removeEventListener('click', window.clockButtonHandler);
+      console.log('[CLOCK] Removed existing click handler');
+    }
     
     // Create named handler for easier removal
     window.clockButtonHandler = (e) => {
-      console.log('[CLOCK] Clock button clicked - opening time modal');
+      console.log('[CLOCK] *** CLOCK BUTTON CLICKED *** - user:', {isOwner, isAdmin: isAdmin()});
       e.stopPropagation();
+      e.preventDefault();
       showTimeModal();
     };
     
     clockBtn.addEventListener('click', window.clockButtonHandler);
     
+    // Test click handler by adding a temporary test
+    clockBtn.addEventListener('mousedown', () => {
+      console.log('[CLOCK] Mouse down detected on clock button');
+    });
+    
     console.log('[CLOCK] Clock handlers attached successfully');
+    console.log('[CLOCK] Button has event listeners:', clockBtn);
   } else {
-    console.warn('[CLOCK] Clock button not found');
+    console.warn('[CLOCK] Clock button not found in initializeClock');
   }
 }
 })();
