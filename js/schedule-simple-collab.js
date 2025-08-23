@@ -31,6 +31,9 @@ function init(eventId, userId, userName) {
     console.log('🚫 Simple collaboration disabled - not on schedule page');
     return;
   }
+  
+  // FIRST: Remove any existing collaboration indicators to prevent mobile header blocking
+  updateActiveUsersDisplay();
 
   const sessionId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
   
@@ -834,11 +837,27 @@ function updateActiveUsersDisplay() {
   // DISABLED: Top-level collaboration indicator removed to prevent mobile header blocking
   // Individual field indicators provide sufficient collaboration awareness
   
-  // Remove any existing collaboration header if it exists
-  const usersContainer = document.getElementById('active-collab-users');
-  if (usersContainer) {
-    usersContainer.remove();
-    console.log('🗑️ [COLLAB] Removed collaboration indicator to prevent mobile header blocking');
+  // Aggressively remove ANY collaboration indicators that might exist
+  const selectors = [
+    '#active-collab-users',
+    '.active-users-indicator', 
+    '.collab-header',
+    '.collab-title',
+    '.active-users-list'
+  ];
+  
+  selectors.forEach(selector => {
+    document.querySelectorAll(selector).forEach(el => {
+      el.remove();
+      console.log(`🗑️ [COLLAB] Removed ${selector} to prevent mobile header blocking`);
+    });
+  });
+  
+  // Also remove any injected styles
+  const styleElement = document.getElementById('collab-users-styles');
+  if (styleElement) {
+    styleElement.remove();
+    console.log('🗑️ [COLLAB] Removed collaboration styles');
   }
   
   return; // Exit early - don't create or show any top-level collaboration UI
@@ -949,5 +968,48 @@ window.SimpleCollab = {
     }
   }
 };
+
+// Aggressive collaboration indicator removal - prevents mobile header blocking
+function removeCollabIndicatorsAggressively() {
+  const selectors = [
+    '#active-collab-users',
+    '.active-users-indicator', 
+    '.collab-header',
+    '.collab-title',
+    '.active-users-list',
+    '[class*="collab"]',
+    '[id*="collab"]'
+  ];
+  
+  selectors.forEach(selector => {
+    try {
+      document.querySelectorAll(selector).forEach(el => {
+        el.remove();
+        console.log(`🗑️ [COLLAB-CLEANUP] Removed ${selector}`);
+      });
+    } catch (e) {
+      // Ignore selector errors
+    }
+  });
+  
+  // Remove any injected collaboration styles
+  document.querySelectorAll('style[id*="collab"], style[id*="users"]').forEach(style => {
+    style.remove();
+  });
+}
+
+// Force remove collaboration indicators on DOM ready and periodically
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    removeCollabIndicatorsAggressively();
+    // Also check periodically in case they get re-added
+    setInterval(removeCollabIndicatorsAggressively, 2000);
+  });
+} else {
+  // DOM already loaded, remove immediately
+  removeCollabIndicatorsAggressively();
+  // Also check periodically in case they get re-added
+  setInterval(removeCollabIndicatorsAggressively, 2000);
+}
 
 })(); 
