@@ -94,17 +94,7 @@ function init(eventId, userId, userName) {
     console.warn('⚠️ Socket not available - collaboration disabled');
   }
   
-  // Periodic cleanup to ensure collaboration indicators stay removed
-  const cleanupInterval = setInterval(() => {
-    const container = document.getElementById('active-collab-users');
-    if (container) {
-      container.remove();
-      console.log('🗑️ [COLLAB] Periodic removal of collaboration indicator');
-    }
-  }, 1000);
-  
-  // Store cleanup interval for cleanup function
-  collabState.cleanupInterval = cleanupInterval;
+  // Note: Periodic cleanup removed - collaboration indicators disabled at source instead
 }
 
 // Store handler references for proper cleanup
@@ -606,64 +596,9 @@ function handleRemoteScheduleReload() {
 }
 
 function showNotification(message, type = 'info') {
-  // Define colors for different notification types
-  const colors = {
-    'info': '#4ECDC4',
-    'join': '#45B7D1',
-    'leave': '#FFA726',
-    'error': '#FF6B6B',
-    'success': '#4CAF50'
-  };
-  
-  // Simple notification system
-  const notification = document.createElement('div');
-  notification.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: ${colors[type] || colors.info};
-    color: white;
-    padding: 12px 20px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    z-index: 10000;
-    font-size: 14px;
-    max-width: 300px;
-    animation: slideIn 0.3s ease-out;
-  `;
-  
-  // Add icon based on type
-  const icons = {
-    'join': '👥',
-    'leave': '👋',
-    'info': 'ℹ️',
-    'error': '❌',
-    'success': '✅'
-  };
-  
-  const icon = icons[type] || '';
-  notification.textContent = `${icon} ${message}`.trim();
-  
-  // Add animation CSS if not exists
-  if (!document.getElementById('collab-notification-styles')) {
-    const style = document.createElement('style');
-    style.id = 'collab-notification-styles';
-    style.textContent = `
-      @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-  
-  document.body.appendChild(notification);
-  
-  // Auto-remove after 3 seconds
-  setTimeout(() => {
-    notification.style.animation = 'slideIn 0.3s ease-out reverse';
-    setTimeout(() => notification.remove(), 300);
-  }, 3000);
+  // DISABLED: All collaboration notifications disabled to prevent mobile UI interference
+  console.log(`🔕 [NOTIFICATION] Disabled: ${type} - ${message}`);
+  return;
 }
 
 // =============================================================================
@@ -715,12 +650,7 @@ function broadcastScheduleReload() {
 function cleanup() {
   console.log('🧹 [CLEANUP] Starting simple collaboration cleanup...');
   
-  // Clear periodic cleanup interval
-  if (collabState.cleanupInterval) {
-    clearInterval(collabState.cleanupInterval);
-    collabState.cleanupInterval = null;
-    console.log('🧹 [CLEANUP] Cleared periodic collaboration indicator cleanup');
-  }
+  // Note: Cleanup interval management removed - no longer needed
   
   // Remove event listeners
   document.removeEventListener('focusin', handleFieldFocus);
@@ -995,5 +925,7 @@ window.SimpleCollab = {
     }
   }
 };
+
+// Note: Aggressive cleanup removed - collaboration indicators disabled at source instead
 
 })(); 

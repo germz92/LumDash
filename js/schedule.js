@@ -4244,7 +4244,8 @@ if (document.readyState === 'loading') {
 }
 
 function initPhase2Features() {
-  console.log('[PHASE2] Initializing advanced collaboration features...');
+  console.log('[PHASE2] DISABLED - Collaboration features disabled to prevent mobile header blocking');
+  return; // Exit early - completely disable Phase 2 collaboration
   
   try {
     // Initialize user presence system
