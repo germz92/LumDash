@@ -685,6 +685,506 @@
 .delete-btn:hover .material-symbols-outlined {
   color: #555; /* Darker gray on hover for feedback */
 }
+
+/* Atomic Save Visual Feedback */
+.schedule-page .saving {
+  border-left: 3px solid #ffc107 !important;
+  background: #fff8e1 !important;
+}
+
+.schedule-page .saved {
+  border-left: 3px solid #28a745 !important;
+  background: #e8f5e8 !important;
+}
+
+.schedule-page .save-error {
+  border-left: 3px solid #dc3545 !important;
+  background: #ffeaea !important;
+}
+
+/* Animation for save state transitions */
+.schedule-page input, 
+.schedule-page textarea {
+  transition: border-left 0.3s ease, background 0.3s ease;
+}
+
+/* Real-time collaboration indicators */
+.schedule-page .field-updated-indicator {
+  position: absolute;
+  top: -25px;
+  right: 0;
+  background: #2196f3;
+  color: white;
+  padding: 2px 6px;
+  border-radius: 3px;
+  font-size: 11px;
+  z-index: 1000;
+  pointer-events: none;
+  animation: slideInFromRight 0.3s ease-out;
+}
+
+@keyframes slideInFromRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+/* Mobile fixes for Phase 2 collaboration features */
+@media (max-width: 768px) {
+  /* User presence indicators - larger and better positioned for mobile */
+  .user-presence-indicator {
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px !important;
+    min-height: 20px !important;
+    max-width: 20px !important;
+    max-height: 20px !important;
+    top: -10px !important;
+    right: -10px !important;
+    border: 3px solid white !important;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3) !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+    box-sizing: border-box !important;
+    display: block !important;
+  }
   
+  /* Merge notifications - responsive sizing */
+  .merge-notification {
+    max-width: calc(100vw - 40px) !important;
+    padding: 10px 12px !important;
+    font-size: 12px !important;
+    position: fixed !important;
+    top: 10px !important;
+    left: 20px !important;
+    right: 20px !important;
+    width: auto !important;
+  }
   
+  .merge-text {
+    font-size: 12px !important;
+    line-height: 1.3 !important;
+  }
   
+  .merge-icon {
+    font-size: 14px !important;
+  }
+  
+  /* Optimistic update states - more visible on mobile */
+  .schedule-page .optimistic-update {
+    border-left: 4px solid #2196f3 !important;
+    border-radius: 4px !important;
+  }
+  
+  .schedule-page .confirmed-update {
+    border-left: 4px solid #4caf50 !important;
+    border-radius: 4px !important;
+  }
+  
+  .schedule-page .failed-update {
+    border-left: 4px solid #f44336 !important;
+    border-radius: 4px !important;
+  }
+  
+  /* Enhanced field focus states for mobile */
+  .schedule-page input:focus,
+  .schedule-page textarea:focus {
+    transform: scale(1.02) !important;
+    box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.3) !important;
+  }
+  
+  /* Conflict resolution modal - mobile optimized */
+  .conflict-resolution-modal {
+    padding: 10px !important;
+  }
+  
+  .conflict-resolution-content {
+    width: 95% !important;
+    max-width: none !important;
+    padding: 16px !important;
+    max-height: 90vh !important;
+  }
+  
+  .conflict-field-comparison {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+  
+  .conflict-option {
+    padding: 10px !important;
+    font-size: 14px !important;
+  }
+  
+  .conflict-custom-input {
+    min-height: 60px !important;
+    font-size: 16px !important;
+  }
+  
+  .conflict-actions {
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+  
+  .conflict-actions button {
+    width: 100% !important;
+    padding: 12px !important;
+    font-size: 16px !important;
+  }
+  
+  /* Collaborative user list - mobile positioning */
+  .collaborative-users {
+    top: 60px !important;
+    right: 10px !important;
+    left: 10px !important;
+    max-width: none !important;
+    font-size: 11px !important;
+  }
+  
+  .collaborative-user {
+    padding: 6px 0 !important;
+  }
+  
+  .user-color-dot {
+    width: 14px !important;
+    height: 14px !important;
+  }
+}
+
+/* Touch-friendly enhancements */
+@media (max-width: 768px) and (pointer: coarse) {
+  /* Larger touch targets for mobile */
+  .user-presence-indicator {
+    width: 24px !important;
+    height: 24px !important;
+    min-width: 24px !important;
+    min-height: 24px !important;
+    max-width: 24px !important;
+    max-height: 24px !important;
+    top: -12px !important;
+    right: -12px !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+    box-sizing: border-box !important;
+    display: block !important;
+  }
+  
+  /* Better tap targets for conflict resolution */
+  .conflict-option {
+    min-height: 60px !important;
+    padding: 12px !important;
+  }
+  
+  .merge-close {
+    padding: 8px !important;
+    font-size: 20px !important;
+    min-width: 32px !important;
+    min-height: 32px !important;
+  }
+  
+  /* Enhanced typing indicators on mobile */
+  .typing-indicator.enhanced-typing-indicator {
+    top: -40px !important;
+    max-width: 200px !important;
+    padding: 6px 10px !important;
+    font-size: 12px !important;
+  }
+  
+  .typing-indicator.mobile-typing-indicator .editor-avatar {
+    width: 24px !important;
+    height: 24px !important;
+    font-size: 12px !important;
+  }
+  
+  .typing-indicator.mobile-typing-indicator .editor-name {
+    font-size: 12px !important;
+    max-width: 120px !important;
+    overflow: hidden !important;
+    text-overflow: ellipsis !important;
+  }
+  
+  /* Mobile-specific indicator adjustments (legacy fallback) */
+  .user-presence-indicator.mobile-indicator {
+    width: 20px !important;
+    height: 20px !important;
+    min-width: 20px !important;
+    min-height: 20px !important;
+    max-width: 20px !important;
+    max-height: 20px !important;
+    top: -10px !important;
+    right: -10px !important;
+    border: 3px solid white !important;
+    border-radius: 50% !important;
+    flex-shrink: 0 !important;
+    box-sizing: border-box !important;
+    display: block !important;
+  }
+}
+
+/* Phase 2: Advanced Collaboration Styles */
+
+/* Merge notifications */
+.merge-notification {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 12px 16px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  max-width: 300px;
+  opacity: 0;
+  transform: translateY(-10px);
+  transition: all 0.3s ease;
+  z-index: 10000;
+}
+
+.merge-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.merge-icon {
+  font-size: 16px;
+  flex-shrink: 0;
+}
+
+.merge-text {
+  flex-grow: 1;
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.merge-close {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  padding: 0;
+  line-height: 1;
+  opacity: 0.8;
+  transition: opacity 0.2s;
+}
+
+.merge-close:hover {
+  opacity: 1;
+}
+
+/* Optimistic update states */
+.schedule-page .optimistic-update {
+  background: #e3f2fd !important;
+  border-left: 3px solid #2196f3 !important;
+  transition: all 0.2s ease;
+}
+
+.schedule-page .confirmed-update {
+  background: #e8f5e9 !important;
+  border-left: 3px solid #4caf50 !important;
+  transition: all 0.2s ease;
+}
+
+.schedule-page .failed-update {
+  background: #ffebee !important;
+  border-left: 3px solid #f44336 !important;
+  transition: all 0.2s ease;
+  animation: shake 0.5s ease-in-out;
+}
+
+@keyframes shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-2px); }
+  75% { transform: translateX(2px); }
+}
+
+/* Enhanced Typing Indicators (Google Sheets Style) */
+.typing-indicator.enhanced-typing-indicator {
+  position: absolute;
+  background: white;
+  border-radius: 16px;
+  font-weight: 500;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  display: flex;
+  align-items: center;
+  pointer-events: none;
+  animation: typingIndicatorFadeIn 0.3s ease-out;
+}
+
+.typing-indicator .editor-avatar {
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: bold;
+  flex-shrink: 0;
+}
+
+.typing-indicator .editor-name {
+  font-weight: 500;
+  color: #333;
+  white-space: nowrap;
+}
+
+/* Field being edited styling */
+.field-being-edited {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Legacy user presence indicators (fallback) */
+.user-presence-indicator {
+  position: absolute;
+  width: 16px;
+  height: 16px;
+  min-width: 16px;
+  min-height: 16px;
+  max-width: 16px;
+  max-height: 16px;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+  z-index: 1000;
+  animation: presencePulse 2s infinite;
+  flex-shrink: 0;
+  box-sizing: border-box;
+  display: block;
+}
+
+@keyframes presencePulse {
+  0%, 100% { 
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% { 
+    transform: scale(1.1);
+    opacity: 0.8;
+  }
+}
+
+@keyframes typingIndicatorFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-5px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Enhanced field states for better collaboration feedback */
+.schedule-page input:focus,
+.schedule-page textarea:focus {
+  outline: none;
+  border-color: #2196f3;
+  box-shadow: 0 0 0 2px rgba(33, 150, 243, 0.2);
+  transform: scale(1.01);
+}
+
+/* Collaborative user list (future enhancement) */
+.collaborative-users {
+  position: fixed;
+  top: 80px;
+  right: 20px;
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  padding: 12px;
+  max-width: 200px;
+  z-index: 1000;
+}
+
+.collaborative-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+  font-size: 12px;
+}
+
+.user-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Conflict resolution UI styles */
+.conflict-resolution-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.7);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10001;
+}
+
+.conflict-resolution-content {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 80vh;
+  overflow-y: auto;
+}
+
+.conflict-field-comparison {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin: 16px 0;
+}
+
+.conflict-option {
+  border: 2px solid #e0e0e0;
+  border-radius: 8px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.conflict-option:hover {
+  border-color: #2196f3;
+  background: #f8f9ff;
+}
+
+.conflict-option.selected {
+  border-color: #2196f3;
+  background: #e3f2fd;
+}
+
+.conflict-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 20px;
+}
+
+/* Field protection styling */
+.schedule-page .recently-edited {
+  box-shadow: 0 0 0 2px rgba(40, 167, 69, 0.3) !important;
+}
+
+/* Better error styling */
+.schedule-page .save-error[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 0;
+  background: #dc3545;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1001;
+}

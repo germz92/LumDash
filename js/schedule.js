@@ -6,6 +6,49 @@ if (window.__scheduleJsLoaded) {
 }
 window.__scheduleJsLoaded = true;
 
+// User identification functions (moved from old collaborative system)
+function getCurrentUserId() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) {
+      console.warn('[USER] No auth token found');
+      return null;
+    }
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const userId = payload.userId || payload.id || payload.sub;
+    console.log('[USER] Current user ID:', userId);
+    return userId;
+  } catch (error) {
+    console.error('[USER] Error parsing token:', error);
+    return null;
+  }
+}
+
+function getCurrentUserName() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return 'Anonymous';
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    const userName = payload.fullName || payload.name || 'Unknown User';
+    console.log('[USER] Current user name:', userName);
+    return userName;
+  } catch (error) {
+    console.error('[USER] Error parsing user name:', error);
+    return 'Anonymous';
+  }
+}
+
+// Make functions globally available
+window.getCurrentUserId = getCurrentUserId;
+window.getCurrentUserName = getCurrentUserName;
+
+// Deprecate old collaborative system to prevent conflicts
+if (window.__collaborativeScheduleInitialized) {
+  console.warn('[SCHEDULE] ⚠️ OLD COLLABORATIVE SYSTEM DETECTED! Disabling to prevent conflicts with atomic saves.');
+  console.warn('[SCHEDULE] ⚠️ The schedule-collaborative.js system is now deprecated in favor of atomic field updates.');
+  window.__collaborativeScheduleInitialized = false;
+}
+
 let tableData = { programs: [] };
 let saveTimeout;
 let searchQuery = '';
@@ -70,7 +113,7 @@ function getScrollContainer() {
   return container || window; // Fallback to window if container not found
 }
 
-// Store filter settings in sessionStorage
+// Save filter settings to localStorage (persistent) and scroll to sessionStorage (temporary)
 function saveFilterSettings() {
   // Use the module-level currentEventId first, then fall back to localStorage
   const tableId = currentEventId || localStorage.getItem('eventId');
@@ -79,20 +122,29 @@ function saveFilterSettings() {
     return;
   }
   
+  // Save filters to localStorage for persistence across sessions (like crew.js)
+  localStorage.setItem(`schedule_filter_date_${tableId}`, filterDate);
+  localStorage.setItem(`schedule_search_${tableId}`, searchQuery);
+  
+  console.log('✅ SCHEDULE: Filter state saved to localStorage', { filterDate, searchQuery, tableId });
+}
+
+// Save scroll position separately to sessionStorage (temporary)
+function saveScrollPosition() {
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) return;
+  
   // Get current scroll position from the container instead of window
   const scrollContainer = getScrollContainer();
   const currentScrollY = scrollContainer === window ? 
     (window.scrollY || window.pageYOffset || document.documentElement.scrollTop) : 
     scrollContainer.scrollTop;
   
-  const settings = {
-    filterDate,
-    scrollPosition: currentScrollY,
-    searchQuery
-  };
-  
-  console.log(`Saving settings with scroll position: ${currentScrollY} for container: ${scrollContainer.id || 'window'}`);
-  sessionStorage.setItem(`schedule_${tableId}_settings`, JSON.stringify(settings));
+  // Only save meaningful scroll positions
+  if (currentScrollY > 10) {
+    sessionStorage.setItem(`schedule_scroll_${tableId}`, currentScrollY);
+    console.log(`📍 SCHEDULE: Scroll position saved: ${currentScrollY} for container: ${scrollContainer.id || 'window'}`);
+  }
 }
 
 // Create a debounced scroll handler with proper reference for removal
@@ -102,18 +154,8 @@ function createScrollListener() {
   const scrollHandler = function() {
     clearTimeout(timeout);
     timeout = setTimeout(() => {
-      // Get current scroll position directly at time of saving
-      const scrollContainer = getScrollContainer();
-      const currentScrollY = scrollContainer === window ? 
-        (window.scrollY || window.pageYOffset || document.documentElement.scrollTop) : 
-        scrollContainer.scrollTop;
-        
-      console.log(`Detected scroll position: ${currentScrollY} for container: ${scrollContainer.id || 'window'}`);
-      
-      // Only save if we've scrolled a meaningful amount
-      if (currentScrollY > 10) {
-        saveFilterSettings();
-      }
+      // Save scroll position separately from filters
+      saveScrollPosition();
     }, 200);
   };
   
@@ -128,7 +170,7 @@ function createScrollListener() {
   };
 }
 
-// Restore filter settings from sessionStorage
+// Restore filter settings from localStorage (persistent)
 function restoreFilterSettings() {
   // Use the module-level currentEventId first, then fall back to localStorage
   const tableId = currentEventId || localStorage.getItem('eventId');
@@ -137,37 +179,47 @@ function restoreFilterSettings() {
     return;
   }
   
-  const settingsJson = sessionStorage.getItem(`schedule_${tableId}_settings`);
-  if (!settingsJson) {
-    console.log(`No saved settings found for event ${tableId}`);
-    return;
-  }
-  
   try {
-    const settings = JSON.parse(settingsJson);
-    console.log('Restoring filter settings:', settings);
+    // Restore filters from localStorage (like crew.js)
+    const savedFilterDate = localStorage.getItem(`schedule_filter_date_${tableId}`) || 'all';
+    const savedSearch = localStorage.getItem(`schedule_search_${tableId}`) || '';
     
-    // Restore filter date (will be applied when dropdown is populated)
-    if (settings.filterDate) {
-      filterDate = settings.filterDate;
-      console.log(`Restored filter date: ${filterDate}`);
+    console.log('🔄 SCHEDULE: Restoring filter state...', { savedFilterDate, savedSearch, tableId });
+    
+    // Validate and restore filter date
+    if (savedFilterDate && savedFilterDate !== 'all') {
+      filterDate = savedFilterDate;
+      console.log(`📅 SCHEDULE: Restored filter date: ${filterDate}`);
     }
     
-    // Restore search query
-    if (settings.searchQuery) {
-      searchQuery = settings.searchQuery;
+    // Validate and restore search query
+    if (savedSearch && savedSearch.length <= 100) { // Reasonable limit
+      searchQuery = savedSearch;
       const searchInput = document.getElementById('searchInput');
       if (searchInput) searchInput.value = searchQuery;
-      console.log(`Restored search query: ${searchQuery}`);
+      console.log(`🔍 SCHEDULE: Restored search query: ${searchQuery}`);
     }
     
-    // Store the scroll position to be applied after rendering
-    if (settings.scrollPosition) {
-      pendingScrollRestore = settings.scrollPosition;
-      console.log(`Saved scroll position ${settings.scrollPosition} for restoration after rendering`);
+    console.log('✅ SCHEDULE: Filter state restoration complete');
+  } catch (err) {
+    console.error('❌ SCHEDULE: Error restoring filter settings:', err);
+    // Continue with defaults, don't break the page
+  }
+}
+
+// Restore scroll position from sessionStorage (temporary)
+function restoreScrollPosition() {
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) return;
+  
+  try {
+    const savedScrollPosition = sessionStorage.getItem(`schedule_scroll_${tableId}`);
+    if (savedScrollPosition) {
+      pendingScrollRestore = parseInt(savedScrollPosition, 10);
+      console.log(`📍 SCHEDULE: Saved scroll position ${pendingScrollRestore} for restoration after rendering`);
     }
   } catch (err) {
-    console.error('Error restoring filter settings:', err);
+    console.error('❌ SCHEDULE: Error restoring scroll position:', err);
   }
 }
 
@@ -343,8 +395,9 @@ window.initPage = async function(id) {
     console.log('[INIT] Event changed, resetting filters and scroll position');
     resetFilterSettings();
   } else {
-    console.log('[INIT] Same event, restoring filter settings');
+    console.log('[INIT] Same event, restoring filter and scroll settings');
     restoreFilterSettings();
+    restoreScrollPosition();
     
     // If we restored filters, re-render to apply them
     if (filterDate !== 'all' || searchQuery) {
@@ -949,12 +1002,41 @@ function toggleDone(checkbox, index) {
   // Update the data attribute to reflect the new original value
   checkbox.setAttribute('data-original-value', newValue ? 'true' : 'false');
   
-  // ALWAYS save changes - either via collaborative system or direct save
-  if (program._id && window.__collaborativeScheduleInitialized) {
-    console.log('[TOGGLE DONE] Program has ID - collaborative system handling');
-    // Collaborative system will handle via change event listener
+  // Use atomic save for checkbox changes
+  if (program._id) {
+    console.log('[TOGGLE DONE] Program has ID - using atomic save');
+    
+    // Get old value for operational transform and optimistic updates
+    const oldValue = originalValue;
+    
+    // Apply optimistic update immediately for instant feedback
+    optimisticUpdates.applyOptimisticUpdate(checkbox, 'done', program._id, newValue, oldValue);
+    
+    // Use atomic save function with operational transform
+    const fieldId = `${program._id}-done`;
+    atomicSaveField(checkbox, 'done', program._id, newValue, oldValue)
+      .then(success => {
+        if (success) {
+          // Confirm the optimistic update
+          optimisticUpdates.confirmUpdate(fieldId);
+          console.log(`[TOGGLE DONE] ✅ Atomic save successful for done field`);
+        } else {
+          // Revert the optimistic update
+          optimisticUpdates.revertUpdate(fieldId, new Error('Save returned false'));
+        }
+      })
+      .catch(error => {
+        console.error('[TOGGLE DONE] Atomic save failed, reverting optimistic update:', error);
+        // Revert the optimistic update
+        optimisticUpdates.revertUpdate(fieldId, error);
+        // Fallback to full save
+        const wasChanged = safeUpdateProgram(index, 'done', newValue);
+        if (wasChanged) {
+          scheduleSave();
+        }
+      });
   } else {
-    console.log('[TOGGLE DONE] No program ID or collaborative system - saving directly');
+    console.log('[TOGGLE DONE] No program ID - using full schedule save');
     const wasChanged = safeUpdateProgram(index, 'done', newValue);
     if (wasChanged) {
       scheduleSave();
@@ -996,6 +1078,1428 @@ function enableEdit(field) {
   }
 }
 
+// New atomic field save function - prevents data loss
+async function atomicSaveField(field, fieldKey, programId, newValue) {
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) {
+    console.error('[ATOMIC] No event ID available for saving');
+    return false;
+  }
+  
+  if (!programId) {
+    console.error('[ATOMIC] No program ID available for saving');
+    return false;
+  }
+  
+  try {
+    console.log(`[ATOMIC] Saving field: ${fieldKey} = "${newValue}" for program ${programId}`);
+    
+    // Show saving indicator
+    field.classList.add('saving');
+    field.style.borderLeft = '3px solid #ffc107';
+    
+    const response = await fetch(`${API_BASE}/api/tables/${tableId}/program-field`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': localStorage.getItem('token')
+      },
+      body: JSON.stringify({
+        programId: programId,
+        field: fieldKey,
+        value: newValue,
+        userId: await getUserIdFromToken(),
+        sessionId: window.SimpleCollab?.getCurrentUser?.()?.sessionId
+      })
+    });
+    
+    if (response.ok) {
+      const result = await response.json();
+      console.log(`✅ [ATOMIC] Field saved successfully: ${fieldKey} = "${newValue}"`);
+      
+      // Show success indicator
+      field.classList.remove('saving');
+      field.classList.add('saved');
+      field.style.borderLeft = '3px solid #28a745';
+      
+      // Clear success indicator after 2 seconds
+      setTimeout(() => {
+        field.classList.remove('saved');
+        field.style.borderLeft = '';
+      }, 2000);
+      
+      return true;
+    } else {
+      const error = await response.json();
+      console.error(`❌ [ATOMIC] Failed to save field: ${error.error}`);
+      
+      // Show error indicator
+      field.classList.remove('saving');
+      field.classList.add('save-error');
+      field.style.borderLeft = '3px solid #dc3545';
+      field.title = `Save failed: ${error.error}`;
+      
+      // Clear error indicator after 5 seconds
+      setTimeout(() => {
+        field.classList.remove('save-error');
+        field.style.borderLeft = '';
+        field.title = '';
+      }, 5000);
+      
+      return false;
+    }
+  } catch (error) {
+    console.error(`❌ [ATOMIC] Network error saving field:`, error);
+    
+    // Show network error indicator
+    field.classList.remove('saving');
+    field.classList.add('save-error');
+    field.style.borderLeft = '3px solid #dc3545';
+    field.title = 'Network error - will retry automatically';
+    
+    // Add retry mechanism for network errors
+    retryAtomicSave(field, fieldKey, programId, newValue, 1);
+    
+    return false;
+  }
+}
+
+// Retry mechanism for failed atomic saves
+async function retryAtomicSave(field, fieldKey, programId, newValue, attempt = 1) {
+  const maxRetries = 3;
+  const retryDelay = Math.min(1000 * Math.pow(2, attempt - 1), 5000); // Exponential backoff
+  
+  if (attempt > maxRetries) {
+    console.error(`[ATOMIC] Max retries (${maxRetries}) exceeded for field ${fieldKey}`);
+    field.title = 'Failed to save - please refresh and try again';
+    return false;
+  }
+  
+  console.log(`[ATOMIC] Retrying save attempt ${attempt}/${maxRetries} for field ${fieldKey} in ${retryDelay}ms`);
+  
+  setTimeout(async () => {
+    try {
+      const success = await atomicSaveField(field, fieldKey, programId, newValue);
+      if (!success) {
+        // If it still fails, try again
+        retryAtomicSave(field, fieldKey, programId, newValue, attempt + 1);
+      } else {
+        console.log(`✅ [ATOMIC] Retry successful on attempt ${attempt} for field ${fieldKey}`);
+      }
+    } catch (error) {
+      console.error(`[ATOMIC] Retry attempt ${attempt} failed:`, error);
+      retryAtomicSave(field, fieldKey, programId, newValue, attempt + 1);
+    }
+  }, retryDelay);
+}
+
+// Queue for failed saves to retry when connection is restored
+const failedSavesQueue = [];
+
+// Add to queue when atomic save fails
+function queueFailedSave(field, fieldKey, programId, newValue, reason) {
+  const saveData = {
+    field,
+    fieldKey,
+    programId,
+    newValue,
+    reason,
+    timestamp: Date.now(),
+    retries: 0
+  };
+  
+  // Avoid duplicate entries
+  const existing = failedSavesQueue.findIndex(item => 
+    item.programId === programId && item.fieldKey === fieldKey
+  );
+  
+  if (existing !== -1) {
+    failedSavesQueue[existing] = saveData; // Update existing
+  } else {
+    failedSavesQueue.push(saveData);
+  }
+  
+  console.log(`[QUEUE] Added failed save to queue: ${fieldKey} for program ${programId}`);
+  
+  // Show queue indicator
+  showSaveQueueIndicator();
+}
+
+// Process queued saves when connection is restored
+async function processFailedSavesQueue() {
+  if (failedSavesQueue.length === 0) return;
+  
+  console.log(`[QUEUE] Processing ${failedSavesQueue.length} queued saves`);
+  
+  const toProcess = [...failedSavesQueue];
+  failedSavesQueue.length = 0; // Clear queue
+  
+  for (const saveData of toProcess) {
+    try {
+      const success = await atomicSaveField(
+        saveData.field, 
+        saveData.fieldKey, 
+        saveData.programId, 
+        saveData.newValue
+      );
+      
+      if (!success) {
+        // Re-queue if still failing
+        saveData.retries++;
+        if (saveData.retries < 3) {
+          failedSavesQueue.push(saveData);
+        } else {
+          console.error(`[QUEUE] Max retries exceeded for queued save: ${saveData.fieldKey}`);
+        }
+      }
+    } catch (error) {
+      console.error(`[QUEUE] Error processing queued save:`, error);
+      saveData.retries++;
+      if (saveData.retries < 3) {
+        failedSavesQueue.push(saveData);
+      }
+    }
+  }
+  
+  // Update queue indicator
+  if (failedSavesQueue.length === 0) {
+    hideSaveQueueIndicator();
+  } else {
+    showSaveQueueIndicator();
+  }
+}
+
+// Visual indicator for save queue
+function showSaveQueueIndicator() {
+  let indicator = document.getElementById('save-queue-indicator');
+  
+  if (!indicator) {
+    indicator = document.createElement('div');
+    indicator.id = 'save-queue-indicator';
+    indicator.style.cssText = `
+      position: fixed;
+      top: 20px;
+      right: 20px;
+      background: #ff9800;
+      color: white;
+      padding: 8px 12px;
+      border-radius: 4px;
+      font-size: 14px;
+      z-index: 2000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+    `;
+    document.body.appendChild(indicator);
+  }
+  
+  indicator.textContent = `⏳ ${failedSavesQueue.length} changes pending`;
+  indicator.style.display = 'block';
+}
+
+function hideSaveQueueIndicator() {
+  const indicator = document.getElementById('save-queue-indicator');
+  if (indicator) {
+    indicator.style.display = 'none';
+  }
+}
+
+// Coordination system to prevent atomic saves from conflicting with full saves
+const saveCoordination = {
+  pendingOperations: new Set(),
+  isFullSaveInProgress: false
+};
+
+async function coordinatedSave(operationType, saveFunction) {
+  console.log(`[COORDINATE] Starting coordinated save: ${operationType}`);
+  
+  // Wait for any pending atomic saves to complete
+  if (saveCoordination.pendingOperations.size > 0) {
+    console.log(`[COORDINATE] Waiting for ${saveCoordination.pendingOperations.size} atomic operations to complete`);
+    
+    // Wait up to 5 seconds for atomic saves to complete
+    let waitTime = 0;
+    while (saveCoordination.pendingOperations.size > 0 && waitTime < 5000) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+      waitTime += 100;
+    }
+    
+    if (saveCoordination.pendingOperations.size > 0) {
+      console.warn(`[COORDINATE] Proceeding with save despite ${saveCoordination.pendingOperations.size} pending operations`);
+    }
+  }
+  
+  // Mark full save in progress
+  saveCoordination.isFullSaveInProgress = true;
+  
+  try {
+    const result = await saveFunction();
+    console.log(`✅ [COORDINATE] Completed coordinated save: ${operationType}`);
+    return result;
+  } catch (error) {
+    console.error(`❌ [COORDINATE] Failed coordinated save: ${operationType}`, error);
+    throw error;
+  } finally {
+    saveCoordination.isFullSaveInProgress = false;
+  }
+}
+
+// Operational Transform System for concurrent same-field edits
+const operationalTransform = {
+  // Vector clock for operation ordering
+  vectorClock: new Map(), // userId -> sequence number
+  pendingOps: new Map(), // fieldId -> operation queue
+  userSessions: new Map(), // userId -> session info
+  
+  // Create a new operation
+  createOperation(programId, field, oldValue, newValue, userId, cursorPos = null) {
+    const sequence = (this.vectorClock.get(userId) || 0) + 1;
+    this.vectorClock.set(userId, sequence);
+    
+    return {
+      id: `${userId}-${sequence}-${Date.now()}`,
+      programId,
+      field,
+      oldValue,
+      newValue,
+      userId,
+      sequence,
+      timestamp: Date.now(),
+      vectorClock: new Map(this.vectorClock),
+      cursorPos,
+      type: this.detectOperationType(oldValue, newValue, cursorPos)
+    };
+  },
+  
+  // Detect operation type for better transformation
+  detectOperationType(oldValue, newValue, cursorPos) {
+    if (!oldValue) return 'insert';
+    if (!newValue) return 'delete';
+    if (oldValue.length < newValue.length) return 'insert';
+    if (oldValue.length > newValue.length) return 'delete';
+    return 'replace';
+  },
+  
+  // Transform operations for concurrent edits
+  transformOperation(op1, op2) {
+    // If operations are on different fields, no transformation needed
+    if (op1.programId !== op2.programId || op1.field !== op2.field) {
+      return { op1, op2 };
+    }
+    
+    console.log(`[OT] Transforming concurrent operations on ${op1.field}:`, {
+      op1: { user: op1.userId, value: op1.newValue },
+      op2: { user: op2.userId, value: op2.newValue }
+    });
+    
+    // For text fields, use advanced text transformation
+    if (this.isTextField(op1.field)) {
+      return this.transformTextOperations(op1, op2);
+    }
+    
+    // For simple fields, use timestamp precedence with user priority
+    return this.transformSimpleOperations(op1, op2);
+  },
+  
+  // Check if field contains text that can be merged
+  isTextField(field) {
+    return ['name', 'location', 'photographer', 'notes'].includes(field);
+  },
+  
+  // Transform text operations (advanced)
+  transformTextOperations(op1, op2) {
+    // If one user just typed and another user made a different change,
+    // try to merge them intelligently
+    
+    const commonBase = this.findCommonBase(op1.oldValue, op2.oldValue);
+    
+    if (commonBase !== null) {
+      // Both operations have the same base - we can merge
+      const merged = this.mergeTextChanges(commonBase, op1.newValue, op2.newValue, op1.userId, op2.userId);
+      
+      return {
+        op1: { ...op1, newValue: merged.result, transformed: true, mergeInfo: merged },
+        op2: { ...op2, newValue: merged.result, transformed: true, mergeInfo: merged }
+      };
+    }
+    
+    // Fall back to timestamp precedence
+    return this.transformSimpleOperations(op1, op2);
+  },
+  
+  // Find common base between two text values
+  findCommonBase(val1, val2) {
+    // Simple implementation - can be enhanced with proper diff algorithms
+    if (val1 === val2) return val1;
+    
+    // Find longest common prefix
+    let i = 0;
+    while (i < Math.min(val1.length, val2.length) && val1[i] === val2[i]) {
+      i++;
+    }
+    
+    if (i > 0) {
+      return val1.substring(0, i);
+    }
+    
+    return null;
+  },
+  
+  // Merge text changes intelligently
+  mergeTextChanges(base, change1, change2, user1, user2) {
+    // For now, concatenate with user attribution
+    // This can be enhanced with more sophisticated merging
+    
+    const addition1 = change1.replace(base, '').trim();
+    const addition2 = change2.replace(base, '').trim();
+    
+    let result;
+    if (addition1 && addition2) {
+      // Both users added content - merge with attribution
+      result = `${base} ${addition1} (${this.getUserName(user1)}) + ${addition2} (${this.getUserName(user2)})`.trim();
+    } else if (addition1) {
+      result = change1;
+    } else if (addition2) {
+      result = change2;
+    } else {
+      result = base;
+    }
+    
+    return {
+      result,
+      merged: true,
+      contributors: [user1, user2],
+      base,
+      changes: { [user1]: addition1, [user2]: addition2 }
+    };
+  },
+  
+  // Transform simple operations (non-text)
+  transformSimpleOperations(op1, op2) {
+    // Use vector clock for ordering
+    const op1Time = op1.vectorClock.get(op1.userId) || 0;
+    const op2Time = op2.vectorClock.get(op2.userId) || 0;
+    
+    if (op1Time > op2Time) {
+      // op1 wins
+      return {
+        op1: op1,
+        op2: { ...op2, superseded: true, supersededBy: op1.id }
+      };
+    } else if (op2Time > op1Time) {
+      // op2 wins  
+      return {
+        op1: { ...op1, superseded: true, supersededBy: op2.id },
+        op2: op2
+      };
+    } else {
+      // Same timestamp - use user ID for consistent ordering
+      const winner = op1.userId < op2.userId ? op1 : op2;
+      const loser = winner === op1 ? op2 : op1;
+      
+      return {
+        op1: winner === op1 ? op1 : { ...op1, superseded: true, supersededBy: op2.id },
+        op2: winner === op2 ? op2 : { ...op2, superseded: true, supersededBy: op1.id }
+      };
+    }
+  },
+  
+  // Get user display name
+  getUserName(userId) {
+    const session = this.userSessions.get(userId);
+    return session?.userName || `User ${userId.substr(-4)}`;
+  }
+};
+
+// Enhanced atomic save function with operational transform
+const originalAtomicSaveField = atomicSaveField;
+atomicSaveField = async function(field, fieldKey, programId, newValue, oldValue = '') {
+  // Check if a full save is in progress
+  if (saveCoordination.isFullSaveInProgress) {
+    console.log(`[COORDINATE] Full save in progress, queuing atomic save: ${fieldKey}`);
+    queueFailedSave(field, fieldKey, programId, newValue, 'full_save_in_progress');
+    return false;
+  }
+  
+  // Create operation for operational transform
+  const userId = window.getCurrentUserId?.() || 'anonymous';
+  const operation = operationalTransform.createOperation(
+    programId, 
+    fieldKey, 
+    oldValue, 
+    newValue, 
+    userId,
+    field.selectionStart
+  );
+  
+  // Check for concurrent operations on the same field
+  const fieldId = `${programId}-${fieldKey}`;
+  const pendingOps = operationalTransform.pendingOps.get(fieldId) || [];
+  
+  if (pendingOps.length > 0) {
+    console.log(`[OT] Concurrent edit detected on ${fieldKey}, applying operational transform`);
+    
+    // Transform with all pending operations
+    let transformedOp = operation;
+    for (const pendingOp of pendingOps) {
+      const result = operationalTransform.transformOperation(transformedOp, pendingOp);
+      transformedOp = result.op1;
+    }
+    
+    // Use transformed value
+    newValue = transformedOp.newValue;
+    
+    // Show merge notification if value was transformed
+    if (transformedOp.transformed) {
+      showMergeNotification(field, transformedOp.mergeInfo);
+    }
+  }
+  
+  // Add to pending operations
+  operationalTransform.pendingOps.set(fieldId, [...pendingOps, operation]);
+  
+  // Track this atomic operation for coordination
+  const operationId = `${programId}-${fieldKey}-${Date.now()}`;
+  saveCoordination.pendingOperations.add(operationId);
+  
+  try {
+    const result = await originalAtomicSaveField(field, fieldKey, programId, newValue);
+    
+    // Remove from pending operations on success
+    const remaining = operationalTransform.pendingOps.get(fieldId)?.filter(op => op.id !== operation.id) || [];
+    if (remaining.length === 0) {
+      operationalTransform.pendingOps.delete(fieldId);
+    } else {
+      operationalTransform.pendingOps.set(fieldId, remaining);
+    }
+    
+    return result;
+  } catch (error) {
+    // Remove from pending operations on error
+    const remaining = operationalTransform.pendingOps.get(fieldId)?.filter(op => op.id !== operation.id) || [];
+    if (remaining.length === 0) {
+      operationalTransform.pendingOps.delete(fieldId);
+    } else {
+      operationalTransform.pendingOps.set(fieldId, remaining);
+    }
+    throw error;
+  } finally {
+    saveCoordination.pendingOperations.delete(operationId);
+  }
+};
+
+// Merge notification system
+function showMergeNotification(field, mergeInfo) {
+  console.log('[MERGE] Showing merge notification:', mergeInfo);
+  
+  // Create notification element
+  const notification = document.createElement('div');
+  notification.className = 'merge-notification';
+  notification.innerHTML = `
+    <div class="merge-content">
+      <i class="merge-icon">🔀</i>
+      <span class="merge-text">Changes merged with ${mergeInfo.contributors.map(id => operationalTransform.getUserName(id)).join(', ')}</span>
+      <button class="merge-close" onclick="this.parentElement.parentElement.remove()">×</button>
+    </div>
+  `;
+  
+  // Position relative to field with mobile-responsive approach
+  const isMobile = window.innerWidth <= 768;
+  
+  if (isMobile) {
+    // On mobile, use fixed positioning at top of screen
+    notification.style.position = 'fixed';
+    notification.style.top = '10px';
+    notification.style.left = '20px';
+    notification.style.right = '20px';
+    notification.style.width = 'auto';
+    notification.style.zIndex = '10000';
+  } else {
+    // On desktop, position relative to field
+    const rect = field.getBoundingClientRect();
+    notification.style.position = 'absolute';
+    notification.style.top = (rect.bottom + window.scrollY + 5) + 'px';
+    notification.style.left = rect.left + 'px';
+    notification.style.zIndex = '10000';
+  }
+  
+  document.body.appendChild(notification);
+  
+  // Auto-remove after 4 seconds
+  setTimeout(() => {
+    if (notification.parentElement) {
+      notification.remove();
+    }
+  }, 4000);
+  
+  // Add animation
+  requestAnimationFrame(() => {
+    notification.style.opacity = '1';
+    notification.style.transform = 'translateY(0)';
+  });
+}
+
+// Optimistic update system
+const optimisticUpdates = {
+  activeUpdates: new Map(), // fieldId -> update info
+  
+  // Apply optimistic update immediately
+  applyOptimisticUpdate(field, fieldKey, programId, newValue, oldValue) {
+    const fieldId = `${programId}-${fieldKey}`;
+    
+    // Store the optimistic update
+    this.activeUpdates.set(fieldId, {
+      field,
+      fieldKey,
+      programId,
+      newValue,
+      oldValue,
+      timestamp: Date.now(),
+      applied: true
+    });
+    
+    // Apply visual feedback immediately
+    field.classList.add('optimistic-update');
+    field.style.background = '#e3f2fd'; // Light blue background
+    field.style.borderLeft = '3px solid #2196f3'; // Blue border
+    
+    // Update the field value immediately
+    if (field.value !== newValue) {
+      field.value = newValue;
+    }
+    
+    console.log(`[OPTIMISTIC] Applied immediate update to ${fieldKey}: "${oldValue}" → "${newValue}"`);
+  },
+  
+  // Confirm optimistic update was successful
+  confirmUpdate(fieldId) {
+    const update = this.activeUpdates.get(fieldId);
+    if (update) {
+      update.field.classList.remove('optimistic-update');
+      update.field.classList.add('confirmed-update');
+      update.field.style.background = '#e8f5e9'; // Light green
+      update.field.style.borderLeft = '3px solid #4caf50'; // Green border
+      
+      // Clear the confirmed state after a moment
+      setTimeout(() => {
+        if (update.field.classList.contains('confirmed-update')) {
+          update.field.classList.remove('confirmed-update');
+          update.field.style.background = '';
+          update.field.style.borderLeft = '';
+        }
+      }, 1500);
+      
+      this.activeUpdates.delete(fieldId);
+      console.log(`[OPTIMISTIC] Confirmed update for ${fieldId}`);
+    }
+  },
+  
+  // Revert optimistic update on failure
+  revertUpdate(fieldId, error) {
+    const update = this.activeUpdates.get(fieldId);
+    if (update) {
+      // Revert to old value
+      update.field.value = update.oldValue;
+      
+      // Show error state
+      update.field.classList.remove('optimistic-update');
+      update.field.classList.add('failed-update');
+      update.field.style.background = '#ffebee'; // Light red
+      update.field.style.borderLeft = '3px solid #f44336'; // Red border
+      update.field.title = `Update failed: ${error.message}`;
+      
+      // Clear error state after a moment
+      setTimeout(() => {
+        if (update.field.classList.contains('failed-update')) {
+          update.field.classList.remove('failed-update');
+          update.field.style.background = '';
+          update.field.style.borderLeft = '';
+          update.field.title = '';
+        }
+      }, 3000);
+      
+      this.activeUpdates.delete(fieldId);
+      console.log(`[OPTIMISTIC] Reverted update for ${fieldId}:`, error);
+    }
+  }
+};
+
+// User presence system for real-time collaboration
+const userPresence = {
+  activeUsers: new Map(), // userId -> presence info
+  currentUser: null,
+  colors: ['#ff6b6b', '#4ecdc4', '#45b7d1', '#f9ca24', '#f0932b', '#eb4d4b', '#6c5ce7', '#a29bfe'],
+  colorIndex: 0,
+  
+  // Initialize presence system
+  init() {
+    const userId = getCurrentUserId();
+    const userName = getCurrentUserName();
+    
+    // Validate user identification
+    if (!userId || userId === 'anonymous') {
+      console.warn('[PRESENCE] ⚠️ User ID not found or anonymous - presence features may not work properly');
+      console.warn('[PRESENCE] Check if user is logged in and token is valid');
+    }
+    
+    this.currentUser = {
+      id: userId || 'anonymous',
+      name: userName || 'Anonymous User', 
+      color: this.getNextColor(),
+      currentField: null,
+      lastSeen: Date.now()
+    };
+    
+    // Store current user session info for operational transform
+    operationalTransform.userSessions.set(this.currentUser.id, {
+      userName: this.currentUser.name,
+      userColor: this.currentUser.color
+    });
+    
+    console.log('[PRESENCE] Initialized user presence:', this.currentUser);
+    
+    // Set up field tracking
+    this.setupFieldTracking();
+    
+    // Start broadcasting presence
+    this.startPresenceBroadcast();
+  },
+  
+  // Get next available color
+  getNextColor() {
+    const color = this.colors[this.colorIndex % this.colors.length];
+    this.colorIndex++;
+    return color;
+  },
+  
+  // Track field focus/blur events
+  setupFieldTracking() {
+    const container = document.getElementById('programSections');
+    if (!container) {
+      console.warn('[PRESENCE] Program container not found, retrying...');
+      setTimeout(() => this.setupFieldTracking(), 1000);
+      return;
+    }
+    
+    // Track focus events
+    container.addEventListener('focusin', (e) => {
+      if (this.isScheduleField(e.target)) {
+        this.onFieldFocus(e.target);
+      }
+    });
+    
+    // Track blur events  
+    container.addEventListener('focusout', (e) => {
+      if (this.isScheduleField(e.target)) {
+        this.onFieldBlur(e.target);
+      }
+    });
+    
+    console.log('[PRESENCE] Field tracking set up');
+  },
+  
+  // Check if element is a schedule field
+  isScheduleField(element) {
+    return element && (
+      element.matches('input[type="text"], input[type="time"], textarea') ||
+      element.matches('input[type="checkbox"]')
+    ) && element.closest('.program-entry');
+  },
+  
+  // Handle field focus
+  onFieldFocus(field) {
+    const entry = field.closest('.program-entry');
+    const programId = entry?.getAttribute('data-program-id');
+    const fieldKey = this.getFieldKey(field);
+    
+    if (!programId || !fieldKey) return;
+    
+    const fieldId = `${programId}-${fieldKey}`;
+    this.currentUser.currentField = fieldId;
+    
+    // For checkboxes, set interaction state instead of typing
+    if (field.type === 'checkbox') {
+      this.currentUser.isInteracting = true;
+      console.log(`[PRESENCE] User interacting with checkbox: ${fieldId}`);
+    } else {
+      this.currentUser.isTyping = true;
+      console.log(`[PRESENCE] User focused on field: ${fieldId}`);
+    }
+    
+    // DON'T show indicator for our own user - only broadcast to others
+    console.log(`[PRESENCE] Not showing indicator for current user (${this.currentUser.id})`);
+    
+    // Broadcast typing/interaction started to other users
+    this.broadcastTypingState('start', fieldId);
+    
+    // Set up typing detection (for text fields) or interaction detection (for checkboxes)
+    this.setupFieldDetection(field, fieldId);
+  },
+  
+  // Handle field blur
+  onFieldBlur(field) {
+    const fieldId = this.currentUser.currentField;
+    this.currentUser.currentField = null;
+    this.currentUser.isTyping = false;
+    this.currentUser.isInteracting = false;
+    
+    console.log(`[PRESENCE] User blurred field: ${fieldId}`);
+    
+    // DON'T remove indicator for our own user (we don't show it)
+    // Only broadcast to other users that we stopped typing/interacting
+    if (fieldId) {
+      this.broadcastTypingState('stop', fieldId);
+    }
+    
+    // Clear typing/interaction detection
+    this.clearFieldDetection(field);
+  },
+  
+  // Get field key from element
+  getFieldKey(field) {
+    const dataField = field.getAttribute('data-field');
+    if (dataField) return dataField;
+    
+    const placeholder = field.getAttribute('placeholder');
+    if (placeholder) return placeholder.toLowerCase();
+    
+    if (field.className.includes('program-name')) return 'name';
+    if (field.type === 'checkbox') return 'done';
+    if (field.className.includes('start-time')) return 'startTime';
+    if (field.className.includes('end-time')) return 'endTime';
+    if (field.className.includes('location')) return 'location';
+    if (field.className.includes('photographer')) return 'photographer';
+    if (field.className.includes('notes')) return 'notes';
+    
+    return null;
+  },
+  
+  // Show user indicator on field (Enhanced Google Sheets-style)
+  showUserIndicator(field, user) {
+    // Remove any existing indicator for this user
+    this.hideUserIndicator(field, user.id);
+    
+    // Apply field styling to show it's being edited
+    field.classList.add('field-being-edited');
+    field.style.borderColor = user.color;
+    field.style.boxShadow = `0 0 0 2px ${user.color}40`; // 40 for transparency
+    
+    // Create rich typing indicator with avatar and name
+    const indicator = document.createElement('div');
+    indicator.className = 'typing-indicator enhanced-typing-indicator';
+    indicator.dataset.userId = user.id;
+    
+    // Mobile-responsive design
+    const isMobile = window.innerWidth <= 768;
+    const avatarSize = isMobile ? '24px' : '20px';
+    const fontSize = isMobile ? '12px' : '11px';
+    const padding = isMobile ? '6px 10px' : '4px 8px';
+    
+    indicator.innerHTML = `
+      <div class="editor-avatar" style="
+        background-color: ${user.color};
+        width: ${avatarSize};
+        height: ${avatarSize};
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        color: white;
+        font-weight: bold;
+        font-size: ${fontSize};
+        margin-right: 6px;
+        flex-shrink: 0;
+      ">
+        ${user.name.charAt(0).toUpperCase()}
+      </div>
+      <span class="editor-name" style="
+        font-size: ${fontSize};
+        font-weight: 500;
+        color: #333;
+        white-space: nowrap;
+        ${isMobile ? 'max-width: 120px; overflow: hidden; text-overflow: ellipsis;' : ''}
+      ">${this.getPresenceText(field, user)}</span>
+    `;
+    
+    // Style the indicator container
+    indicator.style.cssText = `
+      position: absolute;
+      top: ${isMobile ? '-40px' : '-35px'};
+      right: 0px;
+      background: white;
+      border: 2px solid ${user.color};
+      border-radius: 16px;
+      padding: ${padding};
+      font-size: ${fontSize};
+      font-weight: 500;
+      z-index: 1000;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+      display: flex;
+      align-items: center;
+      max-width: ${isMobile ? '200px' : '250px'};
+      pointer-events: none;
+      animation: typingIndicatorFadeIn 0.3s ease-out;
+    `;
+    
+    // Position relative to field with mobile considerations
+    const parent = field.closest('.program-entry') || field.parentElement;
+    if (parent) {
+      // Ensure parent has relative positioning
+      const currentPosition = window.getComputedStyle(parent).position;
+      if (currentPosition === 'static') {
+        parent.style.position = 'relative';
+      }
+      
+      // Add mobile class for additional styling if needed
+      if (isMobile) {
+        indicator.classList.add('mobile-typing-indicator');
+      }
+      
+      parent.appendChild(indicator);
+      
+      console.log(`👤 [TYPING] Showing enhanced indicator for ${user.name} on field`);
+    }
+  },
+  
+  // Get appropriate presence text based on field type and user state
+  getPresenceText(field, user) {
+    if (field.type === 'checkbox') {
+      return user.isInteracting ? 
+        `${user.name} is updating...` : 
+        `${user.name} is editing`;
+    } else {
+      return user.isTyping ? 
+        `${user.name} is typing...` : 
+        `${user.name} is editing`;
+    }
+  },
+  
+  // Hide user indicator
+  hideUserIndicator(field, userId) {
+    // Clear field styling
+    field.classList.remove('field-being-edited');
+    field.style.borderColor = '';
+    field.style.boxShadow = '';
+    
+    const parent = field.closest('.program-entry') || field.parentElement;
+    if (parent) {
+      // Remove both old and new style indicators
+      const oldIndicator = parent.querySelector(`.user-presence-indicator[data-user-id="${userId}"]`);
+      const newIndicator = parent.querySelector(`.typing-indicator[data-user-id="${userId}"]`);
+      const enhancedIndicator = parent.querySelector(`.enhanced-typing-indicator[data-user-id="${userId}"]`);
+      
+      if (oldIndicator) oldIndicator.remove();
+      if (newIndicator) newIndicator.remove();
+      if (enhancedIndicator) enhancedIndicator.remove();
+      
+      console.log(`🚫 [TYPING] Removed indicator for user ${userId}`);
+    }
+  },
+  
+  // Start broadcasting presence to other users
+  startPresenceBroadcast() {
+    // Broadcast immediately
+    this.broadcastPresence();
+    
+    // Set up periodic broadcasts
+    setInterval(() => {
+      this.broadcastPresence();
+    }, 3000); // Every 3 seconds
+  },
+  
+  // Broadcast current user presence
+  broadcastPresence() {
+    if (!window.socket || !window.socket.connected) return;
+    
+    const eventId = currentEventId || localStorage.getItem('eventId');
+    if (!eventId) return;
+    
+    window.socket.emit('updatePresence', {
+      eventId,
+      userId: this.currentUser.id,
+      userName: this.currentUser.name,
+      userColor: this.currentUser.color,
+      currentField: this.currentUser.currentField,
+      isTyping: this.currentUser.isTyping || false,
+      isInteracting: this.currentUser.isInteracting || false,
+      timestamp: Date.now()
+    });
+  },
+  
+  // Broadcast typing state changes
+  broadcastTypingState(action, fieldId) {
+    if (!window.socket || !window.socket.connected) return;
+    
+    const eventId = currentEventId || localStorage.getItem('eventId');
+    if (!eventId) return;
+    
+    const [programId, fieldKey] = fieldId.split('-');
+    
+    console.log(`[TYPING] Broadcasting ${action} for field ${fieldId}`);
+    
+    window.socket.emit(`fieldEdit${action === 'start' ? 'Started' : 'Stopped'}`, {
+      eventId,
+      programId,
+      fieldName: fieldKey,
+      userId: this.currentUser.id,
+      userName: this.currentUser.name,
+      userColor: this.currentUser.color,
+      timestamp: Date.now()
+    });
+  },
+  
+  // Set up field detection (typing for text fields, interaction for checkboxes)
+  setupFieldDetection(field, fieldId) {
+    // Clear any existing detection
+    this.clearFieldDetection(field);
+    
+    if (field.type === 'checkbox') {
+      // For checkboxes, detect change events
+      field._interactionHandler = () => {
+        if (this.currentUser.currentField === fieldId) {
+          this.currentUser.isInteracting = true;
+          this.currentUser.lastInteraction = Date.now();
+          
+          console.log(`[PRESENCE] Checkbox interaction detected for ${fieldId}`);
+        }
+      };
+      
+      // Add change listener for checkboxes
+      field.addEventListener('change', field._interactionHandler);
+      
+      // Shorter timeout for checkbox interactions (they're quick)
+      field._interactionTimeout = setTimeout(() => {
+        this.currentUser.isInteracting = false;
+      }, 1000);
+      
+    } else {
+      // For text fields, detect typing
+      field._typingHandler = () => {
+        if (this.currentUser.currentField === fieldId) {
+          this.currentUser.isTyping = true;
+          this.currentUser.lastTyping = Date.now();
+          
+          console.log(`[PRESENCE] Typing detected for ${fieldId}`);
+        }
+      };
+      
+      // Add input listeners for text fields
+      field.addEventListener('input', field._typingHandler);
+      field.addEventListener('keydown', field._typingHandler);
+      
+      // Set up typing timeout to detect when user stops typing
+      field._typingTimeout = setInterval(() => {
+        if (this.currentUser.lastTyping && Date.now() - this.currentUser.lastTyping > 3000) {
+          // User stopped typing
+          this.currentUser.isTyping = false;
+        }
+      }, 1000);
+    }
+  },
+  
+  // Clear field detection
+  clearFieldDetection(field) {
+    // Clear typing detection
+    if (field._typingHandler) {
+      field.removeEventListener('input', field._typingHandler);
+      field.removeEventListener('keydown', field._typingHandler);
+      delete field._typingHandler;
+    }
+    
+    if (field._typingTimeout) {
+      clearInterval(field._typingTimeout);
+      delete field._typingTimeout;
+    }
+    
+    // Clear interaction detection
+    if (field._interactionHandler) {
+      field.removeEventListener('change', field._interactionHandler);
+      delete field._interactionHandler;
+    }
+    
+    if (field._interactionTimeout) {
+      clearTimeout(field._interactionTimeout);
+      delete field._interactionTimeout;
+    }
+  },
+  
+  // Handle presence updates from other users
+  handlePresenceUpdate(data) {
+    const { userId, userName, userColor, currentField, isTyping, isInteracting, timestamp } = data;
+    
+    // Don't process our own presence updates
+    if (userId === this.currentUser.id) {
+      console.log(`[PRESENCE] Ignoring own presence update for user ${userId}`);
+      return;
+    }
+    
+    console.log(`[PRESENCE] Received presence update from other user:`, data);
+    
+    // Update user info
+    this.activeUsers.set(userId, {
+      id: userId,
+      name: userName,
+      color: userColor,
+      currentField,
+      isTyping: isTyping || false,
+      isInteracting: isInteracting || false,
+      lastSeen: timestamp
+    });
+    
+    // Update operational transform user sessions
+    operationalTransform.userSessions.set(userId, {
+      userName,
+      userColor
+    });
+    
+    // Show/hide enhanced typing indicators (only for other users)
+    this.updatePresenceIndicators(userId, currentField, { 
+      id: userId, 
+      name: userName, 
+      color: userColor,
+      isTyping: isTyping || false,
+      isInteracting: isInteracting || false
+    });
+  },
+  
+  // Update presence indicators for a user
+  updatePresenceIndicators(userId, currentField, user) {
+    // Remove old indicators for this user (both legacy and enhanced)
+    document.querySelectorAll(`.user-presence-indicator[data-user-id="${userId}"]`).forEach(el => el.remove());
+    document.querySelectorAll(`.enhanced-typing-indicator[data-user-id="${userId}"]`).forEach(el => el.remove());
+    
+    // Add new enhanced indicator if user is editing a field
+    if (currentField) {
+      const [programId, fieldKey] = currentField.split('-');
+      const entry = document.querySelector(`.program-entry[data-program-id="${programId}"]`);
+      
+      if (entry) {
+        const field = entry.querySelector(`[data-field="${fieldKey}"], input[placeholder*="${fieldKey}"], textarea`);
+        if (field) {
+          // Show enhanced typing indicator
+          this.showUserIndicator(field, user);
+          
+          // Update indicator text based on field type and user state
+          setTimeout(() => {
+            const indicator = field.parentElement?.querySelector('.enhanced-typing-indicator');
+            if (indicator) {
+              const nameSpan = indicator.querySelector('.editor-name');
+              if (nameSpan) {
+                nameSpan.textContent = this.getPresenceText(field, user);
+              }
+            }
+          }, 10);
+        }
+      }
+    }
+  },
+  
+  // Clean up old presence data
+  cleanup() {
+    const now = Date.now();
+    const timeout = 30000; // 30 seconds
+    
+    for (const [userId, user] of this.activeUsers.entries()) {
+      if (now - user.lastSeen > timeout) {
+        console.log(`[PRESENCE] Cleaning up inactive user: ${userId}`);
+        
+        // Remove all types of indicators
+        document.querySelectorAll(`.user-presence-indicator[data-user-id="${userId}"]`).forEach(el => el.remove());
+        document.querySelectorAll(`.enhanced-typing-indicator[data-user-id="${userId}"]`).forEach(el => el.remove());
+        document.querySelectorAll(`.typing-indicator[data-user-id="${userId}"]`).forEach(el => el.remove());
+        
+        // Clear field styling for this user
+        document.querySelectorAll('.field-being-edited').forEach(field => {
+          // Check if this field's indicator belongs to the cleaned up user
+          const parent = field.closest('.program-entry') || field.parentElement;
+          const hasIndicator = parent?.querySelector(`[data-user-id="${userId}"]`);
+          if (!hasIndicator) {
+            field.classList.remove('field-being-edited');
+            field.style.borderColor = '';
+            field.style.boxShadow = '';
+          }
+        });
+        
+        // Remove from active users
+        this.activeUsers.delete(userId);
+        
+        // Remove from operational transform sessions
+        operationalTransform.userSessions.delete(userId);
+      }
+    }
+  }
+};
+
+// Advanced conflict resolution UI for complex scenarios
+const conflictResolution = {
+  activeConflicts: new Map(),
+  
+  // Show conflict resolution dialog
+  showConflictDialog(conflict) {
+    console.log('[CONFLICT] Showing resolution dialog:', conflict);
+    
+    const modal = document.createElement('div');
+    modal.className = 'conflict-resolution-modal';
+    modal.innerHTML = `
+      <div class="conflict-resolution-content">
+        <h3>🔀 Conflict Resolution Required</h3>
+        <p>Multiple users edited the same field simultaneously. Please choose how to resolve this conflict:</p>
+        
+        <div class="conflict-info">
+          <strong>Field:</strong> ${this.getFieldDisplayName(conflict.field)}<br>
+          <strong>Program:</strong> ${conflict.programName || 'Unnamed Program'}
+        </div>
+        
+        <div class="conflict-field-comparison">
+          <div class="conflict-option" data-choice="version1">
+            <h4>📝 ${conflict.version1.userName}'s Version</h4>
+            <div class="conflict-value">"${conflict.version1.value}"</div>
+            <div class="conflict-meta">
+              <small>Updated ${this.formatTime(conflict.version1.timestamp)}</small>
+            </div>
+          </div>
+          
+          <div class="conflict-option" data-choice="version2">
+            <h4>📝 ${conflict.version2.userName}'s Version</h4>
+            <div class="conflict-value">"${conflict.version2.value}"</div>
+            <div class="conflict-meta">
+              <small>Updated ${this.formatTime(conflict.version2.timestamp)}</small>
+            </div>
+          </div>
+        </div>
+        
+        ${conflict.mergedSuggestion ? `
+          <div class="conflict-option merged-suggestion" data-choice="merged">
+            <h4>🤝 Suggested Merge</h4>
+            <div class="conflict-value">"${conflict.mergedSuggestion.value}"</div>
+            <div class="conflict-meta">
+              <small>Automatically combined both changes</small>
+            </div>
+          </div>
+        ` : ''}
+        
+        <div class="conflict-custom">
+          <h4>✏️ Custom Solution</h4>
+          <textarea class="conflict-custom-input" placeholder="Type your own resolution..."></textarea>
+        </div>
+        
+        <div class="conflict-actions">
+          <button class="btn-secondary" onclick="conflictResolution.cancelResolution('${conflict.id}')">
+            Cancel
+          </button>
+          <button class="btn-primary" onclick="conflictResolution.applyResolution('${conflict.id}')">
+            Apply Resolution
+          </button>
+        </div>
+      </div>
+    `;
+    
+    // Add event listeners for option selection
+    modal.addEventListener('click', (e) => {
+      if (e.target.classList.contains('conflict-option')) {
+        // Remove previous selection
+        modal.querySelectorAll('.conflict-option').forEach(opt => opt.classList.remove('selected'));
+        // Add selection to clicked option
+        e.target.classList.add('selected');
+        
+        // If custom option, focus the textarea
+        if (e.target.dataset.choice === 'custom') {
+          const textarea = modal.querySelector('.conflict-custom-input');
+          textarea.focus();
+        }
+      }
+    });
+    
+    // Handle custom textarea
+    const customInput = modal.querySelector('.conflict-custom-input');
+    customInput.addEventListener('input', () => {
+      const customOption = modal.querySelector('.conflict-custom');
+      customOption.classList.add('selected');
+      
+      // Deselect other options
+      modal.querySelectorAll('.conflict-option').forEach(opt => opt.classList.remove('selected'));
+    });
+    
+    document.body.appendChild(modal);
+    
+    // Store conflict data
+    this.activeConflicts.set(conflict.id, { conflict, modal });
+    
+    // Auto-select the most recent version by default
+    const mostRecent = conflict.version1.timestamp > conflict.version2.timestamp ? 'version1' : 'version2';
+    modal.querySelector(`[data-choice="${mostRecent}"]`).classList.add('selected');
+  },
+  
+  // Apply the chosen resolution
+  applyResolution(conflictId) {
+    const conflictData = this.activeConflicts.get(conflictId);
+    if (!conflictData) return;
+    
+    const { conflict, modal } = conflictData;
+    
+    // Get selected resolution
+    const selected = modal.querySelector('.conflict-option.selected, .conflict-custom.selected');
+    if (!selected) {
+      alert('Please select a resolution option');
+      return;
+    }
+    
+    let resolvedValue;
+    let resolutionType;
+    
+    if (selected.classList.contains('conflict-custom')) {
+      resolvedValue = modal.querySelector('.conflict-custom-input').value.trim();
+      resolutionType = 'custom';
+      if (!resolvedValue) {
+        alert('Please enter a custom resolution');
+        return;
+      }
+    } else {
+      const choice = selected.dataset.choice;
+      if (choice === 'version1') {
+        resolvedValue = conflict.version1.value;
+        resolutionType = 'version1';
+      } else if (choice === 'version2') {
+        resolvedValue = conflict.version2.value;
+        resolutionType = 'version2';
+      } else if (choice === 'merged') {
+        resolvedValue = conflict.mergedSuggestion.value;
+        resolutionType = 'merged';
+      }
+    }
+    
+    console.log(`[CONFLICT] Applying resolution: ${resolutionType} = "${resolvedValue}"`);
+    
+    // Apply the resolution
+    this.executeResolution(conflict, resolvedValue, resolutionType);
+    
+    // Clean up
+    this.cancelResolution(conflictId);
+  },
+  
+  // Cancel conflict resolution
+  cancelResolution(conflictId) {
+    const conflictData = this.activeConflicts.get(conflictId);
+    if (conflictData) {
+      conflictData.modal.remove();
+      this.activeConflicts.delete(conflictId);
+    }
+  },
+  
+  // Execute the chosen resolution
+  executeResolution(conflict, resolvedValue, resolutionType) {
+    const fieldElement = this.findFieldElement(conflict.programId, conflict.field);
+    if (!fieldElement) {
+      console.error('[CONFLICT] Could not find field element for resolution');
+      return;
+    }
+    
+    // Apply the resolved value
+    if (fieldElement.type === 'checkbox') {
+      fieldElement.checked = resolvedValue === true || resolvedValue === 'true';
+    } else {
+      fieldElement.value = resolvedValue;
+    }
+    
+    // Update local data
+    const programIndex = parseInt(
+      fieldElement.closest('.program-entry')?.getAttribute('data-program-index'), 
+      10
+    );
+    if (!isNaN(programIndex) && tableData.programs[programIndex]) {
+      tableData.programs[programIndex][conflict.field] = resolvedValue;
+    }
+    
+    // Save the resolution
+    const programId = conflict.programId;
+    if (programId) {
+      atomicSaveField(fieldElement, conflict.field, programId, resolvedValue)
+        .then(() => {
+          console.log(`✅ [CONFLICT] Resolution saved successfully`);
+          
+          // Show success feedback
+          fieldElement.style.background = '#e8f5e9';
+          fieldElement.style.borderLeft = '3px solid #4caf50';
+          setTimeout(() => {
+            fieldElement.style.background = '';
+            fieldElement.style.borderLeft = '';
+          }, 2000);
+        })
+        .catch(error => {
+          console.error('❌ [CONFLICT] Failed to save resolution:', error);
+          alert('Failed to save the resolution. Please try again.');
+        });
+    }
+    
+    // Log the resolution
+    console.log(`📊 [CONFLICT] Resolution applied:`, {
+      type: resolutionType,
+      field: conflict.field,
+      finalValue: resolvedValue,
+      originalVersions: [conflict.version1.value, conflict.version2.value]
+    });
+  },
+  
+  // Find field element by program ID and field name
+  findFieldElement(programId, fieldName) {
+    const entry = document.querySelector(`.program-entry[data-program-id='${programId}']`);
+    if (!entry) return null;
+    
+    return entry.querySelector(`[data-field='${fieldName}']`) ||
+           entry.querySelector(`input[placeholder*='${fieldName}']`) ||
+           entry.querySelector(`textarea[placeholder*='${fieldName}']`);
+  },
+  
+  // Get display name for field
+  getFieldDisplayName(fieldName) {
+    const displayNames = {
+      name: 'Program Name',
+      startTime: 'Start Time',
+      endTime: 'End Time',
+      location: 'Location',
+      photographer: 'Photographer',
+      notes: 'Notes',
+      done: 'Completion Status'
+    };
+    return displayNames[fieldName] || fieldName;
+  },
+  
+  // Format timestamp for display
+  formatTime(timestamp) {
+    return new Date(timestamp).toLocaleTimeString();
+  },
+  
+  // Check if conflicts should trigger dialog (for complex scenarios)
+  shouldShowDialog(conflict) {
+    // Show dialog for:
+    // 1. Simultaneous edits within 5 seconds
+    // 2. Significantly different values
+    // 3. Text fields with complex changes
+    
+    const timeDiff = Math.abs(conflict.version1.timestamp - conflict.version2.timestamp);
+    const isSimultaneous = timeDiff < 5000; // 5 seconds
+    
+    const val1 = String(conflict.version1.value).trim();
+    const val2 = String(conflict.version2.value).trim();
+    const isSignificantlyDifferent = val1 !== val2 && val1.length > 5 && val2.length > 5;
+    
+    return isSimultaneous || isSignificantlyDifferent;
+  }
+};
+
+// Add global conflict resolution functions
+window.conflictResolution = conflictResolution;
+
+// Monitor connection status and process queue when online
+if (window.addEventListener) {
+  window.addEventListener('online', () => {
+    console.log('[NETWORK] Connection restored, processing failed saves queue');
+    setTimeout(processFailedSavesQueue, 1000); // Small delay for stability
+  });
+  
+  window.addEventListener('offline', () => {
+    console.log('[NETWORK] Connection lost, future saves will be queued');
+  });
+}
+
 function autoSave(field, date, ignoredIndex, key) {
   field.classList.remove('editing');
   const entry = field.closest('.program-entry');
@@ -1007,18 +2511,28 @@ function autoSave(field, date, ignoredIndex, key) {
   }
   
   const program = tableData.programs[programIndex];
-  const newValue = field.value.trim();
+  let newValue = field.type === 'checkbox' ? field.checked : field.value;
   
-  // Ensure we have the correct key for textarea fields
+  // Don't trim checkbox values, but trim text values
+  if (field.type !== 'checkbox' && typeof newValue === 'string') {
+    newValue = newValue.trim();
+  }
+  
+  // Ensure we have the correct key for different field types
   let fieldKey = key;
   if (!fieldKey) {
-    const placeholder = field.getAttribute('placeholder');
-    if (placeholder) {
-      fieldKey = placeholder.toLowerCase();
-    } else if (field.className.includes('program-name')) {
-      fieldKey = 'name';
-    } else if (field.type === 'checkbox') {
-      fieldKey = 'done';
+    const dataField = field.getAttribute('data-field');
+    if (dataField) {
+      fieldKey = dataField;
+    } else {
+      const placeholder = field.getAttribute('placeholder');
+      if (placeholder) {
+        fieldKey = placeholder.toLowerCase();
+      } else if (field.className.includes('program-name')) {
+        fieldKey = 'name';
+      } else if (field.type === 'checkbox') {
+        fieldKey = 'done';
+      }
     }
   }
   
@@ -1027,10 +2541,24 @@ function autoSave(field, date, ignoredIndex, key) {
     return;
   }
   
-  console.log(`[AUTOSAVE] Saving field: ${fieldKey} = "${newValue}" for program ${program?._id || programIndex}`);
+  console.log(`[AUTOSAVE] Preparing to save field: ${fieldKey} = "${newValue}" for program ${program?._id || programIndex}`);
   
-  // Track this edit with a timestamp to protect it from socket overwrites
-  if (program && program._id && fieldKey) {
+  // Update local data optimistically
+  const wasChanged = safeUpdateProgram(programIndex, fieldKey, newValue);
+  if (!wasChanged) {
+    console.log(`[AUTOSAVE] No change detected for field ${fieldKey}, skipping save`);
+    return;
+  }
+  
+  // Use atomic save if we have a program ID, otherwise fall back to full save
+  if (program && program._id) {
+    // Get old value for operational transform and optimistic updates
+    const oldValue = program[fieldKey] || '';
+    
+    // Apply optimistic update immediately for instant feedback
+    optimisticUpdates.applyOptimisticUpdate(field, fieldKey, program._id, newValue, oldValue);
+    
+    // Track this edit with a timestamp to protect it from socket overwrites
     const protectionKey = `${program._id}-${fieldKey}`;
     window.recentlyEditedFields = window.recentlyEditedFields || new Map();
     window.recentlyEditedFields.set(protectionKey, {
@@ -1039,18 +2567,36 @@ function autoSave(field, date, ignoredIndex, key) {
       field: fieldKey
     });
     
-    console.log(`[AUTOSAVE] Protected field ${fieldKey} for 5 seconds`);
+    console.log(`[AUTOSAVE] Protected field ${fieldKey} for 10 seconds, applied optimistic update`);
     
-    // Clear the tracking after 5 seconds (increased from 3 for better protection)
+    // Clear the tracking after 10 seconds (increased for better protection)
     setTimeout(() => {
       window.recentlyEditedFields.delete(protectionKey);
       console.log(`[AUTOSAVE] Protection expired for field ${fieldKey}`);
-    }, 5000);
-  }
-  
-  // Use safe update to prevent data corruption
-  const wasChanged = safeUpdateProgram(programIndex, fieldKey, newValue);
-  if (wasChanged) {
+    }, 10000);
+    
+    // Use new atomic save function with operational transform
+    const fieldId = `${program._id}-${fieldKey}`;
+    atomicSaveField(field, fieldKey, program._id, newValue, oldValue)
+      .then(success => {
+        if (success) {
+          // Confirm the optimistic update
+          optimisticUpdates.confirmUpdate(fieldId);
+          console.log(`[AUTOSAVE] ✅ Atomic save successful for ${fieldKey}`);
+        } else {
+          // Revert the optimistic update
+          optimisticUpdates.revertUpdate(fieldId, new Error('Save returned false'));
+        }
+      })
+      .catch(error => {
+        console.error('[AUTOSAVE] Atomic save failed, queuing for retry:', error);
+        // Revert the optimistic update
+        optimisticUpdates.revertUpdate(fieldId, error);
+        // Queue the failed save instead of doing a full save that could overwrite other changes
+        queueFailedSave(field, fieldKey, program._id, newValue, 'atomic_save_failed');
+      });
+  } else {
+    console.warn(`[AUTOSAVE] No program ID available, falling back to full schedule save`);
     scheduleSave();
   }
   
@@ -1201,7 +2747,8 @@ function safeAddProgram(date) {
   }
   
   // Save immediately to get a real MongoDB _id
-  scheduleSave().then(() => {
+  // Coordinate with any pending atomic saves
+  coordinatedSave('program_add', () => scheduleSave()).then(() => {
     console.log(`[SAFE ADD] Program saved, should now have real _id`);
     // Re-render to update data-program-id attributes with real IDs
     if (window.__collaborativeScheduleInitialized) {
@@ -1241,7 +2788,8 @@ function safeDeleteProgram(programIndex) {
   
   tableData.programs.splice(programIndex, 1);
   renderProgramSections(isOwner);
-  scheduleSave();
+  // Coordinate delete with pending atomic saves
+  coordinatedSave('program_delete', () => scheduleSave());
 }
 
 function safeDeleteDate(date) {
@@ -1253,7 +2801,8 @@ function safeDeleteDate(date) {
   
   console.log(`[SAFE DELETE DATE] Removed ${removedCount} programs for ${date}`);
   renderProgramSections(isOwner);
-  scheduleSave();
+  // Coordinate date delete with pending atomic saves
+  coordinatedSave('date_delete', () => scheduleSave());
 }
 
 function addDateSection() {
@@ -1278,7 +2827,8 @@ function addDateSection() {
   document.getElementById('newDate').value = '';
   console.log(`[ADD DATE SECTION] Added new date section: ${date}`);
   renderProgramSections(isOwner);
-  scheduleSave();
+  // Coordinate add date with pending atomic saves
+  coordinatedSave('date_add', () => scheduleSave());
 }
 
 function addProgram(date) {
@@ -1418,8 +2968,26 @@ window.resetFilterSettings = resetFilterSettings;
 // Call setupTextareaResize for each textarea on page load
 document.querySelectorAll('.auto-expand').forEach(setupTextareaResize);
 
-window.cleanupSchedulePage = function cleanupSchedulePage() {
-  console.log('🧹 [CLEANUP] cleanupSchedulePage called');
+// Preserve current session state before any cleanup
+function preserveSessionState() {
+  console.log('💾 [PRESERVE] Saving current session state...');
+  
+  try {
+    // Save current filter settings to localStorage
+    saveFilterSettings();
+    
+    // Save current scroll position to sessionStorage
+    saveScrollPosition();
+    
+    console.log('✅ [PRESERVE] Session state preserved', { filterDate, searchQuery });
+  } catch (error) {
+    console.error('❌ [PRESERVE] Error preserving session state:', error);
+  }
+}
+
+// Clean up only event listeners and memory leaks, NOT user state
+function cleanupEventListenersAndMemory() {
+  console.log('🧹 [CLEANUP] Cleaning up event listeners and memory...');
   
   // Cleanup simple collaborative features first
   if (window.SimpleCollab && window.__simpleCollabInitialized) {
@@ -1431,8 +2999,6 @@ window.cleanupSchedulePage = function cleanupSchedulePage() {
     } catch (error) {
       console.error('❌ Error cleaning up simple collaborative features:', error);
     }
-  } else {
-    console.log('🚫 No simple collaboration to clean up');
   }
   
   // Legacy cleanup for old collaborative system
@@ -1466,8 +3032,6 @@ window.cleanupSchedulePage = function cleanupSchedulePage() {
     input.removeEventListener('change', handleSearchInput);
   });
 
-  // Note: Navigation container is managed by main app.js, not page-specific cleanup
-
   // Remove scroll event listener
   if (window.scheduleScrollHandler) {
     const { handler, container } = window.scheduleScrollHandler;
@@ -1482,24 +3046,15 @@ window.cleanupSchedulePage = function cleanupSchedulePage() {
     clearTimeout(window.scrollSaveTimeout);
   }
 
-  // Reset any global variables or state
-  tableData = { programs: [] };
-  saveTimeout = null;
-  searchQuery = '';
-  filterDate = 'all';
-  allNotesVisible = false;
-  isOwner = false;
-  pendingScrollRestore = null;
+  // Clear any remaining timeouts
+  if (saveTimeout) {
+    clearTimeout(saveTimeout);
+  }
 
   // Remove any other dynamically added elements or styles
   const dynamicElements = document.querySelectorAll('.dynamic-element');
   dynamicElements.forEach(el => el.remove());
 
-  // Clear any remaining timeouts
-  if (saveTimeout) {
-    clearTimeout(saveTimeout);
-  }
-  
   // Remove collaboration UI elements
   const collabElements = document.querySelectorAll('#active-collab-users, .editing-badge, .collaboration-notification');
   collabElements.forEach(el => el.remove());
@@ -1507,13 +3062,44 @@ window.cleanupSchedulePage = function cleanupSchedulePage() {
   // Remove collaboration styles
   const collabStyles = document.querySelectorAll('#collab-users-styles, #collab-notification-styles');
   collabStyles.forEach(style => style.remove());
+
+  console.log('✅ [CLEANUP] Event listeners and memory cleanup complete');
+}
+
+// Reset module variables (only for fresh page loads, not navigation)
+function resetModuleVariables() {
+  console.log('🔄 [RESET] Resetting module variables...');
   
-  // Clear collaboration state
+  tableData = { programs: [] };
+  saveTimeout = null;
+  searchQuery = '';
+  filterDate = 'all';
+  allNotesVisible = false;
+  isOwner = false;
+  pendingScrollRestore = null;
   currentEventId = null;
   
-  // Reset the initialization guard when cleaned up
+  // Reset the initialization guards when cleaned up
   window.__scheduleJsLoaded = false;
   window.__simpleCollabLoaded = false;
+  
+  console.log('✅ [RESET] Module variables reset');
+}
+
+// Main cleanup function - preserves state but cleans up memory
+window.cleanupSchedulePage = function cleanupSchedulePage() {
+  console.log('🧹 [CLEANUP] cleanupSchedulePage called');
+  
+  // First, preserve current user state
+  preserveSessionState();
+  
+  // Then clean up event listeners and memory
+  cleanupEventListenersAndMemory();
+  
+  // Note: We DON'T reset module variables here to preserve session state
+  // They will be reset only when a new event is loaded via resetModuleVariables()
+  
+  console.log('🧹 [CLEANUP] Schedule page cleanup complete (state preserved)');
 }
 
 function handleNavClick(e) {
@@ -1800,23 +3386,100 @@ function showImportModal(newPrograms) {
     document.body.removeChild(modalContainer);
   });
   
-  mergeButton.addEventListener('click', () => {
-    // Merge data
-    tableData.programs = [...tableData.programs, ...newPrograms];
-    renderProgramSections();
-    scheduleSave();
-    document.body.removeChild(modalContainer);
-    alert(`Successfully imported ${newPrograms.length} program entries.`);
+  mergeButton.addEventListener('click', async () => {
+    // Show loading state
+    mergeButton.disabled = true;
+    mergeButton.textContent = 'Importing...';
+    
+    try {
+      // SAFE IMPORT: Add programs without overwriting existing data
+      const originalLength = tableData.programs.length;
+      tableData.programs = [...tableData.programs, ...newPrograms];
+      
+      // Use atomic approach: save entire schedule but with conflict detection
+      await saveImportedPrograms(newPrograms, 'merge');
+      
+      renderProgramSections();
+      document.body.removeChild(modalContainer);
+      alert(`Successfully imported ${newPrograms.length} program entries.`);
+    } catch (error) {
+      console.error('Import failed:', error);
+      // Rollback on error
+      tableData.programs = tableData.programs.slice(0, originalLength);
+      alert('Import failed. Please try again.');
+    }
   });
   
-  replaceButton.addEventListener('click', () => {
-    // Replace data
-    tableData.programs = newPrograms;
-    renderProgramSections();
-    scheduleSave();
-    document.body.removeChild(modalContainer);
-    alert(`Successfully replaced schedule with ${newPrograms.length} program entries.`);
+  replaceButton.addEventListener('click', async () => {
+    if (!confirm('This will replace ALL existing schedule data. Are you sure?')) return;
+    
+    // Show loading state
+    replaceButton.disabled = true;
+    replaceButton.textContent = 'Replacing...';
+    
+    try {
+      // SAFE REPLACE: Backup original data in case of failure
+      const originalPrograms = [...tableData.programs];
+      tableData.programs = newPrograms;
+      
+      // Use atomic approach: save entire schedule but with conflict detection
+      await saveImportedPrograms(newPrograms, 'replace');
+      
+      renderProgramSections();
+      document.body.removeChild(modalContainer);
+      alert(`Successfully replaced schedule with ${newPrograms.length} program entries.`);
+    } catch (error) {
+      console.error('Replace failed:', error);
+      // Rollback on error
+      tableData.programs = originalPrograms;
+      renderProgramSections();
+      alert('Replace failed. Please try again.');
+    }
   });
+}
+
+// Safer import function with conflict detection
+async function saveImportedPrograms(newPrograms, mode) {
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) {
+    throw new Error('No event ID available for saving imported programs');
+  }
+  
+  console.log(`[SAFE IMPORT] Saving ${newPrograms.length} programs via ${mode} import`);
+  
+  // For large imports, warn about potential conflicts
+  if (newPrograms.length > 10) {
+    console.warn(`[SAFE IMPORT] Large import detected (${newPrograms.length} programs). Consider using atomic saves for concurrent editing.`);
+  }
+  
+  try {
+    // Use the existing full save endpoint but with better error handling
+    const response = await fetch(`${API_BASE}/api/tables/${tableId}/program-schedule`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': localStorage.getItem('token')
+      },
+      body: JSON.stringify({ 
+        programSchedule: tableData.programs,
+        importMode: mode, // Add metadata for logging
+        importCount: newPrograms.length
+      })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const result = await response.text();
+    console.log(`✅ [SAFE IMPORT] Successfully saved ${newPrograms.length} imported programs`);
+    
+    return result;
+  } catch (error) {
+    console.error(`❌ [SAFE IMPORT] Failed to save imported programs:`, error);
+    throw error;
+  }
 }
 
 // Helper function to format time values
@@ -2053,7 +3716,122 @@ if (window.socket) {
     }
   });
   
-  console.log('[SOCKET] Global socket event handlers registered for schedule');
+  // NEW: Listen for atomic field updates - this prevents data loss!
+  window.socket.on('programFieldUpdated', (data) => {
+    console.log(`[SOCKET] Field update received:`, data);
+    
+    const currentEvent = currentEventId || localStorage.getItem('eventId');
+    
+    // Only update if this update is for the current event
+    if (data.eventId === currentEvent) {
+      console.log(`[SOCKET] Field update is for current event (${currentEvent}), processing...`);
+      
+      // Don't update if this came from the current user's session
+      const currentSessionId = window.SimpleCollab?.getCurrentUser?.()?.sessionId;
+      if (data.sessionId && data.sessionId === currentSessionId) {
+        console.log('[SOCKET] Ignoring field update from own session');
+        return;
+      }
+      
+      // Find the specific field element
+      const container = document.getElementById('programSections');
+      if (!container) {
+        console.warn('[SOCKET] Program container not found');
+        return;
+      }
+      
+      const entry = container.querySelector(`.program-entry[data-program-id='${data.programId}']`);
+      if (!entry) {
+        console.warn(`[SOCKET] Program entry not found: ${data.programId}`);
+        return;
+      }
+      
+      const fieldElement = entry.querySelector(`[data-field='${data.field}']`);
+      if (!fieldElement) {
+        console.warn(`[SOCKET] Field element not found: ${data.field}`);
+        return;
+      }
+      
+      // Don't update if user is currently editing this specific field
+      if (document.activeElement === fieldElement) {
+        console.log('[SOCKET] User is editing this field, deferring update');
+        return;
+      }
+      
+      // Check if this field was recently edited by the current user
+      const protectionKey = `${data.programId}-${data.field}`;
+      const recentEdit = window.recentlyEditedFields?.get(protectionKey);
+      if (recentEdit && Date.now() - recentEdit.timestamp < 10000) {
+        console.log(`[SOCKET] Field recently edited by current user, skipping update for ${data.field}`);
+        return;
+      }
+      
+      // Update the field value
+      const oldValue = fieldElement.type === 'checkbox' ? fieldElement.checked : fieldElement.value;
+      
+      if (fieldElement.type === 'checkbox') {
+        fieldElement.checked = data.value;
+        fieldElement.setAttribute('data-original-value', data.value ? 'true' : 'false');
+        // Update visual state
+        entry.classList.toggle('done-entry', data.value);
+      } else {
+        fieldElement.value = data.value || '';
+      }
+      
+      // Update local data
+      const programIndex = tableData.programs.findIndex(p => p._id === data.programId);
+      if (programIndex !== -1) {
+        safeUpdateProgram(programIndex, data.field, data.value);
+      }
+      
+      // Show visual feedback that field was updated by another user
+      fieldElement.style.background = '#e3f2fd';
+      fieldElement.style.transition = 'background 0.5s ease';
+      
+      setTimeout(() => {
+        fieldElement.style.background = '';
+      }, 2000);
+      
+      // Show notification of who made the change
+      if (data.userName && data.userName !== 'Unknown User') {
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+          position: absolute;
+          top: -25px;
+          right: 0;
+          background: #2196f3;
+          color: white;
+          padding: 2px 6px;
+          border-radius: 3px;
+          font-size: 11px;
+          z-index: 1000;
+          pointer-events: none;
+        `;
+        notification.textContent = `Updated by ${data.userName}`;
+        
+        entry.style.position = 'relative';
+        entry.appendChild(notification);
+        
+        setTimeout(() => {
+          notification.remove();
+        }, 3000);
+      }
+      
+      console.log(`✅ [SOCKET] Applied field update: ${data.field} = "${data.value}" by ${data.userName}`);
+    } else {
+      console.log(`[SOCKET] Field update is for different event (${data.eventId}), current: ${currentEvent}, ignoring`);
+    }
+  });
+  
+  // Listen for user presence updates
+  window.socket.on('presenceUpdated', (data) => {
+    console.log(`[SOCKET] Presence update received:`, data);
+    if (userPresence && userPresence.handlePresenceUpdate) {
+      userPresence.handlePresenceUpdate(data);
+    }
+  });
+  
+  console.log('[SOCKET] Global socket event handlers registered for schedule (including presence)');
 } else {
   console.warn('[SOCKET] Global socket not available, real-time updates disabled');
 }
@@ -2076,6 +3854,19 @@ function resetFilterSettings() {
   // Reset scroll position
   window.scrollTo(0, 0);
   pendingScrollRestore = null;
+  
+  // Clear old stored state when switching events
+  const oldTableId = localStorage.getItem('eventId');
+  if (oldTableId) {
+    try {
+      localStorage.removeItem(`schedule_filter_date_${oldTableId}`);
+      localStorage.removeItem(`schedule_search_${oldTableId}`);
+      sessionStorage.removeItem(`schedule_scroll_${oldTableId}`);
+      console.log('🧹 [RESET] Cleared old state for previous event');
+    } catch (error) {
+      console.error('❌ [RESET] Error clearing old state:', error);
+    }
+  }
   
   // Apply the reset filters
   renderProgramSections(isOwner);
@@ -2403,19 +4194,9 @@ function setupDateFilterOptions() {
   if (filterDropdown && tableData.programs) {
     const allDates = [...new Set(tableData.programs.map(p => p.date))].sort((a, b) => a.localeCompare(b));
     
-    // Check if there's a saved filter date in sessionStorage
+    // Check if there's a saved filter date in localStorage
     const tableId = currentEventId || localStorage.getItem('eventId');
-    const settingsJson = sessionStorage.getItem(`schedule_${tableId}_settings`);
-    let savedFilterDate = null;
-    
-    if (settingsJson) {
-      try {
-        const settings = JSON.parse(settingsJson);
-        savedFilterDate = settings.filterDate;
-      } catch (err) {
-        console.error('Error parsing saved filter settings:', err);
-      }
-    }
+    const savedFilterDate = localStorage.getItem(`schedule_filter_date_${tableId}`) || null;
     
     // Use saved filter date if available, otherwise use current filterDate, fallback to 'all'
     const currentSelection = savedFilterDate || filterDate || 'all';
@@ -2435,24 +4216,7 @@ function setupDateFilterOptions() {
   }
 }
 
-// Monitor setupBottomNavigation calls
-const originalSetupBottomNavigation = window.setupBottomNavigation;
-if (originalSetupBottomNavigation) {
-  window.setupBottomNavigation = function(...args) {
-    console.log(`[MONITOR] setupBottomNavigation called with args:`, args);
-    logEventIdState('BEFORE_SETUP_BOTTOM_NAV_CALL');
-    
-    const result = originalSetupBottomNavigation.apply(this, args);
-    
-    logEventIdState('AFTER_SETUP_BOTTOM_NAV_CALL');
-    console.log(`[MONITOR] setupBottomNavigation completed`);
-    
-    return result;
-  };
-  console.log(`[MONITOR] setupBottomNavigation monitoring installed`);
-} else {
-  console.warn(`[MONITOR] setupBottomNavigation not found for monitoring`);
-}
+// Note: setupBottomNavigation monitoring removed to prevent duplicate function calls
 
 // Test smart update functionality
 window.testScheduleSmartUpdate = function(programId, testData) {
@@ -2471,5 +4235,121 @@ window.testScheduleSmartUpdate = function(programId, testData) {
   console.log('[TEST] Mock program data:', mockProgram);
   updateProgramRow(mockProgram, true);
 };
+
+// Initialize Phase 2 collaboration features when DOM is ready
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', initPhase2Features);
+} else {
+  initPhase2Features();
+}
+
+function initPhase2Features() {
+  console.log('[PHASE2] Initializing advanced collaboration features...');
+  
+  try {
+    // Initialize user presence system
+    userPresence.init();
+    
+    // Set up periodic cleanup for presence data
+    setInterval(() => {
+      userPresence.cleanup();
+    }, 30000); // Every 30 seconds
+    
+    // Handle mobile orientation changes and window resizing
+    window.addEventListener('resize', () => {
+      // Update all presence indicators for new screen size
+      setTimeout(() => {
+        document.querySelectorAll('.user-presence-indicator').forEach(indicator => {
+          const isMobile = window.innerWidth <= 768;
+          const size = isMobile ? '20px' : '16px';
+          const offset = isMobile ? '-10px' : '-8px';
+          const border = isMobile ? '3px solid white' : '2px solid white';
+          
+          // Apply all sizing constraints to prevent oval stretching
+          indicator.style.width = size;
+          indicator.style.height = size;
+          indicator.style.minWidth = size;
+          indicator.style.minHeight = size;
+          indicator.style.maxWidth = size;
+          indicator.style.maxHeight = size;
+          indicator.style.top = offset;
+          indicator.style.right = offset;
+          indicator.style.border = border;
+          indicator.style.borderRadius = '50%';
+          indicator.style.flexShrink = '0';
+          indicator.style.boxSizing = 'border-box';
+          indicator.style.display = 'block';
+          
+          if (isMobile) {
+            indicator.classList.add('mobile-indicator');
+          } else {
+            indicator.classList.remove('mobile-indicator');
+          }
+        });
+        
+        // Update enhanced typing indicators for new screen size
+        document.querySelectorAll('.enhanced-typing-indicator').forEach(indicator => {
+          const isMobile = window.innerWidth <= 768;
+          const avatarSize = isMobile ? '24px' : '20px';
+          const fontSize = isMobile ? '12px' : '11px';
+          const padding = isMobile ? '6px 10px' : '4px 8px';
+          const topOffset = isMobile ? '-40px' : '-35px';
+          const maxWidth = isMobile ? '200px' : '250px';
+          
+          // Update container styles
+          indicator.style.top = topOffset;
+          indicator.style.padding = padding;
+          indicator.style.fontSize = fontSize;
+          indicator.style.maxWidth = maxWidth;
+          
+          // Update avatar
+          const avatar = indicator.querySelector('.editor-avatar');
+          if (avatar) {
+            avatar.style.width = avatarSize;
+            avatar.style.height = avatarSize;
+            avatar.style.fontSize = fontSize;
+          }
+          
+          // Update name
+          const name = indicator.querySelector('.editor-name');
+          if (name) {
+            name.style.fontSize = fontSize;
+            if (isMobile) {
+              name.style.maxWidth = '120px';
+              name.style.overflow = 'hidden';
+              name.style.textOverflow = 'ellipsis';
+            } else {
+              name.style.maxWidth = 'none';
+              name.style.overflow = 'visible';
+              name.style.textOverflow = 'initial';
+            }
+          }
+          
+          if (isMobile) {
+            indicator.classList.add('mobile-typing-indicator');
+          } else {
+            indicator.classList.remove('mobile-typing-indicator');
+          }
+        });
+        
+        // Update any visible merge notifications
+        document.querySelectorAll('.merge-notification').forEach(notification => {
+          const isMobile = window.innerWidth <= 768;
+          if (isMobile) {
+            notification.style.position = 'fixed';
+            notification.style.top = '10px';
+            notification.style.left = '20px';
+            notification.style.right = '20px';
+            notification.style.width = 'auto';
+          }
+        });
+      }, 100); // Small delay to let layout settle
+    });
+    
+    console.log('✅ [PHASE2] Advanced collaboration features initialized successfully (with mobile support)');
+  } catch (error) {
+    console.error('❌ [PHASE2] Error initializing collaboration features:', error);
+  }
+}
 
 })();

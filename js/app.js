@@ -299,9 +299,17 @@ function injectPageContent(html, page, id) {
     console.log(`[SCRIPT_LOAD] window.initPage exists: ${typeof window.initPage === 'function'}`);
     
     // Check if the script actually executed by looking for our debug marker
-    if (window.__documentsJsLoaded) {
-      console.log(`[SCRIPT_LOAD] documents.js execution confirmed via marker`);
-    } else {
+    const pageMarkers = {
+      'documents': 'window.__documentsJsLoaded',
+      'schedule': 'window.__scheduleJsLoaded',
+      'card-log': 'window.__cardLogJsLoaded',
+      'shotlist': 'window.__shotlistJsLoaded'
+    };
+    
+    const markerName = pageMarkers[page];
+    if (markerName && window[markerName.replace('window.', '')]) {
+      console.log(`[SCRIPT_LOAD] ${page}.js execution confirmed via marker`);
+    } else if (markerName) {
       console.warn(`[SCRIPT_LOAD] ${page}.js may not have executed properly - no execution marker found`);
     }
     
@@ -906,7 +914,7 @@ function updateActiveNavigation(currentPage) {
         if (iconElement.textContent !== iconElement.dataset.inactiveIconName) {
             iconElement.textContent = iconElement.dataset.inactiveIconName;
         }
-        console.warn('[DEBUG] Could not determine canonical inactive Material Symbol for item:', item, 'using fallback textContent.');
+        console.log('[DEBUG] Could not determine canonical inactive Material Symbol for item:', item, 'using fallback textContent.');
       }
     }
   });

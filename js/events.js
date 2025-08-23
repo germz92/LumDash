@@ -138,12 +138,13 @@ async function loadTables() {
       const general = table.general || {};
       if (!general.start || !general.end) return false;
       
-      const startDate = new Date(general.start);
-      const endDate = new Date(general.end);
-      startDate.setHours(0, 0, 0, 0);
-      endDate.setHours(0, 0, 0, 0);
+      // Parse dates and extract just the date portion to avoid timezone issues
+      const startDateStr = general.start.split('T')[0]; // Get YYYY-MM-DD part
+      const endDateStr = general.end.split('T')[0]; // Get YYYY-MM-DD part
+      const todayStr = today.toISOString().split('T')[0]; // Get YYYY-MM-DD part
       
-      return today >= startDate && today <= endDate;
+      // Compare date strings directly to avoid timezone conversion issues
+      return todayStr >= startDateStr && todayStr <= endDateStr;
     };
     
     // Split events into active and non-active

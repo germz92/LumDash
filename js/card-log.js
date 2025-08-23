@@ -479,9 +479,9 @@ function setupEventListeners() {
         const date = e.target.getAttribute('data-date');
         console.log(`User clicked "Add Row" for date: ${date}`);
         addRow(date);
-        console.log(`Added new row to ${date} - saving immediately for collaboration`);
-        // Save immediately to prevent conflicts with other users
-        await saveToMongoDB();
+        console.log(`Added new row to ${date} - will auto-save when user adds data`);
+        // Don't save immediately - let the user add data first
+        // The auto-save system will handle saving when there's meaningful input
       }
       if (e.target.classList.contains('delete-row-btn')) {
         const row = e.target.closest('tr');
@@ -1264,6 +1264,7 @@ function addRow(date, entry = {}) {
   row.setAttribute('data-row-index', rowIndex);
 
   const currentUser = getCurrentUserName();
+  // Auto-select current user for new rows, use provided user for existing rows
   const userValue = entry.user || currentUser;
   const canEdit = canEditRow(userValue);
 
@@ -1360,12 +1361,8 @@ function addRow(date, entry = {}) {
       } else this.value = '';
     }
 
-    // If this is a new empty row (no entry data), trigger a save for real-time collaboration
-    // This ensures other users see the new row immediately
-    if (!entry._id && Object.keys(entry).length === 0) {
-      console.log(`[CARD-LOG] New empty row added to ${date} - triggering collaborative save`);
-      debounceSave();
-    }
+    // Note: We don't auto-save empty rows anymore - they'll be saved when user adds content
+    // This prevents the disappearing row issue where empty rows get lost in Socket.IO updates
   });
   
   // Update row indices after adding this row
@@ -1522,15 +1519,43 @@ function applySmartDayUpdate(date, entries) {
         }
       }
     } else if (targetEntries.length < currentRows.length) {
-      // Remove extra rows (from the end) with safety checks
+      // Check if extra rows are empty (newly added by user) before removing
       const rowsToRemove = currentRows.length - targetEntries.length;
-      console.log(`[CARD-LOG] Removing ${rowsToRemove} extra rows`);
+      console.log(`[CARD-LOG] Found ${rowsToRemove} extra rows - checking if they're newly added empty rows`);
+      
+      // Only remove rows that are completely empty and likely placeholder rows
+      let removedCount = 0;
       for (let i = 0; i < rowsToRemove; i++) {
         const lastRow = tbody.querySelector('tr:last-child');
         if (lastRow && lastRow.isConnected) {
-          lastRow.remove();
+          // Check if this row has any user input or belongs to current user
+          const cameraSelect = lastRow.querySelector('.camera-select');
+          const card1Input = lastRow.querySelector('[data-field="card1"]');
+          const card2Input = lastRow.querySelector('[data-field="card2"]');
+          const userSelect = lastRow.querySelector('.user-select');
+          
+          const hasCamera = cameraSelect && cameraSelect.value && cameraSelect.value !== '';
+          const hasCard1 = card1Input && card1Input.value && card1Input.value.trim() !== '';
+          const hasCard2 = card2Input && card2Input.value && card2Input.value.trim() !== '';
+          const rowUser = userSelect && userSelect.value && userSelect.value !== '';
+          const isCurrentUser = rowUser && rowUser === getCurrentUserName();
+          
+          // Only remove if completely empty AND not belonging to current user
+          // This preserves newly added rows that have auto-selected current user
+          if (!hasCamera && !hasCard1 && !hasCard2 && !isCurrentUser) {
+            console.log(`[CARD-LOG] Removing empty row ${i + 1} (not current user's row)`);
+            lastRow.remove();
+            removedCount++;
+          } else {
+            console.log(`[CARD-LOG] Preserving row ${i + 1} - has data or belongs to current user:`, {
+              camera: hasCamera, card1: hasCard1, card2: hasCard2, isCurrentUser: isCurrentUser
+            });
+            // If we hit a row with data or current user's row, stop removing to preserve order
+            break;
+          }
         }
       }
+      console.log(`[CARD-LOG] Removed ${removedCount} out of ${rowsToRemove} extra rows`);
     }
     
     // Update existing rows with new data (but preserve user input if they're actively editing)
