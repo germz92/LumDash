@@ -831,33 +831,17 @@ function handleUserLeft(data) {
 // =============================================================================
 
 function updateActiveUsersDisplay() {
-  // Safety check: Only show collaboration UI on schedule page
-  if (!document.querySelector('.schedule-page')) {
-    console.log('🚫 Skipping collaboration UI update - not on schedule page');
-    return;
-  }
-
-  // Find or create the active users container
-  let usersContainer = document.getElementById('active-collab-users');
-  if (!usersContainer) {
-    usersContainer = document.createElement('div');
-    usersContainer.id = 'active-collab-users';
-    usersContainer.className = 'active-users-indicator';
-    
-    // Insert at the top of the schedule page
-    const scheduleContainer = document.querySelector('.schedule-page');
-    if (scheduleContainer) {
-      scheduleContainer.insertBefore(usersContainer, scheduleContainer.firstChild);
-    } else {
-      // This shouldn't happen due to the safety check above, but just in case
-      console.warn('⚠️ No schedule container found for collaboration UI');
-      return;
-    }
+  // DISABLED: Top-level collaboration indicator removed to prevent mobile header blocking
+  // Individual field indicators provide sufficient collaboration awareness
+  
+  // Remove any existing collaboration header if it exists
+  const usersContainer = document.getElementById('active-collab-users');
+  if (usersContainer) {
+    usersContainer.remove();
+    console.log('🗑️ [COLLAB] Removed collaboration indicator to prevent mobile header blocking');
   }
   
-  // DISABLED: Don't show top-level collaboration count to prevent mobile header blocking
-  // Individual field indicators provide sufficient collaboration awareness
-  usersContainer.style.display = 'none';
+  return; // Exit early - don't create or show any top-level collaboration UI
   
   // CSS styles disabled since collaboration indicator is hidden
   if (false && !document.getElementById('collab-users-styles')) {
