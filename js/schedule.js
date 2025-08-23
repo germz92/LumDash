@@ -1935,40 +1935,9 @@ const userPresence = {
       display: flex;
       align-items: center;
       max-width: ${isMobile ? '200px' : '250px'};
-      pointer-events: auto;
-      animation: typingIndicatorFadeIn 0.3s ease-out, typingIndicatorAutoFade 4s ease-out 2s forwards;
-      transition: opacity 0.3s ease;
-      cursor: pointer;
+      pointer-events: none;
+      animation: typingIndicatorFadeIn 0.3s ease-out;
     `;
-    
-    // Add interaction events to restore visibility from completely invisible state
-    const restoreIndicator = () => {
-      indicator.style.opacity = '1';
-      indicator.style.animation = 'none';
-      indicator.style.pointerEvents = 'auto';
-    };
-    
-    const hideIndicatorAfterDelay = () => {
-      setTimeout(() => {
-        if (!indicator.matches(':hover')) {
-          indicator.style.animation = 'typingIndicatorAutoFade 2s ease-out forwards';
-          // Keep pointer events for a bit longer to allow hover on nearly invisible elements
-          setTimeout(() => {
-            if (indicator.style.opacity === '0') {
-              indicator.style.pointerEvents = 'none';
-            }
-          }, 2000);
-        }
-      }, 1000);
-    };
-    
-    // Mouse events
-    indicator.addEventListener('mouseenter', restoreIndicator);
-    indicator.addEventListener('mouseleave', hideIndicatorAfterDelay);
-    
-    // Touch events for mobile
-    indicator.addEventListener('touchstart', restoreIndicator);
-    indicator.addEventListener('touchend', hideIndicatorAfterDelay);
     
     // Position relative to field with mobile considerations
     const parent = field.closest('.program-entry') || field.parentElement;

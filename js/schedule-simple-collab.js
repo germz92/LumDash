@@ -855,37 +855,12 @@ function updateActiveUsersDisplay() {
     }
   }
   
-  // Generate HTML for active users
-  const activeUserCount = collabState.activeUsers.size;
-  let html = '';
+  // DISABLED: Don't show top-level collaboration count to prevent mobile header blocking
+  // Individual field indicators provide sufficient collaboration awareness
+  usersContainer.style.display = 'none';
   
-  if (activeUserCount > 0) {
-    html = `
-      <div class="collab-header">
-        <span class="collab-title">👥 ${activeUserCount} user${activeUserCount !== 1 ? 's' : ''} collaborating</span>
-      </div>
-      <div class="active-users-list">
-    `;
-    
-    collabState.activeUsers.forEach((userInfo, userId) => {
-      const isCurrentUser = userId === collabState.currentUser.id;
-      html += `
-        <div class="active-user ${isCurrentUser ? 'current-user' : ''}" data-user-id="${userId}">
-          <div class="user-avatar" style="background-color: ${userInfo.color}">
-            ${userInfo.userName.charAt(0).toUpperCase()}
-          </div>
-          <span class="user-name">${userInfo.userName}${isCurrentUser ? ' (you)' : ''}</span>
-        </div>
-      `;
-    });
-    
-    html += '</div>';
-  }
-  
-  usersContainer.innerHTML = html;
-  
-  // Add CSS if not already present
-  if (!document.getElementById('collab-users-styles')) {
+  // CSS styles disabled since collaboration indicator is hidden
+  if (false && !document.getElementById('collab-users-styles')) {
     const styles = document.createElement('style');
     styles.id = 'collab-users-styles';
     styles.textContent = `
