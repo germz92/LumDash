@@ -31,9 +31,6 @@ function init(eventId, userId, userName) {
     console.log('🚫 Simple collaboration disabled - not on schedule page');
     return;
   }
-  
-  // FIRST: Remove any existing collaboration indicators to prevent mobile header blocking
-  updateActiveUsersDisplay();
 
   const sessionId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
   
@@ -52,6 +49,13 @@ function init(eventId, userId, userName) {
   console.log('   User Name:', userName);
   console.log('   User Color:', collabState.currentUser.color);
   
+  // IMMEDIATE: Remove any existing collaboration indicators on init
+  const existingContainer = document.getElementById('active-collab-users');
+  if (existingContainer) {
+    existingContainer.remove();
+    console.log('🗑️ [COLLAB] Removed existing collaboration indicator on init');
+  }
+
   if (window.socket) {
     setupSocketListeners();
     attachFieldListeners();
@@ -84,11 +88,23 @@ function init(eventId, userId, userName) {
         color: collabState.currentUser.color,
         joinedAt: Date.now()
       });
-      updateActiveUsersDisplay();
+      // updateActiveUsersDisplay(); // DISABLED: prevents mobile header blocking
     }
   } else {
     console.warn('⚠️ Socket not available - collaboration disabled');
   }
+  
+  // Periodic cleanup to ensure collaboration indicators stay removed
+  const cleanupInterval = setInterval(() => {
+    const container = document.getElementById('active-collab-users');
+    if (container) {
+      container.remove();
+      console.log('🗑️ [COLLAB] Periodic removal of collaboration indicator');
+    }
+  }, 1000);
+  
+  // Store cleanup interval for cleanup function
+  collabState.cleanupInterval = cleanupInterval;
 }
 
 // Store handler references for proper cleanup
@@ -699,6 +715,13 @@ function broadcastScheduleReload() {
 function cleanup() {
   console.log('🧹 [CLEANUP] Starting simple collaboration cleanup...');
   
+  // Clear periodic cleanup interval
+  if (collabState.cleanupInterval) {
+    clearInterval(collabState.cleanupInterval);
+    collabState.cleanupInterval = null;
+    console.log('🧹 [CLEANUP] Cleared periodic collaboration indicator cleanup');
+  }
+  
   // Remove event listeners
   document.removeEventListener('focusin', handleFieldFocus);
   document.removeEventListener('focusout', handleFieldBlur);
@@ -798,7 +821,7 @@ function handleUserJoined(data) {
   });
   
   console.log(`👥 User joined collaboration: ${userName || userId}`);
-  updateActiveUsersDisplay();
+  // updateActiveUsersDisplay(); // DISABLED: prevents mobile header blocking
   showNotification(`${userName || 'A user'} joined the collaboration`, 'join');
 }
 
@@ -824,7 +847,7 @@ function handleUserLeft(data) {
     });
     
     console.log(`👋 User left collaboration: ${userInfo.userName}`);
-    updateActiveUsersDisplay();
+    // updateActiveUsersDisplay(); // DISABLED: prevents mobile header blocking
     showNotification(`${userInfo.userName} left the collaboration`, 'leave');
   }
 }
@@ -834,33 +857,37 @@ function handleUserLeft(data) {
 // =============================================================================
 
 function updateActiveUsersDisplay() {
-  // DISABLED: Top-level collaboration indicator removed to prevent mobile header blocking
-  // Individual field indicators provide sufficient collaboration awareness
+  console.log('🚫 [COLLAB] updateActiveUsersDisplay called - DISABLED to prevent mobile header blocking');
   
-  // Aggressively remove ANY collaboration indicators that might exist
+  // Aggressively remove any collaboration indicators
   const selectors = [
     '#active-collab-users',
-    '.active-users-indicator', 
-    '.collab-header',
+    '.active-users-indicator',
+    '.collab-header', 
     '.collab-title',
-    '.active-users-list'
+    '.active-users-list',
+    '.active-user'
   ];
   
+  let removedCount = 0;
   selectors.forEach(selector => {
-    document.querySelectorAll(selector).forEach(el => {
+    const elements = document.querySelectorAll(selector);
+    elements.forEach(el => {
       el.remove();
-      console.log(`🗑️ [COLLAB] Removed ${selector} to prevent mobile header blocking`);
+      removedCount++;
+      console.log(`🗑️ [COLLAB] Removed element: ${selector}`);
     });
   });
   
-  // Also remove any injected styles
+  // Remove collaboration styles
   const styleElement = document.getElementById('collab-users-styles');
   if (styleElement) {
     styleElement.remove();
     console.log('🗑️ [COLLAB] Removed collaboration styles');
   }
   
-  return; // Exit early - don't create or show any top-level collaboration UI
+  console.log(`🚫 [COLLAB] Total elements removed: ${removedCount}`);
+  return; // Exit early - completely disabled
   
   // CSS styles disabled since collaboration indicator is hidden
   if (false && !document.getElementById('collab-users-styles')) {
@@ -968,48 +995,5 @@ window.SimpleCollab = {
     }
   }
 };
-
-// Aggressive collaboration indicator removal - prevents mobile header blocking
-function removeCollabIndicatorsAggressively() {
-  const selectors = [
-    '#active-collab-users',
-    '.active-users-indicator', 
-    '.collab-header',
-    '.collab-title',
-    '.active-users-list',
-    '[class*="collab"]',
-    '[id*="collab"]'
-  ];
-  
-  selectors.forEach(selector => {
-    try {
-      document.querySelectorAll(selector).forEach(el => {
-        el.remove();
-        console.log(`🗑️ [COLLAB-CLEANUP] Removed ${selector}`);
-      });
-    } catch (e) {
-      // Ignore selector errors
-    }
-  });
-  
-  // Remove any injected collaboration styles
-  document.querySelectorAll('style[id*="collab"], style[id*="users"]').forEach(style => {
-    style.remove();
-  });
-}
-
-// Force remove collaboration indicators on DOM ready and periodically
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    removeCollabIndicatorsAggressively();
-    // Also check periodically in case they get re-added
-    setInterval(removeCollabIndicatorsAggressively, 2000);
-  });
-} else {
-  // DOM already loaded, remove immediately
-  removeCollabIndicatorsAggressively();
-  // Also check periodically in case they get re-added
-  setInterval(removeCollabIndicatorsAggressively, 2000);
-}
 
 })(); 

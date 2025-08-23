@@ -685,7 +685,7 @@
 .delete-btn:hover .material-symbols-outlined {
   color: #555; /* Darker gray on hover for feedback */
 }
-
+  
 /* Atomic Save Visual Feedback */
 .schedule-page .saving {
   border-left: 3px solid #ffc107 !important;
@@ -1188,3 +1188,4 @@
   white-space: nowrap;
   z-index: 1001;
 }
+  
