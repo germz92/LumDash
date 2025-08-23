@@ -47,6 +47,36 @@ if (process.env.OPENAI_API_KEY && process.env.OPENAI_API_KEY !== 'your_openai_ap
   console.log('⚠️  OpenAI API key not configured - chat feature disabled');
 }
 
+// Simple in-memory cache for AI responses (expires after 5 minutes)
+const responseCache = new Map();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+function generateCacheKey(message, tableId, relevantDataHash) {
+  return `${tableId}-${message.toLowerCase().trim()}-${relevantDataHash}`;
+}
+
+function getCachedResponse(cacheKey) {
+  const cached = responseCache.get(cacheKey);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.response;
+  }
+  responseCache.delete(cacheKey);
+  return null;
+}
+
+function setCachedResponse(cacheKey, response) {
+  responseCache.set(cacheKey, {
+    response: response,
+    timestamp: Date.now()
+  });
+  
+  // Clean old cache entries (simple cleanup)
+  if (responseCache.size > 100) {
+    const oldestKeys = Array.from(responseCache.keys()).slice(0, 20);
+    oldestKeys.forEach(key => responseCache.delete(key));
+  }
+}
+
 // Configure multer for file uploads
 const storage = multer.memoryStorage();
 const upload = multer({
@@ -814,109 +844,214 @@ app.post('/api/chat/:tableId', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to access this event' });
     }
 
-    // Collect all event data including new gear inventory system
-    const eventData = {
+    // Improved data collection - include more context but keep it structured
+    const messageKeywords = message.toLowerCase();
+    
+    // Define broader keyword matching for better data inclusion
+    const isScheduleQuery = messageKeywords.match(/schedule|time|when|start|end|session|keynote|presentation|meeting|event|program|agenda/);
+    const isCrewQuery = messageKeywords.match(/crew|team|photographer|people|who|assignment|role|staff|person|name|call/);
+    const isGearQuery = messageKeywords.match(/gear|camera|equipment|lens|light|audio|pack|reserved|inventory|serial/);
+    const isTaskQuery = messageKeywords.match(/task|todo|deadline|complete|done|work|assign/);
+    const isTravelQuery = messageKeywords.match(/travel|flight|hotel|accommodation|transport|airline|check/);
+    const isCardQuery = messageKeywords.match(/card|memory|storage|sd|cf|media/);
+    const isShotQuery = messageKeywords.match(/shot|photo|picture|image|list|checklist/);
+    const isGeneralQuery = messageKeywords.match(/location|where|address|contact|client|budget|summary|general|info/);
+    
+    // Detect personal queries (questions about the current user)
+    const isPersonalQuery = messageKeywords.match(/\b(i|my|me|am|do i|when do i|what time do i|where do i|should i)\b/) || 
+                            messageKeywords.includes('my call') || 
+                            messageKeywords.includes('my time') ||
+                            messageKeywords.includes('my assignment') ||
+                            messageKeywords.includes('my role');
+
+    const relevantData = {
       eventTitle: table.title,
-      general: table.general || {},
-      programSchedule: table.programSchedule || [],
-      tasks: table.tasks || [],
-      adminNotes: table.adminNotes || [],
-      travel: table.travel || [],
-      accommodation: table.accommodation || [],
-      cardLog: table.cardLog || [],
-      documents: table.documents || [],
-      gear: table.gear || {},
-      shotlists: table.shotlists || [],
-      rows: table.rows || [],
-      currentUser: req.user.fullName
+      currentUser: req.user.fullName,
+      currentDate: new Date().toISOString()
     };
 
-    // Add new gear inventory and reservation data
-    try {
-      // Get reserved gear items for this event
-      const reservedGearItems = await ReservedGearItem.find({ eventId: table._id })
-        .populate('inventoryId', 'label category serial quantity')
-        .populate('userId', 'fullName email')
-        .sort({ createdAt: -1 });
-
-      // Get gear inventory with availability for this event
-      let gearInventoryWithAvailability = [];
-      if (table.gear?.checkOutDate && table.gear?.checkInDate) {
-        const allGearInventory = await GearInventory.find();
-        for (const item of allGearInventory) {
-          const availableQty = await AtomicReservationService.getAvailableQuantity(
-            item._id, table.gear.checkOutDate, table.gear.checkInDate
-          );
-          gearInventoryWithAvailability.push({
-            _id: item._id,
-            label: item.label,
-            category: item.category,
-            serial: item.serial,
-            quantity: item.quantity,
-            availableQuantity: availableQty,
-            reservations: item.reservations.map(res => ({
-              eventId: res.eventId,
-              userId: res.userId,
-              quantity: res.quantity,
-              checkOutDate: res.checkOutDate,
-              checkInDate: res.checkInDate
-            }))
-          });
+    // Always include general info as it's often needed for context
+    relevantData.general = table.general || {};
+    
+    // Add user-specific context
+    relevantData.currentUser = {
+      id: req.user.id,
+      fullName: req.user.fullName,
+      role: req.user.role,
+      email: req.user.email
+    };
+    
+    // Include data based on broader keyword matching with smart filtering
+    if (isScheduleQuery || messageKeywords.includes('today') || messageKeywords.includes('now') || messageKeywords.includes('next') || messageKeywords.includes('keynote')) {
+      const allSchedule = table.programSchedule || [];
+      
+      // Smart filtering: prioritize relevant items to avoid data truncation
+      const relevantScheduleItems = [];
+      const otherScheduleItems = [];
+      
+      // Extract search terms from the message for better matching
+      const searchTerms = message.toLowerCase()
+        .replace(/[^\w\s]/g, ' ') // Remove punctuation
+        .split(/\s+/)
+        .filter(term => term.length > 2); // Only words longer than 2 chars
+      
+      for (const item of allSchedule) {
+        const itemText = `${item.name || ''} ${item.location || ''} ${item.notes || ''}`.toLowerCase();
+        const isRelevant = searchTerms.some(term => itemText.includes(term));
+        
+        if (isRelevant) {
+          relevantScheduleItems.push(item);
+        } else {
+          otherScheduleItems.push(item);
         }
       }
-
-      // Group reserved items by category for better AI understanding
-      const reservedGearByCategory = {};
-      reservedGearItems.forEach(item => {
-        if (!reservedGearByCategory[item.category]) {
-          reservedGearByCategory[item.category] = [];
+      
+      // Include relevant items first, then add others up to a reasonable limit
+      const maxItems = 25; // Reasonable limit to prevent data truncation
+      relevantData.programSchedule = [
+        ...relevantScheduleItems,
+        ...otherScheduleItems.slice(0, Math.max(0, maxItems - relevantScheduleItems.length))
+      ];
+      
+      console.log(`📅 Including schedule data: ${relevantData.programSchedule.length} items (${relevantScheduleItems.length} relevant, ${Math.min(otherScheduleItems.length, maxItems - relevantScheduleItems.length)} others)`);
+    }
+    
+    if (isCrewQuery || isPersonalQuery || messageKeywords.includes('today') || messageKeywords.includes('assigned')) {
+      const allCrew = table.rows || [];
+      const searchTerms = message.toLowerCase()
+        .replace(/[^\w\s]/g, ' ')
+        .split(/\s+/)
+        .filter(term => term.length > 2);
+      
+      // Filter crew by relevance (name, role, notes) and prioritize current user
+      const userCrew = []; // Current user's call times
+      const relevantCrew = [];
+      const otherCrew = [];
+      
+      for (const member of allCrew) {
+        const memberText = `${member.name || ''} ${member.role || ''} ${member.notes || ''}`.toLowerCase();
+        const isCurrentUser = member.name && member.name.toLowerCase().includes(req.user.fullName.toLowerCase().split(' ')[0]);
+        const isRelevant = searchTerms.some(term => memberText.includes(term));
+        
+        if (isCurrentUser) {
+          userCrew.push(member); // Always include current user's data
+        } else if (isRelevant) {
+          relevantCrew.push(member);
+        } else {
+          otherCrew.push(member);
         }
-        reservedGearByCategory[item.category].push({
-          _id: item._id,
-          brand: item.brand,
-          model: item.model,
-          quantity: item.quantity,
-          serial: item.serial,
-          isPacked: item.isPacked,
-          listName: item.listName,
-          specificSerialRequested: item.specificSerialRequested,
-          reservedBy: item.userId ? {
-            name: item.userId.fullName,
-            email: item.userId.email
-          } : null,
-          inventoryDetails: item.inventoryId ? {
-            label: item.inventoryId.label,
-            totalQuantity: item.inventoryId.quantity,
-            serial: item.inventoryId.serial
-          } : null
-        });
-      });
+      }
+      
+      const maxCrewItems = 20;
+      relevantData.rows = [
+        ...userCrew, // Current user's call times first
+        ...relevantCrew,
+        ...otherCrew.slice(0, Math.max(0, maxCrewItems - userCrew.length - relevantCrew.length))
+      ];
+      
+      console.log(`👥 Including crew data: ${relevantData.rows.length} items (${userCrew.length} user, ${relevantCrew.length} relevant)`);
+      if (isPersonalQuery) {
+        console.log(`👤 Personal query detected for user: ${req.user.fullName}`);
+      }
+    }
+    
+    if (isGearQuery) {
+      relevantData.gear = table.gear || {};
+    }
+    
+    if (isTaskQuery) {
+      relevantData.tasks = table.tasks || [];
+    }
+    
+    if (isTravelQuery) {
+      relevantData.travel = table.travel || [];
+      relevantData.accommodation = table.accommodation || [];
+    }
+    
+    if (isCardQuery) {
+      relevantData.cardLog = table.cardLog || [];
+    }
+    
+    if (isShotQuery) {
+      relevantData.shotlists = table.shotlists || [];
+    }
 
-      // Add gear inventory data to eventData
-      eventData.gearInventorySystem = {
-        reservedItems: reservedGearByCategory,
-        totalReservedItems: reservedGearItems.length,
-        availableInventory: gearInventoryWithAvailability,
+    // Add documents and admin notes data
+    if (messageKeywords.match(/document|pdf|file|map|floor.*plan|guide|manual/)) {
+      relevantData.documents = table.documents || [];
+    }
+    
+    if (messageKeywords.match(/note|admin|important|reminder/)) {
+      relevantData.adminNotes = table.adminNotes || [];
+    }
+
+    // For general questions or when no specific keywords match, include core data (limited)
+    if (!isScheduleQuery && !isCrewQuery && !isGearQuery && !isTaskQuery && !isTravelQuery && !isCardQuery && !isShotQuery) {
+      // Include minimal core data for general questions
+      relevantData.programSchedule = (table.programSchedule || []).slice(0, 3);
+      relevantData.rows = (table.rows || []).slice(0, 3);
+      relevantData.tasks = (table.tasks || []).slice(0, 3);
+      relevantData.documents = (table.documents || []).slice(0, 2);
+      console.log(`📊 General query: Including minimal core data`);
+    }
+
+    // Generate cache key for this request
+    const crypto = require('crypto');
+    const relevantDataHash = crypto.createHash('md5').update(JSON.stringify(relevantData)).digest('hex').substring(0, 8);
+    const cacheKey = generateCacheKey(message, tableId, relevantDataHash);
+    
+    // Check cache for common queries (don't cache personalized responses)
+    if (!message.toLowerCase().includes(req.user.fullName.split(' ')[0].toLowerCase())) {
+      const cachedResponse = getCachedResponse(cacheKey);
+      if (cachedResponse) {
+        // Send cached response
+        res.writeHead(200, {
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+          'Connection': 'keep-alive',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization'
+        });
+        
+        res.write(`data: ${JSON.stringify({ content: cachedResponse, done: true, fullResponse: cachedResponse })}\n\n`);
+        res.end();
+        return;
+      }
+    }
+
+    // Add gear inventory data if gear-related query
+    if (isGearQuery) {
+      try {
+        // Get reserved gear items for this event (limited for performance)
+        const reservedGearItems = await ReservedGearItem.find({ eventId: table._id })
+          .populate('inventoryId', 'label category')
+          .populate('userId', 'fullName')
+          .limit(15) // Limit to reduce response time
+          .sort({ createdAt: -1 });
+
+        // Simplified gear data
+        relevantData.gearInventorySystem = {
+          packingProgress: {
+            totalItems: reservedGearItems.length,
+            packedItems: reservedGearItems.filter(item => item.isPacked).length
+          },
+          recentReservations: reservedGearItems.slice(0, 8).map(item => ({
+            item: `${item.brand || 'Unknown'} ${item.model || 'Unknown'}`,
+            category: item.category,
+            reservedBy: item.userId?.fullName,
+            packed: item.isPacked,
+            serial: item.serial
+          })),
         eventDates: {
           checkOutDate: table.gear?.checkOutDate,
           checkInDate: table.gear?.checkInDate
-        },
-        packingProgress: {
-          totalItems: reservedGearItems.length,
-          packedItems: reservedGearItems.filter(item => item.isPacked).length,
-          unpackedItems: reservedGearItems.filter(item => !item.isPacked).length
         }
       };
 
     } catch (gearError) {
-      console.error('Error loading gear inventory data for chat:', gearError);
-      // Don't fail the entire chat if gear data fails to load
-      eventData.gearInventorySystem = {
-        error: 'Unable to load gear inventory data',
-        reservedItems: {},
-        totalReservedItems: 0,
-        availableInventory: []
-      };
+        console.error('Error fetching gear inventory:', gearError);
+        relevantData.gearInventorySystem = { error: 'Gear data unavailable' };
+      }
     }
 
     // Get current date and time information
@@ -951,78 +1086,144 @@ app.post('/api/chat/:tableId', authenticate, async (req, res) => {
       }
     }
 
-    // Create context-aware prompt with better personality and instructions
-    const systemPrompt = `You are Luma, an AI assistant specialized in event photography and production management. You're helping manage the event "${table.title}".
+    // Check data size and truncate if too large to prevent token limit issues
+    const dataString = JSON.stringify(relevantData);
+    const dataSize = dataString.length;
+    
+    console.log(`📊 Data size for query: ${dataSize} characters`);
+    
+    // If data is too large, use minimal version to prevent errors
+    let finalData = relevantData;
+    if (dataSize > 6000) { // More conservative limit to prevent truncation
+      console.log('⚠️  Data too large, using minimal version');
+      finalData = {
+        eventTitle: table.title,
+        currentUser: req.user.fullName,
+        currentDate: new Date().toISOString(),
+        general: {
+          location: table.general?.location,
+          start: table.general?.start,
+          end: table.general?.end,
+          client: table.general?.client
+        },
+        dataStatus: `Full data available but truncated due to size (${dataSize} chars). Ask more specific questions.`
+      };
+      
+      // Add small samples of relevant data (preserving smart filtering)
+      if (relevantData.programSchedule?.length > 0) {
+        // Take the first items which should be the most relevant due to our smart filtering
+        finalData.programSchedule = relevantData.programSchedule.slice(0, 5);
+      }
+      if (relevantData.rows?.length > 0) {
+        finalData.rows = relevantData.rows.slice(0, 5);
+      }
+      if (relevantData.tasks?.length > 0) {
+        finalData.tasks = relevantData.tasks.slice(0, 3);
+      }
+    }
 
-CURRENT DATE & TIME CONTEXT:
-- Today's Date: ${currentDateTime.date} (${currentDateTime.dayOfWeek})
-- Current Time: ${currentDateTime.time}
-- Event Status: ${eventStatus}
-${eventDates.start ? `- Event Start Date: ${eventDates.start}` : ''}
-${eventDates.end ? `- Event End Date: ${eventDates.end}` : ''}
+    // Comprehensive system prompt with full event management context
+    const systemPrompt = `You are Luma, the AI assistant for "${table.title}" event management.
 
-USER CONTEXT:
-- Current Page: ${pageContext.currentPage || 'unknown'}
-- Active Tab/Section: ${pageContext.activeTab || 'none'}
-- Browser Language: ${pageContext.browserLanguage || 'en-US'}
+📅 Today: ${currentDateTime.date} (${eventStatus})
+👤 User: ${req.user.fullName} (${req.user.role})
+📄 Current Page: ${pageContext.currentPage || 'dashboard'}
+🆔 User ID: ${req.user.id}
 
-INTRODUCTION: Always introduce yourself as "Hi! I'm Luma, your AI assistant for ${table.title}." when greeting new users or when the conversation starts fresh.
+🎯 EVENT MANAGEMENT EXPERTISE:
+I understand all aspects of your event:
 
-PERSONALITY: Be friendly, professional, and proactive. Think like an experienced event coordinator who understands photography workflows, production schedules, and team coordination. Use time-aware language (e.g., "later today", "tomorrow", "next week").
+📅 SCHEDULE PAGE (programSchedule):
+- Event sessions with times, locations, speakers, photographers
+- Search by: session name, speaker, time, location, date
+- Example: "keynote time" → find items where name contains "keynote"
 
-CONTEXT AWARENESS: This is user ${req.user.fullName}. Remember details from your conversations and build upon them. If someone asks follow-up questions, reference previous parts of the conversation naturally. Be aware of timing relative to the event dates.
+👥 CREW PAGE (rows) - CALL TIMES:
+- Call times for each crew member showing when they need to arrive/work
+- Fields: name, role, date, startTime, endTime, totalHours, notes
+- This is the CALL SHEET - when people need to show up for work
+- Search by: person name, role, date, call time
+- Example: "What time do I need to be there?" → find user's call time for the date
 
-IMPORTANT: For all times and schedules, display them exactly as they appear in the data without any timezone conversion. Do not adjust times to local timezone - show all times as stored in the system.
+📷 GEAR PAGE (gear/gearInventorySystem):
+- Equipment lists, reservations, packing status
+- Categories: Cameras, Lenses, Lighting, Support, Audio, etc.
+- Search by: equipment type, brand, model, serial, packed status
 
-EVENT DATA ACCESS:
-${JSON.stringify(eventData, null, 2)}
+✅ TASKS PAGE (tasks):
+- To-do items with deadlines and completion status
+- Search by: title keywords, deadline dates, completion status
 
-EXPERTISE AREAS & SEARCH GUIDANCE:
-- 📅 SCHEDULE: For timing questions ("when is keynote", "what's next"), search programSchedule array by session name, speaker, or location. Be aware of current time and suggest what's happening now/next.
-- 👥 CREW: For team questions ("who's shooting", "photographer assignments"), check rows array for crew assignments and schedules. Consider current date for active assignments.
-- 📷 GEAR INVENTORY: For equipment questions ("what cameras", "lens list", "gear availability"), use the NEW gearInventorySystem data:
-  * Reserved gear: Check gearInventorySystem.reservedItems by category (Camera, Lenses, Lighting, Support, Audio, etc.)
-  * Availability: Use gearInventorySystem.availableInventory to show what's available for the event dates
-  * Packing status: Reference gearInventorySystem.packingProgress for packing completion
-  * Individual items: Each reserved item shows brand, model, quantity, serial number, and packing status
-  * Reservations: Show which user reserved what equipment and when
-  * Dates: Use gearInventorySystem.eventDates for checkout/checkin information
-- 📦 GEAR LEGACY: For older gear list questions, also check gear.lists by category (for backwards compatibility)
-- 💾 CARDS: For memory card tracking ("card status", "which cards used"), check cardLog array by date. Use current date to show today's card usage.
-- 🗺️ MAPS/DOCS: For location/document questions ("floor plan", "venue map"), search documents array by filename and type
-- 📸 SHOTLISTS: For shot planning questions ("what shots needed", "photo checklist", "which shots completed"), check shotlists array by list name and shot items. Prioritize based on event timing.
-- ✈️ LOGISTICS: For travel/accommodation ("hotel info", "flight details"), check travel and accommodation arrays. Alert about upcoming departures/arrivals.
-- ✅ TASKS: For to-do items ("what needs doing", "deadlines"), review tasks array. Prioritize by urgency relative to current date and event dates.
+✈️ TRAVEL & ACCOMMODATION (travel/accommodation):
+- Flight details, hotel bookings, transportation
+- Search by: person name, dates, airline, hotel, confirmation numbers
 
-CONTEXTUAL INTELLIGENCE:
-- Weather Awareness: If someone asks about outdoor shoots, remind them to check weather
-- Pre-Event Phase: Focus on preparation, planning, gear checks, team coordination
-  * Gear: Emphasize reservation completion, packing preparation, serial number verification
-  * Remind about gear checkout dates and availability conflicts
-- During Event: Focus on real-time coordination, troubleshooting, schedule adjustments
-  * Gear: Monitor packing status, track missing items, coordinate equipment sharing
-  * Check for unpacked items that might be needed soon
-- Post-Event: Focus on wrap-up tasks, file organization, equipment returns
-  * Gear: Remind about check-in dates, verify all items are accounted for
-  * Help with post-event gear inventory reconciliation
+💾 CARD LOG (cardLog):
+- Memory card usage tracking by date and person
+- Search by: date, card type, person, usage status
 
-RESPONSE STYLE:
-- Be conversational but precise
-- Use relevant emojis sparingly for clarity
-- Provide specific times, names, and details when available
-- Reference time context naturally ("Since it's Monday morning..." or "With the event starting tomorrow...")
-- If information is missing, suggest exactly where/how to add it
-- Offer proactive help ("Also, I notice..." or "You might also want to know...")
-- Alert about time-sensitive items (deadlines approaching, schedules starting soon)
-- Keep responses under 200 words unless detailed explanations are needed`;
+📸 SHOTLIST PAGE (shotlists):
+- Photo checklists with completion tracking
+- Search by: shot type, completion status, list name
+
+📄 DOCUMENTS (documents):
+- PDFs, maps, floor plans, guides
+- Search by: filename, type, upload date
+
+📝 NOTES (adminNotes):
+- Important reminders and administrative notes
+- Search by: date, content, importance
+
+🏢 GENERAL INFO (general):
+- Event location, dates, client, budget, contacts, attendees
+- Core event details and contact information
+
+🔍 SMART SEARCH RULES:
+1. Always search the exact data below for answers
+2. Understand relationships: link crew to schedule, gear to crew, etc.
+3. Be time-aware: prioritize current/upcoming items
+4. Cross-reference data: if someone asks about "today's photographer", check both schedule and crew
+5. Use specific details: times, names, locations, dates
+6. If data missing, suggest which page/section to check
+
+🧠 INTELLIGENT CROSS-PAGE QUERIES:
+- "Who's shooting the keynote?" → Check schedule for keynote, then crew for photographer
+- "What gear does John need today?" → Check crew for John's assignments, then gear lists
+- "Are we ready for tomorrow's sessions?" → Check schedule + crew assignments + gear packed
+- "What's missing for the 2pm session?" → Check schedule, crew, gear, tasks for that time
+- "Who has the Canon 5D?" → Check gear reservations and crew assignments
+
+📱 PAGE CONTEXT AWARENESS:
+- If on Schedule page: Prioritize schedule-related answers and cross-reference crew
+- If on Crew page: Focus on assignments and link to schedule sessions
+- If on Gear page: Emphasize equipment status and link to crew who need it
+- If on Tasks page: Show deadlines relative to schedule timing
+- Suggest relevant pages: "You can find more details on the [Page Name] page"
+
+💡 PROACTIVE ASSISTANCE:
+- Alert about conflicts: crew assigned to multiple sessions, gear double-booked
+- Remind about deadlines: tasks due before event dates
+- Suggest preparations: gear packing for upcoming sessions
+- Flag missing data: sessions without photographers, unpacked essential gear
+
+👤 PERSONALIZED USER RESPONSES:
+- Recognize when user asks about themselves: "What time do I need to be there?" "Am I working tomorrow?" "What's my call time?"
+- For personal questions, search the crew data (rows) for the current user's name
+- Show user's specific call times, roles, and assignments first
+- Provide personalized context: "Your call time is..." vs "John's call time is..."
+- If user is admin, provide management overview; if user, focus on personal schedule
+- Understand possessive questions: "my call time", "my assignments", "when do I work"
+
+📊 AVAILABLE DATA:
+${JSON.stringify(finalData, null, 2)}`;
 
     // Build messages array with conversation history for context awareness
     const messages = [
       { role: "system", content: systemPrompt }
     ];
     
-    // Add conversation history (keep last 10 messages for context, but not too much to avoid token limits)
-    const recentHistory = conversationHistory.slice(-10);
+    // Add conversation history (keep last 4 messages for context to reduce tokens)
+    const recentHistory = conversationHistory.slice(-4);
     messages.push(...recentHistory);
     
     // Add the current message
@@ -1038,13 +1239,13 @@ RESPONSE STYLE:
     });
 
     const stream = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model: "gpt-3.5-turbo", // Faster model
       messages: messages,
-      max_tokens: 600, // Increased for more detailed responses
-      temperature: 0.3, // Lower temperature for more consistent/accurate responses
-      presence_penalty: 0.1, // Slight penalty to encourage focused responses
-      frequency_penalty: 0.1, // Slight penalty to avoid repetition
-      stream: true // Enable streaming
+      max_tokens: 300, // Reduced for faster response
+      temperature: 0.2, // Lower for more focused responses
+      presence_penalty: 0.2, // Higher to encourage brevity
+      frequency_penalty: 0.1,
+      stream: true
     });
 
     let fullResponse = '';
@@ -1062,8 +1263,26 @@ RESPONSE STYLE:
     res.write(`data: ${JSON.stringify({ content: '', done: true, fullResponse })}\n\n`);
     res.end();
 
+    // Cache the response if it's not personalized
+    if (fullResponse && !message.toLowerCase().includes(req.user.fullName.split(' ')[0].toLowerCase())) {
+      setCachedResponse(cacheKey, fullResponse);
+    }
+
+    // Log for debugging data comprehension issues
+    console.log(`Chat query: "${message}"`);
+    console.log(`Data sections included:`, Object.keys(relevantData));
+    if (relevantData.programSchedule) console.log(`Schedule items: ${relevantData.programSchedule.length}`);
+    if (relevantData.rows) console.log(`Crew rows: ${relevantData.rows.length}`);
+    if (relevantData.tasks) console.log(`Tasks: ${relevantData.tasks.length}`);
+
   } catch (error) {
     console.error('Chat API error:', error);
+    console.error('Error details:', {
+      message: error.message,
+      status: error.status,
+      type: error.type,
+      code: error.code
+    });
     
     // Handle different types of OpenAI errors for streaming
     let errorMessage = 'AI service temporarily unavailable. Please try again later.';
@@ -1072,6 +1291,12 @@ RESPONSE STYLE:
       errorMessage = 'OpenAI quota exceeded. Please add billing to your OpenAI account at platform.openai.com/billing';
     } else if (error.status === 401) {
       errorMessage = 'Invalid OpenAI API key. Please check your configuration.';
+    } else if (error.message?.includes('context_length_exceeded')) {
+      errorMessage = 'Query too complex. Try asking a more specific question.';
+    } else if (error.message?.includes('invalid_request_error')) {
+      errorMessage = 'Invalid request format. Please try a different question.';
+    } else if (error.type === 'invalid_request_error') {
+      errorMessage = 'Request format error. The data might be too large or malformed.';
     }
 
     // Send error as streaming event
@@ -2157,50 +2382,85 @@ app.patch('/api/tables/:id/program-field', authenticate, async (req, res) => {
     return res.status(400).json({ error: "Invalid table ID" });
   }
   
-  const { programId, field, value } = req.body;
+  const { programId, field, value, userId, sessionId } = req.body;
   if (!programId || !field) {
     return res.status(400).json({ error: "programId and field are required" });
   }
   
   try {
-    console.log(`🔧 Updating single field: ${field} = ${value} for program ${programId} in table ${req.params.id}`);
+    console.log(`🔧 [ATOMIC] Updating single field: ${field} = "${value}" for program ${programId} by user ${req.user.id}`);
     
-    // Use MongoDB's positional operator to update only the specific field
+    // Get current state first for conflict detection
+    const currentTable = await Table.findById(req.params.id);
+    if (!currentTable) {
+      return res.status(404).json({ error: 'Table not found' });
+    }
+    
+    // Check permissions
+    const isOwner = currentTable.owners.includes(req.user.id);
+    const isShared = currentTable.sharedWith.includes(req.user.id);
+    if (!isOwner && !isShared) {
+      return res.status(403).json({ error: 'Not authorized to edit this table' });
+    }
+    
+    // Find the current program
+    const currentProgram = currentTable.programSchedule.find(p => p._id.toString() === programId);
+    if (!currentProgram) {
+      return res.status(404).json({ error: 'Program not found' });
+    }
+    
+    const oldValue = currentProgram[field];
+    
+    // Use MongoDB's positional operator to update only the specific field atomically
     const result = await Table.findOneAndUpdate(
       { 
         _id: req.params.id,
-        $or: [
-          { owners: req.user.id },
-          { sharedWith: req.user.id }
-        ],
         'programSchedule._id': programId
       },
       { 
-        $set: { [`programSchedule.$.${field}`]: value }
+        $set: { 
+          [`programSchedule.$.${field}`]: value,
+          [`programSchedule.$.lastModified`]: new Date(),
+          [`programSchedule.$.lastModifiedBy`]: req.user.id
+        }
       },
       { new: true, runValidators: true }
     );
     
     if (!result) {
-      return res.status(403).json({ error: 'Not authorized, table not found, or program not found' });
+      return res.status(500).json({ error: 'Failed to update program field' });
     }
     
     // Find the updated program for notification
     const updatedProgram = result.programSchedule.find(p => p._id.toString() === programId);
     if (updatedProgram) {
-      console.log(`✅ Updated field ${field} for program ${programId}`);
-      notifyDataChange('programFieldUpdated', { 
+      console.log(`✅ [ATOMIC] Updated field ${field}: "${oldValue}" → "${value}" for program ${programId}`);
+      
+      // Broadcast field-level update to all users in the room except the sender
+      io.to(`event-${req.params.id}`).emit('programFieldUpdated', { 
+        eventId: req.params.id,
         programId, 
         field, 
         value, 
-        program: updatedProgram 
-      }, req.params.id);
+        oldValue,
+        userId: req.user.id,
+        sessionId: sessionId || null,
+        userName: req.user.fullName || req.user.name || 'Unknown User',
+        timestamp: Date.now()
+      });
+      
+      console.log(`📡 [ATOMIC] Broadcasted field update to event-${req.params.id} room`);
     }
     
-    res.json({ message: 'Program field updated successfully' });
+    res.json({ 
+      message: 'Program field updated successfully',
+      field,
+      value,
+      oldValue
+    });
   } catch (err) {
-    console.error('Error updating program field:', err);
-    res.status(500).json({ error: 'Failed to update program field' });
+    console.error('❌ [ATOMIC] Error updating program field:', err);
+    res.status(500).json({ error: 'Failed to update program field', details: err.message });
   }
 });
 
