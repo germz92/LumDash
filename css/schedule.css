@@ -845,6 +845,27 @@
     font-size: 11px !important;
   }
   
+  /* Presence indicators - mobile positioning to avoid header collision */
+  .presence-container,
+  #presence-indicators {
+    margin-top: 10px !important;
+    margin-bottom: 20px !important;
+    background: rgba(248, 249, 250, 0.95) !important;
+    backdrop-filter: blur(5px) !important;
+    border: 1px solid rgba(0,0,0,0.1) !important;
+  }
+  
+  /* Enhanced typing indicators - better mobile positioning */
+  .typing-indicator.enhanced-typing-indicator {
+    top: -35px !important;
+    max-width: 180px !important;
+    font-size: 11px !important;
+    padding: 4px 8px !important;
+    border: 1px solid rgba(0,0,0,0.1) !important;
+    backdrop-filter: blur(3px) !important;
+    background: rgba(255, 255, 255, 0.95) !important;
+  }
+  
   .collaborative-user {
     padding: 6px 0 !important;
   }
@@ -1000,7 +1021,7 @@
   75% { transform: translateX(2px); }
 }
 
-/* Enhanced Typing Indicators (Google Sheets Style) */
+/* Enhanced Typing Indicators (Google Sheets Style) with auto-fade */
 .typing-indicator.enhanced-typing-indicator {
   position: absolute;
   background: white;
@@ -1011,7 +1032,24 @@
   display: flex;
   align-items: center;
   pointer-events: none;
-  animation: typingIndicatorFadeIn 0.3s ease-out;
+  animation: typingIndicatorFadeIn 0.3s ease-out, typingIndicatorAutoFade 4s ease-out 2s forwards;
+  transition: opacity 0.3s ease;
+}
+
+/* Hover to bring back visibility */
+.typing-indicator.enhanced-typing-indicator:hover {
+  opacity: 1 !important;
+  animation: none;
+}
+
+/* Add invisible hover area for completely faded indicators */
+.program-entry:hover .typing-indicator.enhanced-typing-indicator {
+  opacity: 0.5;
+  transition: opacity 0.2s ease;
+}
+
+.program-entry:hover .typing-indicator.enhanced-typing-indicator:hover {
+  opacity: 1 !important;
 }
 
 .typing-indicator .editor-avatar {
@@ -1076,6 +1114,15 @@
   }
 }
 
+@keyframes typingIndicatorAutoFade {
+  0%, 70% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
 /* Enhanced field states for better collaboration feedback */
 .schedule-page input:focus,
 .schedule-page textarea:focus {
@@ -1085,7 +1132,7 @@
   transform: scale(1.01);
 }
 
-/* Collaborative user list (future enhancement) */
+/* Collaborative user list with auto-fade */
 .collaborative-users {
   position: fixed;
   top: 80px;
@@ -1096,6 +1143,88 @@
   padding: 12px;
   max-width: 200px;
   z-index: 1000;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+  animation: collaborationFadeIn 0.5s ease-out, collaborationAutoFade 5s ease-out 3s forwards;
+}
+
+/* Auto-fade animations for collaboration indicators */
+@keyframes collaborationFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes collaborationAutoFade {
+  0%, 60% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+  }
+}
+
+/* Hover to bring back full opacity */
+.collaborative-users:hover {
+  opacity: 1 !important;
+  animation: none;
+}
+
+/* Presence indicators container with auto-fade */
+.presence-container,
+#presence-indicators {
+  background: #f8f9fa;
+  padding: 10px;
+  border-radius: 6px;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: relative;
+  z-index: 999;
+  animation: collaborationFadeIn 0.5s ease-out, collaborationAutoFade 6s ease-out 4s forwards;
+  transition: opacity 0.3s ease;
+}
+
+.presence-container:hover,
+#presence-indicators:hover {
+  opacity: 1 !important;
+  animation: none;
+}
+
+.presence-container h4 {
+  margin: 0;
+  font-size: 14px;
+  color: #666;
+  flex-shrink: 0;
+}
+
+/* User presence items */
+.user-presence {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  background: white;
+  border-radius: 12px;
+  font-size: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+}
+
+.user-avatar {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 10px;
+  font-weight: bold;
 }
 
 .collaborative-user {
