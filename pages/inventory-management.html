@@ -1738,38 +1738,42 @@
             `;
 
             try {
-                // Create each reservation item
-                const reservationPromises = manualCart.map(item => {
-                    return fetch(`${API_BASE}/api/manual-reservations`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${localStorage.getItem('token')}`
-                        },
-                        body: JSON.stringify({
-                            personName: personName,
-                            personEmail: personEmail,
-                            startDate: startDate,
-                            endDate: endDate,
+                // Create all reservations in a single bulk request
+                const response = await fetch(`${API_BASE}/api/manual-reservations/bulk`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        personName: personName,
+                        personEmail: personEmail,
+                        startDate: startDate,
+                        endDate: endDate,
+                        items: manualCart.map(item => ({
                             inventoryId: item.inventoryId,
                             quantity: item.quantity,
                             serial: item.serial,
-                            specificSerialRequested: false,
-                            notes: notes
-                        })
-                    });
+                            specificSerialRequested: false
+                        })),
+                        notes: notes
+                    })
                 });
 
-                const responses = await Promise.all(reservationPromises);
-                
-                // Check if all requests succeeded
-                const failedRequests = responses.filter(response => !response.ok);
-                if (failedRequests.length > 0) {
-                    const errorResponse = await failedRequests[0].json();
-                    throw new Error(errorResponse.error || 'Failed to create some reservations');
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    throw new Error(errorData.error || 'Failed to create manual reservations');
                 }
 
-                showToast(`Created ${manualCart.length} manual reservations for ${personName}`, 'success');
+                const data = await response.json();
+                
+                // Show success message
+                if (data.errors && data.errors.length > 0) {
+                    showToast(`Created ${data.reservations.length} reservations for ${personName}. ${data.errors.length} items failed.`, 'warning');
+                    console.warn('Some reservations failed:', data.errors);
+                } else {
+                    showToast(`Created ${data.reservations.length} manual reservations for ${personName}`, 'success');
+                }
                 
                 // Reset form and reload data
                 cancelManualReservation();
