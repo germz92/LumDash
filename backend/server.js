@@ -5773,6 +5773,128 @@ app.get('/api/manual-reservations', authenticate, async (req, res) => {
   }
 });
 
+// Create multiple manual reservations in bulk (admin only)
+app.post('/api/manual-reservations/bulk', authenticate, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Access denied. Admin privileges required.' });
+    }
+
+    const { personName, personEmail, startDate, endDate, items, notes } = req.body;
+
+    // Validate required fields
+    if (!personName || !personEmail || !startDate || !endDate || !items || !Array.isArray(items) || items.length === 0) {
+      return res.status(400).json({ error: 'Missing required fields: personName, personEmail, startDate, endDate, items (array)' });
+    }
+
+    // Validate dates
+    const start = new Date(startDate);
+    const end = new Date(endDate);
+    if (start >= end) {
+      return res.status(400).json({ error: 'Start date must be before end date' });
+    }
+
+    const createdReservations = [];
+    const errors = [];
+
+    // Process each item
+    for (const item of items) {
+      try {
+        const { inventoryId, quantity, serial, specificSerialRequested } = item;
+
+        if (!inventoryId || !quantity) {
+          errors.push(`Missing inventoryId or quantity for item: ${JSON.stringify(item)}`);
+          continue;
+        }
+
+        // Get inventory item
+        const inventoryItem = await GearInventory.findById(inventoryId);
+        if (!inventoryItem) {
+          errors.push(`Inventory item not found: ${inventoryId}`);
+          continue;
+        }
+
+        // Check availability using BULLETPROOF atomic service
+        const availableQty = await AtomicReservationService.getAvailableQuantity(
+          inventoryId, startDate, endDate
+        );
+        if (quantity > availableQty) {
+          errors.push(`Only ${availableQty} units available for ${inventoryItem.label} (requested ${quantity})`);
+          continue;
+        }
+
+        // Extract brand and model from label
+        const labelParts = inventoryItem.label.split(' ');
+        const brand = labelParts[0] || 'Unknown';
+        const model = labelParts.slice(1).join(' ') || 'Unknown';
+
+        // Create manual reservation
+        const reservation = new ManualReservation({
+          personName: personName.trim(),
+          personEmail: personEmail.trim().toLowerCase(),
+          startDate: startDate,
+          endDate: endDate,
+          inventoryId: inventoryId,
+          brand: brand,
+          model: model,
+          category: inventoryItem.category,
+          quantity: quantity,
+          serial: serial || null,
+          specificSerialRequested: specificSerialRequested || false,
+          createdBy: req.user.id,
+          notes: notes || ''
+        });
+
+        await reservation.save();
+        await reservation.populate('inventoryId', 'label category serial quantity');
+        await reservation.populate('createdBy', 'fullName email');
+        
+        createdReservations.push(reservation);
+      } catch (error) {
+        console.error('Error creating individual reservation:', error);
+        errors.push(`Failed to create reservation for item ${item.inventoryId}: ${error.message}`);
+      }
+    }
+
+    // If no reservations were created successfully, return error
+    if (createdReservations.length === 0) {
+      return res.status(400).json({ 
+        error: 'Failed to create any reservations', 
+        details: errors 
+      });
+    }
+
+    // Send ONE confirmation email for all created reservations
+    try {
+      const emailHtml = formatReservationEmail(createdReservations, personName);
+
+      const msg = {
+        to: personEmail.trim().toLowerCase(),
+        from: process.env.SENDGRID_FROM_EMAIL,
+        subject: 'Gear Reservation Confirmation - Lumetry Media',
+        html: emailHtml
+      };
+
+      await sgMail.send(msg);
+      console.log(`Bulk reservation confirmation email sent to ${personEmail} for ${createdReservations.length} items`);
+    } catch (emailError) {
+      console.error('Failed to send bulk reservation confirmation email:', emailError);
+      // Don't fail the request if email fails - reservations were created successfully
+    }
+
+    res.status(201).json({
+      message: `Successfully created ${createdReservations.length} manual reservations${errors.length > 0 ? ` (${errors.length} failed)` : ''}`,
+      reservations: createdReservations,
+      errors: errors.length > 0 ? errors : undefined
+    });
+
+  } catch (error) {
+    console.error('Error creating bulk manual reservations:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // Create a new manual reservation (admin only)
 app.post('/api/manual-reservations', authenticate, async (req, res) => {
   try {
