@@ -475,6 +475,7 @@
         border: 1px solid transparent !important;
         border-radius: 4px !important;
         background: transparent !important;
+        text-align: left !important;
         transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s !important;
     }
 
@@ -670,6 +671,11 @@
 .schedule-page input[type="time"] {
     text-align: left !important;
     font-size: 12px !important; /* Added !important to override mobile styles */
+}
+
+/* Ensure time fields are consistently left-aligned */
+.schedule-page .program-entry input[type="time"] {
+    text-align: left !important;
 }
 
 /* Desktop styling for time fields in the new layout */
