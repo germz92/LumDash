@@ -279,21 +279,31 @@ window.initPage = async function(id) {
   // Add schedule-page class to body
   document.body.classList.add('schedule-page');
 
-  // Event title loading with error handling
+  // Load event title and update page title
   try {
-    console.log(`[INIT] Starting event title fetch...`);
-    const titleResponse = await fetch(`${API_BASE}/api/tables/${tableId}`, {
+    const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
       headers: { Authorization: localStorage.getItem('token') }
     });
+    const table = await res.json();
     
-    if (titleResponse.ok) {
-      const titleData = await titleResponse.json();
-      document.title = `LumDash - ${titleData.title}`;
-      console.log(`[INIT] Event title loaded successfully`);
+    // Update both the page title and any event title elements
+    const eventTitleEl = document.getElementById('eventTitle');
+    if (eventTitleEl) {
+      eventTitleEl.textContent = table.title || 'Program Schedule';
     }
-  } catch (error) {
-    console.warn('[INIT] Failed to load event title:', error);
+    
+    // Also update the browser document title
+    document.title = `LumDash - ${table.title || 'Program Schedule'}`;
+    
+    console.log(`[INIT] Updated event title to: ${table.title}`);
+  } catch (err) {
+    console.error('Failed to load event title:', err);
+    const eventTitleEl = document.getElementById('eventTitle');
+    if (eventTitleEl) {
+      eventTitleEl.textContent = 'Program Schedule';
+    }
   }
+
 
   // Load collaborative system first
   await loadCollaborativeSystem();

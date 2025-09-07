@@ -22,6 +22,69 @@ if (!localStorage.getItem('token') && !window.location.pathname.endsWith('index.
 console.log('🚀 app.js loaded and executing');
 console.log(' app.js loaded');
 
+// Global collaboration notification cleanup for mobile devices
+(function() {
+  console.log('📱 Starting global mobile collaboration cleanup...');
+  
+  function globalMobileCleanup() {
+    // Remove any elements with collaboration text patterns
+    const allElements = document.querySelectorAll('*');
+    allElements.forEach(el => {
+      if (!el || !el.textContent) return;
+      
+      const text = el.textContent.toLowerCase().trim();
+      
+      // Match specific collaboration notification patterns
+      if (text.match(/^\d+\s+user.*collaborating$/i) ||
+          text.match(/^\d+\s+users?\s+collaborating$/i) ||
+          text === 'user collaborating' ||
+          text === 'users collaborating' ||
+          text.match(/^active users?:?\s*$/i)) {
+        
+        // Safety check - don't remove if it's part of important content
+        const parent = el.parentElement;
+        const isImportantContent = parent && (
+          parent.classList.contains('program-entry') ||
+          parent.classList.contains('general-page') ||
+          parent.classList.contains('schedule-page') ||
+          el.tagName === 'TITLE' ||
+          el.tagName === 'H1' ||
+          el.tagName === 'H2'
+        );
+        
+        if (!isImportantContent) {
+          console.log(`🗑️ [GLOBAL] Removed mobile collaboration notification: "${el.textContent}"`);
+          el.remove();
+        }
+      }
+    });
+    
+    // Also remove any elements with collaboration-related classes
+    const collabClassElements = document.querySelectorAll('[class*="collab"], [class*="notification"], [id*="collab"], [id*="notification"]');
+    collabClassElements.forEach(el => {
+      if (!el || !el.textContent) return;
+      const text = el.textContent.toLowerCase();
+      if (text.includes('collaborating') || text.includes('active users')) {
+        console.log(`🗑️ [GLOBAL] Removed collaboration element by class: "${el.textContent}"`);
+        el.remove();
+      }
+    });
+  }
+  
+  // Run cleanup immediately
+  globalMobileCleanup();
+  
+  // Run cleanup every 2 seconds
+  setInterval(globalMobileCleanup, 2000);
+  
+  // Also run cleanup when page changes
+  window.addEventListener('hashchange', () => {
+    setTimeout(globalMobileCleanup, 500);
+  });
+  
+  console.log('📱 Global mobile collaboration cleanup initialized');
+})();
+
 const PAGE_CLASSES = [
   'events-page', 'general-page', 'crew-page', 'travel-page', 'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'users-page'
 ];

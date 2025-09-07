@@ -65,6 +65,9 @@ function init(eventId, userId, userName) {
     console.log('✅ Simple collaboration enabled for:', userName, '(UI notifications disabled)');
     console.log('🔌 Socket status:', window.socket.connected ? 'Connected' : 'Mock/Disconnected');
     
+    // Start aggressive mobile notification cleanup
+    startMobileNotificationCleanup();
+    
     // Join the event room for real-time collaboration
     if (window.socket.connected) {
       window.socket.emit('joinEventRoom', {
@@ -124,6 +127,48 @@ function cleanupUserCountNotifications() {
       }
     });
   });
+}
+
+// Aggressive mobile notification cleanup - runs continuously to catch any mobile-specific notifications
+function startMobileNotificationCleanup() {
+  console.log('📱 [MOBILE] Starting aggressive mobile notification cleanup...');
+  
+  function mobileCleanup() {
+    // Check for any element containing collaboration text
+    const allElements = document.querySelectorAll('*');
+    allElements.forEach(el => {
+      const text = el.textContent.toLowerCase();
+      
+      // Remove elements with collaboration notifications
+      if (text.match(/\d+\s+user.*collaborating/) || 
+          text.includes('user collaborating') ||
+          text.includes('users collaborating') ||
+          text.includes('active users:') ||
+          (text.includes('collaborating') && text.length < 50)) { // Short text likely to be notification
+        
+        // Make sure it's not part of larger content
+        const parent = el.parentElement;
+        if (!parent || !parent.classList.contains('program-entry')) {
+          el.remove();
+          console.log(`🗑️ [MOBILE] Removed collaboration notification: "${el.textContent}"`);
+        }
+      }
+    });
+    
+    // Also remove any fixed position elements that might be notifications
+    const fixedElements = document.querySelectorAll('[style*="position: fixed"], [style*="position:fixed"]');
+    fixedElements.forEach(el => {
+      const text = el.textContent.toLowerCase();
+      if (text.includes('collaborating') || text.includes('active users')) {
+        el.remove();
+        console.log(`🗑️ [MOBILE] Removed fixed notification: "${el.textContent}"`);
+      }
+    });
+  }
+  
+  // Run cleanup immediately and then every 1 second to catch mobile notifications
+  mobileCleanup();
+  setInterval(mobileCleanup, 1000);
 }
 
 // Store handler references for proper cleanup
@@ -597,7 +642,8 @@ function handleRemoteProgramAdded(data) {
   // Reload the schedule to show the new program
   if (window.loadPrograms) {
     window.loadPrograms().then(() => {
-      showNotification(`${data.userName} added a new program`, 'info');
+      // showNotification disabled to prevent mobile UI interference
+      console.log(`🔕 [PROGRAM] Notification disabled: ${data.userName} added a new program`);
     });
   }
 }
@@ -608,7 +654,8 @@ function handleRemoteProgramDeleted(data) {
   // Reload the schedule to reflect the deletion
   if (window.loadPrograms) {
     window.loadPrograms().then(() => {
-      showNotification(`${data.userName} deleted a program`, 'info');
+      // showNotification disabled to prevent mobile UI interference
+      console.log(`🔕 [PROGRAM] Notification disabled: ${data.userName} deleted a program`);
     });
   }
 }
@@ -619,7 +666,8 @@ function handleRemoteScheduleReload() {
   // Reload the entire schedule
   if (window.loadPrograms) {
     window.loadPrograms().then(() => {
-      showNotification('Schedule updated by another user', 'info');
+      // showNotification disabled to prevent mobile UI interference
+      console.log(`🔕 [SCHEDULE] Notification disabled: Schedule updated by another user`);
     });
   }
 }
@@ -781,7 +829,8 @@ function handleUserJoined(data) {
   
   console.log(`👥 User joined collaboration: ${userName || userId}`);
   // updateActiveUsersDisplay(); // DISABLED: prevents mobile header blocking
-  showNotification(`${userName || 'A user'} joined the collaboration`, 'join');
+  // showNotification disabled to prevent mobile UI interference
+  console.log(`🔕 [JOIN] Notification disabled: ${userName || 'A user'} joined the collaboration`);
 }
 
 function handleUserLeft(data) {
@@ -807,7 +856,8 @@ function handleUserLeft(data) {
     
     console.log(`👋 User left collaboration: ${userInfo.userName}`);
     // updateActiveUsersDisplay(); // DISABLED: prevents mobile header blocking
-    showNotification(`${userInfo.userName} left the collaboration`, 'leave');
+    // showNotification disabled to prevent mobile UI interference
+    console.log(`🔕 [LEAVE] Notification disabled: ${userInfo.userName} left the collaboration`);
   }
 }
 
