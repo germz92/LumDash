@@ -245,12 +245,6 @@ window.initPage = async function(id) {
   console.log(`\n=== SCHEDULE INITPAGE START ===`);
   const startTime = Date.now();
   
-  // Immediately disable all collaboration indicators on mobile
-  const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  if (isMobile && userPresence && userPresence.cleanupAllPresenceIndicators) {
-    userPresence.cleanupAllPresenceIndicators();
-  }
-  
   // CRITICAL FIX: Only use the explicit id parameter passed from navigation
   // Don't fall back to getTableId() which could return stale data
   const tableId = id;
@@ -1598,13 +1592,6 @@ atomicSaveField = async function(field, fieldKey, programId, newValue, oldValue 
 function showMergeNotification(field, mergeInfo) {
   console.log('[MERGE] Showing merge notification:', mergeInfo);
   
-  // Disable merge notifications on mobile devices to prevent UI interference
-  const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-  if (isMobile) {
-    console.log('[MERGE] Merge notification disabled on mobile device');
-    return;
-  }
-  
   // Create notification element
   const notification = document.createElement('div');
   notification.className = 'merge-notification';
@@ -1616,12 +1603,25 @@ function showMergeNotification(field, mergeInfo) {
     </div>
   `;
   
-  // Position relative to field (desktop only since mobile is disabled above)
-  const rect = field.getBoundingClientRect();
-  notification.style.position = 'absolute';
-  notification.style.top = (rect.bottom + window.scrollY + 5) + 'px';
-  notification.style.left = rect.left + 'px';
-  notification.style.zIndex = '10000';
+  // Position relative to field with mobile-responsive approach
+  const isMobile = window.innerWidth <= 768;
+  
+  if (isMobile) {
+    // On mobile, use fixed positioning at top of screen
+    notification.style.position = 'fixed';
+    notification.style.top = '10px';
+    notification.style.left = '20px';
+    notification.style.right = '20px';
+    notification.style.width = 'auto';
+    notification.style.zIndex = '10000';
+  } else {
+    // On desktop, position relative to field
+    const rect = field.getBoundingClientRect();
+    notification.style.position = 'absolute';
+    notification.style.top = (rect.bottom + window.scrollY + 5) + 'px';
+    notification.style.left = rect.left + 'px';
+    notification.style.zIndex = '10000';
+  }
   
   document.body.appendChild(notification);
   
@@ -1733,15 +1733,6 @@ const userPresence = {
   
   // Initialize presence system
   init() {
-    // Disable ALL presence systems on mobile devices
-    const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (isMobile) {
-      console.log('[USER-PRESENCE] Presence system disabled on mobile device');
-      // Clean up any existing presence indicators
-      this.cleanupAllPresenceIndicators();
-      return;
-    }
-
     const userId = getCurrentUserId();
     const userName = getCurrentUserName();
     
@@ -2131,48 +2122,9 @@ const userPresence = {
       delete field._interactionTimeout;
     }
   },
-
-  // Clean up all presence indicators (for mobile disable)
-  cleanupAllPresenceIndicators() {
-    const selectors = [
-      '.user-presence-indicator',
-      '.enhanced-typing-indicator', 
-      '.typing-indicator',
-      '#presence-indicators',
-      '#active-collab-users',
-      '.active-users-indicator',
-      '.collab-header',
-      '.collab-title', 
-      '.active-users-list',
-      '.active-user',
-      '#cardlog-presence-indicators',
-      '.cardlog-presence-container',
-      '.cardlog-user-presence',
-      '.collaboration-notification',
-      '.merge-notification'
-    ];
-    
-    let removedCount = 0;
-    selectors.forEach(selector => {
-      const elements = document.querySelectorAll(selector);
-      elements.forEach(el => {
-        el.remove();
-        removedCount++;
-      });
-    });
-    
-    console.log(`[USER-PRESENCE] Cleaned up ${removedCount} collaboration indicators on mobile`);
-  },
   
   // Handle presence updates from other users
   handlePresenceUpdate(data) {
-    // Disable ALL presence updates on mobile devices to prevent UI interference
-    const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (isMobile) {
-      console.log('[USER-PRESENCE] Presence updates disabled on mobile device');
-      return;
-    }
-
     const { userId, userName, userColor, currentField, isTyping, isInteracting, timestamp } = data;
     
     // Don't process our own presence updates
@@ -2212,16 +2164,6 @@ const userPresence = {
   
   // Update presence indicators for a user
   updatePresenceIndicators(userId, currentField, user) {
-    // Disable ALL presence indicators on mobile devices to prevent UI interference
-    const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    if (isMobile) {
-      // Remove any existing indicators on mobile
-      document.querySelectorAll(`.user-presence-indicator[data-user-id="${userId}"]`).forEach(el => el.remove());
-      document.querySelectorAll(`.enhanced-typing-indicator[data-user-id="${userId}"]`).forEach(el => el.remove());
-      console.log('[USER-PRESENCE] All presence indicators disabled on mobile device');
-      return;
-    }
-
     // Remove old indicators for this user (both legacy and enhanced)
     document.querySelectorAll(`.user-presence-indicator[data-user-id="${userId}"]`).forEach(el => el.remove());
     document.querySelectorAll(`.enhanced-typing-indicator[data-user-id="${userId}"]`).forEach(el => el.remove());
@@ -3852,9 +3794,8 @@ if (window.socket) {
         fieldElement.style.background = '';
       }, 2000);
       
-      // Show notification of who made the change (disabled on mobile to prevent UI interference)
-      const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      if (data.userName && data.userName !== 'Unknown User' && !isMobile) {
+      // Show notification of who made the change
+      if (data.userName && data.userName !== 'Unknown User') {
         const notification = document.createElement('div');
         notification.style.cssText = `
           position: absolute;
