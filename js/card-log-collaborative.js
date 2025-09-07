@@ -580,6 +580,18 @@ class CardLogCollaborationManager {
   }
 
   updatePresenceIndicators() {
+    // Disable presence indicators on mobile devices to prevent UI interference
+    const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      // Remove any existing presence indicators on mobile
+      const existingContainer = document.getElementById('cardlog-presence-indicators');
+      if (existingContainer) {
+        existingContainer.remove();
+      }
+      console.log('[CARDLOG-PRESENCE] Presence indicators disabled on mobile device');
+      return;
+    }
+
     let container = document.getElementById('cardlog-presence-indicators');
     if (!container) {
       container = document.createElement('div');
