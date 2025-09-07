@@ -26,10 +26,13 @@ let colorIndex = 0;
 // =============================================================================
 
 function init(eventId, userId, userName) {
-  // COLLABORATION COMPLETELY DISABLED
-  console.log('🚫 Simple collaboration completely disabled - no initialization');
-  console.log('🚫 Collaboration system disabled to prevent mobile UI interference');
-  return;
+  // Safety check: Only initialize on schedule page
+  if (!document.querySelector('.schedule-page')) {
+    console.log('🚫 Simple collaboration disabled - not on schedule page');
+    return;
+  }
+  
+  console.log('🤝 Initializing collaboration with UI notifications disabled...');
 
   const sessionId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
   
@@ -59,11 +62,8 @@ function init(eventId, userId, userName) {
     setupSocketListeners();
     attachFieldListeners();
     collabState.isEnabled = true;
-    console.log('✅ Simple collaboration enabled for:', userName);
+    console.log('✅ Simple collaboration enabled for:', userName, '(UI notifications disabled)');
     console.log('🔌 Socket status:', window.socket.connected ? 'Connected' : 'Mock/Disconnected');
-    
-    // Start continuous cleanup to remove any collaboration indicators
-    startCollaborationCleanup();
     
     // Join the event room for real-time collaboration
     if (window.socket.connected) {
@@ -99,34 +99,31 @@ function init(eventId, userId, userName) {
   // Note: Periodic cleanup removed - collaboration indicators disabled at source instead
 }
 
-// Continuous cleanup function to aggressively remove collaboration indicators
-function startCollaborationCleanup() {
-  console.log('🧹 [COLLAB] Starting continuous collaboration cleanup...');
+// UI cleanup function - only removes user count notifications, preserves functionality
+function cleanupUserCountNotifications() {
+  console.log('🧹 [COLLAB] Cleaning up user count notifications only...');
   
-  function cleanup() {
-    // Remove any collaboration indicators that might appear
-    updateActiveUsersDisplay();
-    
-    // Also remove any text content that mentions collaboration
-    const textSelectors = ['h4', 'h3', 'h2', 'span', 'div', 'p'];
-    textSelectors.forEach(tag => {
-      const elements = document.querySelectorAll(tag);
-      elements.forEach(el => {
-        const text = el.textContent.toLowerCase();
-        if (text.includes('active users') || 
-            text.includes('collaborating') || 
-            text.includes('user collaborating') ||
-            text.match(/\d+\s+user.*collaborating/)) {
-          el.remove();
-          console.log(`🗑️ [COLLAB] Removed text element: "${el.textContent}"`);
-        }
-      });
+  // Only remove user count displays, not collaboration functionality
+  const userCountSelectors = [
+    '#active-collab-users',
+    '.active-users-indicator',
+    '.collab-header', 
+    '.collab-title',
+    '.presence-container',
+    '#presence-indicators'
+  ];
+  
+  userCountSelectors.forEach(selector => {
+    const elements = document.querySelectorAll(selector);
+    elements.forEach(el => {
+      // Only remove if it contains user count text
+      if (el.textContent.toLowerCase().includes('active users') || 
+          el.textContent.toLowerCase().includes('collaborating')) {
+        el.remove();
+        console.log(`🗑️ [COLLAB] Removed user count notification: ${selector}`);
+      }
     });
-  }
-  
-  // Run cleanup immediately and then every 2 seconds
-  cleanup();
-  setInterval(cleanup, 2000);
+  });
 }
 
 // Store handler references for proper cleanup
@@ -819,55 +816,14 @@ function handleUserLeft(data) {
 // =============================================================================
 
 function updateActiveUsersDisplay() {
-  console.log('🚫 [COLLAB] updateActiveUsersDisplay called - DISABLED to prevent mobile header blocking');
+  console.log('🚫 [COLLAB] User count display disabled - collaboration functionality preserved');
   
-  // Aggressively remove any collaboration indicators
-  const selectors = [
-    '#active-collab-users',
-    '.active-users-indicator',
-    '.collab-header', 
-    '.collab-title',
-    '.active-users-list',
-    '.active-user',
-    '.collaboration-notification',
-    '.collaborative-users',
-    '.user-collaborating',
-    '[class*="collab"]',
-    '[id*="collab"]',
-    '.presence-container',
-    '#presence-indicators',
-    '.cardlog-presence-container',
-    '#cardlog-presence-indicators'
-  ];
+  // Clean up any user count notifications that might appear
+  cleanupUserCountNotifications();
   
-  let removedCount = 0;
-  selectors.forEach(selector => {
-    const elements = document.querySelectorAll(selector);
-    elements.forEach(el => {
-      el.remove();
-      removedCount++;
-      console.log(`🗑️ [COLLAB] Removed element: ${selector}`);
-    });
-  });
-  
-  // Remove collaboration styles
-  const styleSelectors = [
-    '#collab-users-styles',
-    '#collaborative-styles', 
-    '#cardlog-collaborative-styles',
-    '#collab-notification-styles'
-  ];
-  
-  styleSelectors.forEach(selector => {
-    const styleElement = document.getElementById(selector.replace('#', ''));
-    if (styleElement) {
-      styleElement.remove();
-      console.log(`🗑️ [COLLAB] Removed styles: ${selector}`);
-    }
-  });
-  
-  console.log(`🚫 [COLLAB] Total elements removed: ${removedCount}`);
-  return; // Exit early - completely disabled
+  // Don't create user count UI, but preserve all collaboration state
+  // This keeps real-time editing working while hiding user count notifications
+  return;
   
   // CSS styles disabled since collaboration indicator is hidden
   if (false && !document.getElementById('collab-users-styles')) {
