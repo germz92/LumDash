@@ -422,18 +422,13 @@ async function loadCollaborativeSystem() {
       return;
     }
     
-    const script = document.createElement('script');
-    script.src = `${API_BASE}/js/schedule-simple-collab.js?v=${Date.now()}`;
-    script.onload = () => {
-      console.log('✅ Simple collaborative system loaded');
-      window.__simpleCollabLoaded = true;
-      resolve();
+    // Simple collaborative script loading DISABLED
+    console.log('🚫 Simple collaborative script loading disabled to prevent mobile UI interference');
+    window.__simpleCollabLoaded = true;
+    window.SimpleCollab = { 
+      init: () => console.log('🚫 Collaboration init called but disabled') 
     };
-    script.onerror = () => {
-      console.error('❌ Failed to load simple collaborative system');
-      resolve(); // Don't reject, continue without collaborative features
-    };
-    document.head.appendChild(script);
+    resolve();
   });
 }
 
@@ -544,19 +539,9 @@ async function loadPrograms(tableId = null, retryCount = 0) {
     console.log(`[LOAD] Date filter options setup complete`);
     logEventIdState('AFTER_DATE_FILTER_SETUP');
 
-    // Initialize simple collaborative features if available
-    if (window.SimpleCollab && !window.__simpleCollabInitialized) {
-      console.log('🤝 Initializing simple collaborative features...');
-      try {
-        const userId = await getUserIdFromToken();
-        const userName = getUserName();
-        window.SimpleCollab.init(eventId, userId, userName);
-        window.__simpleCollabInitialized = true;
-        console.log('✅ Simple collaborative features initialized successfully');
-      } catch (error) {
-        console.error('❌ Failed to initialize simple collaborative features:', error);
-      }
-    }
+    // Simple collaborative features DISABLED
+    console.log('🚫 Simple collaborative features disabled to prevent mobile UI interference');
+    window.__simpleCollabInitialized = true; // Mark as "initialized" to prevent further attempts
 
     // Final verification that event ID hasn't changed
     const finalEventId = localStorage.getItem('eventId');
