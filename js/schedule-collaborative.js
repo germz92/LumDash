@@ -139,10 +139,25 @@ class OperationalTransform {
 class CollaborationManager {
   constructor() {
     this.isInitialized = false;
+    
+    // Disable collaboration completely on mobile devices
+    const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      console.log('[SCHEDULE-COLLAB] Collaboration system disabled on mobile device');
+      this.isMobileDisabled = true;
+      return;
+    }
+    
     this.initializeWithRetry();
   }
 
   async initializeWithRetry(retries = 5) {
+    // Skip initialization if disabled on mobile
+    if (this.isMobileDisabled) {
+      console.log('[SCHEDULE-COLLAB] Skipping initialization - disabled on mobile');
+      return false;
+    }
+    
     try {
       await ensureSocketConnection();
       this.setupSocketListeners();

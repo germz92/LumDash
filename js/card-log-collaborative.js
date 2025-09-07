@@ -114,12 +114,26 @@ class CardLogOperationalTransform {
 
 class CardLogCollaborationManager {
   constructor() {
+    // Disable collaboration completely on mobile devices
+    const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    if (isMobile) {
+      console.log('[CARDLOG-COLLAB] Collaboration system disabled on mobile device');
+      this.isMobileDisabled = true;
+      return;
+    }
+    
     this.pendingOperations = [];
     this.operationQueue = [];
     this.debounceTimers = new Map();
   }
 
   async initializeWithRetry(retries = 5) {
+    // Skip initialization if disabled on mobile
+    if (this.isMobileDisabled) {
+      console.log('[CARDLOG-COLLAB] Skipping initialization - disabled on mobile');
+      return false;
+    }
+    
     console.log(`🔄 Initializing card log collaboration (attempt ${6-retries})`);
     
     if (!ensureCardLogSocketConnection()) {
