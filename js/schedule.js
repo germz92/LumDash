@@ -802,7 +802,35 @@ function renderProgramSections(hasScheduleAccess) {
       }
 
       entry.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 12px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 4px;">
+          <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+            <input type="time" placeholder="Start Time" 
+              data-field="startTime"
+              style="width: 130px; min-width: 130px; text-align: left; font-size: 12px;"
+              value="${program.startTime || ''}"
+              ${!hasScheduleAccess ? 'readonly' : ''}
+              onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
+              onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'startTime')` : ''}">
+            <input type="time" placeholder="End Time" 
+              data-field="endTime"
+              style="width: 130px; min-width: 130px; text-align: left; font-size: 12px;"
+              value="${program.endTime || ''}"
+              ${!hasScheduleAccess ? 'readonly' : ''}
+              onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
+              onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'endTime')` : ''}">
+          </div>
+          <div class="right-actions" style="flex-shrink: 0; margin-left: auto;">
+            <label style="display: flex; align-items: center; margin-bottom: 0;">
+            <input type="checkbox" class="done-checkbox"
+              data-field="done"
+              data-original-value="${program.done ? 'true' : 'false'}"
+              style="width: 18px; height: 18px;"
+              ${program.done ? 'checked' : ''}
+              onchange="toggleDone(this, ${program.__index})">
+          </label>
+        </div>
+        </div>
+        <div style="display: flex; align-items: center; gap: 12px;">
           <input class="program-name" type="text"
             data-field="name"
             ${!hasScheduleAccess ? 'readonly' : ''}
@@ -811,32 +839,6 @@ function renderProgramSections(hasScheduleAccess) {
             value="${program.name || ''}" 
             onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}" 
             onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'name')` : ''}">
-          <div class="right-actions">
-            <label style="display: flex; align-items: center; gap: 6px; font-size: 14px; margin-bottom: 0;">
-            <input type="checkbox" class="done-checkbox"
-              data-field="done"
-              data-original-value="${program.done ? 'true' : 'false'}"
-              style="width: 20px; height: 20px;"
-              ${program.done ? 'checked' : ''}
-              onchange="toggleDone(this, ${program.__index})">
-          </label>
-        </div>
-        </div>
-        <div style="display: flex; align-items: center; gap: 3px;">
-          <input type="time" placeholder="Start Time" 
-            data-field="startTime"
-            style="flex: 1; min-width: 0; text-align: left;"
-            value="${program.startTime || ''}"
-            ${!hasScheduleAccess ? 'readonly' : ''}
-            onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
-            onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'startTime')` : ''}">
-          <input type="time" placeholder="End Time" 
-            data-field="endTime"
-            style="flex: 1; min-width: 0; text-align: left;"
-            value="${program.endTime || ''}"
-            ${!hasScheduleAccess ? 'readonly' : ''}
-            onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
-            onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'endTime')` : ''}">
         </div>
         <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
           <div style="display: flex; align-items: center; flex: 1;">

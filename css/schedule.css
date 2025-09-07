@@ -438,6 +438,55 @@
         gap: 6px !important;
     }
 
+    /* Ensure the first row with times + checkbox stays horizontal even on mobile */
+    .schedule-page .program-entry > div:first-child {
+        flex-direction: row !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        gap: 8px !important;
+        flex-wrap: nowrap !important;
+    }
+
+    /* Time fields container should stay horizontal */
+    .schedule-page .program-entry > div:first-child > div:first-child {
+        flex-direction: row !important;
+        align-items: center !important;
+        gap: 6px !important;
+        flex-wrap: nowrap !important;
+        min-width: 0 !important;
+        flex: 1 !important;
+        max-width: calc(100% - 25px) !important; /* Reserve space for checkbox */
+    }
+
+    /* Second row with program name should span full width */
+    .schedule-page .program-entry > div:nth-child(2) {
+        flex-direction: row !important;
+        align-items: center !important;
+        width: 100% !important;
+    }
+
+    /* Time inputs on mobile - give them more space to prevent cutoff */
+    .schedule-page .program-entry input[type="time"] {
+        width: 120px !important;
+        min-width: 120px !important;
+        max-width: 120px !important;
+        font-size: 12px !important;
+        padding: 6px 4px !important;
+        border: 1px solid #ddd !important;
+        border-radius: 4px !important;
+    }
+
+    /* Make checkboxes smaller on mobile since they don't need much room */
+    .schedule-page .done-checkbox {
+        width: 18px !important;
+        height: 18px !important;
+        min-width: 18px !important;
+        min-height: 18px !important;
+        accent-color: #CC0007;
+        margin: 0 !important;
+        flex-shrink: 0 !important;
+    }
+
     .schedule-page .date-header {
         font-size: 14px !important;
         min-height: 36px;
@@ -607,6 +656,21 @@
 .schedule-page input[type="time"] {
     text-align: left !important;
     font-size: 12px !important; /* Added !important to override mobile styles */
+}
+
+/* Desktop styling for time fields in the new layout */
+.schedule-page .program-entry input[type="time"] {
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    padding: 6px 8px;
+    background: #fff;
+    transition: border-color 0.2s, box-shadow 0.2s;
+    font-size: 12px;
+}
+
+.schedule-page .program-entry input[type="time"]:focus {
+    border-color: #CC0007;
+    box-shadow: 0 0 0 2px rgba(204, 0, 7, 0.1);
 }
 
 .schedule-page .program-entry textarea[placeholder="Location"],
