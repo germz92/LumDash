@@ -472,8 +472,22 @@
         max-width: 120px !important;
         font-size: 12px !important;
         padding: 6px 4px !important;
-        border: 1px solid #ddd !important;
+        border: 1px solid transparent !important;
         border-radius: 4px !important;
+        background: transparent !important;
+        transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s !important;
+    }
+
+    /* Mobile focus and hover states */
+    .schedule-page .program-entry input[type="time"]:focus {
+        border-color: #CC0007 !important;
+        background-color: #fff !important;
+        box-shadow: 0 0 0 2px rgba(204, 0, 7, 0.1) !important;
+    }
+
+    .schedule-page .program-entry input[type="time"]:hover {
+        background-color: rgba(204, 0, 7, 0.02) !important;
+        border-color: rgba(204, 0, 7, 0.2) !important;
     }
 
     /* Make checkboxes smaller on mobile since they don't need much room */
@@ -660,17 +674,23 @@
 
 /* Desktop styling for time fields in the new layout */
 .schedule-page .program-entry input[type="time"] {
-    border: 1px solid #ddd;
+    border: 1px solid transparent;
     border-radius: 4px;
     padding: 6px 8px;
-    background: #fff;
-    transition: border-color 0.2s, box-shadow 0.2s;
+    background: transparent;
+    transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
     font-size: 12px;
 }
 
 .schedule-page .program-entry input[type="time"]:focus {
     border-color: #CC0007;
+    background-color: #fff;
     box-shadow: 0 0 0 2px rgba(204, 0, 7, 0.1);
+}
+
+.schedule-page .program-entry input[type="time"]:hover {
+    background-color: rgba(204, 0, 7, 0.02);
+    border-color: rgba(204, 0, 7, 0.2);
 }
 
 .schedule-page .program-entry textarea[placeholder="Location"],
