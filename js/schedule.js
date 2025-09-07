@@ -1592,6 +1592,13 @@ atomicSaveField = async function(field, fieldKey, programId, newValue, oldValue 
 function showMergeNotification(field, mergeInfo) {
   console.log('[MERGE] Showing merge notification:', mergeInfo);
   
+  // Disable merge notifications on mobile devices to prevent UI interference
+  const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+  if (isMobile) {
+    console.log('[MERGE] Merge notification disabled on mobile device');
+    return;
+  }
+  
   // Create notification element
   const notification = document.createElement('div');
   notification.className = 'merge-notification';
@@ -1603,25 +1610,12 @@ function showMergeNotification(field, mergeInfo) {
     </div>
   `;
   
-  // Position relative to field with mobile-responsive approach
-  const isMobile = window.innerWidth <= 768;
-  
-  if (isMobile) {
-    // On mobile, use fixed positioning at top of screen
-    notification.style.position = 'fixed';
-    notification.style.top = '10px';
-    notification.style.left = '20px';
-    notification.style.right = '20px';
-    notification.style.width = 'auto';
-    notification.style.zIndex = '10000';
-  } else {
-    // On desktop, position relative to field
-    const rect = field.getBoundingClientRect();
-    notification.style.position = 'absolute';
-    notification.style.top = (rect.bottom + window.scrollY + 5) + 'px';
-    notification.style.left = rect.left + 'px';
-    notification.style.zIndex = '10000';
-  }
+  // Position relative to field (desktop only since mobile is disabled above)
+  const rect = field.getBoundingClientRect();
+  notification.style.position = 'absolute';
+  notification.style.top = (rect.bottom + window.scrollY + 5) + 'px';
+  notification.style.left = rect.left + 'px';
+  notification.style.zIndex = '10000';
   
   document.body.appendChild(notification);
   
@@ -3794,8 +3788,9 @@ if (window.socket) {
         fieldElement.style.background = '';
       }, 2000);
       
-      // Show notification of who made the change
-      if (data.userName && data.userName !== 'Unknown User') {
+      // Show notification of who made the change (disabled on mobile to prevent UI interference)
+      const isMobile = window.innerWidth <= 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (data.userName && data.userName !== 'Unknown User' && !isMobile) {
         const notification = document.createElement('div');
         notification.style.cssText = `
           position: absolute;
