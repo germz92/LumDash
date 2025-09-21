@@ -279,6 +279,17 @@
   border-color: #f39c12;
 }
 
+.crew-planner-page .crew-cell.empty-crew {
+  background: #ffebee;
+  border-color: #ffcdd2;
+}
+
+.crew-planner-page .crew-cell.empty-crew input,
+.crew-planner-page .crew-cell.empty-crew select {
+  background: #ffebee;
+  border-color: #ef9a9a;
+}
+
 /* Action Buttons */
 .crew-planner-page .action-btn {
   background: transparent;

@@ -582,6 +582,51 @@ function renderTable() {
   planningData.dates.forEach(dateData => {
     renderDateRow(tableBody, dateData);
   });
+  
+  // Apply empty crew highlighting after render
+  highlightEmptyCrewCells();
+}
+
+function highlightEmptyCrewCells() {
+  // Find all crew cells (every second cell in event columns, starting from column 3)
+  const table = document.querySelector('.crew-planner-page table');
+  if (!table) return;
+  
+  const rows = table.querySelectorAll('tbody tr');
+  
+  rows.forEach(row => {
+    const cells = row.querySelectorAll('td');
+    let cellIndex = 1; // Start after date column
+    
+    planningData.events.forEach(() => {
+      const roleCell = cells[cellIndex];
+      const crewCell = cells[cellIndex + 1];
+      
+      if (crewCell) {
+        // Check if this row has any actual crew data (not just empty add buttons)
+        const roleSelect = roleCell?.querySelector('select');
+        const crewSelect = crewCell.querySelector('select');
+        const hasCrewData = roleSelect || crewSelect;
+        
+        // Only highlight if there's actual crew data but crew is empty
+        if (hasCrewData && crewSelect) {
+          const isEmpty = !crewSelect.value || crewSelect.value.trim() === '';
+          
+          // Apply or remove empty-crew class
+          if (isEmpty) {
+            crewCell.classList.add('empty-crew');
+          } else {
+            crewCell.classList.remove('empty-crew');
+          }
+        } else {
+          // Remove highlighting from completely empty rows
+          crewCell.classList.remove('empty-crew');
+        }
+      }
+      
+      cellIndex += 2; // Move to next event (skip role and crew cells)
+    });
+  });
 }
 
 function buildTableHeader(headerRow) {
@@ -837,6 +882,9 @@ function handleCrewChange(date, eventName, crewIndex, event) {
     updateCrewData(date, eventName, crewIndex, 'crewMember', value);
     checkNameCollision(date, eventName, crewIndex, value);
   }
+  
+  // Update highlighting after crew change
+  highlightEmptyCrewCells();
 }
 
 // Data Management Functions
