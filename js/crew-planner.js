@@ -579,8 +579,8 @@ function renderTable() {
   }
   
   // Render date rows
-  planningData.dates.forEach(dateData => {
-    renderDateRow(tableBody, dateData);
+  planningData.dates.forEach((dateData, dateIndex) => {
+    renderDateRow(tableBody, dateData, dateIndex);
   });
   
   // Apply empty crew highlighting after render
@@ -634,9 +634,10 @@ function buildTableHeader(headerRow) {
     <th class="date-header">Date</th>
   `;
   
-  planningData.events.forEach(event => {
+  planningData.events.forEach((event, index) => {
     const eventHeader = document.createElement('th');
     eventHeader.className = 'event-header';
+    if (index > 0) eventHeader.classList.add('event-separator');
     eventHeader.colSpan = 2;
     eventHeader.innerHTML = `
       <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -664,9 +665,10 @@ function buildTableHeader(headerRow) {
       <th class="event-subheader"></th>
     `;
     
-    planningData.events.forEach(() => {
+    planningData.events.forEach((event, index) => {
+      const roleClass = index > 0 ? 'event-subheader event-separator' : 'event-subheader';
       subHeaderRow.innerHTML += `
-        <th class="event-subheader">Role</th>
+        <th class="${roleClass}">Role</th>
         <th class="event-subheader">Crew</th>
       `;
     });
@@ -675,8 +677,13 @@ function buildTableHeader(headerRow) {
   }
 }
 
-function renderDateRow(tableBody, dateData) {
+function renderDateRow(tableBody, dateData, dateIndex) {
   const row = document.createElement('tr');
+  
+  // Add date separator class for visual separation between dates
+  if (dateIndex > 0) {
+    row.classList.add('date-separator');
+  }
   
   // Date cell with actions
   const dateCell = document.createElement('td');
@@ -711,7 +718,7 @@ function renderDateRow(tableBody, dateData) {
   if (needsEmptyRow) maxCrewCount = 1;
   
   // Render crew cells for each event - first row
-  planningData.events.forEach(planningEvent => {
+  planningData.events.forEach((planningEvent, eventIndex) => {
     const eventData = dateData.events.find(e => e.name === planningEvent.name) || {
       name: planningEvent.name,
       location: planningEvent.location,
@@ -723,6 +730,11 @@ function renderDateRow(tableBody, dateData) {
     const crewCell = document.createElement('td');
     roleCell.className = 'crew-cell';
     crewCell.className = 'crew-cell';
+    
+    // Add event separator class for visual separation
+    if (eventIndex > 0) {
+      roleCell.classList.add('event-separator');
+    }
     
     // If no crew exists, show add button only
     if (eventData.crew.length === 0) {
@@ -790,7 +802,7 @@ function renderAdditionalCrewRow(tableBody, dateData, crewIndex) {
   `;
   
   // Render crew cells for each event
-  planningData.events.forEach(planningEvent => {
+  planningData.events.forEach((planningEvent, eventIndex) => {
     const eventData = dateData.events.find(e => e.name === planningEvent.name) || {
       name: planningEvent.name,
       location: planningEvent.location,
@@ -801,6 +813,11 @@ function renderAdditionalCrewRow(tableBody, dateData, crewIndex) {
     const crewCell = document.createElement('td');
     roleCell.className = 'crew-cell';
     crewCell.className = 'crew-cell';
+    
+    // Add event separator class for visual separation
+    if (eventIndex > 0) {
+      roleCell.classList.add('event-separator');
+    }
     
     // Only show inputs if this event has crew at this index, otherwise show empty cells
     if (crewIndex < eventData.crew.length) {

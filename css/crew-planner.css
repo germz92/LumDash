@@ -157,7 +157,7 @@
   min-width: 1000px;
   border-collapse: separate;
   border-spacing: 0;
-  border: 1px solid #e0e0e0;
+  border: 2px solid #dee2e6;
   border-radius: 8px;
   overflow: hidden;
   table-layout: fixed;
@@ -169,7 +169,7 @@
   padding: 15px 12px;
   text-align: left;
   font-weight: 600;
-  border-bottom: 2px solid #dee2e6;
+  border-bottom: 3px solid #dee2e6;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -185,7 +185,7 @@
   min-width: 240px;
   width: 240px;
   text-align: center;
-  border-left: 1px solid #dee2e6;
+  border-left: 3px solid #dee2e6;
 }
 
 .crew-planner-page .event-subheader {
@@ -193,8 +193,8 @@
   padding: 8px 12px;
   font-weight: 500;
   font-size: 13px;
-  border-bottom: 1px solid #dee2e6;
-  border-left: 1px solid #dee2e6;
+  border-bottom: 2px solid #dee2e6;
+  border-left: 2px solid #dee2e6;
   width: 120px;
   min-width: 120px;
   max-width: 120px;
@@ -202,7 +202,7 @@
 
 .crew-planner-page td {
   padding: 12px;
-  border-bottom: 1px solid #e9ecef;
+  border-bottom: 1px solid #f1f1f1;
   vertical-align: top;
   height: auto;
   min-height: 50px;
@@ -214,7 +214,7 @@
   position: sticky;
   left: 0;
   z-index: 5;
-  border-right: 2px solid #dee2e6;
+  border-right: 3px solid #dee2e6;
   height: auto;
   min-height: 50px;
   vertical-align: top;
@@ -222,7 +222,7 @@
 
 
 .crew-planner-page .crew-cell {
-  border-left: 1px solid #e9ecef;
+  border-left: 1px solid #f1f1f1;
   padding: 8px 4px;
   min-width: 120px;
   max-width: 150px;
@@ -601,6 +601,23 @@
   .crew-planner-page td {
     padding: 8px 6px;
   }
+}
+
+/* Date and Event Separation Lines */
+.crew-planner-page .date-separator td {
+  border-top: 4px solid #adb5bd !important;
+}
+
+.crew-planner-page .event-separator {
+  border-left: 4px solid #adb5bd !important;
+}
+
+.crew-planner-page .event-header.event-separator {
+  border-left: 4px solid #adb5bd !important;
+}
+
+.crew-planner-page .event-subheader.event-separator {
+  border-left: 4px solid #adb5bd !important;
 }
 
 /* Ensure buttons in crew planner follow app styling */
