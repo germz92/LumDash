@@ -6096,6 +6096,160 @@ app.get('/api/manual-reservations/inventory/:inventoryId', authenticate, async (
 
 // ========= END MANUAL RESERVATIONS API =========
 
+// ========= CREW PLANNER API =========
+
+const CrewPlanner = require('./models/CrewPlanner');
+
+// Get all crew planner tables for the current user (admin only)
+app.get('/api/crew-planner', authenticate, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin privileges required' });
+    }
+
+    const tables = await CrewPlanner.find()
+      .populate('createdBy', 'fullName email')
+      .sort({ updatedAt: -1 });
+
+    res.json(tables);
+  } catch (error) {
+    console.error('Error fetching crew planner tables:', error);
+    res.status(500).json({ error: 'Failed to fetch crew planner tables' });
+  }
+});
+
+// Get specific crew planner table by ID
+app.get('/api/crew-planner/:id', authenticate, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin privileges required' });
+    }
+
+    const table = await CrewPlanner.findById(req.params.id)
+      .populate('createdBy', 'fullName email');
+
+    if (!table) {
+      return res.status(404).json({ error: 'Crew planner table not found' });
+    }
+
+    res.json(table);
+  } catch (error) {
+    console.error('Error fetching crew planner table:', error);
+    res.status(500).json({ error: 'Failed to fetch crew planner table' });
+  }
+});
+
+// Create new crew planner table
+app.post('/api/crew-planner', authenticate, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin privileges required' });
+    }
+
+    const { name, description } = req.body;
+
+    if (!name || !name.trim()) {
+      return res.status(400).json({ error: 'Table name is required' });
+    }
+
+    // Check if table with same name already exists
+    const existingTable = await CrewPlanner.findOne({ 
+      name: name.trim(),
+      createdBy: req.user.id 
+    });
+
+    if (existingTable) {
+      return res.status(400).json({ error: 'A table with this name already exists' });
+    }
+
+    const table = new CrewPlanner({
+      name: name.trim(),
+      description: description?.trim() || '',
+      createdBy: req.user.id,
+      dates: []
+    });
+
+    await table.save();
+
+    const populatedTable = await CrewPlanner.findById(table._id)
+      .populate('createdBy', 'fullName email');
+
+    res.status(201).json(populatedTable);
+  } catch (error) {
+    console.error('Error creating crew planner table:', error);
+    res.status(500).json({ error: 'Failed to create crew planner table' });
+  }
+});
+
+// Update crew planner table
+app.put('/api/crew-planner/:id', authenticate, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin privileges required' });
+    }
+
+    const table = await CrewPlanner.findById(req.params.id);
+
+    if (!table) {
+      return res.status(404).json({ error: 'Crew planner table not found' });
+    }
+
+    const { name, description, dates } = req.body;
+
+    if (name && name.trim()) {
+      table.name = name.trim();
+    }
+
+    if (description !== undefined) {
+      table.description = description.trim();
+    }
+
+    if (dates !== undefined) {
+      table.dates = dates;
+    }
+
+    table.updatedAt = new Date();
+    await table.save();
+
+    const populatedTable = await CrewPlanner.findById(table._id)
+      .populate('createdBy', 'fullName email');
+
+    res.json(populatedTable);
+  } catch (error) {
+    console.error('Error updating crew planner table:', error);
+    res.status(500).json({ error: 'Failed to update crew planner table' });
+  }
+});
+
+// Delete crew planner table
+app.delete('/api/crew-planner/:id', authenticate, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin privileges required' });
+    }
+
+    const table = await CrewPlanner.findById(req.params.id);
+
+    if (!table) {
+      return res.status(404).json({ error: 'Crew planner table not found' });
+    }
+
+    await CrewPlanner.findByIdAndDelete(req.params.id);
+
+    res.json({ message: 'Crew planner table deleted successfully' });
+  } catch (error) {
+    console.error('Error deleting crew planner table:', error);
+    res.status(500).json({ error: 'Failed to delete crew planner table' });
+  }
+});
+
+// ========= END CREW PLANNER API =========
+
 // SERVER
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));
