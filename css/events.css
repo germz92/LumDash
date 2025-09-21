@@ -246,6 +246,25 @@
     background-color: #e68900;
 }
 
+/* User-specific archive button */
+.btn-archive-user {
+    background-color: #2196F3;
+    color: white;
+}
+.btn-archive-user:hover {
+    background-color: #1976D2;
+}
+
+/* User unarchive button */
+.btn-unarchive {
+    background-color: #4CAF50;
+    color: white;
+}
+.btn-unarchive:hover {
+    background-color: #45a049;
+}
+
+
 .btn-open:hover { background-color: #a30006; box-shadow: 0 4px 16px rgba(204,0,7,0.10); }
 .btn-share:hover { background-color: #868585; }
 .btn-delete:hover { background-color: #636363; }

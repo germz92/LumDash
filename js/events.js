@@ -74,8 +74,8 @@ async function loadTables() {
   const tables = await res.json();
   const userId = getUserIdFromToken();
 
-  // Filter tables based on archived status
-  let filteredTables = tables.filter(table => !!table.archived === showArchived);
+  // Filter tables based on user-specific archived status
+  let filteredTables = tables.filter(table => !!table.userArchived === showArchived);
 
   // Filter by search box
   if (searchEventsValue) {
@@ -321,27 +321,33 @@ function renderEventCard(table, container, userId) {
   // Always add Open button
   actions.appendChild(openBtn);
   
+  // Add user-specific archive button for ALL users
+  const userArchiveBtn = document.createElement('button');
+  userArchiveBtn.className = table.userArchived ? 'btn-unarchive' : 'btn-archive-user';
+  userArchiveBtn.textContent = table.userArchived ? 'Unarchive' : 'Archive';
+  userArchiveBtn.onclick = async () => {
+    const action = table.userArchived ? 'unarchive' : 'archive';
+    const confirmMessage = table.userArchived 
+      ? 'Are you sure you want to unarchive this event for yourself?' 
+      : 'Are you sure you want to archive this event for yourself?';
+    
+    if (confirm(confirmMessage)) {
+      await fetch(`${API_BASE}/api/tables/${table._id}/user-archive`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token
+        },
+        body: JSON.stringify({ archive: !table.userArchived })
+      });
+      loadTables();
+    }
+  };
+  actions.appendChild(userArchiveBtn);
+  
   // Only add Share and Delete buttons for owners
   if (isOwner) {
     actions.appendChild(shareBtn);
-    // Add Archive button before Delete for better grouping
-    const archiveBtn = document.createElement('button');
-    archiveBtn.className = 'btn-archive';
-    archiveBtn.textContent = 'Archive';
-    archiveBtn.onclick = async () => {
-      if (confirm('Are you sure you want to archive this event?')) {
-        await fetch(`${API_BASE}/api/tables/${table._id}/archive`, {
-          method: 'PATCH',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: token
-          },
-          body: JSON.stringify({ archived: true })
-        });
-        loadTables();
-      }
-    };
-    actions.appendChild(archiveBtn);
     actions.appendChild(deleteBtn);
   }
 
@@ -949,7 +955,7 @@ window.initPage = function(id) {
           .then(r => r.json())
           .then(tables => {
             const showArchived = !!document.getElementById('toggleArchivedBtn')?.classList.contains('active');
-            const filteredTables = tables.filter(table => !!table.archived === showArchived);
+            const filteredTables = tables.filter(table => !!table.userArchived === showArchived);
             renderCalendar(filteredTables);
           });
       } else {
@@ -996,6 +1002,7 @@ function setupSocketListeners() {
     'tableUpdated',
     'tableDeleted',
     'tableArchived',
+    'userEventArchived', // When user archives/unarchives an event
     'generalChanged' // When event details are updated
   ];
   
