@@ -888,6 +888,25 @@ window.initPage = function(id) {
           };
           adminButtonsContainer.appendChild(inventoryBtn);
         }
+
+        // Add crew planner button
+        let crewPlannerBtn = document.getElementById('crewPlannerBtn');
+        if (!crewPlannerBtn) {
+          crewPlannerBtn = document.createElement('button');
+          crewPlannerBtn.id = 'crewPlannerBtn';
+          crewPlannerBtn.className = 'btn-crew-planner btn-outlined';
+          crewPlannerBtn.style.display = 'flex';
+          crewPlannerBtn.style.alignItems = 'center';
+          crewPlannerBtn.style.gap = '8px';
+          crewPlannerBtn.innerHTML = `
+            <span class="material-symbols-outlined">groups</span>
+            Crew Planner
+          `;
+          crewPlannerBtn.onclick = () => {
+            window.location.href = '/pages/crew-planner.html';
+          };
+          adminButtonsContainer.appendChild(crewPlannerBtn);
+        }
       }
     }
   } catch (e) { console.error('Error adding admin button:', e); }
