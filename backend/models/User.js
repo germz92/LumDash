@@ -27,7 +27,12 @@ const userSchema = new mongoose.Schema({
   },
   resetPasswordExpires: {
     type: Date
-  }
+  },
+  // Per-user archived events - stores event IDs that this user has archived
+  archivedEvents: [{
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Table'
+  }]
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', userSchema);

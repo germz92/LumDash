@@ -1363,13 +1363,36 @@ app.post('/api/tables', authenticate, async (req, res) => {
 });
 
 app.get('/api/tables', authenticate, async (req, res) => {
-  const tables = await Table.find({
-    $or: [
-      { owners: req.user.id }, // ✅ use correct field name
-      { sharedWith: req.user.id }
-    ]
-  });
-  res.json(tables);
+  try {
+    // Get the user to check their archived events
+    const User = require('./models/User');
+    const user = await User.findById(req.user.id);
+    
+    // Also include leads in the query
+    const tables = await Table.find({
+      $or: [
+        { owners: req.user.id },
+        { sharedWith: req.user.id },
+        { leads: req.user.id }
+      ]
+    });
+
+    // Add user-specific archive status to each table
+    const tablesWithUserArchiveStatus = tables.map(table => {
+      const tableObj = table.toObject();
+      // Convert ObjectIds to strings for comparison
+      // Handle case where user.archivedEvents doesn't exist (for existing users in production)
+      const userArchivedEvents = user && user.archivedEvents ? user.archivedEvents : [];
+      const userArchivedIds = userArchivedEvents.map(id => id.toString());
+      tableObj.userArchived = userArchivedIds.includes(table._id.toString());
+      return tableObj;
+    });
+
+    res.json(tablesWithUserArchiveStatus);
+  } catch (error) {
+    console.error('Error fetching tables:', error);
+    res.status(500).json({ error: 'Failed to fetch tables' });
+  }
 });
 
 app.get('/api/tables/:id', authenticate, async (req, res) => {
@@ -6429,6 +6452,74 @@ app.patch('/api/tables/:id/archive', authenticate, async (req, res) => {
   } catch (error) {
     console.error('Archive endpoint error:', error);
     res.status(500).json({ error: 'Failed to archive event' });
+  }
+});
+
+// User-specific event archiving endpoint
+app.patch('/api/tables/:id/user-archive', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === "null") {
+    return res.status(400).json({ error: "Invalid table ID" });
+  }
+
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Check if user has access to this event (owner, lead, or shared with)
+    const userId = req.user.id;
+    const hasAccess = table.owners.includes(userId) || 
+                     table.leads.includes(userId) || 
+                     table.sharedWith.includes(userId);
+    
+    if (!hasAccess) {
+      return res.status(403).json({ error: 'Not authorized - no access to this event' });
+    }
+
+    // Get the user document
+    const User = require('./models/User');
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const archive = req.body.archive !== undefined ? req.body.archive : true;
+    const tableId = table._id;
+
+    // Initialize archivedEvents if it doesn't exist (for existing users in production)
+    if (!user.archivedEvents) {
+      user.archivedEvents = [];
+    }
+
+    if (archive) {
+      // Add to user's archived events if not already there
+      const userArchivedIds = user.archivedEvents.map(id => id.toString());
+      if (!userArchivedIds.includes(tableId.toString())) {
+        user.archivedEvents.push(tableId);
+      }
+    } else {
+      // Remove from user's archived events
+      user.archivedEvents = user.archivedEvents.filter(id => id.toString() !== tableId.toString());
+    }
+
+    await user.save();
+
+    // Notify clients of the change
+    notifyDataChange('userEventArchived', { 
+      userId: userId,
+      tableId: tableId, 
+      archived: archive 
+    });
+
+    res.json({ 
+      message: archive ? 'Event archived for you' : 'Event unarchived for you',
+      archived: archive 
+    });
+
+  } catch (error) {
+    console.error('User archive endpoint error:', error);
+    res.status(500).json({ error: 'Failed to archive event for user' });
   }
 });
 
