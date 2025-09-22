@@ -133,12 +133,19 @@ function createRoleDropdown(selectedValue, changeHandler, eventName, crewIndex) 
 // Create crew dropdown HTML  
 function createCrewDropdown(selectedValue, changeHandler, eventName, crewIndex) {
   let options = '<option value=""></option>';
+  let foundSelected = !selectedValue; // Track if we found the selected value
   
   cachedUsers.forEach(user => {
     const displayName = user.fullName || user.name || user.email;
     const selected = displayName === selectedValue ? 'selected' : '';
+    if (selected) foundSelected = true;
     options += `<option value="${escapeHtml(displayName)}" ${selected}>${escapeHtml(displayName)}</option>`;
   });
+  
+  // If selectedValue exists but wasn't found in users, add it as a custom option
+  if (selectedValue && !foundSelected) {
+    options += `<option value="${escapeHtml(selectedValue)}" selected>${escapeHtml(selectedValue)}</option>`;
+  }
   
   options += '<option value="__custom__">Add Custom Name...</option>';
   
@@ -241,6 +248,26 @@ function loadTableData(table) {
   
   planningData.dates = datesData;
   planningData.events = Array.from(eventsSet).map(str => JSON.parse(str));
+  
+  // Extract and preserve custom roles from loaded data
+  const allUsedRoles = new Set();
+  datesData.forEach(dateData => {
+    dateData.events.forEach(event => {
+      event.crew.forEach(crewMember => {
+        if (crewMember.role && crewMember.role.trim()) {
+          allUsedRoles.add(crewMember.role.trim());
+        }
+      });
+    });
+  });
+  
+  // Add any new custom roles to our customRoles array
+  allUsedRoles.forEach(role => {
+    if (!defaultRoles.includes(role) && !customRoles.includes(role)) {
+      customRoles.push(role);
+    }
+  });
+  saveCustomRoles();
   
   // Save to session storage for auto-save functionality
   saveToSessionStorage();
@@ -892,6 +919,7 @@ function handleCrewChange(date, eventName, crewIndex, event) {
     if (customName && customName.trim()) {
       updateCrewData(date, eventName, crewIndex, 'crewMember', customName.trim());
       checkNameCollision(date, eventName, crewIndex, customName.trim());
+      renderTable(); // Re-render to show the new custom name in dropdown
     } else {
       select.value = ''; // Reset if cancelled
     }
