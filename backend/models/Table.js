@@ -155,7 +155,10 @@ const tableSchema = new mongoose.Schema({
           camera: String,
           card1: String,
           card2: String,
-          user: String
+          user: String,
+          createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+          createdAt: { type: Date, default: Date.now },
+          updatedAt: { type: Date, default: Date.now }
         }
       ]
     }

@@ -1596,7 +1596,10 @@ function sanitizeCardLog(cardLog) {
           camera: entry.camera || '',
           card1: entry.card1 || '',
           card2: entry.card2 || '',
-          user: entry.user || ''
+          user: entry.user || '',
+          createdBy: entry.createdBy || null,
+          createdAt: entry.createdAt || new Date(),
+          updatedAt: entry.updatedAt || new Date()
         }))
       : []
   }));
