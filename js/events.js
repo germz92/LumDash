@@ -8,6 +8,8 @@ if (!token && !window.location.pathname.endsWith('index.html')) {
 let currentTableId = null;
 let showArchived = false;
 let searchEventsValue = '';
+let allUsers = [];
+let selectedUsers = [];
 
 function getUserIdFromToken() {
   const token = localStorage.getItem('token');
@@ -602,6 +604,9 @@ async function openShareModal(tableId) {
       headers: { Authorization: token }
     });
     const users = await userRes.json();
+    
+    // Store all users for autofill functionality
+    allUsers = users;
 
     const owners = users.filter(u => table.owners.includes(u._id));
     const leads = users.filter(u => table.leads.includes(u._id) && !table.owners.includes(u._id));
@@ -689,6 +694,9 @@ async function openShareModal(tableId) {
       });
     }
     addRoleButtonListeners();
+    
+    // Initialize autofill functionality
+    setupUserAutofill();
 
     // Helper to submit role change and refresh modal
     async function submitRoleChange(email, makeOwner, makeLead) {
@@ -742,15 +750,218 @@ async function openShareModal(tableId) {
   }
 }
 
+function setupUserAutofill() {
+  const shareEmailInput = document.getElementById('shareEmail');
+  const suggestionsContainer = document.getElementById('userSuggestions');
+  const selectedUsersContainer = document.getElementById('selectedUsersList');
+  
+  if (!shareEmailInput || !suggestionsContainer || !selectedUsersContainer) return;
+  
+  // Clear any existing event listeners
+  shareEmailInput.removeEventListener('input', handleUserInput);
+  shareEmailInput.removeEventListener('keydown', handleKeyDown);
+  shareEmailInput.removeEventListener('blur', hideSuggestions);
+  
+  // Reset selectedUsers array
+  selectedUsers = [];
+  renderSelectedUsers();
+  
+  function handleUserInput(e) {
+    const query = e.target.value.toLowerCase().trim();
+    
+    if (query.length < 1) {
+      hideSuggestions();
+      return;
+    }
+    
+    // Filter users based on name or email
+    const filteredUsers = allUsers.filter(user => {
+      const name = (user.name || user.fullName || '').toLowerCase();
+      const email = (user.email || '').toLowerCase();
+      
+      // Don't show already selected users
+      const isAlreadySelected = selectedUsers.some(selected => selected._id === user._id);
+      
+      return !isAlreadySelected && (name.includes(query) || email.includes(query));
+    });
+    
+    showSuggestions(filteredUsers.slice(0, 8)); // Limit to 8 suggestions
+  }
+  
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const activeSuggestion = suggestionsContainer.querySelector('.suggestion-active');
+      if (activeSuggestion) {
+        activeSuggestion.click();
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      navigateSuggestions(1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      navigateSuggestions(-1);
+    } else if (e.key === 'Escape') {
+      hideSuggestions();
+    }
+  }
+  
+  function navigateSuggestions(direction) {
+    const suggestions = suggestionsContainer.querySelectorAll('.user-suggestion');
+    const active = suggestionsContainer.querySelector('.suggestion-active');
+    
+    let newIndex = 0;
+    if (active) {
+      const currentIndex = Array.from(suggestions).indexOf(active);
+      newIndex = currentIndex + direction;
+    }
+    
+    if (newIndex < 0) newIndex = suggestions.length - 1;
+    if (newIndex >= suggestions.length) newIndex = 0;
+    
+    suggestions.forEach(s => {
+      s.classList.remove('suggestion-active');
+      s.style.backgroundColor = 'white';
+    });
+    if (suggestions[newIndex]) {
+      suggestions[newIndex].classList.add('suggestion-active');
+      suggestions[newIndex].style.backgroundColor = '#e3f2fd';
+    }
+  }
+  
+  function showSuggestions(users) {
+    if (users.length === 0) {
+      hideSuggestions();
+      return;
+    }
+    
+    suggestionsContainer.innerHTML = users.map(user => {
+      const name = user.name || user.fullName || user.email;
+      const email = user.email;
+      return `
+        <div class="user-suggestion" data-user-id="${user._id}" style="
+          padding: 8px 12px; 
+          cursor: pointer; 
+          border-bottom: 1px solid #eee; 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center;
+          transition: background-color 0.15s;
+        ">
+          <div>
+            <div style="font-weight: 500;">${name}</div>
+            <div style="font-size: 0.85em; color: #666;">${email}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    // Add click handlers for suggestions
+    suggestionsContainer.querySelectorAll('.user-suggestion').forEach(suggestion => {
+      suggestion.addEventListener('mouseenter', () => {
+        suggestionsContainer.querySelectorAll('.user-suggestion').forEach(s => {
+          s.classList.remove('suggestion-active');
+          s.style.backgroundColor = 'white';
+        });
+        suggestion.classList.add('suggestion-active');
+        suggestion.style.backgroundColor = '#e3f2fd';
+      });
+      
+      suggestion.addEventListener('click', () => {
+        const userId = suggestion.getAttribute('data-user-id');
+        const user = allUsers.find(u => u._id === userId);
+        if (user) {
+          addSelectedUser(user);
+          shareEmailInput.value = '';
+          hideSuggestions();
+        }
+      });
+    });
+    
+    suggestionsContainer.style.display = 'block';
+  }
+  
+  function hideSuggestions() {
+    setTimeout(() => {
+      suggestionsContainer.style.display = 'none';
+    }, 200);
+  }
+  
+  function addSelectedUser(user) {
+    if (!selectedUsers.some(selected => selected._id === user._id)) {
+      selectedUsers.push(user);
+      renderSelectedUsers();
+    }
+  }
+  
+  function removeSelectedUser(userId) {
+    selectedUsers = selectedUsers.filter(user => user._id !== userId);
+    renderSelectedUsers();
+  }
+  
+  function renderSelectedUsers() {
+    if (selectedUsers.length === 0) {
+      selectedUsersContainer.innerHTML = '';
+      return;
+    }
+    
+    selectedUsersContainer.innerHTML = selectedUsers.map(user => {
+      const name = user.name || user.fullName || user.email;
+      return `
+        <div class="selected-user-tag" style="
+          background: #f0f0f0; 
+          border: 1px solid #ccc; 
+          border-radius: 16px; 
+          padding: 4px 8px; 
+          display: flex; 
+          align-items: center; 
+          gap: 6px;
+          font-size: 0.9em;
+        ">
+          <span>${name}</span>
+          <button type="button" onclick="removeSelectedUserById('${user._id}')" style="
+            background: none; 
+            border: none; 
+            color: #666; 
+            cursor: pointer; 
+            font-size: 16px; 
+            line-height: 1; 
+            padding: 0; 
+            width: 18px; 
+            height: 18px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            border-radius: 50%;
+          ">&times;</button>
+        </div>
+      `;
+    }).join('');
+  }
+  
+  // Make removeSelectedUser available globally for onclick handlers
+  window.removeSelectedUserById = removeSelectedUser;
+  
+  // Add event listeners
+  shareEmailInput.addEventListener('input', handleUserInput);
+  shareEmailInput.addEventListener('keydown', handleKeyDown);
+  shareEmailInput.addEventListener('blur', hideSuggestions);
+}
+
 function closeModal() {
   const shareModal = document.getElementById('shareModal');
   if (shareModal) shareModal.style.display = 'none';
   const shareEmail = document.getElementById('shareEmail');
   if (shareEmail) shareEmail.value = '';
-  const makeOwnerCheckbox = document.getElementById('makeOwnerCheckbox');
-  if (makeOwnerCheckbox) makeOwnerCheckbox.checked = false;
-  const makeLeadCheckbox = document.getElementById('makeLeadCheckbox');
-  if (makeLeadCheckbox) makeLeadCheckbox.checked = false;
+  
+  // Clear selected users
+  selectedUsers = [];
+  const selectedUsersContainer = document.getElementById('selectedUsersList');
+  if (selectedUsersContainer) selectedUsersContainer.innerHTML = '';
+  
+  // Hide suggestions
+  const suggestionsContainer = document.getElementById('userSuggestions');
+  if (suggestionsContainer) suggestionsContainer.style.display = 'none';
 
   const ownerList = document.getElementById('ownerList')?.querySelector('ul');
   const leadList = document.getElementById('leadList')?.querySelector('ul');
@@ -761,38 +972,66 @@ function closeModal() {
 }
 
 async function submitShare() {
-  const email = document.getElementById('shareEmail')?.value;
-  const makeOwner = document.getElementById('makeOwnerCheckbox')?.checked;
-  const makeLead = document.getElementById('makeLeadCheckbox')?.checked;
-
-  if (!email || !currentTableId) return alert('Missing info');
+  if (!currentTableId) return alert('Missing event information');
+  
+  // Check if any users are selected
+  if (selectedUsers.length === 0) {
+    return alert('Please select at least one user to share with.');
+  }
 
   try {
-    const res = await fetch(`${API_BASE}/api/tables/${currentTableId}/share`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: token
-      },
-      body: JSON.stringify({ email, makeOwner, makeLead })
-    });
-
-    const result = await res.json();
+    const results = [];
     
-    if (res.ok) {
-      let msg = result.message || 'Done.';
-      if (makeOwner) {
-        msg += `\n\n${email} is now an owner for this event.`;
-      } else if (makeLead) {
-        msg += `\n\n${email} has been given lead access to this event. This gives them full schedule access for this event only.`;
+    // Share with each selected user (as regular collaborators by default)
+    for (const user of selectedUsers) {
+      const res = await fetch(`${API_BASE}/api/tables/${currentTableId}/share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token
+        },
+        body: JSON.stringify({ 
+          email: user.email, 
+          makeOwner: false, 
+          makeLead: false 
+        })
+      });
+
+      const result = await res.json();
+      
+      if (res.ok) {
+        results.push({ success: true, user: user.name || user.fullName || user.email, message: result.message });
       } else {
-        msg += `\n\n${email} has been shared as a collaborator for this event.`;
+        results.push({ success: false, user: user.name || user.fullName || user.email, error: result.error });
       }
-      alert(msg + '\nAn email notification has been sent.');
-      closeModal();
-    } else {
-      alert(result.error || 'Error sharing event');
     }
+    
+    // Show summary of results
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.filter(r => !r.success).length;
+    
+    let message = `Successfully shared with ${successCount} user(s).`;
+    
+    if (failureCount > 0) {
+      message += `\n\nFailed to share with ${failureCount} user(s):`;
+      results.filter(r => !r.success).forEach(r => {
+        message += `\n- ${r.user}: ${r.error}`;
+      });
+    }
+    
+    if (successCount > 0) {
+      message += '\n\nEmail notifications have been sent to successfully shared users.';
+    }
+    
+    alert(message);
+    
+    // Refresh the modal if any were successful
+    if (successCount > 0) {
+      await openShareModal(currentTableId);
+    } else {
+      closeModal();
+    }
+    
   } catch (err) {
     console.error('Error sharing event:', err);
     alert('Failed to share event. Please try again.');

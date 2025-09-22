@@ -14,6 +14,8 @@ let cameras = ["A7IV-A", "A7IV-B", "A7IV-C", "A7IV-D", "A7IV-E", "A7RV-A", "FX3-
 let customCameras = []; // Track custom cameras separately
 let isOwner = false;
 let saveTimeout;
+let currentEditingEntry = null; // Track which entry is being edited in modal
+let currentEditingDate = null; // Track which date the entry belongs to
 let eventListenersAttached = false;
 let processingSocketEvent = false; // Flag to prevent multiple socket events processing at once
 let lastEventTime = 0; // Track when the last event started processing
@@ -280,14 +282,15 @@ async function saveToMongoDB() {
     const cardLog = Array.from(tables).map(dayTable => {
       const date = dayTable.querySelector('h3').textContent;
       const entries = Array.from(dayTable.querySelectorAll('tbody tr')).map(row => {
-        const cells = row.querySelectorAll('td');
         return {
-          camera: cells[0].querySelector('select')?.value || '',
-          card1: cells[1].querySelector('input')?.value || '',
-          card2: cells[2].querySelector('input')?.value || '',
-          user: cells[3].querySelector('select')?.value || '',
-          // Add a client-side ID if needed
-          _id: row.getAttribute('data-id') || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
+          camera: row.querySelector('[data-field="camera"]').textContent || '',
+          card1: row.querySelector('[data-field="card1"]').textContent || '',
+          card2: row.querySelector('[data-field="card2"]').textContent || '',
+          user: row.querySelector('[data-field="user"]').textContent || '',
+          _id: row.getAttribute('data-id') || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          createdBy: row.getAttribute('data-created-by') || null,
+          createdAt: row.getAttribute('data-created-at') || new Date().toISOString(),
+          updatedAt: new Date().toISOString()
         };
       });
       
@@ -469,36 +472,110 @@ function setupEventListeners() {
   const submitDateBtn = document.getElementById('submit-date');
   const tableContainer = document.getElementById('table-container');
   
+  // Modal button elements
+  const cancelCardModalBtn = document.getElementById('cancel-card-modal');
+  const saveCardEntryBtn = document.getElementById('save-card-entry');
+  
   if (addDayBtn) addDayBtn.addEventListener('click', openDateModal);
   if (cancelModalBtn) cancelModalBtn.addEventListener('click', closeDateModal);
   if (submitDateBtn) submitDateBtn.addEventListener('click', createNewDay);
   
+  // Card entry modal listeners
+  if (cancelCardModalBtn) cancelCardModalBtn.addEventListener('click', closeCardEntryModal);
+  if (saveCardEntryBtn) saveCardEntryBtn.addEventListener('click', saveCardEntry);
+  
   if (tableContainer) {
     tableContainer.addEventListener('click', async (e) => {
-      if (e.target.classList.contains('add-row-btn')) {
+      if (e.target.classList.contains('add-card-btn')) {
         const date = e.target.getAttribute('data-date');
-        console.log(`User clicked "Add Row" for date: ${date}`);
-        addRow(date);
-        console.log(`Added new row to ${date} - will auto-save when user adds data`);
-        // Don't save immediately - let the user add data first
-        // The auto-save system will handle saving when there's meaningful input
+        console.log(`User clicked "Add Card" for date: ${date}`);
+        openCardEntryModal(date);
+      }
+      
+      // Handle row clicks for editing
+      if (e.target.closest('.card-log-row') && !e.target.closest('button')) {
+        const row = e.target.closest('.card-log-row');
+        const date = row.closest('.day-table').getAttribute('data-date');
+        const entryCreatedBy = row.getAttribute('data-created-by');
+        const currentUserId = getUserIdFromToken();
+        
+        // Check if user can edit this entry
+        if (isOwner || entryCreatedBy === currentUserId) {
+          const existingEntry = {
+            _id: row.getAttribute('data-id'),
+            camera: row.querySelector('[data-field="camera"]').textContent,
+            card1: row.querySelector('[data-field="card1"]').textContent,
+            card2: row.querySelector('[data-field="card2"]').textContent,
+            user: row.querySelector('[data-field="user"]').textContent,
+            createdBy: entryCreatedBy,
+            createdAt: row.getAttribute('data-created-at')
+          };
+          
+          openCardEntryModal(date, existingEntry);
+        } else {
+          // Show access denied message
+          const notification = document.createElement('div');
+          notification.className = 'access-denied-notification';
+          notification.textContent = 'You can only edit entries you created';
+          notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ff4444;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            z-index: 10000;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          `;
+          
+          document.body.appendChild(notification);
+          
+          setTimeout(() => {
+            notification.remove();
+          }, 3000);
+        }
       }
       if (e.target.classList.contains('delete-row-btn')) {
         const row = e.target.closest('tr');
+        const entryCreatedBy = row.getAttribute('data-created-by');
+        const currentUserId = getUserIdFromToken();
+        
+        // Check if user can delete this entry (only owners or entry creators)
+        if (!isOwner && entryCreatedBy !== currentUserId) {
+          const notification = document.createElement('div');
+          notification.className = 'access-denied-notification';
+          notification.textContent = 'You can only delete entries you created';
+          notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #ff4444;
+            color: white;
+            padding: 10px 15px;
+            border-radius: 4px;
+            z-index: 10000;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+          `;
+          
+          document.body.appendChild(notification);
+          
+          setTimeout(() => {
+            notification.remove();
+          }, 3000);
+          return;
+        }
         
         // Extract row data for confirmation message
-        const cameraSelect = row.querySelector('.camera-select');
-        const card1Input = row.querySelector('[data-field="card1"]');
-        const card2Input = row.querySelector('[data-field="card2"]');
-        const userSelect = row.querySelector('.user-select');
-        
-        const camera = cameraSelect ? cameraSelect.value : '';
-        const card1 = card1Input ? card1Input.value : '';
-        const card2 = card2Input ? card2Input.value : '';
-        const user = userSelect ? userSelect.value : '';
+        const camera = row.querySelector('[data-field="camera"]').textContent;
+        const card1 = row.querySelector('[data-field="card1"]').textContent;
+        const card2 = row.querySelector('[data-field="card2"]').textContent;
+        const user = row.querySelector('[data-field="user"]').textContent;
         
         // Create confirmation message with row details
-        let confirmMessage = 'Are you sure you want to delete this row?';
+        let confirmMessage = 'Are you sure you want to delete this entry?';
         const details = [];
         
         if (camera) details.push(`Camera: ${camera}`);
@@ -507,15 +584,24 @@ function setupEventListeners() {
         if (user) details.push(`User: ${user}`);
         
         if (details.length > 0) {
-          confirmMessage = `Are you sure you want to delete this row?\n\n${details.join('\n')}`;
+          confirmMessage = `Are you sure you want to delete this entry?\n\n${details.join('\n')}`;
         }
         
         if (!confirm(confirmMessage)) {
           return;
         }
         
+        // Remove from DOM and save
         row.remove();
-        saveToMongoDB();
+        
+        // Get current data and save
+        try {
+          await saveToMongoDB();
+          console.log('[CARD-LOG] Entry deleted successfully');
+        } catch (error) {
+          console.error('[CARD-LOG] Error deleting entry:', error);
+          alert('Error deleting entry. Please refresh the page.');
+        }
       }
       if (e.target.classList.contains('delete-day-btn') && isOwner) {
         const dayDiv = e.target.closest('.day-table');
@@ -541,175 +627,8 @@ function setupEventListeners() {
       }
     });
 
-    // Track input events with better timing
-    tableContainer.addEventListener('input', (e) => {
-      // Check if user can edit this row
-      if (e.target.matches('input, select')) {
-        const row = e.target.closest('.card-log-row');
-        const rowUser = row ? row.getAttribute('data-user') : '';
-        
-        if (!canEditRow(rowUser)) {
-          // Prevent the change and show message
-          e.preventDefault();
-          e.target.blur();
-          
-          const notification = document.createElement('div');
-          notification.className = 'access-denied-notification';
-          notification.textContent = `This row belongs to ${rowUser} and cannot be edited`;
-          notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #ff4444;
-            color: white;
-            padding: 10px 15px;
-            border-radius: 4px;
-            z-index: 10000;
-            font-size: 14px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-          `;
-          
-          document.body.appendChild(notification);
-          
-          setTimeout(() => {
-            notification.remove();
-          }, 3000);
-          
-          return;
-        }
-      }
-      
-      lastInputTime = Date.now();
-      isActivelyEditing = true;
-      
-      // Only trigger save for meaningful input changes
-      if (e.target.tagName === 'SELECT') {
-        // For dropdowns, don't save on input events - wait for change events
-        console.log('[CARD-LOG] User input on dropdown - waiting for change event to save');
-        return;
-      } else if (e.target.tagName === 'INPUT') {
-        // For text inputs, only save if there's actual content
-        const value = e.target.value || '';
-        if (value.trim() === '') {
-          console.log('[CARD-LOG] User input detected but field is empty - not triggering save');
-          return;
-        }
-      }
-      
-      console.log('[CARD-LOG] User input detected with meaningful data, updating lastInputTime');
-      debounceSave();
-    });
-    
-    // Track when user finishes editing (blur events)
-    tableContainer.addEventListener('blur', (e) => {
-      if (e.target.matches('input, select')) {
-        console.log('[CARD-LOG] User finished editing field');
-        
-        // Small delay to allow for tab navigation between fields
-        window.cardLogBlurTimeout = setTimeout(() => {
-          const stillEditing = document.activeElement && 
-                              tableContainer.contains(document.activeElement) && 
-                              document.activeElement.matches('input, select');
-          
-          if (!stillEditing) {
-            isActivelyEditing = false;
-            console.log('[CARD-LOG] User completely finished editing, not just moving between fields');
-            
-            // Apply any deferred updates using smart update
-            if (deferredUpdate) {
-              console.log('[CARD-LOG] Applying deferred update after user finished editing');
-              const storedData = deferredUpdate;
-              deferredUpdate = null;
-              
-              if (!processingSocketEvent) {
-                processingSocketEvent = true;
-                try {
-                  applySmartDayUpdate(storedData.cardLog.date, storedData.cardLog.entries);
-                  console.log(`[CARD-LOG] Deferred update applied using smart update`);
-                } finally {
-                  setTimeout(() => {
-                    processingSocketEvent = false;
-                  }, 50);
-                }
-              }
-            }
-            
-            // Trigger a save
-            console.log('[CARD-LOG] User finished editing, triggering save');
-            debounceSave();
-          }
-          window.cardLogBlurTimeout = null;
-        }, 150);
-      }
-    }, true);
-    
-    // Track focus events to know when user starts editing
-    tableContainer.addEventListener('focus', (e) => {
-      if (e.target.matches('input, select')) {
-        console.log('[CARD-LOG] User started editing field');
-        isActivelyEditing = true;
-        lastInputTime = Date.now();
-        
-        // Clear any timeout from blur event that might reset isActivelyEditing
-        if (window.cardLogBlurTimeout) {
-          clearTimeout(window.cardLogBlurTimeout);
-        }
-        // Note: Removed automatic debounceSave() call here - focus doesn't mean data changed
-      }
-    }, true);
-
-    tableContainer.addEventListener('change', (e) => {
-      // Check if user can edit this row
-      if (e.target.matches('input, select')) {
-        const row = e.target.closest('.card-log-row');
-        const rowUser = row ? row.getAttribute('data-user') : '';
-        
-        if (!canEditRow(rowUser)) {
-          // Revert the change
-          const originalValue = e.target.getAttribute('data-original-value') || '';
-          if (e.target.tagName === 'SELECT') {
-            // For selects, find the originally selected option
-            const options = e.target.querySelectorAll('option');
-            options.forEach(option => {
-              option.selected = option.value === originalValue;
-            });
-            e.target.value = originalValue;
-          } else {
-            e.target.value = originalValue;
-          }
-          
-          // Show access denied message
-          const notification = document.createElement('div');
-          notification.className = 'access-denied-notification';
-          notification.textContent = `This row belongs to ${rowUser} and cannot be edited`;
-          notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #ff4444;
-            color: white;
-            padding: 10px 15px;
-            border-radius: 4px;
-            z-index: 10000;
-            font-size: 14px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-          `;
-          
-          document.body.appendChild(notification);
-          
-          setTimeout(() => {
-            notification.remove();
-          }, 3000);
-          
-          return;
-        } else {
-          // Update original value after successful change
-          e.target.setAttribute('data-original-value', e.target.value);
-        }
-      }
-      
-      debounceSave();
-    });
+    // Event listeners for old editable table system have been removed
+    // The new system uses read-only tables with modal-based editing
   }
   
   eventListenersAttached = true;
@@ -1184,7 +1103,7 @@ function addDaySection(date, entries = []) {
   // Generate a unique ID for this day if not already present
   const dayId = `day-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   
-  dayDiv.className = 'day-table';
+  dayDiv.className = 'day-table readonly-table';
   dayDiv.id = `day-${date}`;
   dayDiv.setAttribute('data-id', dayId);
   dayDiv.setAttribute('data-date', date);
@@ -1213,7 +1132,7 @@ function addDaySection(date, entries = []) {
       </thead>
       <tbody id="tbody-${date}"></tbody>
     </table>
-    <button class="add-row-btn" data-date="${date}">Add Row</button>
+    <button class="add-card-btn" data-date="${date}">Add Card</button>
   `;
   
   // Insert in the correct position to maintain date order
@@ -1264,109 +1183,356 @@ function addRow(date, entry = {}) {
   row.setAttribute('data-row-index', rowIndex);
 
   const currentUser = getCurrentUserName();
-  // Auto-select current user for new rows, use provided user for existing rows
-  const userValue = entry.user || currentUser;
-  const canEdit = canEditRow(userValue);
+  const currentUserId = getUserIdFromToken();
+  
+  // Determine if current user can edit this entry
+  const entryCreatedBy = entry.createdBy;
+  const canEdit = isOwner || (entryCreatedBy && entryCreatedBy === currentUserId);
+  
+  // Store entry metadata
+  row.setAttribute('data-user', entry.user || '');
+  row.setAttribute('data-created-by', entryCreatedBy || '');
+  row.setAttribute('data-created-at', entry.createdAt || '');
 
-  const userOptions = users.map(user =>
-    `<option value="${user}" ${user === userValue ? 'selected' : ''}>${user}</option>`
-  ).join('');
-
-  row.setAttribute('data-user', userValue);
-
+  // Create non-editable display cells
   row.innerHTML = `
-    <td><select class="camera-select" data-field="camera" ${!canEdit ? 'disabled' : ''}>
-      <option value="" disabled ${entry.camera ? '' : 'selected hidden'}>Select Camera</option>
-      ${cameras.map(cam => `<option value="${cam}" ${entry.camera === cam ? 'selected' : ''}>${cam}</option>`).join('')}
-      ${canEdit ? '<option value="add-new-camera">➕ Add New Camera</option>' : ''}
-    </select></td>
-    <td><input type="text" value="${entry.card1 || ''}" placeholder="Card 1" data-field="card1" ${!canEdit ? 'readonly' : ''} /></td>
-    <td><input type="text" value="${entry.card2 || ''}" placeholder="Card 2" data-field="card2" ${!canEdit ? 'readonly' : ''} /></td>
-    <td>
-      <select class="user-select" data-field="user" ${!isOwner ? 'disabled' : ''}>
-        ${userOptions}
-        ${isOwner ? '<option value="add-new-user">➕ Add New User</option>' : ''}
-      </select>
-    </td>
+    <td><span class="display-value" data-field="camera">${entry.camera || ''}</span></td>
+    <td><span class="display-value" data-field="card1">${entry.card1 || ''}</span></td>
+    <td><span class="display-value" data-field="card2">${entry.card2 || ''}</span></td>
+    <td><span class="display-value" data-field="user">${entry.user || ''}</span></td>
     <td style="text-align:center;">
-    <button class="delete-row-btn" title="Delete Row"><span class="material-symbols-outlined">delete</span></button>
+      ${canEdit ? '<button class="delete-row-btn" title="Delete Entry"><span class="material-symbols-outlined">delete</span></button>' : ''}
     </td>
   `;
   
   tbody.appendChild(row);
-
-  const cameraSelect = row.querySelector('.camera-select');
-  const userSelect = row.querySelector('.user-select');
-  const card1Input = row.querySelector('[data-field="card1"]');
-  const card2Input = row.querySelector('[data-field="card2"]');
-
-  // Store original values for access control
-  cameraSelect.setAttribute('data-original-value', entry.camera || '');
-  userSelect.setAttribute('data-original-value', userValue);
-  card1Input.setAttribute('data-original-value', entry.card1 || '');
-  card2Input.setAttribute('data-original-value', entry.card2 || '');
-  
-  // Apply initial access control
-  updateRowAccessControl(row, userValue);
-
-  // Add camera change listener - owners can always edit, others only if they own the row
-  if (canEdit) {
-    // Mark that we've added listeners to prevent duplicates
-    cameraSelect.setAttribute('data-listeners-added', 'true');
-    
-    cameraSelect.addEventListener('change', function () {
-      if (this.value === 'add-new-camera') {
-        const newCamera = prompt('Enter new camera name:');
-        if (newCamera && newCamera.trim()) {
-          const trimmedCamera = newCamera.trim();
-          
-          // Check if camera already exists
-          if (!cameras.includes(trimmedCamera) && !customCameras.includes(trimmedCamera)) {
-            customCameras.push(trimmedCamera);
-            cameras.push(trimmedCamera);
-            
-            // Save custom cameras to localStorage for persistence
-            localStorage.setItem(`customCameras_${localStorage.getItem('eventId')}`, JSON.stringify(customCameras));
-            
-            // Add to current dropdown
-            const option = new Option(trimmedCamera, trimmedCamera, true, true);
-            this.insertBefore(option, this.querySelector('[value="add-new-camera"]'));
-            
-            // Update all other camera dropdowns to include the new camera
-            updateAllCameraDropdowns();
-            
-            // Trigger save to persist the change
-            debounceSave();
-            
-            console.log(`[CARD-LOG] Added new camera: ${trimmedCamera}`);
-          } else {
-            alert('Camera already exists!');
-            this.value = '';
-          }
-        } else {
-          this.value = '';
-        }
-      }
-    });
-  }
-
-  // Only owners can add new users, but all users can see user selection changes
-  userSelect.addEventListener('change', function () {
-    if (this.value === 'add-new-user' && isOwner) {
-      const newUser = prompt('Enter new user name:');
-      if (newUser) {
-        users.push(newUser);
-        const option = new Option(newUser, newUser, true, true);
-        this.insertBefore(option, this.querySelector('[value="add-new-user"]'));
-      } else this.value = '';
-    }
-
-    // Note: We don't auto-save empty rows anymore - they'll be saved when user adds content
-    // This prevents the disappearing row issue where empty rows get lost in Socket.IO updates
-  });
   
   // Update row indices after adding this row
   updateRowIndices(date);
+}
+
+// Modal functionality for adding/editing card entries
+function openCardEntryModal(date, existingEntry = null) {
+  currentEditingDate = date;
+  currentEditingEntry = existingEntry;
+  
+  const modal = document.getElementById('card-entry-modal');
+  const title = document.getElementById('card-modal-title');
+  const cameraSelect = document.getElementById('card-camera-select');
+  const card1Input = document.getElementById('card-card1-input');
+  const card2Input = document.getElementById('card-card2-input');
+  const userSelect = document.getElementById('card-user-select');
+  const saveButton = document.getElementById('save-card-entry');
+  
+  // Update modal title
+  title.textContent = existingEntry ? 'Edit Card Entry' : 'Add Card Entry';
+  saveButton.textContent = existingEntry ? 'Update Entry' : 'Save Entry';
+  
+  // Populate camera dropdown
+  cameraSelect.innerHTML = '<option value="">Select Camera</option>';
+  cameras.forEach(camera => {
+    const option = document.createElement('option');
+    option.value = camera;
+    option.textContent = camera;
+    if (existingEntry && existingEntry.camera === camera) {
+      option.selected = true;
+    }
+    cameraSelect.appendChild(option);
+  });
+  
+  // Add "Add New Camera" option
+  const addCameraOption = document.createElement('option');
+  addCameraOption.value = 'add-new-camera';
+  addCameraOption.textContent = '➕ Add New Camera';
+  cameraSelect.appendChild(addCameraOption);
+  
+  // Populate user dropdown
+  userSelect.innerHTML = '<option value="">Select User</option>';
+  users.forEach(user => {
+    const option = document.createElement('option');
+    option.value = user;
+    option.textContent = user;
+    if (existingEntry && existingEntry.user === user) {
+      option.selected = true;
+    }
+    userSelect.appendChild(option);
+  });
+  
+  // Add "Add New User" option for owners
+  if (isOwner) {
+    const addUserOption = document.createElement('option');
+    addUserOption.value = 'add-new-user';
+    addUserOption.textContent = '➕ Add New User';
+    userSelect.appendChild(addUserOption);
+  }
+  
+  // Pre-populate fields for editing or set defaults for new entries
+  if (existingEntry) {
+    card1Input.value = existingEntry.card1 || '';
+    card2Input.value = existingEntry.card2 || '';
+  } else {
+    // For new entries, auto-select current user
+    const currentUser = getCurrentUserName();
+    if (currentUser && users.includes(currentUser)) {
+      userSelect.value = currentUser;
+    }
+    card1Input.value = '';
+    card2Input.value = '';
+  }
+  
+  // Disable user selection for non-owners editing existing entries
+  if (existingEntry && !isOwner) {
+    userSelect.disabled = true;
+  } else {
+    userSelect.disabled = false;
+  }
+  
+  modal.style.display = 'flex';
+}
+
+function closeCardEntryModal() {
+  const modal = document.getElementById('card-entry-modal');
+  modal.style.display = 'none';
+  currentEditingEntry = null;
+  currentEditingDate = null;
+}
+
+async function saveCardEntry() {
+  const cameraSelect = document.getElementById('card-camera-select');
+  const card1Input = document.getElementById('card-card1-input');
+  const card2Input = document.getElementById('card-card2-input');
+  const userSelect = document.getElementById('card-user-select');
+  
+  // Handle "Add New Camera" selection
+  if (cameraSelect.value === 'add-new-camera') {
+    const newCamera = prompt('Enter new camera name:');
+    if (newCamera && newCamera.trim()) {
+      const trimmedCamera = newCamera.trim();
+      
+      // Check if camera already exists
+      if (!cameras.includes(trimmedCamera) && !customCameras.includes(trimmedCamera)) {
+        customCameras.push(trimmedCamera);
+        cameras.push(trimmedCamera);
+        
+        // Save custom cameras to localStorage for persistence
+        localStorage.setItem(`customCameras_${localStorage.getItem('eventId')}`, JSON.stringify(customCameras));
+        
+        // Update camera select with new camera
+        const option = document.createElement('option');
+        option.value = trimmedCamera;
+        option.textContent = trimmedCamera;
+        option.selected = true;
+        cameraSelect.insertBefore(option, cameraSelect.querySelector('[value="add-new-camera"]'));
+        
+        console.log(`[CARD-LOG] Added new camera: ${trimmedCamera}`);
+      } else {
+        alert('Camera already exists!');
+        return; // Don't save, let user fix the selection
+      }
+    } else {
+      alert('Camera name is required');
+      return;
+    }
+  }
+  
+  // Handle "Add New User" selection
+  if (userSelect.value === 'add-new-user' && isOwner) {
+    const newUser = prompt('Enter new user name:');
+    if (newUser && newUser.trim()) {
+      const trimmedUser = newUser.trim();
+      
+      if (!users.includes(trimmedUser)) {
+        users.push(trimmedUser);
+        
+        // Update user select with new user
+        const option = document.createElement('option');
+        option.value = trimmedUser;
+        option.textContent = trimmedUser;
+        option.selected = true;
+        userSelect.insertBefore(option, userSelect.querySelector('[value="add-new-user"]'));
+        
+        console.log(`[CARD-LOG] Added new user: ${trimmedUser}`);
+      } else {
+        alert('User already exists!');
+        return;
+      }
+    } else {
+      alert('User name is required');
+      return;
+    }
+  }
+  
+  // Validate required fields
+  if (!userSelect.value) {
+    alert('Please select a user');
+    return;
+  }
+  
+  // Create entry object
+  const entryData = {
+    camera: cameraSelect.value,
+    card1: card1Input.value.trim(),
+    card2: card2Input.value.trim(),
+    user: userSelect.value,
+    createdBy: getUserIdFromToken(),
+    createdAt: currentEditingEntry ? currentEditingEntry.createdAt : new Date().toISOString(),
+    updatedAt: new Date().toISOString()
+  };
+  
+  // Use existing ID if editing, otherwise generate new one
+  if (currentEditingEntry) {
+    entryData._id = currentEditingEntry._id;
+  } else {
+    entryData._id = `entry-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  }
+  
+  try {
+    // Update the data structure and save
+    await addOrUpdateCardEntry(currentEditingDate, entryData);
+    
+    // Close modal
+    closeCardEntryModal();
+    
+    console.log('[CARD-LOG] Card entry saved successfully');
+  } catch (error) {
+    console.error('[CARD-LOG] Error saving card entry:', error);
+    alert('Error saving card entry. Please try again.');
+  }
+}
+
+async function addOrUpdateCardEntry(date, entryData) {
+  // Get current card log from DOM
+  const tables = document.querySelectorAll('.day-table');
+  const cardLog = Array.from(tables).map(dayTable => {
+    const dayDate = dayTable.querySelector('h3').textContent;
+    const entries = Array.from(dayTable.querySelectorAll('tbody tr')).map(row => {
+      const rowId = row.getAttribute('data-id');
+      const camera = row.querySelector('[data-field="camera"]').textContent;
+      const card1 = row.querySelector('[data-field="card1"]').textContent;
+      const card2 = row.querySelector('[data-field="card2"]').textContent;
+      const user = row.querySelector('[data-field="user"]').textContent;
+      const createdBy = row.getAttribute('data-created-by');
+      const createdAt = row.getAttribute('data-created-at');
+      
+      return {
+        _id: rowId,
+        camera,
+        card1,
+        card2,
+        user,
+        createdBy,
+        createdAt,
+        updatedAt: new Date().toISOString()
+      };
+    });
+    
+    const dayId = dayTable.getAttribute('data-id');
+    return { 
+      _id: dayId,
+      date: dayDate, 
+      entries
+    };
+  });
+  
+  // Find the day and update/add the entry
+  let dayFound = false;
+  cardLog.forEach(day => {
+    if (day.date === date) {
+      dayFound = true;
+      
+      if (currentEditingEntry) {
+        // Update existing entry
+        const entryIndex = day.entries.findIndex(e => e._id === currentEditingEntry._id);
+        if (entryIndex !== -1) {
+          day.entries[entryIndex] = entryData;
+        }
+      } else {
+        // Add new entry
+        day.entries.push(entryData);
+      }
+    }
+  });
+  
+  // If day doesn't exist, create it
+  if (!dayFound) {
+    cardLog.push({
+      _id: `day-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+      date,
+      entries: [entryData]
+    });
+  }
+  
+  // Update the DOM immediately for better UX
+  if (currentEditingEntry) {
+    // Update existing row in DOM
+    updateExistingRowInDOM(date, entryData);
+  } else {
+    // Add new row to DOM
+    addNewRowToDOM(date, entryData);
+  }
+  
+  // Save to backend
+  const response = await fetch(`${API_BASE}/api/tables/${localStorage.getItem('eventId')}/cardlog`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') },
+    body: JSON.stringify({ cardLog })
+  });
+  
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || response.statusText);
+  }
+  
+  console.log('[CARD-LOG] Entry saved and DOM updated immediately');
+}
+
+// Helper function to add a new row to the DOM immediately
+function addNewRowToDOM(date, entryData) {
+  // Check if day section exists, create if not
+  let dayDiv = document.getElementById(`day-${date}`);
+  if (!dayDiv) {
+    console.log(`[CARD-LOG] Day section doesn't exist for ${date}, creating it`);
+    addDaySection(date, []); // Create empty day section first
+    dayDiv = document.getElementById(`day-${date}`);
+    
+    if (!dayDiv) {
+      console.error(`[CARD-LOG] Failed to create day section for ${date}`);
+      return;
+    }
+  }
+  
+  // Add the row using existing addRow function
+  addRow(date, entryData);
+  console.log(`[CARD-LOG] Added new row to DOM for date ${date}`);
+}
+
+// Helper function to update an existing row in the DOM immediately
+function updateExistingRowInDOM(date, entryData) {
+  const dayDiv = document.getElementById(`day-${date}`);
+  if (!dayDiv) {
+    console.error(`[CARD-LOG] Day section not found for ${date}`);
+    return;
+  }
+  
+  // Find the specific row by its ID
+  const row = dayDiv.querySelector(`tr[data-id="${entryData._id}"]`);
+  if (!row) {
+    console.error(`[CARD-LOG] Row not found for entry ${entryData._id}`);
+    return;
+  }
+  
+  // Update the row's display values
+  row.querySelector('[data-field="camera"]').textContent = entryData.camera || '';
+  row.querySelector('[data-field="card1"]').textContent = entryData.card1 || '';
+  row.querySelector('[data-field="card2"]').textContent = entryData.card2 || '';
+  row.querySelector('[data-field="user"]').textContent = entryData.user || '';
+  
+  // Update row attributes
+  row.setAttribute('data-user', entryData.user || '');
+  row.setAttribute('data-created-by', entryData.createdBy || '');
+  row.setAttribute('data-created-at', entryData.createdAt || '');
+  
+  console.log(`[CARD-LOG] Updated existing row in DOM for date ${date}`);
 }
 
 window.saveToMongoDB = saveToMongoDB;
@@ -1382,6 +1548,9 @@ window.getUserIdFromToken = getUserIdFromToken;
 window.getCurrentUserName = getCurrentUserName;
 window.applySmartDayUpdate = applySmartDayUpdate;
 window.canEditRow = canEditRow;
+window.openCardEntryModal = openCardEntryModal;
+window.closeCardEntryModal = closeCardEntryModal;
+window.saveCardEntry = saveCardEntry;
 
 // Add CSS for readonly rows
 const style = document.createElement('style');

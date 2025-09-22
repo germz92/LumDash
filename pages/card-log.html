@@ -18,7 +18,7 @@
 
   <div id="table-container"></div>
 
-  <!-- Modal -->
+  <!-- Date Modal -->
   <div id="date-modal" class="modal">
     <div class="modal-content">
       <h3>Select a Date</h3>
@@ -26,6 +26,39 @@
       <div class="modal-buttons">
         <button id="submit-date">Create Table</button>
         <button id="cancel-modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card Entry Modal -->
+  <div id="card-entry-modal" class="modal">
+    <div class="modal-content">
+      <h3 id="card-modal-title">Add Card Entry</h3>
+      <div class="card-form">
+        <div class="form-group">
+          <label for="card-camera-select">Camera</label>
+          <select id="card-camera-select">
+            <option value="">Select Camera</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="card-card1-input">Card 1</label>
+          <input type="text" id="card-card1-input" placeholder="Enter card 1 details" />
+        </div>
+        <div class="form-group">
+          <label for="card-card2-input">Card 2</label>
+          <input type="text" id="card-card2-input" placeholder="Enter card 2 details" />
+        </div>
+        <div class="form-group">
+          <label for="card-user-select">User</label>
+          <select id="card-user-select">
+            <option value="">Select User</option>
+          </select>
+        </div>
+      </div>
+      <div class="modal-buttons">
+        <button id="save-card-entry">Save Entry</button>
+        <button id="cancel-card-modal">Cancel</button>
       </div>
     </div>
   </div>

@@ -60,17 +60,16 @@
       <ul style="margin: 5px 0; padding-left: 20px;"></ul>
     </div>
 
-    <input id="shareEmail" placeholder="Enter email to share">
+    <!-- User Input with Autofill -->
+    <div id="userAutofillContainer" style="position: relative; margin-bottom: 10px;">
+      <input id="shareEmail" placeholder="Type name or email to search users..." autocomplete="off">
+      <div id="userSuggestions" style="position: absolute; top: 100%; left: 0; right: 0; background: white; border: 1px solid #ccc; border-top: none; border-radius: 0 0 4px 4px; max-height: 200px; overflow-y: auto; z-index: 1000; display: none; box-shadow: 0 2px 8px rgba(0,0,0,0.1);"></div>
+    </div>
     
-    <label style="margin: 8px 0; display: block;">
-      <input type="checkbox" id="makeOwnerCheckbox">
-      Make this user an owner
-    </label>
-
-    <label style="margin: 8px 0 0 0; display: block;">
-      <input type="checkbox" id="makeLeadCheckbox">
-      Make this user a lead (full schedule access)
-    </label>
+    <!-- Selected Users Display -->
+    <div id="selectedUsersContainer" style="margin-bottom: 10px;">
+      <div id="selectedUsersList" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 8px;"></div>
+    </div>
 
     <button onclick="submitShare()">Share</button>
     <button onclick="closeModal()">Cancel</button>
