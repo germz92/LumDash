@@ -23,6 +23,11 @@
         <input id="newDate" type="date" placeholder="Add Date">
         <button id="addDateBtn" class="add-btn">+ Add Date</button>
         <div id="crewCount"><strong>Crew Count: 0</strong></div>
+        <div class="global-edit-controls" style="display: flex; gap: 8px; align-items: center;">
+          <button id="globalEditBtn" class="global-edit-btn" style="background:#e0e0e0; color:#333; border:1px solid #bbb; border-radius:6px; padding:8px 18px; font-weight:400; font-size:15px; box-shadow:none; cursor:pointer; display:none;">Edit Mode</button>
+          <button id="globalSaveBtn" class="global-save-btn" style="background:#CC0007; color:#fff; border:none; border-radius:6px; padding:8px 18px; font-weight:600; font-size:15px; cursor:pointer; display:none;">Save All</button>
+          <button id="globalCancelBtn" class="global-cancel-btn" style="background:#6c757d; color:#fff; border:none; border-radius:6px; padding:8px 18px; font-weight:400; font-size:15px; cursor:pointer; display:none;">Cancel</button>
+        </div>
       </div>
       <div class="filter-sort-bar">
         <select id="filterDate"></select>

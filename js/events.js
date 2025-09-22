@@ -20,12 +20,23 @@ function getUserIdFromToken() {
 
 function showCreateModal() {
   const modal = document.getElementById('createModal');
-  if (modal) modal.style.display = 'flex';
+  if (modal) {
+    modal.style.display = 'flex';
+    
+    // Add click-outside functionality
+    setTimeout(() => {
+      modal.addEventListener('click', handleCreateModalClick);
+    }, 0);
+  }
 }
 
 function hideCreateModal() {
   const modal = document.getElementById('createModal');
-  if (modal) modal.style.display = 'none';
+  if (modal) {
+    modal.style.display = 'none';
+    // Remove click-outside event listener
+    modal.removeEventListener('click', handleCreateModalClick);
+  }
 }
 
 async function submitCreate() {
@@ -597,7 +608,14 @@ async function openShareModal(tableId) {
     // If owner, proceed with opening the share modal
     currentTableId = tableId;
     const shareModal = document.getElementById('shareModal');
-    if (shareModal) shareModal.style.display = 'flex';
+    if (shareModal) {
+      shareModal.style.display = 'flex';
+      
+      // Add click-outside functionality
+      setTimeout(() => {
+        shareModal.addEventListener('click', handleModalClick);
+      }, 0);
+    }
 
     // Fetch users for the lists
     const userRes = await fetch(`${API_BASE}/api/users`, {
@@ -948,9 +966,33 @@ function setupUserAutofill() {
   shareEmailInput.addEventListener('blur', hideSuggestions);
 }
 
+function handleModalClick(e) {
+  const shareModal = document.getElementById('shareModal');
+  const modalContent = shareModal?.querySelector('.modal-content');
+  
+  // If click is on the modal backdrop (not the content), close the modal
+  if (e.target === shareModal && !modalContent?.contains(e.target)) {
+    closeModal();
+  }
+}
+
+function handleCreateModalClick(e) {
+  const createModal = document.getElementById('createModal');
+  const modalContent = createModal?.querySelector('.modal-content');
+  
+  // If click is on the modal backdrop (not the content), close the modal
+  if (e.target === createModal && !modalContent?.contains(e.target)) {
+    hideCreateModal();
+  }
+}
+
 function closeModal() {
   const shareModal = document.getElementById('shareModal');
-  if (shareModal) shareModal.style.display = 'none';
+  if (shareModal) {
+    shareModal.style.display = 'none';
+    // Remove click-outside event listener
+    shareModal.removeEventListener('click', handleModalClick);
+  }
   const shareEmail = document.getElementById('shareEmail');
   if (shareEmail) shareEmail.value = '';
   

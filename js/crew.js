@@ -30,6 +30,8 @@ let cachedRoles = [
   "Assistant"
 ];
 let isOwner = false;
+let globalEditMode = false;
+let editedData = {}; // Store all edited row data during edit mode
 
 // Socket.IO real-time updates
 if (window.socket) {
@@ -133,6 +135,17 @@ async function loadTable() {
 
     const newDateInput = document.getElementById('newDate');
     if (newDateInput) newDateInput.style.display = 'none';
+    
+    // Hide global edit controls for non-owners
+    const globalEditControls = document.querySelector('.global-edit-controls');
+    if (globalEditControls) globalEditControls.style.display = 'none';
+  } else {
+    // Show global edit controls for owners
+    const globalEditControls = document.querySelector('.global-edit-controls');
+    if (globalEditControls) globalEditControls.style.display = 'flex';
+    
+    const globalEditBtn = document.getElementById('globalEditBtn');
+    if (globalEditBtn) globalEditBtn.style.display = 'inline-block';
   }
 
   if (!cachedUsers.length) await preloadUsers();
@@ -141,6 +154,10 @@ async function loadTable() {
   
   // Restore filter state before rendering
   restoreFilterState();
+  
+  // Load any edited data from session storage
+  loadEditedDataFromSession();
+  
   renderTableSection();
   updateCrewCount();
 }
@@ -289,23 +306,57 @@ function renderTableSection() {
         });
       }
     
-      tr.innerHTML = `
-        <td><span id="${prefix}-name">${row.name}</span></td>
-        <td><span id="${prefix}-startTime">${formatTime(row.startTime)}</span></td>
-        <td><span id="${prefix}-endTime">${formatTime(row.endTime)}</span></td>
-        <td id="${prefix}-totalHours">${row.totalHours}</td>
-        <td><span id="${prefix}-role">${row.role}</span></td>
-        <td><span id="${prefix}-notes">${row.notes}</span></td>
-        <td class="actions-cell" style="text-align: center;">
-          ${isOwner ? `
-            <div class="icon-buttons">
-              <button class="edit-row-btn" onclick="toggleEditById('${rowId}')" title="Edit"><span class="material-symbols-outlined">edit</span></button>
-              <button class="edit-row-btn save-row-btn" onclick="saveEditById('${rowId}')" title="Save" style="display:none;"><span class="material-symbols-outlined">save</span></button>
-              <button class="delete-row-btn" onclick="deleteRowById('${rowId}')" title="Delete"><span class="material-symbols-outlined">delete</span></button>
-            </div>
-          ` : ''}
-        </td>
-      `;
+      // Check if we have edited data for this row
+      const editedRowData = editedData[rowId];
+      const displayData = editedRowData || row;
+      
+      if (globalEditMode) {
+        // Render editable fields
+        tr.innerHTML = `
+          <td>
+            <select id="${prefix}-name" onchange="handleNameChange('${rowId}', this.value)">
+              <option value="">-- Select Name --</option>
+              ${cachedUsers.map(u => `<option value="${u.name}" ${u.name === displayData.name ? 'selected' : ''}>${u.name}</option>`).join('')}
+              <option value="__add_new__">➕ Add new name</option>
+            </select>
+          </td>
+          <td><input type="time" id="${prefix}-startTime" value="${displayData.startTime || ''}" onchange="updateEditedData('${rowId}', 'startTime', this.value); updateRowHours('${rowId}')"></td>
+          <td><input type="time" id="${prefix}-endTime" value="${displayData.endTime || ''}" onchange="updateEditedData('${rowId}', 'endTime', this.value); updateRowHours('${rowId}')"></td>
+          <td id="${prefix}-totalHours">${calculateHours(displayData.startTime, displayData.endTime)}</td>
+          <td>
+            <select id="${prefix}-role" onchange="handleRoleChange('${rowId}', this.value)">
+              <option value="">-- Select Role --</option>
+              ${cachedRoles.map(r => `<option value="${r}" ${r === displayData.role ? 'selected' : ''}>${r}</option>`).join('')}
+              <option value="__add_new__">➕ Add new role</option>
+            </select>
+          </td>
+          <td><input type="text" id="${prefix}-notes" value="${displayData.notes || ''}" onchange="updateEditedData('${rowId}', 'notes', this.value)"></td>
+          <td class="actions-cell" style="text-align: center;">
+            ${isOwner ? `
+              <div class="icon-buttons">
+                <button class="delete-row-btn" onclick="deleteRowById('${rowId}')" title="Delete"><span class="material-symbols-outlined">delete</span></button>
+              </div>
+            ` : ''}
+          </td>
+        `;
+      } else {
+        // Render display-only fields
+        tr.innerHTML = `
+          <td><span id="${prefix}-name">${displayData.name}</span></td>
+          <td><span id="${prefix}-startTime">${formatTime(displayData.startTime)}</span></td>
+          <td><span id="${prefix}-endTime">${formatTime(displayData.endTime)}</span></td>
+          <td id="${prefix}-totalHours">${displayData.totalHours}</td>
+          <td><span id="${prefix}-role">${displayData.role}</span></td>
+          <td><span id="${prefix}-notes">${displayData.notes}</span></td>
+          <td class="actions-cell" style="text-align: center;">
+            ${isOwner ? `
+              <div class="icon-buttons">
+                <button class="delete-row-btn" onclick="deleteRowById('${rowId}')" title="Delete"><span class="material-symbols-outlined">delete</span></button>
+              </div>
+            ` : ''}
+          </td>
+        `;
+      }
     
       tbody.appendChild(tr);
     
@@ -406,149 +457,18 @@ function showCrewListModal() {
   };
 }
 
+// Legacy function - kept for compatibility but not used in global edit mode
 async function saveEditById(rowId) {
-  if (!isOwner) return;
-
-  const prefix = `row-${rowId}`;
-  const row = tableData.rows.find(r => r._id === rowId);
-  if (!row) return;
-
-  const nameInput = document.getElementById(`${prefix}-name`);
-  const startInput = document.getElementById(`${prefix}-startTime`);
-  const endInput = document.getElementById(`${prefix}-endTime`);
-  const roleInput = document.getElementById(`${prefix}-role`);
-  const notesInput = document.getElementById(`${prefix}-notes`);
-
-  if (!nameInput || !startInput || !endInput || !roleInput || !notesInput) {
-    alert('Some editable fields are missing in the DOM.');
-    console.error('Missing fields:', {
-      nameInput,
-      startInput,
-      endInput,
-      roleInput,
-      notesInput
-    });
-    return;
-  }
-
-  const startTime = startInput.value;
-  const endTime = endInput.value;
-
-  const updatedRow = {
-    _id: rowId,
-    date: row.date,
-    name: nameInput.value,
-    startTime,
-    endTime,
-    totalHours: calculateHours(startTime, endTime),
-    role: roleInput.value,
-    notes: notesInput.value
-  };
-
-  const res = await fetch(`${API_BASE}/api/tables/${tableId}/rows/${rowId}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: token
-    },
-    body: JSON.stringify(updatedRow)
-  });
-
-  if (res.ok) {
-    await loadTable();
-  } else {
-    const errorText = await res.text();
-    alert('Failed to save row.');
-    console.error('Save failed:', errorText);
-  }
+  if (!isOwner || globalEditMode) return;
+  
+  console.log('⚠️ CREW: saveEditById called in global edit mode - this should not happen');
 }
 
+// Legacy function - kept for compatibility but not used in global edit mode
 function toggleEditById(rowId) {
-  if (!isOwner) return;
-
-  const row = tableData.rows.find(r => r._id === rowId);
-  if (!row) return alert('Row not found.');
-
-  const prefix = `row-${rowId}`;
-  const tr = document.getElementById(prefix);
-  if (!tr) return;
-
-  tr.querySelector(`#${prefix}-name`).outerHTML = `
-    <select id="${prefix}-name">
-      <option value="">-- Select Name --</option>
-      ${cachedUsers.map(u => `<option value="${u.name}" ${u.name === row.name ? 'selected' : ''}>${u.name}</option>`).join('')}
-      <option value="__add_new__">➕ Add new name</option>
-    </select>
-  `;
-
-  tr.querySelector(`#${prefix}-role`).outerHTML = `
-    <select id="${prefix}-role">
-      <option value="">-- Select Role --</option>
-      ${cachedRoles.map(r => `<option value="${r}" ${r === row.role ? 'selected' : ''}>${r}</option>`).join('')}
-      <option value="__add_new__">➕ Add new role</option>
-    </select>
-  `;
-
-  tr.querySelector(`#${prefix}-startTime`).outerHTML = `<input type="time" id="${prefix}-startTime" value="${row.startTime}">`;
-  tr.querySelector(`#${prefix}-endTime`).outerHTML = `<input type="time" id="${prefix}-endTime" value="${row.endTime}">`;
-  tr.querySelector(`#${prefix}-notes`).outerHTML = `<input type="text" id="${prefix}-notes" value="${row.notes}">`;
-
-  const totalHoursEl = document.getElementById(`${prefix}-totalHours`);
-  const updateHours = () => {
-    const start = document.getElementById(`${prefix}-startTime`).value;
-    const end = document.getElementById(`${prefix}-endTime`).value;
-    totalHoursEl.textContent = calculateHours(start, end);
-  };
-  document.getElementById(`${prefix}-startTime`).addEventListener('input', updateHours);
-  document.getElementById(`${prefix}-endTime`).addEventListener('input', updateHours);
-
-  setTimeout(() => {
-    const nameSelect = document.getElementById(`${prefix}-name`);
-    nameSelect.addEventListener('change', () => {
-      if (nameSelect.value === '__add_new__') {
-        const newName = prompt('Enter new name:');
-        if (newName && !cachedUsers.some(u => u.name === newName)) {
-          cachedUsers.push({ name: newName });
-          cachedUsers.sort((a, b) => a.name.localeCompare(b.name));
-        }
-        nameSelect.innerHTML = `
-          <option value="">-- Select Name --</option>
-          ${cachedUsers.map(u => `<option value="${u.name}" ${u.name === newName ? 'selected' : ''}>${u.name}</option>`).join('')}
-          <option value="__add_new__">➕ Add new name</option>
-        `;
-        nameSelect.value = newName;
-      }
-    });
-
-    const roleSelect = document.getElementById(`${prefix}-role`);
-    roleSelect.addEventListener('change', () => {
-      if (roleSelect.value === '__add_new__') {
-        const newRole = prompt('Enter new role:');
-        if (newRole && !cachedRoles.includes(newRole)) {
-          cachedRoles.push(newRole);
-          cachedRoles.sort();
-        }
-        roleSelect.innerHTML = `
-          <option value="">-- Select Role --</option>
-          ${cachedRoles.map(r => `<option value="${r}" ${r === newRole ? 'selected' : ''}>${r}</option>`).join('')}
-          <option value="__add_new__">➕ Add new role</option>
-        `;
-        roleSelect.value = newRole;
-      }
-    });
-  }, 0);
-
-  // Get the icon-buttons container
-  const buttonsContainer = tr.querySelector('td:last-child .icon-buttons');
-  if (buttonsContainer) {
-    const editButton = buttonsContainer.querySelector('button:nth-child(1)');
-    const saveButton = buttonsContainer.querySelector('button:nth-child(2)');
-    
-    if (editButton && saveButton) {
-      editButton.style.display = 'none';
-      saveButton.style.display = 'inline-flex';
-    }
-  }
+  if (!isOwner || globalEditMode) return;
+  
+  console.log('⚠️ CREW: toggleEditById called in global edit mode - this should not happen');
 }
 
 async function deleteRowById(rowId) {
@@ -777,6 +697,450 @@ function saveFilterState() {
   console.log('✅ CREW: Filter state saved to localStorage');
 }
 
+// Session storage functions for edit mode data
+function saveEditedDataToSession() {
+  if (Object.keys(editedData).length > 0) {
+    sessionStorage.setItem(`crew_edited_data_${tableId}`, JSON.stringify(editedData));
+    console.log('💾 CREW: Saved edited data to session storage:', editedData);
+  }
+}
+
+function loadEditedDataFromSession() {
+  const stored = sessionStorage.getItem(`crew_edited_data_${tableId}`);
+  if (stored) {
+    try {
+      editedData = JSON.parse(stored);
+      console.log('📂 CREW: Loaded edited data from session storage:', editedData);
+    } catch (e) {
+      console.error('❌ CREW: Failed to parse session storage data:', e);
+      editedData = {};
+    }
+  }
+}
+
+function clearEditedDataFromSession() {
+  sessionStorage.removeItem(`crew_edited_data_${tableId}`);
+  editedData = {};
+  console.log('🗑️ CREW: Cleared edited data from session storage');
+}
+
+// Update edited data and save to session storage
+function updateEditedData(rowId, field, value) {
+  if (!editedData[rowId]) {
+    // Initialize with current row data
+    const row = tableData.rows.find(r => r._id === rowId);
+    if (row) {
+      editedData[rowId] = { ...row };
+    }
+  }
+  
+  editedData[rowId][field] = value;
+  
+  // Recalculate total hours if start or end time changed
+  if (field === 'startTime' || field === 'endTime') {
+    editedData[rowId].totalHours = calculateHours(
+      editedData[rowId].startTime,
+      editedData[rowId].endTime
+    );
+  }
+  
+  saveEditedDataToSession();
+  console.log(`📝 CREW: Updated ${field} for row ${rowId}:`, value);
+}
+
+// Handle name change with add new functionality
+function handleNameChange(rowId, value) {
+  if (value === '__add_new__') {
+    const newName = prompt('Enter new name:');
+    if (newName && !cachedUsers.some(u => u.name === newName)) {
+      cachedUsers.push({ name: newName });
+      cachedUsers.sort((a, b) => a.name.localeCompare(b.name));
+      
+      // Update the select element
+      const select = document.getElementById(`row-${rowId}-name`);
+      if (select) {
+        select.innerHTML = `
+          <option value="">-- Select Name --</option>
+          ${cachedUsers.map(u => `<option value="${u.name}" ${u.name === newName ? 'selected' : ''}>${u.name}</option>`).join('')}
+          <option value="__add_new__">➕ Add new name</option>
+        `;
+        select.value = newName;
+      }
+      
+      updateEditedData(rowId, 'name', newName);
+    } else {
+      // Reset selection if cancelled or duplicate
+      const select = document.getElementById(`row-${rowId}-name`);
+      if (select) {
+        const currentData = editedData[rowId] || tableData.rows.find(r => r._id === rowId);
+        select.value = currentData ? currentData.name : '';
+      }
+    }
+  } else {
+    updateEditedData(rowId, 'name', value);
+  }
+}
+
+// Handle role change with add new functionality
+function handleRoleChange(rowId, value) {
+  if (value === '__add_new__') {
+    const newRole = prompt('Enter new role:');
+    if (newRole && !cachedRoles.includes(newRole)) {
+      cachedRoles.push(newRole);
+      cachedRoles.sort();
+      
+      // Update the select element
+      const select = document.getElementById(`row-${rowId}-role`);
+      if (select) {
+        select.innerHTML = `
+          <option value="">-- Select Role --</option>
+          ${cachedRoles.map(r => `<option value="${r}" ${r === newRole ? 'selected' : ''}>${r}</option>`).join('')}
+          <option value="__add_new__">➕ Add new role</option>
+        `;
+        select.value = newRole;
+      }
+      
+      updateEditedData(rowId, 'role', newRole);
+    } else {
+      // Reset selection if cancelled or duplicate
+      const select = document.getElementById(`row-${rowId}-role`);
+      if (select) {
+        const currentData = editedData[rowId] || tableData.rows.find(r => r._id === rowId);
+        select.value = currentData ? currentData.role : '';
+      }
+    }
+  } else {
+    updateEditedData(rowId, 'role', value);
+  }
+}
+
+// Update row hours display in edit mode
+function updateRowHours(rowId) {
+  const prefix = `row-${rowId}`;
+  const startInput = document.getElementById(`${prefix}-startTime`);
+  const endInput = document.getElementById(`${prefix}-endTime`);
+  const hoursDisplay = document.getElementById(`${prefix}-totalHours`);
+  
+  if (startInput && endInput && hoursDisplay) {
+    const hours = calculateHours(startInput.value, endInput.value);
+    hoursDisplay.textContent = hours;
+  }
+}
+
+// Enter global edit mode
+function enterGlobalEditMode() {
+  if (!isOwner || globalEditMode) return;
+  
+  try {
+    console.log('🔄 CREW: Entering edit mode...');
+    
+    globalEditMode = true;
+    
+    const globalEditBtn = document.getElementById('globalEditBtn');
+    const globalSaveBtn = document.getElementById('globalSaveBtn');
+    const globalCancelBtn = document.getElementById('globalCancelBtn');
+    
+    if (!globalEditBtn || !globalSaveBtn || !globalCancelBtn) {
+      console.error('❌ CREW: Could not find global edit control buttons');
+      return;
+    }
+    
+    // Update button visibility
+    globalEditBtn.style.display = 'none';
+    globalSaveBtn.style.display = 'inline-block';
+    globalCancelBtn.style.display = 'inline-block';
+    
+    // Ensure buttons are enabled
+    globalSaveBtn.disabled = false;
+    globalCancelBtn.disabled = false;
+    globalSaveBtn.textContent = 'Save All';
+    
+    // Add visual class to body
+    document.body.classList.add('global-edit-mode');
+    
+    // Load any existing edited data
+    loadEditedDataFromSession();
+    
+    // Render the table section with edit controls
+    renderTableSection();
+    
+    console.log('✅ CREW: Entered edit mode successfully');
+    
+  } catch (error) {
+    console.error('❌ CREW: Error entering edit mode:', error);
+    alert('Error entering edit mode. Please refresh the page if issues persist.');
+  }
+}
+
+// Exit global edit mode
+function exitGlobalEditMode() {
+  if (!isOwner || !globalEditMode) return;
+  
+  try {
+    console.log('🔄 CREW: Exiting edit mode...');
+    
+    globalEditMode = false;
+    
+    const globalEditBtn = document.getElementById('globalEditBtn');
+    const globalSaveBtn = document.getElementById('globalSaveBtn');
+    const globalCancelBtn = document.getElementById('globalCancelBtn');
+    
+    if (!globalEditBtn || !globalSaveBtn || !globalCancelBtn) {
+      console.error('❌ CREW: Could not find global edit control buttons');
+      return;
+    }
+    
+    // Update button visibility
+    globalEditBtn.style.display = 'inline-block';
+    globalSaveBtn.style.display = 'none';
+    globalCancelBtn.style.display = 'none';
+    
+    // Reset button states
+    globalSaveBtn.disabled = false;
+    globalCancelBtn.disabled = false;
+    globalSaveBtn.textContent = 'Save All';
+    globalEditBtn.textContent = 'Edit Mode';
+    
+    // Remove visual class from body
+    document.body.classList.remove('global-edit-mode');
+    
+    // Render the table section without edit controls
+    renderTableSection();
+    
+    console.log('✅ CREW: Exited edit mode successfully');
+    
+  } catch (error) {
+    console.error('❌ CREW: Error exiting edit mode:', error);
+    alert('Error exiting edit mode. Please refresh the page if issues persist.');
+  }
+}
+
+// Toggle global edit mode (for the Edit Mode button)
+function toggleGlobalEditMode() {
+  if (!isOwner) return;
+  
+  if (globalEditMode) {
+    exitGlobalEditMode();
+  } else {
+    enterGlobalEditMode();
+  }
+}
+
+// Cancel global edit mode
+function cancelGlobalEditMode() {
+  if (!isOwner) return;
+  
+  const globalCancelBtn = document.getElementById('globalCancelBtn');
+  const globalSaveBtn = document.getElementById('globalSaveBtn');
+  
+  // Prevent multiple clicks
+  if (globalCancelBtn && globalCancelBtn.disabled) {
+    return;
+  }
+  
+  // Check if there are unsaved changes
+  if (Object.keys(editedData).length > 0) {
+    if (!confirm('Are you sure you want to cancel? All unsaved changes will be lost.')) {
+      return;
+    }
+  }
+  
+  try {
+    // Disable buttons during cancel operation
+    if (globalCancelBtn) globalCancelBtn.disabled = true;
+    if (globalSaveBtn) globalSaveBtn.disabled = true;
+    
+    console.log('🔄 CREW: Cancelling edit mode...');
+    
+    // Clear edited data
+    clearEditedDataFromSession();
+    
+    // Re-enable buttons
+    if (globalCancelBtn) globalCancelBtn.disabled = false;
+    if (globalSaveBtn) globalSaveBtn.disabled = false;
+    
+    // Exit edit mode and update UI
+    exitGlobalEditMode();
+    
+    console.log('❌ CREW: Global edit mode cancelled');
+    
+    // Show feedback
+    showTemporaryMessage('Changes cancelled', 'info');
+    
+  } catch (error) {
+    console.error('❌ CREW: Error during cancel operation:', error);
+    
+    // Re-enable buttons on error
+    if (globalCancelBtn) globalCancelBtn.disabled = false;
+    if (globalSaveBtn) globalSaveBtn.disabled = false;
+    
+    alert('Error cancelling edit mode. Please refresh the page.');
+  }
+}
+
+// Save all edited data
+async function saveAllEditedData() {
+  if (!isOwner) return;
+  
+  const editedRowCount = Object.keys(editedData).length;
+  if (editedRowCount === 0) {
+    alert('No changes to save.');
+    return;
+  }
+  
+  // Validate edited data
+  const validationErrors = validateEditedData();
+  if (validationErrors.length > 0) {
+    alert('Please fix the following errors before saving:\n' + validationErrors.join('\n'));
+    return;
+  }
+  
+  // Confirm with user
+  const confirmMessage = `Save changes to ${editedRowCount} row${editedRowCount === 1 ? '' : 's'}?`;
+  if (!confirm(confirmMessage)) {
+    return;
+  }
+  
+  const globalSaveBtn = document.getElementById('globalSaveBtn');
+  const globalCancelBtn = document.getElementById('globalCancelBtn');
+  const originalText = globalSaveBtn.textContent;
+  
+  // Disable both buttons during save
+  globalSaveBtn.textContent = 'Saving...';
+  globalSaveBtn.disabled = true;
+  globalCancelBtn.disabled = true;
+  
+  try {
+    console.log('🔄 CREW: Starting save operation for', editedRowCount, 'rows');
+    
+    // Save each edited row sequentially to avoid overwhelming the server
+    for (const [rowId, rowData] of Object.entries(editedData)) {
+      console.log(`💾 CREW: Saving row ${rowId}:`, rowData);
+      
+      const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows/${rowId}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token
+        },
+        body: JSON.stringify(rowData)
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to save row ${getRowDisplayName(rowId)}: ${response.status} - ${errorText}`);
+      }
+      
+      console.log(`✅ CREW: Successfully saved row ${rowId}`);
+    }
+    
+    console.log('✅ CREW: All rows saved successfully');
+    
+    // Clear edited data first
+    clearEditedDataFromSession();
+    
+    // Reset button states
+    globalSaveBtn.textContent = originalText;
+    globalSaveBtn.disabled = false;
+    globalCancelBtn.disabled = false;
+    
+    // Exit edit mode and update UI
+    exitGlobalEditMode();
+    
+    // Reload table to show saved data with error handling
+    try {
+      await loadTable();
+      console.log('✅ CREW: Table reloaded successfully');
+    } catch (loadError) {
+      console.warn('⚠️ CREW: Failed to reload table after save, but save was successful:', loadError);
+      // Force a simple re-render instead of full reload
+      renderTableSection();
+    }
+    
+    // Show success feedback
+    showTemporaryMessage('Changes saved successfully!', 'success');
+    
+  } catch (error) {
+    console.error('❌ CREW: Failed to save changes:', error);
+    
+    // Reset button states on error
+    globalSaveBtn.textContent = originalText;
+    globalSaveBtn.disabled = false;
+    globalCancelBtn.disabled = false;
+    
+    // Show user-friendly error message
+    const errorMessage = error.message.includes('Failed to save row') 
+      ? error.message 
+      : 'Failed to save changes. Please try again.';
+    
+    alert(errorMessage);
+    showTemporaryMessage('Save failed. Please try again.', 'error');
+  }
+}
+
+// Validate edited data before saving
+function validateEditedData() {
+  const errors = [];
+  
+  Object.entries(editedData).forEach(([rowId, rowData]) => {
+    if (!rowData.name || !rowData.name.trim()) {
+      errors.push(`Row ${getRowDisplayName(rowId)}: Name is required`);
+    }
+    
+    if (!rowData.role || !rowData.role.trim()) {
+      errors.push(`Row ${getRowDisplayName(rowId)}: Role is required`);
+    }
+    
+    if (rowData.startTime && rowData.endTime) {
+      const startTime = new Date(`1970-01-01T${rowData.startTime}:00`);
+      const endTime = new Date(`1970-01-01T${rowData.endTime}:00`);
+      
+      if (startTime >= endTime) {
+        errors.push(`Row ${getRowDisplayName(rowId)}: End time must be after start time`);
+      }
+    }
+  });
+  
+  return errors;
+}
+
+// Get a display name for a row (for error messages)
+function getRowDisplayName(rowId) {
+  const rowData = editedData[rowId] || tableData.rows.find(r => r._id === rowId);
+  return rowData && rowData.name ? rowData.name : `ID: ${rowId.substring(0, 8)}`;
+}
+
+// Show temporary message to user
+function showTemporaryMessage(message, type = 'info') {
+  const messageEl = document.createElement('div');
+  messageEl.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 12px 20px;
+    border-radius: 6px;
+    font-weight: 500;
+    z-index: 10001;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    transition: opacity 0.3s ease;
+    ${type === 'success' ? 'background: #d4edda; color: #155724; border: 1px solid #c3e6cb;' : 
+      type === 'error' ? 'background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb;' :
+      'background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb;'}
+  `;
+  messageEl.textContent = message;
+  
+  document.body.appendChild(messageEl);
+  
+  setTimeout(() => {
+    messageEl.style.opacity = '0';
+    setTimeout(() => {
+      if (messageEl.parentNode) {
+        messageEl.parentNode.removeChild(messageEl);
+      }
+    }, 300);
+  }, 3000);
+}
+
 // Restore filter states from localStorage
 function restoreFilterState() {
   const savedFilterDate = localStorage.getItem(`crew_filter_date_${tableId}`) || '';
@@ -858,6 +1222,16 @@ function handleDrop(targetId, draggedId) {
 function attachEventListeners() {
   const addDateBtn = document.getElementById('addDateBtn');
   if (addDateBtn) addDateBtn.onclick = addDateSection;
+  
+  // Global edit controls
+  const globalEditBtn = document.getElementById('globalEditBtn');
+  if (globalEditBtn) globalEditBtn.onclick = toggleGlobalEditMode;
+  
+  const globalSaveBtn = document.getElementById('globalSaveBtn');
+  if (globalSaveBtn) globalSaveBtn.onclick = saveAllEditedData;
+  
+  const globalCancelBtn = document.getElementById('globalCancelBtn');
+  if (globalCancelBtn) globalCancelBtn.onclick = cancelGlobalEditMode;
   
   const filterDate = document.getElementById('filterDate');
   if (filterDate) {
@@ -1091,4 +1465,91 @@ window.deleteRowById = deleteRowById;
 window.deleteDate = deleteDate;
 window.renderTableSection = renderTableSection;
 window.exportCrewCsv = exportCrewCsv;
+window.toggleGlobalEditMode = toggleGlobalEditMode;
+window.enterGlobalEditMode = enterGlobalEditMode;
+window.exitGlobalEditMode = exitGlobalEditMode;
+window.saveAllEditedData = saveAllEditedData;
+window.cancelGlobalEditMode = cancelGlobalEditMode;
+window.updateEditedData = updateEditedData;
+window.handleNameChange = handleNameChange;
+window.handleRoleChange = handleRoleChange;
+window.updateRowHours = updateRowHours;
+window.validateEditedData = validateEditedData;
+window.showTemporaryMessage = showTemporaryMessage;
+
+// Debug function to help troubleshoot issues
+window.debugCrewEditMode = function() {
+  console.log('=== CREW EDIT MODE DEBUG ===');
+  console.log('globalEditMode:', globalEditMode);
+  console.log('editedData:', editedData);
+  console.log('tableId:', tableId);
+  console.log('isOwner:', isOwner);
+  
+  const globalEditBtn = document.getElementById('globalEditBtn');
+  const globalSaveBtn = document.getElementById('globalSaveBtn');
+  const globalCancelBtn = document.getElementById('globalCancelBtn');
+  
+  console.log('Button states:');
+  console.log('- Edit button:', globalEditBtn ? { display: globalEditBtn.style.display, disabled: globalEditBtn.disabled } : 'NOT FOUND');
+  console.log('- Save button:', globalSaveBtn ? { display: globalSaveBtn.style.display, disabled: globalSaveBtn.disabled, text: globalSaveBtn.textContent } : 'NOT FOUND');
+  console.log('- Cancel button:', globalCancelBtn ? { display: globalCancelBtn.style.display, disabled: globalCancelBtn.disabled } : 'NOT FOUND');
+  
+  console.log('Body classes:', document.body.className);
+  console.log('Session storage:', sessionStorage.getItem(`crew_edited_data_${tableId}`));
+  console.log('========================');
+};
+
+// Recovery function to reset edit mode if stuck
+window.resetCrewEditMode = function() {
+  console.log('🔄 CREW: Resetting edit mode...');
+  
+  try {
+    // Force exit edit mode
+    globalEditMode = true; // Set to true so exitGlobalEditMode will work
+    exitGlobalEditMode();
+    
+    // Double-check and force clear if needed
+    clearEditedDataFromSession();
+    document.body.classList.remove('global-edit-mode');
+    
+    console.log('✅ CREW: Edit mode reset successfully');
+    showTemporaryMessage('Edit mode reset successfully', 'success');
+  } catch (error) {
+    console.error('❌ CREW: Error during reset:', error);
+    
+    // Manual fallback reset
+    globalEditMode = false;
+    clearEditedDataFromSession();
+    document.body.classList.remove('global-edit-mode');
+    
+    const globalEditBtn = document.getElementById('globalEditBtn');
+    const globalSaveBtn = document.getElementById('globalSaveBtn');
+    const globalCancelBtn = document.getElementById('globalCancelBtn');
+    
+    if (globalEditBtn) {
+      globalEditBtn.style.display = 'inline-block';
+      globalEditBtn.disabled = false;
+      globalEditBtn.textContent = 'Edit Mode';
+    }
+    
+    if (globalSaveBtn) {
+      globalSaveBtn.style.display = 'none';
+      globalSaveBtn.disabled = false;
+      globalSaveBtn.textContent = 'Save All';
+    }
+    
+    if (globalCancelBtn) {
+      globalCancelBtn.style.display = 'none';
+      globalCancelBtn.disabled = false;
+    }
+    
+    try {
+      renderTableSection();
+    } catch (renderError) {
+      console.error('❌ CREW: Error during render:', renderError);
+    }
+    
+    alert('Force reset completed. If issues persist, please refresh the page.');
+  }
+};
 })();

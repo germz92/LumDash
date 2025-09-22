@@ -458,4 +458,63 @@
 .crew-page .add-row-save-btn:hover .material-symbols-outlined {
   color: #555; /* Darker gray on hover */
 }
+
+/* Global edit mode styles */
+.crew-page.global-edit-mode {
+  background: #f0f8ff; /* Slightly blue tint when in edit mode */
+}
+
+.crew-page.global-edit-mode .date-section {
+  border-left: 4px solid #CC0007; /* Red border to indicate edit mode */
+  background: #fefefe;
+}
+
+.crew-page.global-edit-mode .table-wrapper {
+  box-shadow: 0 4px 18px rgba(204, 0, 7, 0.1); /* Red-tinted shadow in edit mode */
+}
+
+.crew-page .global-edit-controls {
+  transition: all 0.3s ease;
+}
+
+.crew-page .global-edit-btn:hover {
+  background: #d0d0d0 !important;
+}
+
+.crew-page .global-save-btn:hover {
+  background: #a30006 !important;
+}
+
+.crew-page .global-cancel-btn:hover {
+  background: #5a6268 !important;
+}
+
+/* Edit mode indicator */
+.crew-page.global-edit-mode::before {
+  content: "✏️ EDIT MODE - Make your changes and click Save All";
+  position: fixed;
+  top: 180px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #CC0007;
+  color: white;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 1001;
+  box-shadow: 0 2px 8px rgba(204, 0, 7, 0.3);
+  animation: editModeIndicator 0.3s ease-in-out;
+}
+
+@keyframes editModeIndicator {
+  from {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+}
   
