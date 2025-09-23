@@ -826,6 +826,16 @@ async function saveGeneralInfo() {
     }
   };
 
+  // Get event title from input if in edit mode, otherwise from h2 element
+  const getEventTitle = () => {
+    const titleInput = document.getElementById('eventTitleInput');
+    if (titleInput) {
+      return titleInput.value.trim();
+    }
+    const titleEl = document.getElementById('eventTitle');
+    return titleEl?.textContent.trim() || '';
+  };
+
   // Create the general data object with the exact schema structure expected by the backend
   const generalData = {
     summary: getText('summary'),
@@ -854,6 +864,9 @@ async function saveGeneralInfo() {
     
     console.log('Saving to table ID:', currentTableId);
     
+    // Get the event title
+    const eventTitle = getEventTitle();
+    
     // Key difference: Wrap the generalData in a "general" property to match the backend API expectation
     const res = await fetch(`${API_BASE}/api/tables/${currentTableId}/general`, {
       method: 'PUT',
@@ -861,8 +874,11 @@ async function saveGeneralInfo() {
         'Content-Type': 'application/json',
         'Authorization': window.token
       },
-      // This is the key fix - the server.js API expects a body with a "general" property
-      body: JSON.stringify({ general: generalData })
+      // This is the key fix - the server.js API expects a body with a "general" property and title
+      body: JSON.stringify({ 
+        title: eventTitle,
+        general: generalData 
+      })
     });
 
     if (!res.ok) {
@@ -883,6 +899,35 @@ function switchToEdit() {
   if (!isOwner) return;
 
   console.log('[GENERAL] switchToEdit called');
+
+  // Handle event title editing
+  const eventTitleEl = document.getElementById('eventTitle');
+  if (eventTitleEl) {
+    const currentTitle = eventTitleEl.textContent || '';
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.id = 'eventTitleInput';
+    titleInput.value = currentTitle;
+    titleInput.style.cssText = `
+      width: 100%;
+      max-width: 600px;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #333;
+      text-align: center;
+      border: 2px solid #cc0007;
+      border-radius: 8px;
+      padding: 8px 16px;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(204, 0, 7, 0.1);
+      outline: none;
+      font-family: inherit;
+      margin: 0 auto;
+      display: block;
+    `;
+    titleInput.dataset.originalValue = currentTitle;
+    eventTitleEl.replaceWith(titleInput);
+  }
 
   ['eventSummary', 'location', 'weather', 'attendees', 'budget'].forEach(id => {
     const element = document.getElementById(id === 'eventSummary' ? 'summary' : id);
@@ -994,6 +1039,7 @@ function addLocationRow() {
   }
   renderLocationRow({}, false);
 }
+
 
 // ✅ Ensure it's globally accessible for SPA router
 window.initPage = initPage;
