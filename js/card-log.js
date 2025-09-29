@@ -500,7 +500,10 @@ function setupEventListeners() {
         const currentUserId = getUserIdFromToken();
         
         // Check if user can edit this entry
-        if (isOwner || entryCreatedBy === currentUserId) {
+        // Owners can edit any entry, non-owners can only edit entries they created
+        const canEditEntry = isOwner || (entryCreatedBy && entryCreatedBy === currentUserId);
+        
+        if (canEditEntry) {
           const existingEntry = {
             _id: row.getAttribute('data-id'),
             camera: row.querySelector('[data-field="camera"]').textContent,
@@ -513,28 +516,8 @@ function setupEventListeners() {
           
           openCardEntryModal(date, existingEntry);
         } else {
-          // Show access denied message
-          const notification = document.createElement('div');
-          notification.className = 'access-denied-notification';
-          notification.textContent = 'You can only edit entries you created';
-          notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #ff4444;
-            color: white;
-            padding: 10px 15px;
-            border-radius: 4px;
-            z-index: 10000;
-            font-size: 14px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-          `;
-          
-          document.body.appendChild(notification);
-          
-          setTimeout(() => {
-            notification.remove();
-          }, 3000);
+          // Show access denied alert for non-owners trying to edit others' entries
+          alert('Not authorized - You can only edit card entries you created');
         }
       }
       if (e.target.classList.contains('delete-row-btn')) {
@@ -544,27 +527,7 @@ function setupEventListeners() {
         
         // Check if user can delete this entry (only owners or entry creators)
         if (!isOwner && entryCreatedBy !== currentUserId) {
-          const notification = document.createElement('div');
-          notification.className = 'access-denied-notification';
-          notification.textContent = 'You can only delete entries you created';
-          notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #ff4444;
-            color: white;
-            padding: 10px 15px;
-            border-radius: 4px;
-            z-index: 10000;
-            font-size: 14px;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-          `;
-          
-          document.body.appendChild(notification);
-          
-          setTimeout(() => {
-            notification.remove();
-          }, 3000);
+          alert('Not authorized - You can only delete card entries you created');
           return;
         }
         
@@ -603,7 +566,12 @@ function setupEventListeners() {
           alert('Error deleting entry. Please refresh the page.');
         }
       }
-      if (e.target.classList.contains('delete-day-btn') && isOwner) {
+      if (e.target.classList.contains('delete-day-btn')) {
+        // Check if user is authorized to delete days
+        if (!isOwner) {
+          alert('Not authorized - Only event owners can delete entire days');
+          return;
+        }
         const dayDiv = e.target.closest('.day-table');
         if (dayDiv && confirm('Delete this entire day?')) {
           // Store the day information before removing it
@@ -1111,7 +1079,7 @@ function addDaySection(date, entries = []) {
   dayDiv.innerHTML = `
     <div style="display: flex; align-items: center; justify-content: center;">
       <h3 style="margin: 0;">${date}</h3>
-      ${isOwner ? `<button class="delete-day-btn" data-date="${date}" title="Delete Day"><span class="material-symbols-outlined">delete</span></button>` : ''}
+      ${isOwner ? `<button class="delete-day-btn" data-date="${date}" title="Delete Day (Owner Only)"><span class="material-symbols-outlined">delete</span></button>` : ''}
     </div>
     <table>
       <colgroup>
@@ -1185,9 +1153,12 @@ function addRow(date, entry = {}) {
   const currentUser = getCurrentUserName();
   const currentUserId = getUserIdFromToken();
   
-  // Determine if current user can edit this entry
+  // Determine if current user can edit/delete this entry
   const entryCreatedBy = entry.createdBy;
   const canEdit = isOwner || (entryCreatedBy && entryCreatedBy === currentUserId);
+  
+  // Non-owners should only see delete button for entries they created
+  const canDelete = isOwner || (entryCreatedBy && entryCreatedBy === currentUserId);
   
   // Store entry metadata
   row.setAttribute('data-user', entry.user || '');
@@ -1201,7 +1172,7 @@ function addRow(date, entry = {}) {
     <td><span class="display-value" data-field="card2">${entry.card2 || ''}</span></td>
     <td><span class="display-value" data-field="user">${entry.user || ''}</span></td>
     <td style="text-align:center;">
-      ${canEdit ? '<button class="delete-row-btn" title="Delete Entry"><span class="material-symbols-outlined">delete</span></button>' : ''}
+      ${canDelete ? '<button class="delete-row-btn" title="Delete Entry"><span class="material-symbols-outlined">delete</span></button>' : ''}
     </td>
   `;
   
@@ -1267,12 +1238,13 @@ function openCardEntryModal(date, existingEntry = null) {
   }
   
   // Pre-populate fields for editing or set defaults for new entries
+  const currentUser = getCurrentUserName();
+  
   if (existingEntry) {
     card1Input.value = existingEntry.card1 || '';
     card2Input.value = existingEntry.card2 || '';
   } else {
-    // For new entries, auto-select current user
-    const currentUser = getCurrentUserName();
+    // For new entries, always auto-select current user
     if (currentUser && users.includes(currentUser)) {
       userSelect.value = currentUser;
     }
@@ -1280,11 +1252,19 @@ function openCardEntryModal(date, existingEntry = null) {
     card2Input.value = '';
   }
   
-  // Disable user selection for non-owners editing existing entries
-  if (existingEntry && !isOwner) {
-    userSelect.disabled = true;
-  } else {
+  // User selection permissions:
+  // - Owners: Can always change user
+  // - Non-owners: Can never change user (always locked to themselves)
+  if (isOwner) {
     userSelect.disabled = false;
+    userSelect.title = '';
+  } else {
+    userSelect.disabled = true;
+    userSelect.title = 'Non-owners can only log entries for themselves';
+    // For non-owners, always set to current user regardless of existing entry
+    if (currentUser && users.includes(currentUser)) {
+      userSelect.value = currentUser;
+    }
   }
   
   modal.style.display = 'flex';

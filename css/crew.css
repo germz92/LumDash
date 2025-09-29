@@ -517,4 +517,20 @@
     transform: translateX(-50%) translateY(0);
   }
 }
+
+/* Date header input styling in edit mode */
+.crew-page.global-edit-mode input[type="date"][id^="date-header-"] {
+  transition: all 0.2s ease;
+}
+
+.crew-page.global-edit-mode input[type="date"][id^="date-header-"]:hover {
+  border-color: #a30006;
+  box-shadow: 0 0 0 2px rgba(204, 0, 7, 0.1);
+}
+
+.crew-page.global-edit-mode input[type="date"][id^="date-header-"]:focus {
+  outline: none;
+  border-color: #a30006;
+  box-shadow: 0 0 0 3px rgba(204, 0, 7, 0.2);
+}
   

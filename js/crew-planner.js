@@ -546,8 +546,9 @@ function addDate() {
 
 function deleteDate(date) {
   const displayDate = parseLocalDate(date);
+  const formattedDate = formatDateWithDayName(displayDate);
   
-  if (!confirm(`Are you sure you want to delete the date ${displayDate.toLocaleDateString()}?`)) {
+  if (!confirm(`Are you sure you want to delete the date ${formattedDate}?`)) {
     return;
   }
   
@@ -716,9 +717,10 @@ function renderDateRow(tableBody, dateData, dateIndex) {
   const dateCell = document.createElement('td');
   dateCell.className = 'date-cell';
   const displayDate = parseLocalDate(dateData.date);
+  const formattedDate = formatDateWithDayName(displayDate);
   dateCell.innerHTML = `
     <div style="display: flex; justify-content: space-between; align-items: center;">
-      <span>${displayDate.toLocaleDateString()}</span>
+      <span>${formattedDate}</span>
       <div style="display: flex; gap: 4px;">
         <button class="action-btn edit-btn" onclick="editDate('${dateData.date}')" title="Edit Date">
           <span class="material-symbols-outlined">edit</span>
@@ -1052,7 +1054,8 @@ function checkNameCollision(date, eventName, crewIndex, name) {
   
   // Show warning if collision detected
   if (hasCollision) {
-    showCollisionWarning(`"${name}" is already assigned on ${parseLocalDate(date).toLocaleDateString()}`);
+    const formattedDate = formatDateWithDayName(parseLocalDate(date));
+    showCollisionWarning(`"${name}" is already assigned on ${formattedDate}`);
     
     // Add visual indicator to the cell
     const selects = document.querySelectorAll(`select[data-event="${escapeHtml(eventName)}"][data-crew-index="${crewIndex}"]`);
@@ -1167,6 +1170,17 @@ function parseLocalDate(dateString) {
   // Parse YYYY-MM-DD as local date to avoid timezone issues
   const dateParts = dateString.split('-');
   return new Date(dateParts[0], dateParts[1] - 1, dateParts[2]);
+}
+
+function formatDateWithDayName(date) {
+  // Format date as "Wednesday, October 1, 2025"
+  const options = { 
+    weekday: 'long', 
+    year: 'numeric', 
+    month: 'long', 
+    day: 'numeric' 
+  };
+  return date.toLocaleDateString('en-US', options);
 }
 
 function updateUIState() {

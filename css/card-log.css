@@ -194,6 +194,21 @@
   box-shadow: 0 0 0 2px rgba(204, 0, 7, 0.1);
 }
 
+.card-log-page .form-group select:disabled {
+  background-color: #f5f5f5;
+  color: #666;
+  cursor: not-allowed;
+  border-color: #ddd;
+}
+
+.card-log-page .form-group select:disabled::after {
+  content: attr(title);
+  display: block;
+  font-size: 12px;
+  color: #999;
+  margin-top: 2px;
+}
+
 /* Non-editable table styles */
 .card-log-page .readonly-table td {
   background: #f9f9f9 !important;

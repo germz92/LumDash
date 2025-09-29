@@ -32,6 +32,8 @@ let cachedRoles = [
 let isOwner = false;
 let globalEditMode = false;
 let editedData = {}; // Store all edited row data during edit mode
+let recentlyAddedRows = new Set(); // Track recently added rows to prevent loss
+let reloadTimeout = null; // Debounce socket reloads
 
 // Socket.IO real-time updates
 if (window.socket) {
@@ -48,7 +50,16 @@ if (window.socket) {
     }
     console.log('Reloading crew data for current table');
     tableId = currentTableId; // Update the tableId
-    loadTable(); 
+    
+    // Debounce rapid reloads
+    if (reloadTimeout) {
+      clearTimeout(reloadTimeout);
+    }
+    
+    reloadTimeout = setTimeout(() => {
+      // Preserve edit mode state during reload
+      loadTable(globalEditMode);
+    }, 500); // Longer delay to prevent rapid reloads and data loss
   });
   
   // Also listen for general table updates as they might affect crew
@@ -63,7 +74,16 @@ if (window.socket) {
     }
     console.log('Reloading crew data for current table');
     tableId = currentTableId; // Update the tableId
-    loadTable();
+    
+    // Debounce rapid reloads
+    if (reloadTimeout) {
+      clearTimeout(reloadTimeout);
+    }
+    
+    reloadTimeout = setTimeout(() => {
+      // Preserve edit mode state during reload
+      loadTable(globalEditMode);
+    }, 500); // Longer delay to prevent rapid reloads and data loss
   });
 }
 
@@ -107,7 +127,7 @@ function getUserIdFromToken() {
   return payload.id;
 }
 
-async function loadTable() {
+async function loadTable(preserveEditMode = false) {
   // Always ensure we're using the current tableId
   const currentTableId = getCurrentTableId();
   if (currentTableId !== tableId) {
@@ -116,6 +136,9 @@ async function loadTable() {
   }
   
   console.log(`Loading table data for tableId: ${tableId}`);
+  console.log('🔍 DEBUG: loadTable called with preserveEditMode:', preserveEditMode);
+  console.log('🔍 DEBUG: Current recentlyAddedRows before load:', Array.from(recentlyAddedRows));
+  
   const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
     headers: { Authorization: token }
   });
@@ -124,6 +147,11 @@ async function loadTable() {
     alert('Failed to load table. You might not have access.');
     return;
   }
+
+  // Store current edit mode state before reloading
+  const wasInEditMode = globalEditMode || preserveEditMode;
+  const currentEditedData = { ...editedData };
+  const currentTableData = tableData; // Store current table state
 
   tableData = await res.json();
   const userId = getUserIdFromToken();
@@ -146,6 +174,9 @@ async function loadTable() {
     
     const globalEditBtn = document.getElementById('globalEditBtn');
     if (globalEditBtn) globalEditBtn.style.display = 'inline-block';
+    
+    // Update date controls visibility based on edit mode
+    updateDateControlsVisibility();
   }
 
   if (!cachedUsers.length) await preloadUsers();
@@ -155,8 +186,65 @@ async function loadTable() {
   // Restore filter state before rendering
   restoreFilterState();
   
-  // Load any edited data from session storage
+  // Load any edited data from session storage and merge with current edits
   loadEditedDataFromSession();
+  
+  // Restore any edits that were in progress
+  if (Object.keys(currentEditedData).length > 0) {
+    Object.assign(editedData, currentEditedData);
+    saveEditedDataToSession();
+  }
+  
+  // Add new rows from session storage to tableData
+  Object.keys(editedData).forEach(rowId => {
+    const rowData = editedData[rowId];
+    if (rowData.isNew) {
+      // Check if this new row is already in tableData (avoid duplicates)
+      const exists = tableData.rows.some(row => row._id === rowId);
+      if (!exists) {
+        console.log('🔄 CREW: Adding new row from session to tableData:', rowId);
+        tableData.rows.push(rowData);
+      }
+    }
+  });
+  
+  // If we had local data and are in edit mode, merge any recently added rows
+  // that might not be in the fresh server data yet (due to timing issues)
+  if (currentTableData && wasInEditMode && currentTableData.rows && tableData.rows) {
+    const serverRowIds = new Set(tableData.rows.map(row => row._id));
+    
+    // Preserve rows that are either in our recently added tracking OR missing from server
+    const localRowsToPreserve = currentTableData.rows.filter(row => 
+      row._id && 
+      !serverRowIds.has(row._id) && 
+      row.role !== '__placeholder__' &&
+      (recentlyAddedRows.has(row._id) || wasInEditMode) // Extra protection for recently added rows
+    );
+    
+    if (localRowsToPreserve.length > 0) {
+      console.log('🔄 CREW: Preserving locally added rows:', localRowsToPreserve.length, localRowsToPreserve.map(r => r._id));
+      tableData.rows.push(...localRowsToPreserve);
+    }
+  }
+  
+  // Restore edit mode if it was active
+  if (wasInEditMode && !globalEditMode) {
+    console.log('🔄 CREW: Auto-restoring edit mode after table reload');
+    globalEditMode = true;
+    const globalEditBtn = document.getElementById('globalEditBtn');
+    const globalSaveBtn = document.getElementById('globalSaveBtn');
+    const globalCancelBtn = document.getElementById('globalCancelBtn');
+    
+    if (globalEditBtn && globalSaveBtn && globalCancelBtn) {
+      globalEditBtn.style.display = 'none';
+      globalSaveBtn.style.display = 'inline-block';
+      globalCancelBtn.style.display = 'inline-block';
+      globalSaveBtn.disabled = false;
+      globalCancelBtn.disabled = false;
+      document.body.classList.add('global-edit-mode');
+      updateDateControlsVisibility();
+    }
+  }
   
   renderTableSection();
   updateCrewCount();
@@ -226,11 +314,37 @@ function renderTableSection() {
     headerWrapper.style.justifyContent = 'space-between';
     headerWrapper.style.marginBottom = '8px';
 
-    const header = document.createElement('h2');
-    header.textContent = formatDateLocal(date);
-    headerWrapper.appendChild(header);
+    if (globalEditMode) {
+      // Create editable date input in edit mode
+      const dateInput = document.createElement('input');
+      dateInput.type = 'date';
+      dateInput.value = date;
+      dateInput.id = `date-header-${date}`;
+      dateInput.style.cssText = `
+        font-size: 1.15rem;
+        font-weight: bold;
+        border: 2px solid #CC0007;
+        border-radius: 6px;
+        padding: 8px 12px;
+        background: #fff;
+        margin-right: 10px;
+      `;
+      dateInput.onchange = () => changeDateForSection(date, dateInput.value);
+      headerWrapper.appendChild(dateInput);
+      
+      // Add a label to show what this is
+      const label = document.createElement('span');
+      label.textContent = ' (Click to change date)';
+      label.style.cssText = 'font-size: 0.9rem; color: #666; font-weight: normal;';
+      headerWrapper.appendChild(label);
+    } else {
+      // Show read-only date header in view mode
+      const header = document.createElement('h2');
+      header.textContent = formatDateLocal(date);
+      headerWrapper.appendChild(header);
+    }
 
-    if (isOwner) {
+    if (isOwner && globalEditMode) {
       const deleteDateBtn = document.createElement('button');
       deleteDateBtn.className = 'delete-date-btn';
       deleteDateBtn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
@@ -332,7 +446,7 @@ function renderTableSection() {
           </td>
           <td><input type="text" id="${prefix}-notes" value="${displayData.notes || ''}" onchange="updateEditedData('${rowId}', 'notes', this.value)"></td>
           <td class="actions-cell" style="text-align: center;">
-            ${isOwner ? `
+            ${isOwner && globalEditMode ? `
               <div class="icon-buttons">
                 <button class="delete-row-btn" onclick="deleteRowById('${rowId}')" title="Delete"><span class="material-symbols-outlined">delete</span></button>
               </div>
@@ -349,7 +463,7 @@ function renderTableSection() {
           <td><span id="${prefix}-role">${displayData.role}</span></td>
           <td><span id="${prefix}-notes">${displayData.notes}</span></td>
           <td class="actions-cell" style="text-align: center;">
-            ${isOwner ? `
+            ${isOwner && globalEditMode ? `
               <div class="icon-buttons">
                 <button class="delete-row-btn" onclick="deleteRowById('${rowId}')" title="Delete"><span class="material-symbols-outlined">delete</span></button>
               </div>
@@ -366,7 +480,7 @@ function renderTableSection() {
     });
     
 
-    if (isOwner) {
+    if (isOwner && globalEditMode) {
       const actionRow = document.createElement('tr');
       const actionTd = document.createElement('td');
       actionTd.colSpan = 7;
@@ -375,7 +489,7 @@ function renderTableSection() {
       const addBtn = document.createElement('button');
       addBtn.className = 'add-row-btn';
       addBtn.textContent = 'Add Row';
-      addBtn.onclick = () => showRowInputs(date, tbody);
+      addBtn.onclick = () => addRowToDate(date);
       btnContainer.appendChild(addBtn);
       actionTd.appendChild(btnContainer);
       actionRow.appendChild(actionTd);
@@ -412,6 +526,31 @@ function renderTableSection() {
         document.body.insertBefore(crewListBtn, document.body.firstChild);
       }
     }
+  }
+  
+  // Show help message when not in edit mode
+  if (isOwner && !globalEditMode && container.children.length > 0) {
+    const helpMessage = document.createElement('div');
+    helpMessage.id = 'editModeHelp';
+    helpMessage.style.cssText = `
+      text-align: center;
+      padding: 20px;
+      background: #f8f9fa;
+      border: 1px solid #dee2e6;
+      border-radius: 8px;
+      margin: 20px auto;
+      max-width: 600px;
+      color: #6c757d;
+      font-size: 16px;
+    `;
+    helpMessage.innerHTML = `
+      <p><strong>💡 Tip:</strong> Click <strong>"Edit Mode"</strong> to add dates, add rows, edit crew information, change dates, or delete items.</p>
+    `;
+    container.appendChild(helpMessage);
+  } else {
+    // Remove help message if in edit mode
+    const existingHelp = document.getElementById('editModeHelp');
+    if (existingHelp) existingHelp.remove();
   }
 }
 
@@ -473,136 +612,144 @@ function toggleEditById(rowId) {
 
 async function deleteRowById(rowId) {
   if (!isOwner) return;
+  
+  if (!globalEditMode) {
+    alert('Please enter Edit Mode first to delete rows.');
+    return;
+  }
 
-  const res = await fetch(`${API_BASE}/api/tables/${tableId}/rows-by-id/${rowId}`, {
-    method: 'DELETE',
-    headers: { Authorization: token }
-  });
+  if (!confirm('Are you sure you want to delete this row?')) {
+    return;
+  }
 
-  if (res.ok) {
-    await loadTable();
+  console.log('🗑️ CREW: Deleting row:', rowId);
+
+  // Check if this is a new row (temporary ID) or existing row
+  if (rowId.startsWith('temp_')) {
+    // New row - just remove from session storage and local data
+    console.log('🗑️ CREW: Deleting new row from session storage');
+    
+    // Remove from editedData (session storage)
+    delete editedData[rowId];
+    saveEditedDataToSession();
+    
+    // Remove from local tableData
+    tableData.rows = tableData.rows.filter(row => row._id !== rowId);
+    
+    // Re-render table
+    renderTableSection();
+    updateCrewCount();
+    
+    showTemporaryMessage('Row removed from session!', 'info');
+    
   } else {
-    alert('Failed to delete row.');
+    // Existing row - delete from database
+    console.log('🗑️ CREW: Deleting existing row from database');
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/tables/${tableId}/rows-by-id/${rowId}`, {
+        method: 'DELETE',
+        headers: { Authorization: token }
+      });
+
+      if (res.ok) {
+        await loadTable();
+        showTemporaryMessage('Row deleted successfully!', 'success');
+      } else {
+        throw new Error(`Delete failed: ${res.status}`);
+      }
+    } catch (error) {
+      console.error('❌ CREW: Failed to delete row:', error);
+      alert(`Failed to delete row: ${error.message}`);
+    }
   }
 }
 
 async function deleteDate(date) {
   if (!isOwner) return;
-  if (!confirm('Delete this entire day?')) return;
+  
+  if (!globalEditMode) {
+    alert('Please enter Edit Mode first to delete dates.');
+    return;
+  }
+  
+  if (!confirm('Delete this entire day? This action cannot be undone.')) return;
 
-  tableData.rows = tableData.rows.filter(row => row.date !== date);
+  console.log('🗑️ CREW: Deleting date:', date);
 
-  await fetch(`${API_BASE}/api/tables/${tableId}`, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: token
-    },
-    body: JSON.stringify({ rows: tableData.rows })
-  });
-
-  await loadTable();
-}
-
-function showRowInputs(date, tbody) {
-  const inputRow = document.createElement('tr');
-  const nameId = `name-${date}`;
-  const startId = `start-${date}`;
-  const endId = `end-${date}`;
-  const roleId = `role-${date}`;
-  const notesId = `notes-${date}`;
-  const hoursId = `hours-${date}`;
-
-  inputRow.innerHTML = `
-    <td>
-      <select id='${nameId}'>
-        <option value="">-- Select Name --</option>
-        ${cachedUsers.map(u => `<option value="${u.name}">${u.name}</option>`).join('')}
-        <option value="__add_new__">➕ Add new name</option>
-      </select>
-    </td>
-    <td><input type='time' step='900' id='${startId}'></td>
-    <td><input type='time' step='900' id='${endId}'></td>
-    <td><input id='${hoursId}' disabled></td>
-    <td>
-      <select id='${roleId}'>
-        <option value="">-- Select Role --</option>
-        ${cachedRoles.map(r => `<option value="${r}">${r}</option>`).join('')}
-        <option value="__add_new__">➕ Add new role</option>
-      </select>
-    </td>
-    <td><input id='${notesId}'></td>
-    <td><button class="add-row-save-btn" onclick="addRowToDate('${date}')" title="Save"><span class="material-symbols-outlined">save</span></button></td>
-  `;
-  tbody.insertBefore(inputRow, tbody.lastElementChild);
-
-  setTimeout(() => {
-    const nameSelect = document.getElementById(nameId);
-    nameSelect.addEventListener('change', () => {
-      if (nameSelect.value === '__add_new__') {
-        const newName = prompt('Enter new name:');
-        if (newName && !cachedUsers.some(u => u.name === newName)) {
-          cachedUsers.push({ name: newName });
-          cachedUsers.sort((a, b) => a.name.localeCompare(b.name));
-          nameSelect.innerHTML = `
-            <option value="">-- Select Name --</option>
-            ${cachedUsers.map(u => `<option value="${u.name}">${u.name}</option>`).join('')}
-            <option value="__add_new__">➕ Add new name</option>
-          `;
-          nameSelect.value = newName;
-        } else {
-          nameSelect.value = '';
-        }
-      }
+  try {
+    // Remove rows for this date from session storage
+    const sessionRowsToDelete = Object.keys(editedData).filter(rowId => {
+      const rowData = editedData[rowId];
+      return rowData.date === date;
     });
-
-    const roleSelect = document.getElementById(roleId);
-    roleSelect.addEventListener('change', () => {
-      if (roleSelect.value === '__add_new__') {
-        const newRole = prompt('Enter new role:');
-        if (newRole && !cachedRoles.includes(newRole)) {
-          cachedRoles.push(newRole);
-          cachedRoles.sort();
-          roleSelect.innerHTML = `
-            <option value="">-- Select Role --</option>
-            ${cachedRoles.map(r => `<option value="${r}">${r}</option>`).join('')}
-            <option value="__add_new__">➕ Add new role</option>
-          `;
-          roleSelect.value = newRole;
-        } else {
-          roleSelect.value = '';
-        }
-      }
-    });
-
-    const startInput = document.getElementById(startId);
-    const endInput = document.getElementById(endId);
-    const hoursInput = document.getElementById(hoursId);
-
-    function updateHours() {
-      const start = startInput.value;
-      const end = endInput.value;
-      hoursInput.value = calculateHours(start, end);
+    
+    if (sessionRowsToDelete.length > 0) {
+      console.log('🗑️ CREW: Removing session rows for date:', sessionRowsToDelete);
+      sessionRowsToDelete.forEach(rowId => {
+        delete editedData[rowId];
+      });
+      saveEditedDataToSession();
     }
 
-    startInput.addEventListener('input', updateHours);
-    endInput.addEventListener('input', updateHours);
-  }, 0);
+    // Remove rows from local tableData
+    tableData.rows = tableData.rows.filter(row => row.date !== date);
+
+    // Update database - only send existing (non-temp) rows
+    const dbRows = tableData.rows.filter(row => !row._id || !row._id.startsWith('temp_'));
+    
+    await fetch(`${API_BASE}/api/tables/${tableId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: token
+      },
+      body: JSON.stringify({ rows: dbRows })
+    });
+
+    await loadTable();
+    showTemporaryMessage(`Date ${date} deleted successfully!`, 'success');
+    
+  } catch (error) {
+    console.error('❌ CREW: Failed to delete date:', error);
+    alert(`Failed to delete date: ${error.message}`);
+  }
 }
+
+// showRowInputs function removed - rows are now created directly
 
 async function addDateSection() {
   if (!isOwner) return;
+  
+  if (!globalEditMode) {
+    alert('Please enter Edit Mode first to add new dates.');
+    return;
+  }
+  
   const date = document.getElementById('newDate').value;
   if (!date) return alert('Please select a date');
 
   // Ensure we're using the current tableId
   tableId = getCurrentTableId();
   console.log(`Adding date section for tableId: ${tableId}`);
+  
+  // DEBUG: Log current state before checking for auto-save
+  console.log('🔍 DEBUG: Current state before auto-save check:');
+  console.log('- editedData keys:', Object.keys(editedData));
+  console.log('- recentlyAddedRows:', Array.from(recentlyAddedRows));
+  console.log('- globalEditMode:', globalEditMode);
 
   const exists = tableData.rows.some(row => row.date === date);
   if (exists) {
     alert('This date already exists.');
     return;
+  }
+
+  // No auto-save needed - session storage approach handles persistence
+  const editedRowCount = Object.keys(editedData).length;
+  
+  if (editedRowCount > 0) {
+    console.log(`ℹ️ CREW: ${editedRowCount} unsaved changes in session storage (will persist through date addition)`);
   }
 
   const newRow = {
@@ -625,43 +772,76 @@ async function addDateSection() {
   });
 
   document.getElementById('newDate').value = '';
-  await loadTable();
+  
+  // Preserve edit mode during reload
+  await loadTable(true);
 
-  const lastSection = document.querySelectorAll('.date-section');
-  const section = lastSection[lastSection.length - 1];
-  const tbody = section.querySelector('tbody');
-  showRowInputs(date, tbody);
+  // No need to show input form - user can click "Add Row" to create rows directly
 }
 
 async function addRowToDate(date) {
-  if (!isOwner) return;
+  try {
+    console.log('🔍 DEBUG: addRowToDate called with date:', date);
+    console.log('🔍 DEBUG: isOwner:', isOwner);
+    console.log('🔍 DEBUG: globalEditMode:', globalEditMode);
+    
+    if (!isOwner) {
+      console.log('❌ DEBUG: Not owner, returning');
+      return;
+    }
+    
+    if (!globalEditMode) {
+      console.log('❌ DEBUG: Not in global edit mode');
+      alert('Please enter Edit Mode first to add new rows.');
+      return;
+    }
   
   // Ensure we're using the current tableId
   tableId = getCurrentTableId();
-  console.log(`Adding row to date for tableId: ${tableId}`);
+  console.log(`Adding empty row to date for tableId: ${tableId}`);
   
-  const start = document.getElementById(`start-${date}`).value;
-  const end = document.getElementById(`end-${date}`).value;
+  // Create empty row with default values
+  const nameValue = '';
+  const roleValue = '';
+  const start = '';
+  const end = '';
+  
+  // Generate a temporary ID for the new row
+  const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  
   const row = {
+    _id: tempId,
     date,
-    role: document.getElementById(`role-${date}`).value,
-    name: document.getElementById(`name-${date}`).value,
+    role: roleValue,
+    name: nameValue,
     startTime: start,
     endTime: end,
     totalHours: calculateHours(start, end),
-    notes: document.getElementById(`notes-${date}`).value
+    notes: '', // Empty notes for new row
+    isNew: true // Flag to identify new rows
   };
 
-  await fetch(`${API_BASE}/api/tables/${tableId}/rows`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: token
-    },
-    body: JSON.stringify(row)
-  });
-
-  await loadTable();
+  console.log('💾 CREW: Adding new row to session storage:', row);
+  
+  // Add to editedData for session storage
+  editedData[tempId] = row;
+  saveEditedDataToSession();
+  
+  // Add to local tableData for immediate display
+  if (tableData && tableData.rows) {
+    tableData.rows.push(row);
+  }
+  
+  showTemporaryMessage('Empty row added! Fill in details and "Save All" to persist.', 'info');
+  
+  // Re-render without full reload to preserve state
+  renderTableSection();
+  updateCrewCount();
+  
+  } catch (error) {
+    console.error('❌ DEBUG: Error in addRowToDate:', error);
+    alert(`Error adding row: ${error.message}`);
+  }
 }
 
 function updateCrewCount() {
@@ -722,6 +902,102 @@ function clearEditedDataFromSession() {
   sessionStorage.removeItem(`crew_edited_data_${tableId}`);
   editedData = {};
   console.log('🗑️ CREW: Cleared edited data from session storage');
+}
+
+// Update visibility of date controls based on edit mode
+function updateDateControlsVisibility() {
+  if (!isOwner) return;
+  
+  const addDateBtn = document.getElementById('addDateBtn');
+  const newDateInput = document.getElementById('newDate');
+  
+  if (globalEditMode) {
+    // Show date controls in edit mode
+    if (addDateBtn) addDateBtn.style.display = 'inline-block';
+    if (newDateInput) newDateInput.style.display = 'inline-block';
+  } else {
+    // Hide date controls when not in edit mode
+    if (addDateBtn) addDateBtn.style.display = 'none';
+    if (newDateInput) newDateInput.style.display = 'none';
+  }
+}
+
+// Change date for an entire section (all rows with that date)
+async function changeDateForSection(oldDate, newDate) {
+  if (!isOwner || !globalEditMode) return;
+  
+  if (!newDate || newDate === oldDate) {
+    return;
+  }
+  
+  // Check if new date already exists
+  const existingDates = [...new Set(tableData.rows.map(row => row.date))];
+  if (existingDates.includes(newDate)) {
+    if (!confirm(`Date ${formatDateLocal(newDate)} already exists. Do you want to merge the rows from ${formatDateLocal(oldDate)} into it?`)) {
+      // Reset the input back to original date
+      const dateInput = document.getElementById(`date-header-${oldDate}`);
+      if (dateInput) dateInput.value = oldDate;
+      return;
+    }
+  }
+  
+  console.log(`🔄 CREW: Changing date from ${oldDate} to ${newDate}`);
+  
+  try {
+    // Find all rows with the old date
+    const rowsToUpdate = tableData.rows.filter(row => row.date === oldDate);
+    
+    if (rowsToUpdate.length === 0) {
+      alert('No rows found for this date.');
+      return;
+    }
+    
+    // Update each row individually via API
+    const updatePromises = rowsToUpdate.map(async (row) => {
+      const updatedRow = { ...row, date: newDate };
+      
+      const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows/${row._id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token
+        },
+        body: JSON.stringify(updatedRow)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Failed to update row ${row._id}: ${response.status}`);
+      }
+      
+      return row._id;
+    });
+    
+    await Promise.all(updatePromises);
+    
+    // Also update any edited data that might be in session storage
+    Object.keys(editedData).forEach(rowId => {
+      const originalRow = tableData.rows.find(r => r._id === rowId);
+      if (originalRow && originalRow.date === oldDate) {
+        editedData[rowId].date = newDate;
+      }
+    });
+    saveEditedDataToSession();
+    
+    console.log(`✅ CREW: Successfully updated ${rowsToUpdate.length} rows from ${oldDate} to ${newDate}`);
+    
+    // Reload the table to reflect changes
+    await loadTable();
+    
+    showTemporaryMessage(`Date changed successfully! ${rowsToUpdate.length} rows moved to ${formatDateLocal(newDate)}`, 'success');
+    
+  } catch (error) {
+    console.error('❌ CREW: Failed to change date:', error);
+    alert(`Failed to change date: ${error.message}`);
+    
+    // Reset the input back to original date
+    const dateInput = document.getElementById(`date-header-${oldDate}`);
+    if (dateInput) dateInput.value = oldDate;
+  }
 }
 
 // Update edited data and save to session storage
@@ -861,6 +1137,9 @@ function enterGlobalEditMode() {
     // Load any existing edited data
     loadEditedDataFromSession();
     
+    // Update date controls visibility
+    updateDateControlsVisibility();
+    
     // Render the table section with edit controls
     renderTableSection();
     
@@ -904,8 +1183,18 @@ function exitGlobalEditMode() {
     // Remove visual class from body
     document.body.classList.remove('global-edit-mode');
     
-    // Render the table section without edit controls
-    renderTableSection();
+    // Clear any unsaved changes from session storage
+    const unsavedChangesCount = Object.keys(editedData).length;
+    if (unsavedChangesCount > 0) {
+      console.log(`🗑️ CREW: Discarding ${unsavedChangesCount} unsaved changes from session storage`);
+      clearEditedDataFromSession();
+    }
+    
+    // Update date controls visibility
+    updateDateControlsVisibility();
+    
+    // Reload fresh data from database to ensure UI matches database state
+    loadTable();
     
     console.log('✅ CREW: Exited edit mode successfully');
     
@@ -1011,11 +1300,49 @@ async function saveAllEditedData() {
   globalCancelBtn.disabled = true;
   
   try {
-    console.log('🔄 CREW: Starting save operation for', editedRowCount, 'rows');
+    // Separate new rows from edited rows
+    const newRows = [];
+    const editedRows = [];
     
-    // Save each edited row sequentially to avoid overwhelming the server
-    for (const [rowId, rowData] of Object.entries(editedData)) {
-      console.log(`💾 CREW: Saving row ${rowId}:`, rowData);
+    Object.entries(editedData).forEach(([rowId, rowData]) => {
+      if (rowData.isNew) {
+        newRows.push(rowData);
+      } else {
+        editedRows.push([rowId, rowData]);
+      }
+    });
+    
+    console.log(`🔄 CREW: Starting save operation for ${newRows.length} new rows and ${editedRows.length} edited rows`);
+    
+    // Save new rows first (POST)
+    for (const rowData of newRows) {
+      console.log(`💾 CREW: Creating new row:`, rowData);
+      
+      // Remove temporary fields before saving
+      const cleanRowData = { ...rowData };
+      delete cleanRowData._id; // Remove temp ID
+      delete cleanRowData.isNew; // Remove flag
+      
+      const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token
+        },
+        body: JSON.stringify(cleanRowData)
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`Failed to create new row: ${response.status} - ${errorText}`);
+      }
+      
+      console.log(`✅ CREW: Successfully created new row`);
+    }
+    
+    // Save edited rows (PUT)
+    for (const [rowId, rowData] of editedRows) {
+      console.log(`💾 CREW: Updating row ${rowId}:`, rowData);
       
       const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows/${rowId}`, {
         method: 'PUT',
@@ -1035,6 +1362,15 @@ async function saveAllEditedData() {
     }
     
     console.log('✅ CREW: All rows saved successfully');
+    
+    // Show success message
+    const totalSaved = newRows.length + editedRows.length;
+    const message = newRows.length > 0 && editedRows.length > 0 
+      ? `✅ Saved ${newRows.length} new rows and ${editedRows.length} changes!`
+      : newRows.length > 0 
+        ? `✅ Saved ${newRows.length} new rows!`
+        : `✅ Saved ${editedRows.length} changes!`;
+    showTemporaryMessage(message, 'success');
     
     // Clear edited data first
     clearEditedDataFromSession();
@@ -1476,12 +1812,26 @@ window.handleRoleChange = handleRoleChange;
 window.updateRowHours = updateRowHours;
 window.validateEditedData = validateEditedData;
 window.showTemporaryMessage = showTemporaryMessage;
+window.changeDateForSection = changeDateForSection;
+
+// Test function to verify button functionality
+window.testAddRow = function(date) {
+  console.log('🧪 TEST: testAddRow called with date:', date);
+  console.log('🧪 TEST: addRowToDate function exists:', typeof window.addRowToDate);
+  console.log('🧪 TEST: Calling addRowToDate...');
+  try {
+    addRowToDate(date);
+  } catch (error) {
+    console.error('🧪 TEST: Error calling addRowToDate:', error);
+  }
+};
 
 // Debug function to help troubleshoot issues
 window.debugCrewEditMode = function() {
   console.log('=== CREW EDIT MODE DEBUG ===');
   console.log('globalEditMode:', globalEditMode);
   console.log('editedData:', editedData);
+  console.log('recentlyAddedRows:', recentlyAddedRows);
   console.log('tableId:', tableId);
   console.log('isOwner:', isOwner);
   
@@ -1510,6 +1860,7 @@ window.resetCrewEditMode = function() {
     
     // Double-check and force clear if needed
     clearEditedDataFromSession();
+    recentlyAddedRows.clear();
     document.body.classList.remove('global-edit-mode');
     
     console.log('✅ CREW: Edit mode reset successfully');
