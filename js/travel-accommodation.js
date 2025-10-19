@@ -13,11 +13,21 @@ window.initPage = undefined;
 
     let isOwner = false;
     let editMode = false;
+    let cachedUsers = [];
 
     function getUserIdFromToken() {
       if (!token) return null;
       const payload = JSON.parse(atob(token.split('.')[1]));
       return payload.id;
+    }
+
+    async function preloadUsers() {
+      const res = await fetch(`${API_BASE}/api/users`, {
+        headers: { Authorization: token }
+      });
+      const users = await res.json();
+      users.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
+      cachedUsers = users;
     }
 
     function formatDateReadable(dateStr) {
@@ -129,18 +139,22 @@ window.initPage = undefined;
         if (editMode) {
           travelHeader.innerHTML = `
             <th class="date">Date</th>
-            <th class="time">Time</th>
+            <th class="time">Depart</th>
+            <th class="time">Arrive</th>
             <th class="text name-column">Name</th>
             <th class="text">Airline</th>
+            <th class="text">From/To</th>
             <th class="text">Ref Number</th>
             <th class="action"></th>
           `;
         } else {
           travelHeader.innerHTML = `
             <th class="date">Date</th>
-            <th class="time">Time</th>
+            <th class="time">Depart</th>
+            <th class="time">Arrive</th>
             <th class="text name-column">Name</th>
             <th class="text">Airline</th>
+            <th class="text">From/To</th>
             <th class="text">Ref Number</th>
           `;
         }
@@ -178,6 +192,19 @@ window.initPage = undefined;
 
       // Update table headers based on edit mode
       updateTableHeaders();
+      
+      // Get search query
+      const searchQuery = document.getElementById('searchInput')?.value.toLowerCase() || '';
+      
+      // Filter rows based on search query
+      if (searchQuery) {
+        rows = rows.filter(item => {
+          const searchableText = tableId === 'travelTable' 
+            ? [item.date, item.depart, item.arrive, item.name, item.airline, item.fromTo, item.ref].join(' ').toLowerCase()
+            : [item.checkin, item.checkout, item.name, item.hotel, item.ref].join(' ').toLowerCase();
+          return searchableText.includes(searchQuery);
+        });
+      }
 
       rows.forEach(item => {
         const row = document.createElement("tr");
@@ -187,17 +214,19 @@ window.initPage = undefined;
           if (tableId === 'travelTable') {
             row.innerHTML = `
               <td class="date"><span class="readonly-span">${formatDateReadable(item.date)}</span></td>
-              <td class="time"><span class="readonly-span">${formatTo12Hour(item.time)}</span></td>
+              <td class="time"><span class="readonly-span">${formatTo12Hour(item.depart)}</span></td>
+              <td class="time"><span class="readonly-span">${formatTo12Hour(item.arrive)}</span></td>
               <td class="text"><span class="readonly-span">${item.name || ''}</span></td>
               <td class="text"><span class="readonly-span">${item.airline || ''}</span></td>
+              <td class="text"><span class="readonly-span">${item.fromTo || ''}</span></td>
               <td class="text"><span class="readonly-span">${item.ref || ''}</span></td>
             `;
           } else {
             row.innerHTML = `
               <td class="date"><span class="readonly-span">${formatDateReadable(item.checkin)}</span></td>
               <td class="date"><span class="readonly-span">${formatDateReadable(item.checkout)}</span></td>
-              <td class="text"><span class="readonly-span">${item.hotel || ''}</span></td>
-              <td class="text">${createLocationLink(item.name)}</td>
+              <td class="text"><span class="readonly-span">${item.name || ''}</span></td>
+              <td class="text">${createLocationLink(item.hotel)}</td>
               <td class="text"><span class="readonly-span">${item.ref || ''}</span></td>
             `;
           }
@@ -206,9 +235,17 @@ window.initPage = undefined;
           if (tableId === 'travelTable') {
             row.innerHTML = `
               <td class="date"><input type="date" value="${item.date || ''}"></td>
-              <td class="time"><input type="time" value="${item.time || ''}"></td>
-              <td class="text"><textarea>${item.name || ''}</textarea></td>
+              <td class="time"><input type="time" value="${item.depart || ''}"></td>
+              <td class="time"><input type="time" value="${item.arrive || ''}"></td>
+              <td class="text">
+                <select class="name-select">
+                  <option value="">-- Select Name --</option>
+                  ${cachedUsers.map(u => `<option value="${u.name}" ${u.name === item.name ? 'selected' : ''}>${u.name}</option>`).join('')}
+                  <option value="__add_new__">➕ Add new name</option>
+                </select>
+              </td>
               <td class="text"><textarea>${item.airline || ''}</textarea></td>
+              <td class="text"><textarea>${item.fromTo || ''}</textarea></td>
               <td class="text"><textarea>${item.ref || ''}</textarea></td>
               <td class="action"><button type="button" class="delete-btn"><span class="material-symbols-outlined">delete</span></button></td>
             `;
@@ -216,8 +253,14 @@ window.initPage = undefined;
             row.innerHTML = `
               <td class="date"><input type="date" value="${item.checkin || ''}"></td>
               <td class="date"><input type="date" value="${item.checkout || ''}"></td>
+              <td class="text">
+                <select class="name-select">
+                  <option value="">-- Select Name --</option>
+                  ${cachedUsers.map(u => `<option value="${u.name}" ${u.name === item.name ? 'selected' : ''}>${u.name}</option>`).join('')}
+                  <option value="__add_new__">➕ Add new name</option>
+                </select>
+              </td>
               <td class="text"><textarea>${item.hotel || ''}</textarea></td>
-              <td class="text"><textarea>${item.name || ''}</textarea></td>
               <td class="text"><textarea>${item.ref || ''}</textarea></td>
               <td class="action"><button type="button" class="delete-btn"><span class="material-symbols-outlined">delete</span></button></td>
             `;
@@ -228,24 +271,53 @@ window.initPage = undefined;
       });
 
       table.querySelectorAll('textarea').forEach(autoResizeTextarea);
+      
+      // Add event listener for name select dropdowns
+      table.querySelectorAll('.name-select').forEach(select => {
+        select.addEventListener('change', function() {
+          if (this.value === '__add_new__') {
+            const newName = prompt('Enter new name:');
+            if (newName && !cachedUsers.some(u => u.name === newName)) {
+              cachedUsers.push({ name: newName });
+              cachedUsers.sort((a, b) => a.name.localeCompare(b.name));
+              
+              // Update this select and all other name selects
+              document.querySelectorAll('.name-select').forEach(sel => {
+                const currentValue = sel.value;
+                sel.innerHTML = `
+                  <option value="">-- Select Name --</option>
+                  ${cachedUsers.map(u => `<option value="${u.name}">${u.name}</option>`).join('')}
+                  <option value="__add_new__">➕ Add new name</option>
+                `;
+                sel.value = sel === this ? newName : currentValue;
+              });
+            } else {
+              // Reset selection if cancelled or duplicate
+              this.value = '';
+            }
+          }
+        });
+      });
     }
 
     function collectTableData(tableId) {
       const table = document.getElementById(tableId)?.querySelectorAll("tbody tr");
       if (!table) return [];
       return Array.from(table).map(row => {
-        const inputs = row.querySelectorAll('input, textarea');
+        const inputs = row.querySelectorAll('input, textarea, select');
         return tableId === 'travelTable' ? {
           date: inputs[0]?.value || '',
-          time: inputs[1]?.value || '',
-          name: inputs[2]?.value || '',
-          airline: inputs[3]?.value || '',
-          ref: inputs[4]?.value || ''
+          depart: inputs[1]?.value || '',
+          arrive: inputs[2]?.value || '',
+          name: inputs[3]?.value || '',
+          airline: inputs[4]?.value || '',
+          fromTo: inputs[5]?.value || '',
+          ref: inputs[6]?.value || ''
         } : {
           checkin: inputs[0]?.value || '',
           checkout: inputs[1]?.value || '',
-          hotel: inputs[2]?.value || '',
-          name: inputs[3]?.value || '',
+          name: inputs[2]?.value || '',
+          hotel: inputs[3]?.value || '',
           ref: inputs[4]?.value || ''
         };
       });
@@ -270,6 +342,14 @@ window.initPage = undefined;
         ? `
           <td class="date"><input type="date"></td>
           <td class="time"><input type="time"></td>
+          <td class="time"><input type="time"></td>
+          <td class="text">
+            <select class="name-select">
+              <option value="">-- Select Name --</option>
+              ${cachedUsers.map(u => `<option value="${u.name}">${u.name}</option>`).join('')}
+              <option value="__add_new__">➕ Add new name</option>
+            </select>
+          </td>
           <td class="text"><textarea></textarea></td>
           <td class="text"><textarea></textarea></td>
           <td class="text"><textarea></textarea></td>
@@ -278,7 +358,13 @@ window.initPage = undefined;
         : `
           <td class="date"><input type="date"></td>
           <td class="date"><input type="date"></td>
-          <td class="text"><textarea></textarea></td>
+          <td class="text">
+            <select class="name-select">
+              <option value="">-- Select Name --</option>
+              ${cachedUsers.map(u => `<option value="${u.name}">${u.name}</option>`).join('')}
+              <option value="__add_new__">➕ Add new name</option>
+            </select>
+          </td>
           <td class="text"><textarea></textarea></td>
           <td class="text"><textarea></textarea></td>
           <td class="action"><button class="delete-btn" onclick="window.removeRow(this)"><span class="material-symbols-outlined">delete</span></button></td>
@@ -286,6 +372,35 @@ window.initPage = undefined;
 
       table.appendChild(row);
       row.querySelectorAll('textarea').forEach(autoResizeTextarea);
+      
+      // Add event listener for name select in the new row
+      const nameSelect = row.querySelector('.name-select');
+      if (nameSelect) {
+        nameSelect.addEventListener('change', function() {
+          if (this.value === '__add_new__') {
+            const newName = prompt('Enter new name:');
+            if (newName && !cachedUsers.some(u => u.name === newName)) {
+              cachedUsers.push({ name: newName });
+              cachedUsers.sort((a, b) => a.name.localeCompare(b.name));
+              
+              // Update all name selects
+              document.querySelectorAll('.name-select').forEach(sel => {
+                const currentValue = sel.value;
+                sel.innerHTML = `
+                  <option value="">-- Select Name --</option>
+                  ${cachedUsers.map(u => `<option value="${u.name}">${u.name}</option>`).join('')}
+                  <option value="__add_new__">➕ Add new name</option>
+                `;
+                sel.value = sel === this ? newName : currentValue;
+              });
+            } else {
+              // Reset selection if cancelled or duplicate
+              this.value = '';
+            }
+          }
+        });
+      }
+      
       console.log('Row appended to', tableId);
     }
 
@@ -299,14 +414,31 @@ window.initPage = undefined;
       }
     }
 
+    let travelData = [];
+    let accommodationData = [];
+
     async function loadData() {
       console.log('Fetching table data for tableId:', tableId);
+      
+      // Load users if not already loaded
+      if (!cachedUsers.length) await preloadUsers();
+      
       const res = await fetch(`${API_BASE}/api/tables/${tableId}/travel`, {
         headers: { Authorization: token }
       });
       const data = await res.json();
-      populateTable('travelTable', data.travel);
-      populateTable('accommodationTable', data.accommodation);
+      
+      // Store data globally for filtering
+      travelData = data.travel || [];
+      accommodationData = data.accommodation || [];
+      
+      populateTable('travelTable', travelData);
+      populateTable('accommodationTable', accommodationData);
+    }
+    
+    function filterTables() {
+      populateTable('travelTable', travelData);
+      populateTable('accommodationTable', accommodationData);
     }
 
     async function saveData() {
@@ -345,6 +477,7 @@ window.initPage = undefined;
     window.removeRow = removeRow;
     window.saveData = saveData;
     window.enterEditMode = enterEditMode;
+    window.filterTables = filterTables;
 
     // Add click handler for delete buttons
     document.addEventListener('click', function(e) {
@@ -357,6 +490,12 @@ window.initPage = undefined;
     window.initPage = async function(id) {
       console.log('initPage called with id:', id);
       const tableIdToUse = id || tableId;
+      
+      // Setup search input listener
+      const searchInput = document.getElementById('searchInput');
+      if (searchInput) {
+        searchInput.addEventListener('input', filterTables);
+      }
       
       // Ensure CSS is loaded when accessing page directly
       if (!document.querySelector('link[href*="travel-accommodation.css"]')) {
