@@ -130,9 +130,12 @@ const tableSchema = new mongoose.Schema({
   travel: [
     {
       date: String,
-      time: String,
+      time: String,  // Keep for backward compatibility
+      depart: String,
+      arrive: String,
       airline: String,
       name: String,
+      fromTo: String,
       ref: String
     }
   ],
