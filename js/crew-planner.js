@@ -1173,11 +1173,10 @@ function parseLocalDate(dateString) {
 }
 
 function formatDateWithDayName(date) {
-  // Format date as "Wednesday, October 1, 2025"
+  // Format date as "Wed, Oct 1"
   const options = { 
-    weekday: 'long', 
-    year: 'numeric', 
-    month: 'long', 
+    weekday: 'short', 
+    month: 'short', 
     day: 'numeric' 
   };
   return date.toLocaleDateString('en-US', options);

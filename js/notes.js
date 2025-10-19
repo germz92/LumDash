@@ -136,7 +136,7 @@ function formatDate(dateStr) {
   // Parse as local date (YYYY-MM-DD)
   const [year, month, day] = dateStr.split('-').map(Number);
   const d = new Date(year, month - 1, day);
-  return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+  return d.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' });
 }
 
 async function fetchTable() {

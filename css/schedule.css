@@ -1,11 +1,43 @@
 /* Schedule page specific styles - CONTENT COMPRESSED ONLY */
 .schedule-page {
-    --header-height: 160px; /* Restored to original */
+    --header-height: 180px;
     font-family: 'Roboto', Arial, sans-serif;
     background: linear-gradient(135deg, #f5f7fa 0%, #e9ecf3 100%);
     margin: 0;
     padding: 0;
     min-height: 100%;
+}
+
+/* Remove padding from page container on schedule page */
+.schedule-page #page-container,
+body:has(.schedule-page) #page-container {
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+}
+
+/* Hide export and import buttons for non-owners/non-leads */
+body.no-owner-controls .schedule-page #importBtn,
+body.no-owner-controls .schedule-page #exportBtn,
+body.no-owner-controls .schedule-page #downloadTemplateBtn {
+    display: none !important;
+}
+
+/* Export button styling */
+.schedule-page .export-btn {
+    padding: 8px 16px;
+    font-size: 16px;
+    border: none;
+    color: white;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.15);
+    transition: background 0.2s, box-shadow 0.2s;
+}
+
+.schedule-page .export-btn:hover {
+    background-color: #218838 !important;
+    box-shadow: 0 4px 16px rgba(40, 167, 69, 0.25);
 }
 
 /* Fixed Top Header Wrapper - RESTORED */
@@ -16,7 +48,7 @@
     width: 100%;
     background: white;
     z-index: 1001;
-    padding: 16px 8px 10px 8px; /* Restored to original */
+    padding: 16px 8px 12px 8px; /* Increased bottom padding from 10px to 12px */
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
     border-bottom: 1.5px solid #e0e0e0;
     box-sizing: border-box;
@@ -24,12 +56,16 @@
 
 /* Add spacing to scrollable content - RESTORED */
 .schedule-page .program-container {
-    padding-top: calc(var(--header-height) + 40px); /* Restored to original */
+    padding-top: calc(var(--header-height) + 60px);
     padding-bottom: 100px; /* Space for bottom navigation */
+    padding-left: 14px; /* Increased from 8px to 14px (added 6px) */
+    padding-right: 14px; /* Increased from 8px to 14px (added 6px) */
     display: flex;
     flex-wrap: wrap;
     justify-content: center;
     gap: 12px; /* Keep content compression */
+    max-width: 1800px; /* Increased for 3 columns on large screens */
+    margin: 0 auto; /* Center the container */
 }
 
 .schedule-page .done-entry input.program-name {
@@ -91,23 +127,49 @@
 }
 
 .schedule-page .date-section {
-    padding: 12px 14px 8px 14px; /* Reduced from 18px 18px 12px 18px */
-    max-width: 600px;
+    padding: 12px 8px 8px 8px; /* Further reduced horizontal padding */
+    max-width: 100%; /* Allow cards to be flexible width */
     width: 100%;
+    flex: 1 1 calc(33.33% - 12px); /* Allow 3 cards side by side on desktop */
+    min-width: 280px; /* Reduced minimum width for more columns */
     display: flex;
     flex-direction: column;
     gap: 8px; /* Reduced from 10px */
     position: relative;
-    background: #fff;
+    background: transparent;
     border-radius: 12px; /* Reduced from 18px */
-    box-shadow: 0 6px 18px rgba(0,0,0,0.09); /* Reduced from 0 8px 24px */
-    border: 1.5px solid #e0e0e0;
+    box-shadow: none;
+    border: none;
     margin-bottom: 16px; /* Reduced from 24px */
     transition: box-shadow 0.2s;
 }
 
+/* Desktop large: allow up to 3 cards side by side */
+@media (min-width: 1400px) {
+    .schedule-page .date-section {
+        flex: 1 1 calc(33.33% - 12px);
+        max-width: calc(33.33% - 12px);
+    }
+}
+
+/* Desktop medium: allow up to 2 cards side by side */
+@media (min-width: 1000px) and (max-width: 1399px) {
+    .schedule-page .date-section {
+        flex: 1 1 calc(50% - 12px);
+        max-width: calc(50% - 12px);
+    }
+}
+
+/* Tablet: one card per row */
+@media (min-width: 768px) and (max-width: 999px) {
+    .schedule-page .date-section {
+        flex: 1 1 100%;
+        max-width: 700px;
+    }
+}
+
 .schedule-page .date-section:hover {
-    box-shadow: 0 12px 32px rgba(204,0,7,0.10);
+    box-shadow: none;
 }
 
 .schedule-page .date-header {
@@ -127,31 +189,26 @@
 }
 
 .schedule-page .date-header .date-title {
-    flex: 1 1 0;
+    flex: 1 1 200px;
     text-align: center;
-    margin: 0 8px;
-    white-space: pre-line;
+    margin: 0 4px;
+    white-space: nowrap;
     font-weight: 600;
     font-size: 1.08em;
-    overflow: visible;
-    text-overflow: unset;
+    overflow: hidden;
+    text-overflow: ellipsis;
     margin-bottom: 0;
     line-height: 1.2;
+    min-width: 150px;
 }
 
 .schedule-page .date-header .delete-btn {
-    flex: 0 0 auto;
-    margin-left: 0;
+    flex: 0 0 32px;
+    margin-left: 4px;
     position: static;
     right: auto;
     top: auto;
     transform: none;
-}
-
-.schedule-page .date-header > span:first-child {
-    width: 32px;
-    min-width: 32px;
-    display: inline-block;
 }
 
 .schedule-page .date-header button {
@@ -163,11 +220,11 @@
     font-size: 20px;
     cursor: pointer;
     flex-shrink: 0;
-    margin-left: 16px;
+    margin-left: 4px;
     white-space: nowrap;
     border-radius: 0 !important;
     transition: background 0.2s, color 0.2s;
-    padding: 2px 4px !important;
+    padding: 0 !important;
 }
 
 .schedule-page .date-header button:hover {
@@ -178,8 +235,8 @@
 .schedule-page .program-entry {
     background: #fff;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    padding: 10px;
-    border-radius: 8px;
+    padding: 14px;
+    border-radius: 12px;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -224,23 +281,23 @@
 
 .schedule-page .add-btn {
     margin-top: 8px;
-    padding: 8px 0;
-    background: #CC0007;
+    padding: 6px 0;
+    background: #6c757d;
     color: white;
     border: none;
-    border-radius: 8px;
+    border-radius: 6px;
     cursor: pointer;
-    font-weight: bold;
+    font-weight: 500;
     width: 100%;
-    max-width: 140px;
-    font-size: 13px !important; /* Added !important to override mobile styles */
-    box-shadow: 0 2px 8px rgba(204,0,7,0.08);
+    max-width: 120px;
+    font-size: 12px !important; /* Added !important to override mobile styles */
+    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
     transition: background 0.2s, box-shadow 0.2s;
 }
 
 .schedule-page .add-btn:hover {
-    background: #a30006;
-    box-shadow: 0 4px 16px rgba(204,0,7,0.10);
+    background: #5a6268;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
 .schedule-page .delete-btn {
@@ -327,11 +384,12 @@
 @media (max-width: 768px) {
     .schedule-page {
         --header-height: 120px; /* Restored mobile header */
-        padding: 8px; /* Restored to original */
+        padding: 0;
     }
 
-    /* Hide import button and template download link on mobile */
+    /* Hide import/export buttons and template download link on mobile */
     .schedule-page #importBtn,
+    .schedule-page #exportBtn,
     .schedule-page #downloadTemplateBtn {
         display: none !important;
     }
@@ -344,6 +402,8 @@
     .schedule-page .date-section {
         padding: 2px !important;
         max-width: 100% !important;
+        flex: 1 1 100% !important;
+        min-width: 0 !important;
         gap: 2px !important;
         margin-bottom: 6px !important;
     }
@@ -379,10 +439,10 @@
     }
 
     .schedule-page .program-entry {
-        padding: 4px !important;
+        padding: 12px !important;
         gap: 2px !important;
         font-size: 14px !important;
-        border-radius: 4px !important;
+        border-radius: 20px !important;
         margin-bottom: 4px !important;
     }
 
@@ -417,8 +477,7 @@
         box-sizing: border-box;
     }
 
-    .schedule-page .date-section,
-    .schedule-page .program-entry {
+    .schedule-page .date-section {
         padding-left: 0 !important;
         padding-right: 0 !important;
     }
@@ -435,7 +494,7 @@
     .schedule-page .program-entry {
         flex-direction: column !important;
         align-items: stretch !important;
-        gap: 6px !important;
+        gap: 2px !important;
     }
 
     /* Ensure the first row with times + checkbox stays horizontal even on mobile */
@@ -514,18 +573,19 @@
 
     .schedule-page .date-header .date-title {
         font-size: 14px !important;
-        flex: 1 1 0;
+        flex: 1 1 150px;
         text-align: center !important;
-        margin: 0 8px;
-        white-space: pre-line;
-        overflow: visible;
-        text-overflow: unset;
+        margin: 0 4px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
         margin-bottom: 0;
         line-height: 1.2;
+        min-width: 120px;
     }
 
     .schedule-page .delete-date-btn {
-        margin-left: 0;
+        margin-left: 4px;
         align-self: center;
     }
 
@@ -540,7 +600,8 @@
     }
 
     .schedule-page .show-notes-btn,
-    .schedule-page .delete-btn {
+    .schedule-page .delete-btn,
+    .schedule-page .delete-date-btn {
         width: auto !important;
         min-width: 0 !important;
     }
@@ -649,7 +710,7 @@
     }
 
     .schedule-page .delete-date-btn {
-        margin-left: auto;
+        margin-left: 4px !important;
     }
 
     /* Ensure search input is 16px */
@@ -721,9 +782,10 @@
     cursor: pointer;
     transition: background 0.15s, color 0.15s, border 0.15s;
     box-shadow: 0 2px 8px rgba(209,26,42,0.06);
-    margin-left: 12px;
+    margin-left: 4px;
     outline: none;
     padding: 0;
+    flex-shrink: 0;
 }
 .schedule-page .delete-date-btn:hover, .schedule-page .delete-date-btn:focus {
     background: #d11a2a;

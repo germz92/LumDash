@@ -114,10 +114,9 @@ function formatDateLocal(dateStr) {
   const date = new Date(year, month - 1, day);
 
   return date.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
-    day: 'numeric',
-    year: 'numeric'
+    weekday: 'short',
+    month: 'short',
+    day: 'numeric'
   });
 }
 
@@ -359,29 +358,58 @@ function renderTableSection() {
     const table = document.createElement('table');
     table.style.tableLayout = 'fixed';
     table.style.width = '100%';
-    table.innerHTML = `
-      <colgroup>
-        <col style="width: 16%;">
-        <col style="width: 12%;">
-        <col style="width: 12%;">
-        <col style="width: 8%;">
-        <col style="width: 19%;">
-        <col style="width: 19%;">
-        <col style="width: 14%;">
-      </colgroup>
-    `;
+    
+    // Adjust column widths based on edit mode
+    if (globalEditMode) {
+      table.innerHTML = `
+        <colgroup>
+          <col style="width: 16%;">
+          <col style="width: 12%;">
+          <col style="width: 12%;">
+          <col style="width: 8%;">
+          <col style="width: 19%;">
+          <col style="width: 19%;">
+          <col style="width: 14%;">
+        </colgroup>
+      `;
+    } else {
+      // No action column when not in edit mode, redistribute widths
+      table.innerHTML = `
+        <colgroup>
+          <col style="width: 18%;">
+          <col style="width: 14%;">
+          <col style="width: 14%;">
+          <col style="width: 9%;">
+          <col style="width: 22%;">
+          <col style="width: 23%;">
+        </colgroup>
+      `;
+    }
 
     const thead = document.createElement('thead');
-    thead.innerHTML = `
-      <tr>
-        <th>Name</th>
-        <th>Start</th>
-        <th>End</th>
-        <th>Total</th>
-        <th>Role</th>
-        <th>Notes</th>
-        <th>Action</th>
-      </tr>`;
+    // Only show Action column header in edit mode
+    if (globalEditMode) {
+      thead.innerHTML = `
+        <tr>
+          <th>Name</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Total</th>
+          <th>Role</th>
+          <th>Notes</th>
+          <th>Action</th>
+        </tr>`;
+    } else {
+      thead.innerHTML = `
+        <tr>
+          <th>Name</th>
+          <th>Start</th>
+          <th>End</th>
+          <th>Total</th>
+          <th>Role</th>
+          <th>Notes</th>
+        </tr>`;
+    }
     table.appendChild(thead);
 
     const tbody = document.createElement('tbody');
@@ -425,7 +453,7 @@ function renderTableSection() {
       const displayData = editedRowData || row;
       
       if (globalEditMode) {
-        // Render editable fields
+        // Render editable fields with action column
         tr.innerHTML = `
           <td>
             <select id="${prefix}-name" onchange="handleNameChange('${rowId}', this.value)">
@@ -446,7 +474,7 @@ function renderTableSection() {
           </td>
           <td><input type="text" id="${prefix}-notes" value="${displayData.notes || ''}" onchange="updateEditedData('${rowId}', 'notes', this.value)"></td>
           <td class="actions-cell" style="text-align: center;">
-            ${isOwner && globalEditMode ? `
+            ${isOwner ? `
               <div class="icon-buttons">
                 <button class="delete-row-btn" onclick="deleteRowById('${rowId}')" title="Delete"><span class="material-symbols-outlined">delete</span></button>
               </div>
@@ -454,7 +482,7 @@ function renderTableSection() {
           </td>
         `;
       } else {
-        // Render display-only fields
+        // Render display-only fields without action column
         tr.innerHTML = `
           <td><span id="${prefix}-name">${displayData.name}</span></td>
           <td><span id="${prefix}-startTime">${formatTime(displayData.startTime)}</span></td>
@@ -462,13 +490,6 @@ function renderTableSection() {
           <td id="${prefix}-totalHours">${displayData.totalHours}</td>
           <td><span id="${prefix}-role">${displayData.role}</span></td>
           <td><span id="${prefix}-notes">${displayData.notes}</span></td>
-          <td class="actions-cell" style="text-align: center;">
-            ${isOwner && globalEditMode ? `
-              <div class="icon-buttons">
-                <button class="delete-row-btn" onclick="deleteRowById('${rowId}')" title="Delete"><span class="material-symbols-outlined">delete</span></button>
-              </div>
-            ` : ''}
-          </td>
         `;
       }
     
@@ -483,7 +504,8 @@ function renderTableSection() {
     if (isOwner && globalEditMode) {
       const actionRow = document.createElement('tr');
       const actionTd = document.createElement('td');
-      actionTd.colSpan = 7;
+      // Colspan: 7 in edit mode (6 columns + 1 action column), 6 otherwise
+      actionTd.colSpan = globalEditMode ? 7 : 6;
       const btnContainer = document.createElement('div');
       btnContainer.className = 'add-row-btn-container';
       const addBtn = document.createElement('button');

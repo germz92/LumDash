@@ -227,8 +227,8 @@ function formatDate(dateStr) {
   const [year, month, day] = dateStr.split('-');
   const d = new Date(year, month - 1, day);
   return d.toLocaleDateString('en-US', {
-    weekday: 'long',
-    month: 'long',
+    weekday: 'short',
+    month: 'short',
     day: 'numeric',
   });
 }
@@ -388,6 +388,17 @@ window.initPage = async function(id) {
     newFileInput.addEventListener('change', handleFileImport);
   }
   
+  // Set up the export button
+  const exportBtn = document.getElementById('exportBtn');
+  if (exportBtn) {
+    // Remove any existing event listeners to prevent double attachment
+    const newExportBtn = exportBtn.cloneNode(true);
+    exportBtn.parentNode.replaceChild(newExportBtn, exportBtn);
+    
+    // Add event listener
+    newExportBtn.addEventListener('click', exportScheduleToExcel);
+  }
+  
   console.log(`[INIT] Event listeners setup complete`);
 
   // Load programs (this sets isOwner/hasScheduleAccess and calls renderProgramSections)
@@ -516,9 +527,59 @@ async function loadPrograms(tableId = null, retryCount = 0) {
     console.log(`[LOAD] Event data received for event: ${eventId}`);
     logEventIdState('AFTER_EVENT_PARSE');
 
-    // Use the original data structure
-    tableData.programs = data.programSchedule || [];
-    console.log(`[LOAD] Programs loaded for event ${eventId}, count: ${tableData.programs.length}`);
+    // Use the original data structure with validation
+    if (!data.programSchedule) {
+      console.warn('⚠️ [LOAD] WARNING: Server returned no programSchedule field');
+    }
+    
+    const loadedPrograms = data.programSchedule || [];
+    
+    // CRITICAL: Validate loaded data before accepting it
+    if (!Array.isArray(loadedPrograms)) {
+      console.error('❌ [LOAD] CRITICAL: Server returned invalid programSchedule (not an array)');
+      throw new Error('Invalid schedule data from server');
+    }
+    
+    // Check if we're about to lose data
+    if (loadedPrograms.length === 0 && tableData.programs && tableData.programs.length > 0) {
+      console.error('❌ [LOAD] CRITICAL: Server returned empty schedule but we have local data!');
+      console.error('❌ [LOAD] This could indicate data loss on server. Checking backup...');
+      
+      // Try to restore from backup
+      const backupData = sessionStorage.getItem(`schedule_backup_${eventId}`);
+      const backupTimestamp = sessionStorage.getItem(`schedule_backup_timestamp_${eventId}`);
+      
+      if (backupData && backupTimestamp) {
+        const backupAge = Date.now() - parseInt(backupTimestamp);
+        const backupAgeMinutes = Math.floor(backupAge / 60000);
+        console.warn(`⚠️ [LOAD] Found backup from ${backupAgeMinutes} minutes ago`);
+        
+        if (confirm(`Warning: Server has no schedule data, but a backup from ${backupAgeMinutes} minutes ago was found. Restore from backup?`)) {
+          try {
+            const restoredPrograms = JSON.parse(backupData);
+            if (Array.isArray(restoredPrograms) && restoredPrograms.length > 0) {
+              console.log(`✅ [LOAD] Restoring ${restoredPrograms.length} programs from backup`);
+              tableData.programs = restoredPrograms;
+              // Save the restored data immediately
+              await savePrograms();
+              alert(`Successfully restored ${restoredPrograms.length} programs from backup!`);
+              sessionStorage.setItem(`schedule_loaded_${eventId}`, 'true');
+              return;
+            }
+          } catch (err) {
+            console.error('❌ [LOAD] Failed to restore backup:', err);
+          }
+        }
+      }
+    }
+    
+    tableData.programs = loadedPrograms;
+    console.log(`✅ [LOAD] Programs loaded for event ${eventId}, count: ${tableData.programs.length}`);
+    
+    // Mark that we've successfully loaded data
+    if (tableData.programs.length > 0) {
+      sessionStorage.setItem(`schedule_loaded_${eventId}`, 'true');
+    }
     
     console.log(`[LOAD] Checking access permissions for userId: ${userId}...`);
     // Check permissions using the data we just fetched
@@ -670,17 +731,39 @@ async function savePrograms() {
   const tableId = localStorage.getItem('eventId');
   if (!tableId) {
     console.error('No tableId found in localStorage. Cannot save.');
-    return;
+    throw new Error('No event ID available');
+  }
+  
+  // CRITICAL: Validate data before saving to prevent data loss
+  if (!tableData || !Array.isArray(tableData.programs)) {
+    console.error('❌ [SAVE] CRITICAL: tableData.programs is not an array!');
+    throw new Error('Invalid schedule data structure');
+  }
+  
+  // CRITICAL: Never send empty array unless explicitly intended
+  if (tableData.programs.length === 0) {
+    console.warn('⚠️ [SAVE] WARNING: Attempting to save empty schedule. This will delete all data!');
+    // Check if this is a new event or if data was loaded
+    const hasLoadedData = sessionStorage.getItem(`schedule_loaded_${tableId}`);
+    if (hasLoadedData === 'true') {
+      console.error('❌ [SAVE] BLOCKED: Refusing to save empty array when data was previously loaded. This prevents accidental data loss.');
+      throw new Error('Cannot save empty schedule - data loss prevention');
+    }
   }
   
   // Validate data before saving to prevent corruption
   if (!validateScheduleData()) {
-    console.error('Aborting save due to data validation failure');
-    return;
+    console.error('❌ [SAVE] Aborting save due to data validation failure');
+    throw new Error('Schedule data validation failed');
   }
   
+  // Create a backup before saving
+  const backup = JSON.stringify(tableData.programs);
+  sessionStorage.setItem(`schedule_backup_${tableId}`, backup);
+  sessionStorage.setItem(`schedule_backup_timestamp_${tableId}`, Date.now().toString());
+  
   try {
-    console.log('Saving programs for tableId:', tableId);
+    console.log('💾 [SAVE] Saving programs for tableId:', tableId, '- Count:', tableData.programs.length);
     const res = await fetch(`${API_BASE}/api/tables/${tableId}/program-schedule`, {
       method: 'PUT',
       headers: {
@@ -689,14 +772,20 @@ async function savePrograms() {
       },
       body: JSON.stringify({ programSchedule: tableData.programs }),
     });
-    const text = await res.text();
+    
     if (!res.ok) {
-      console.error('Failed to save programs:', res.status, text);
-    } else {
-      console.log('Programs saved! Response:', text);
+      const text = await res.text();
+      console.error('❌ [SAVE] Failed to save programs:', res.status, text);
+      throw new Error(`Save failed: ${res.status} - ${text}`);
     }
+    
+    const result = await res.json();
+    console.log('✅ [SAVE] Programs saved successfully! Count:', tableData.programs.length);
+    return result;
   } catch (err) {
-    console.error('Failed to save programs:', err);
+    console.error('❌ [SAVE] Failed to save programs:', err);
+    // Keep backup in case of failure
+    throw err;
   }
 }
 
@@ -784,7 +873,30 @@ function renderProgramSections(hasScheduleAccess) {
     const matchingPrograms = tableData.programs
       .map((p, i) => ({ ...p, __index: i }))
       .filter(p => p.date === date && matchesSearch(p))
-      .sort((a, b) => (a.startTime || '').localeCompare(b.startTime || ''));
+      .sort((a, b) => {
+        // Programs with times should be sorted by time
+        // Programs without times should appear at the bottom in order they were added
+        const aHasTime = a.startTime && a.startTime.trim() !== '';
+        const bHasTime = b.startTime && b.startTime.trim() !== '';
+        
+        // If both have times, sort by time
+        if (aHasTime && bHasTime) {
+          return a.startTime.localeCompare(b.startTime);
+        }
+        
+        // If only a has time, a comes first
+        if (aHasTime && !bHasTime) {
+          return -1;
+        }
+        
+        // If only b has time, b comes first
+        if (!aHasTime && bHasTime) {
+          return 1;
+        }
+        
+        // If neither has time, maintain original order (by index)
+        return a.__index - b.__index;
+      });
 
     if (matchingPrograms.length === 0) return;
 
@@ -2562,6 +2674,14 @@ function autoSave(field, date, ignoredIndex, key) {
     return;
   }
   
+  // If startTime or endTime was changed, re-render to reorder programs
+  const shouldReorder = fieldKey === 'startTime' || fieldKey === 'endTime';
+  if (shouldReorder) {
+    console.log(`[AUTOSAVE] Time field changed, triggering reorder`);
+    // Delay render slightly to allow save to complete first
+    setTimeout(() => renderProgramSections(isOwner), 50);
+  }
+  
   // Use atomic save if we have a program ID, otherwise fall back to full save
   if (program && program._id) {
     // Get old value for operational transform and optimistic updates
@@ -2749,8 +2869,11 @@ function safeAddProgram(date) {
     _tempId: generateTempId()
   };
   
+  // Store the index where we're adding it
+  const newIndex = tableData.programs.length;
+  
   tableData.programs.push(newProgram);
-  console.log(`[SAFE ADD] Added new program for ${date} with temp ID: ${newProgram._tempId}`);
+  console.log(`✅ [SAFE ADD] Added new program for ${date} with temp ID: ${newProgram._tempId}`);
   renderProgramSections(isOwner);
   
   // Broadcast to other users if collaboration is enabled
@@ -2761,13 +2884,24 @@ function safeAddProgram(date) {
   // Save immediately to get a real MongoDB _id
   // Coordinate with any pending atomic saves
   coordinatedSave('program_add', () => scheduleSave()).then(() => {
-    console.log(`[SAFE ADD] Program saved, should now have real _id`);
+    console.log(`✅ [SAFE ADD] Program saved successfully, should now have real _id`);
     // Re-render to update data-program-id attributes with real IDs
     if (window.__collaborativeScheduleInitialized) {
       setTimeout(() => renderProgramSections(isOwner), 100);
     }
   }).catch(err => {
-    console.error('[SAFE ADD] Failed to save new program:', err);
+    console.error('❌ [SAFE ADD] CRITICAL: Failed to save new program:', err);
+    
+    // ROLLBACK: Remove the program from local state since save failed
+    console.warn('⚠️ [SAFE ADD] Rolling back - removing unsaved program from local state');
+    const rollbackIndex = tableData.programs.findIndex(p => p._tempId === newProgram._tempId);
+    if (rollbackIndex !== -1) {
+      tableData.programs.splice(rollbackIndex, 1);
+      renderProgramSections(isOwner);
+    }
+    
+    // Alert user about the failure
+    alert(`Failed to add program: ${err.message || 'Network error'}. Please check your connection and try again.`);
   });
 }
 
@@ -3198,6 +3332,90 @@ async function handleFileImport(event) {
   }
 }
 
+// Function to export schedule to Excel
+async function exportScheduleToExcel() {
+  // Only allow owners/leads to export
+  if (!isOwner) {
+    alert('Not authorized. Only admins, event owners, and leads can export the schedule.');
+    return;
+  }
+  
+  if (!tableData || !tableData.programs || tableData.programs.length === 0) {
+    alert('No schedule data to export.');
+    return;
+  }
+  
+  try {
+    // Load SheetJS library
+    const XLSX = await loadSheetJSLibrary();
+    
+    // Prepare data for export
+    const exportData = [];
+    
+    // Add header row
+    exportData.push([
+      'Date',
+      'Start Time',
+      'End Time',
+      'Program Name',
+      'Location',
+      'Photographer',
+      'Notes',
+      'Done'
+    ]);
+    
+    // Sort programs by date
+    const sortedPrograms = [...tableData.programs].sort((a, b) => {
+      return new Date(a.date) - new Date(b.date);
+    });
+    
+    // Add data rows
+    sortedPrograms.forEach(program => {
+      exportData.push([
+        program.date || '',
+        program.startTime || '',
+        program.endTime || '',
+        program.name || '',
+        program.location || '',
+        program.photographer || '',
+        program.notes || '',
+        program.done ? 'Yes' : 'No'
+      ]);
+    });
+    
+    // Create worksheet
+    const worksheet = XLSX.utils.aoa_to_sheet(exportData);
+    
+    // Set column widths
+    worksheet['!cols'] = [
+      { width: 12 },  // Date
+      { width: 10 },  // Start Time
+      { width: 10 },  // End Time
+      { width: 30 },  // Program Name
+      { width: 25 },  // Location
+      { width: 20 },  // Photographer
+      { width: 40 },  // Notes
+      { width: 8 }    // Done
+    ];
+    
+    // Create workbook
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Schedule');
+    
+    // Get event title for filename
+    const eventTitle = document.getElementById('eventTitle')?.textContent || 'Schedule';
+    const fileName = `${eventTitle}_Schedule_${new Date().toISOString().split('T')[0]}.xlsx`;
+    
+    // Download file
+    XLSX.writeFile(workbook, fileName);
+    
+    console.log('Schedule exported successfully');
+  } catch (error) {
+    console.error('Error exporting schedule:', error);
+    alert('Error exporting schedule. Please try again.');
+  }
+}
+
 // Process the imported data and add it to the schedule
 function processImportedData(data) {
   if (!data || data.length < 2) {
@@ -3567,6 +3785,7 @@ function downloadImportTemplate() {
 window.generateTempId = generateTempId;
 window.downloadImportTemplate = downloadImportTemplate;
 window.handleFileImport = handleFileImport;
+window.exportScheduleToExcel = exportScheduleToExcel;
 window.processImportedData = processImportedData;
 window.formatTimeValue = formatTimeValue;
 window.showImportModal = showImportModal;

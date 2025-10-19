@@ -5,6 +5,7 @@ const params = new URLSearchParams(window.location.search);
 let tableId = params.get('id') || localStorage.getItem('eventId');
 let isOwner = false;
 let clockInterval = null; // Global clock interval for time modal
+let isSummaryExpanded = true; // Track Event Summary collapse state
 
 // Socket.IO real-time updates
 if (window.socket) {
@@ -69,6 +70,25 @@ function updateWeatherIcon() {
   // Ensure the label starts with the icon span, then text
   weatherLabel.innerHTML = `<span class="material-symbols-outlined">${iconName}</span> Weather`;
 }
+
+// Toggle Event Summary expand/collapse
+window.toggleEventSummary = function() {
+  isSummaryExpanded = !isSummaryExpanded;
+  const summaryContent = document.getElementById('summaryContent');
+  const toggleIcon = document.getElementById('summaryToggleIcon');
+  
+  if (isSummaryExpanded) {
+    summaryContent.style.maxHeight = summaryContent.scrollHeight + 'px';
+    summaryContent.style.opacity = '1';
+    summaryContent.style.overflow = 'visible';
+    toggleIcon.style.transform = 'rotate(0deg)';
+  } else {
+    summaryContent.style.maxHeight = '0';
+    summaryContent.style.opacity = '0';
+    summaryContent.style.overflow = 'hidden';
+    toggleIcon.style.transform = 'rotate(-90deg)';
+  }
+};
 
 function getUserIdFromToken() {
   try {
@@ -310,14 +330,16 @@ function renderContactRow(data = {}, readOnly = false) {
     row.appendChild(td);
   });
 
-  const deleteTd = document.createElement('td');
+  // Only add action column when not in read-only mode
   if (!readOnly) {
+    const deleteTd = document.createElement('td');
     const btn = document.createElement('button');
     btn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
     btn.onclick = () => row.remove();
     deleteTd.appendChild(btn);
+    row.appendChild(deleteTd);
   }
-  row.appendChild(deleteTd);
+  
   tbody.appendChild(row);
 }
 
@@ -333,14 +355,16 @@ function renderLocationRow(data = {}, readOnly = false) {
     row.appendChild(td);
   });
 
-  const deleteTd = document.createElement('td');
+  // Only add action column when not in read-only mode
   if (!readOnly) {
+    const deleteTd = document.createElement('td');
     const btn = document.createElement('button');
     btn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
     btn.onclick = () => row.remove();
     deleteTd.appendChild(btn);
+    row.appendChild(deleteTd);
   }
-  row.appendChild(deleteTd);
+  
   tbody.appendChild(row);
 }
 

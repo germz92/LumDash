@@ -1,5 +1,6 @@
-// ===== SHOTLIST FUNCTIONALITY v3.6 - COMPLETION_FIX_v1.0 =====
-// Fixed completion info persistence and removed date display
+// ===== SHOTLIST FUNCTIONALITY v4.0 - EDIT_ITEMS =====
+// Added ability for owners and leads to edit existing shot list items
+// Click on text to enter edit mode, Save/Cancel buttons appear, keyboard shortcuts (Enter/Escape)
 
 // Use IIFE to prevent variable conflicts and create a clean scope
 (function() {
@@ -158,9 +159,9 @@ function getUserRole(tableData) {
   }
 }
 
-// Check if user can edit lists and delete items (owners only)
+// Check if user can edit lists and delete items (owners and leads)
 function canUserEdit() {
-  return currentUserRole === 'owner';
+  return currentUserRole === 'owner' || currentUserRole === 'lead';
 }
 
 // Check if user can toggle checkboxes (all authenticated users)
@@ -550,6 +551,64 @@ async function toggleItemCompletion(listId, itemId) {
   }
 }
 
+// Edit item
+async function editItem(listId, itemId, newTitle) {
+  if (!canUserEdit()) {
+    debugLog('User cannot edit');
+    return;
+  }
+  
+  if (!newTitle || !newTitle.trim()) {
+    debugLog('Empty item title provided');
+    return;
+  }
+  
+  debugLog('Editing item', { listId, itemId, newTitle });
+  
+  try {
+    // Try to find by ID first, then by index if it's a temp ID
+    let list = shotlists.find(l => l._id === listId);
+    
+    if (!list && listId.startsWith('temp-list-')) {
+      const tempIndex = parseInt(listId.replace('temp-list-', ''));
+      if (!isNaN(tempIndex) && tempIndex < shotlists.length) {
+        list = shotlists[tempIndex];
+      }
+    }
+    
+    if (!list) {
+      debugLog('List not found', listId);
+      return;
+    }
+    
+    // Try to find by ID first, then by index if it's a temp ID
+    let item = list.items.find(i => i._id === itemId);
+    
+    if (!item && itemId.startsWith('temp-item-')) {
+      const tempIndex = parseInt(itemId.replace('temp-item-', ''));
+      if (!isNaN(tempIndex) && tempIndex < list.items.length) {
+        item = list.items[tempIndex];
+      }
+    }
+    
+    if (!item) {
+      debugLog('Item not found', itemId);
+      return;
+    }
+    
+    item.title = newTitle.trim();
+    
+    // Render immediately for responsive UI (optimistic update)
+    renderShotlists();
+    
+    await saveShotlists();
+    debugLog('Item edited successfully');
+    
+  } catch (error) {
+    console.error('🎯 SHOTLIST: Failed to edit item:', error);
+  }
+}
+
 // Delete item
 async function deleteItem(listId, itemId) {
   if (!canUserEdit()) {
@@ -868,7 +927,7 @@ function renderShotlist(list, listIndex) {
 
 // Render a single shot item
 function renderShotItem(item, itemIndex) {
-  const canEdit = canUserEdit(); // Only owners can delete items
+  const canEdit = canUserEdit(); // Owners and leads can edit items
   const canToggle = canUserToggleItems(); // All users can toggle checkboxes
   const itemId = item._id || `temp-item-${itemIndex}`;
   
@@ -889,12 +948,18 @@ function renderShotItem(item, itemIndex) {
   return `
     <div class="shot-item ${item.completed ? 'completed' : ''}" data-item-id="${itemId}" data-item-index="${itemIndex}">
       ${canToggle ? `<input type="checkbox" class="shot-checkbox" ${item.completed ? 'checked' : ''}>` : ''}
-      <div class="shot-content">
-        <div class="shot-title">${escapeHtml(item.title)}</div>
+      <div class="shot-content" ${canEdit ? 'style="cursor: pointer;"' : ''}>
+        <div class="shot-title ${canEdit ? 'editable-text' : ''}" contenteditable="false" data-original-title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</div>
         ${completionInfo}
       </div>
       ${canEdit ? `
         <div class="shot-actions">
+          <button class="btn-icon save-item-btn" title="Save" style="display: none;">
+            <span class="material-symbols-outlined">check</span>
+          </button>
+          <button class="btn-icon cancel-item-btn" title="Cancel" style="display: none;">
+            <span class="material-symbols-outlined">close</span>
+          </button>
           <button class="btn-icon delete" title="Delete">
             <span class="material-symbols-outlined">delete</span>
           </button>
@@ -909,6 +974,7 @@ function setupListEventDelegation() {
   // Remove any existing delegation listeners
   document.removeEventListener('click', handleListClicks);
   document.removeEventListener('keypress', handleListKeypress);
+  document.removeEventListener('keydown', handleListKeydown);
   document.removeEventListener('change', handleListChanges);
   document.removeEventListener('focus', handleListFocus, true);
   document.removeEventListener('blur', handleListBlur, true);
@@ -916,6 +982,7 @@ function setupListEventDelegation() {
   // Add fresh delegation listeners
   document.addEventListener('click', handleListClicks);
   document.addEventListener('keypress', handleListKeypress);
+  document.addEventListener('keydown', handleListKeydown);
   document.addEventListener('change', handleListChanges);
   document.addEventListener('focus', handleListFocus, true);
   document.addEventListener('blur', handleListBlur, true);
@@ -965,6 +1032,52 @@ function handleListClicks(e) {
     return;
   }
   
+  // Click on shot title to edit (only if not already editing and not clicking on buttons)
+  if (e.target.classList.contains('shot-title') || e.target.closest('.shot-content')) {
+    // Don't enter edit mode if clicking on action buttons or if already editing
+    if (e.target.closest('.shot-actions') || e.target.closest('.shot-checkbox')) {
+      return;
+    }
+    
+    const itemElement = e.target.closest('[data-item-id]');
+    if (itemElement) {
+      const titleElement = itemElement.querySelector('.shot-title');
+      
+      // Only enter edit mode if not already editing and user can edit
+      if (titleElement && titleElement.classList.contains('editable-text') && 
+          titleElement.contentEditable !== 'true') {
+        debugLog('Clicking on text to enter edit mode for item:', itemElement.dataset.itemId);
+        enterItemEditMode(itemElement);
+      }
+    }
+    return;
+  }
+  
+  // Save item button
+  if (e.target.closest('.save-item-btn')) {
+    e.preventDefault();
+    e.stopPropagation();
+    const itemElement = e.target.closest('[data-item-id]');
+    const listElement = e.target.closest('.shot-list');
+    if (itemElement && listElement) {
+      debugLog('Saving edited item:', itemElement.dataset.itemId);
+      saveItemEdit(listElement.dataset.listId, itemElement);
+    }
+    return;
+  }
+  
+  // Cancel item button
+  if (e.target.closest('.cancel-item-btn')) {
+    e.preventDefault();
+    e.stopPropagation();
+    const itemElement = e.target.closest('[data-item-id]');
+    if (itemElement) {
+      debugLog('Cancelling edit for item:', itemElement.dataset.itemId);
+      cancelItemEdit(itemElement);
+    }
+    return;
+  }
+  
   // Delete item button
   if (e.target.closest('.shot-actions .btn-icon.delete')) {
     e.preventDefault();
@@ -979,7 +1092,82 @@ function handleListClicks(e) {
   }
 }
 
+// Enter edit mode for an item
+function enterItemEditMode(itemElement) {
+  const titleElement = itemElement.querySelector('.shot-title');
+  const saveBtn = itemElement.querySelector('.save-item-btn');
+  const cancelBtn = itemElement.querySelector('.cancel-item-btn');
+  const deleteBtn = itemElement.querySelector('.delete');
+  
+  if (titleElement) {
+    titleElement.contentEditable = 'true';
+    titleElement.focus();
+    
+    // Select all text
+    const range = document.createRange();
+    range.selectNodeContents(titleElement);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+  
+  if (saveBtn) saveBtn.style.display = 'inline-block';
+  if (cancelBtn) cancelBtn.style.display = 'inline-block';
+  if (deleteBtn) deleteBtn.style.display = 'none';
+  
+  isUserEditing = true;
+  syncToModule();
+}
+
+// Save item edit
+function saveItemEdit(listId, itemElement) {
+  const titleElement = itemElement.querySelector('.shot-title');
+  const newTitle = titleElement ? titleElement.textContent.trim() : '';
+  
+  if (!newTitle) {
+    alert('Item title cannot be empty');
+    return;
+  }
+  
+  const itemId = itemElement.dataset.itemId;
+  exitItemEditMode(itemElement);
+  editItem(listId, itemId, newTitle);
+}
+
+// Cancel item edit
+function cancelItemEdit(itemElement) {
+  const titleElement = itemElement.querySelector('.shot-title');
+  const originalTitle = titleElement ? titleElement.dataset.originalTitle : '';
+  
+  if (titleElement) {
+    titleElement.textContent = originalTitle;
+  }
+  
+  exitItemEditMode(itemElement);
+}
+
+// Exit edit mode for an item
+function exitItemEditMode(itemElement) {
+  const titleElement = itemElement.querySelector('.shot-title');
+  const saveBtn = itemElement.querySelector('.save-item-btn');
+  const cancelBtn = itemElement.querySelector('.cancel-item-btn');
+  const deleteBtn = itemElement.querySelector('.delete');
+  
+  if (titleElement) {
+    titleElement.contentEditable = 'false';
+    titleElement.blur();
+  }
+  
+  if (saveBtn) saveBtn.style.display = 'none';
+  if (cancelBtn) cancelBtn.style.display = 'none';
+  if (deleteBtn) deleteBtn.style.display = 'inline-block';
+  
+  isUserEditing = false;
+  syncToModule();
+}
+
 function handleListKeypress(e) {
+  // Handle Enter on shot input
   if (e.target.classList.contains('shot-input') && e.key === 'Enter') {
     e.preventDefault();
     debugLog('Enter key pressed on shot input');
@@ -989,6 +1177,29 @@ function handleListKeypress(e) {
       handleAddItem(listElement.dataset.listId, e.target);
     } else {
       debugLog('ERROR: Could not find list element for Enter key');
+    }
+  }
+  
+  // Handle Enter to save when editing an item title
+  if (e.target.classList.contains('shot-title') && e.key === 'Enter') {
+    e.preventDefault();
+    debugLog('Enter key pressed on editable item title');
+    const itemElement = e.target.closest('[data-item-id]');
+    const listElement = e.target.closest('.shot-list');
+    if (itemElement && listElement) {
+      saveItemEdit(listElement.dataset.listId, itemElement);
+    }
+  }
+}
+
+function handleListKeydown(e) {
+  // Handle Escape to cancel when editing an item title
+  if (e.target.classList.contains('shot-title') && e.key === 'Escape') {
+    e.preventDefault();
+    debugLog('Escape key pressed on editable item title');
+    const itemElement = e.target.closest('[data-item-id]');
+    if (itemElement) {
+      cancelItemEdit(itemElement);
     }
   }
 }
@@ -1158,6 +1369,7 @@ function cleanupShotlist() {
   // Remove event delegation listeners
   document.removeEventListener('click', handleListClicks);
   document.removeEventListener('keypress', handleListKeypress);
+  document.removeEventListener('keydown', handleListKeydown);
   document.removeEventListener('change', handleListChanges);
   document.removeEventListener('focus', handleListFocus, true);
   document.removeEventListener('blur', handleListBlur, true);
@@ -1218,7 +1430,7 @@ window.testShotlistSave = testShotlistSave;
 window.__shotlistJsLoaded = true;
 
 // Version identifier for cache debugging
-console.log('🎯 SHOTLIST: Module loaded - Version: ALL_USERS_TOGGLE_v1.5 - ' + new Date().toISOString());
+console.log('🎯 SHOTLIST: Module loaded - Version: EDIT_ITEMS_v2.1_CLICK_TO_EDIT - ' + new Date().toISOString());
 debugLog('Shotlist module loaded');
 
 })(); // Close the IIFE 

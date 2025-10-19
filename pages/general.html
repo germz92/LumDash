@@ -17,15 +17,20 @@
     </div>
   </div>
   <h2 id="eventTitle" style="text-align: center; margin-bottom: 20px;"></h2>
-  <h1>General Event Info</h1>
   <form id="generalForm">
     <div class="info-section">
       <div class="info-card">
-        <label for="summary"><span class="material-symbols-outlined">description</span> Event Summary</label>
-        <div id="summary" class="read-only"></div>
-        <div id="summaryEditorContainer" style="display: none;">
-          <div id="summaryEditor" class="tinymce-editor">
-            <!-- TinyMCE will initialize here -->
+        <label for="summary" style="cursor: pointer; user-select: none;" onclick="toggleEventSummary()">
+          <span class="material-symbols-outlined" id="summaryToggleIcon" style="transition: transform 0.3s ease;">expand_more</span>
+          <span class="material-symbols-outlined">description</span> 
+          Event Summary
+        </label>
+        <div id="summaryContent" style="transition: max-height 0.3s ease, opacity 0.3s ease;">
+          <div id="summary" class="read-only"></div>
+          <div id="summaryEditorContainer" style="display: none;">
+            <div id="summaryEditor" class="tinymce-editor">
+              <!-- TinyMCE will initialize here -->
+            </div>
           </div>
         </div>
       </div>

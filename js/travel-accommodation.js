@@ -24,9 +24,9 @@ window.initPage = undefined;
       if (!dateStr) return '';
       const [year, month, day] = dateStr.split('-');
       return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString('en-US', {
-        month: 'long',
-        day: '2-digit',
-        year: 'numeric'
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
       });
     }
 
@@ -122,17 +122,68 @@ window.initPage = undefined;
       }
     }
 
+    function updateTableHeaders() {
+      // Update travel table header
+      const travelHeader = document.querySelector('#travelTable thead tr');
+      if (travelHeader) {
+        if (editMode) {
+          travelHeader.innerHTML = `
+            <th class="date">Date</th>
+            <th class="time">Time</th>
+            <th class="text name-column">Name</th>
+            <th class="text">Airline</th>
+            <th class="text">Ref Number</th>
+            <th class="action"></th>
+          `;
+        } else {
+          travelHeader.innerHTML = `
+            <th class="date">Date</th>
+            <th class="time">Time</th>
+            <th class="text name-column">Name</th>
+            <th class="text">Airline</th>
+            <th class="text">Ref Number</th>
+          `;
+        }
+      }
+
+      // Update accommodation table header
+      const accommodationHeader = document.querySelector('#accommodationTable thead tr');
+      if (accommodationHeader) {
+        if (editMode) {
+          accommodationHeader.innerHTML = `
+            <th class="date">Check-In</th>
+            <th class="date">Check-Out</th>
+            <th class="text name-column">Name</th>
+            <th class="text hotel-column">Hotel</th>
+            <th class="text">Ref Number</th>
+            <th class="action"></th>
+          `;
+        } else {
+          accommodationHeader.innerHTML = `
+            <th class="date">Check-In</th>
+            <th class="date">Check-Out</th>
+            <th class="text name-column">Name</th>
+            <th class="text hotel-column">Hotel</th>
+            <th class="text">Ref Number</th>
+          `;
+        }
+      }
+    }
+
     function populateTable(tableId, rows) {
       console.log('populateTable called with editMode:', editMode);
       const table = document.getElementById(tableId)?.querySelector("tbody");
       if (!table) return;
       table.innerHTML = '';
 
+      // Update table headers based on edit mode
+      updateTableHeaders();
+
       rows.forEach(item => {
         const row = document.createElement("tr");
 
         if (!editMode) {
-          console.log('Not in edit mode, showing readonly view');
+          console.log('Not in edit mode, showing readonly view without action column');
           if (tableId === 'travelTable') {
             row.innerHTML = `
               <td class="date"><span class="readonly-span">${formatDateReadable(item.date)}</span></td>
@@ -140,22 +191,7 @@ window.initPage = undefined;
               <td class="text"><span class="readonly-span">${item.name || ''}</span></td>
               <td class="text"><span class="readonly-span">${item.airline || ''}</span></td>
               <td class="text"><span class="readonly-span">${item.ref || ''}</span></td>
-              <td class="action"></td>
             `;
-            // Add Open Airline button if airline/ref/name present
-            const airline = item.airline || '';
-            const ref = item.ref || '';
-            const name = item.name || '';
-            if (airline && ref && name) {
-              const btn = document.createElement('button');
-              btn.textContent = 'Open';
-              btn.className = 'open-airline-btn';
-              btn.onclick = () => {
-                // Use first and last word in name for Southwest, last word for others
-                openAirlineSite(airline, ref, name);
-              };
-              row.querySelector('.action').appendChild(btn);
-            }
           } else {
             row.innerHTML = `
               <td class="date"><span class="readonly-span">${formatDateReadable(item.checkin)}</span></td>
@@ -163,7 +199,6 @@ window.initPage = undefined;
               <td class="text"><span class="readonly-span">${item.hotel || ''}</span></td>
               <td class="text">${createLocationLink(item.name)}</td>
               <td class="text"><span class="readonly-span">${item.ref || ''}</span></td>
-              <td class="action"></td>
             `;
           }
         } else {

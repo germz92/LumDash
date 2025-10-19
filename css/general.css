@@ -38,7 +38,7 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  margin-bottom: 30px;
+  margin-bottom: 8px;
 }
 
 .general-page .info-row {
@@ -50,16 +50,18 @@
 .general-page .info-card {
   background-color: #f9f9f9;
   border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  border-radius: 20px;
   padding: 16px;
   margin-bottom: 16px;
 }
 
 .general-page .info-card label {
   display: flex;
+  text-align: center;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  font-weight: 500;
+  font-weight: 600;
   margin-bottom: 8px;
   color: #333;
 }
@@ -67,6 +69,25 @@
 .general-page .info-card label .material-symbols-outlined {
   font-size: 20px;
   color: var(--brand-primary);
+}
+
+/* Event Summary toggle icon styles */
+.general-page .info-card label #summaryToggleIcon {
+  font-size: 24px;
+  color: #666;
+  transition: transform 0.3s ease;
+  cursor: pointer;
+}
+
+.general-page .info-card label #summaryToggleIcon:hover {
+  color: #333;
+}
+
+/* Event Summary content wrapper */
+#summaryContent {
+  max-height: 100vh;
+  overflow: visible;
+  transition: max-height 0.3s ease, opacity 0.3s ease;
 }
 
 .general-page .info-card .read-only,
@@ -122,13 +143,13 @@
   max-width: none;
   margin: 1rem 0;
   padding: 0.75rem;
-  border: 1px solid #ccc;
+  border: none;
   border-radius: 0.75rem;
-  background: #f0f0f0;
+  background: transparent;
   box-sizing: border-box;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  box-shadow: none;
   overflow-x: auto;
-  margin-bottom: 30px;
+  margin-bottom: 8px;
 }
 
 .general-page .contacts-scroll-wrapper {
@@ -137,7 +158,7 @@
   -webkit-overflow-scrolling: touch;
   max-height: 400px;
   overflow-y: auto;
-  border: 1px solid #e0e0e0;
+  border: none;
   border-radius: 4px;
 }
 
@@ -151,7 +172,7 @@
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 0 3px 12px rgba(0,0,0,0.06);
-  border: 1px solid #e0e0e0;
+  border: none;
 }
 
 .general-page .contacts-container th,
@@ -164,9 +185,15 @@
   word-break: break-word;
   padding: 8px;
   font-size: 0.95em;
-  border: 1px solid #e0e0e0;
+  border-right: 1px solid #e0e0e0;
   text-align: left;
   vertical-align: top;
+}
+
+/* Remove right border from last cell */
+.general-page .contacts-container th:last-child,
+.general-page .contacts-container td:last-child {
+  border-right: none;
 }
 
 .general-page .contacts-container th {
@@ -174,12 +201,39 @@
   color: #222;
   font-weight: bold;
   text-align: left;
-  border-radius: 0.5em 0.5em 0 0;
+  border-radius: 0;
   border-bottom: 2.5px solid #e0e0e0;
   letter-spacing: 0.01em;
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+/* Add borders to outer edges and round only the outer corners of the header */
+.general-page .contacts-container th:first-child {
+  border-top-left-radius: 10px;
+  border-left: 1px solid #e0e0e0;
+}
+
+.general-page .contacts-container th:last-child {
+  border-top-right-radius: 10px;
+  border-right: 1px solid #e0e0e0;
+}
+
+/* Add top border to all header cells */
+.general-page .contacts-container th {
+  border-top: 1px solid #e0e0e0;
+}
+
+/* Hide last column header in view mode (when no textareas in tbody) */
+.general-page .contacts-container table:not(:has(tbody textarea)) th:last-child {
+  display: none;
+}
+
+/* When last header is hidden, apply radius and border to second-to-last header */
+.general-page .contacts-container table:not(:has(tbody textarea)) th:nth-last-child(2) {
+  border-top-right-radius: 10px;
+  border-right: 1px solid #e0e0e0;
 }
 
 .general-page .contacts-container td {
@@ -188,6 +242,30 @@
   white-space: pre-wrap;
   border-bottom: 1px solid #ececec;
   transition: background 0.2s;
+}
+
+/* Add left and right borders to outer cells */
+.general-page .contacts-container td:first-child {
+  border-left: 1px solid #e0e0e0;
+}
+
+.general-page .contacts-container td:last-child {
+  border-right: 1px solid #e0e0e0;
+}
+
+/* Round bottom corners of the last row */
+.general-page .contacts-container tbody tr:last-child td:first-child {
+  border-bottom-left-radius: 10px;
+}
+
+.general-page .contacts-container tbody tr:last-child td:last-child {
+  border-bottom-right-radius: 10px;
+}
+
+/* When last column is hidden in view mode, apply bottom-right radius to second-to-last cell */
+.general-page .contacts-container table:not(:has(tbody textarea)) tbody tr:last-child td:nth-last-child(2) {
+  border-bottom-right-radius: 10px;
+  border-right: 1px solid #e0e0e0;
 }
 
 .general-page .contacts-container tr:nth-child(even) td {

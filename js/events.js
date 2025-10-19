@@ -255,7 +255,7 @@ function renderEventCard(table, container, userId) {
     const date = new Date(dateStr);
     // Use UTC date methods to prevent timezone issues
     return date.toLocaleDateString('en-US', { 
-      year: 'numeric', 
+      weekday: 'short',
       month: 'short', 
       day: 'numeric',
       timeZone: 'UTC' // Prevent timezone shifts
