@@ -2352,9 +2352,48 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
   }
   
   try {
-    // Get the old schedule for diffing
+    // CRITICAL: Validate request body to prevent data loss
+    if (!req.body || typeof req.body !== 'object') {
+      console.error('❌ [SCHEDULE UPDATE] Invalid request body');
+      return res.status(400).json({ error: 'Invalid request body' });
+    }
+    
+    const newSchedule = req.body.programSchedule;
+    
+    // CRITICAL: Validate that programSchedule is an array
+    if (!Array.isArray(newSchedule)) {
+      console.error('❌ [SCHEDULE UPDATE] programSchedule is not an array:', typeof newSchedule);
+      return res.status(400).json({ error: 'programSchedule must be an array' });
+    }
+    
+    // Get the old schedule for diffing and validation
     const oldTable = await Table.findById(req.params.id);
-    const oldSchedule = oldTable ? (oldTable.programSchedule || []) : [];
+    if (!oldTable) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+    
+    const oldSchedule = oldTable.programSchedule || [];
+    
+    // CRITICAL: Prevent accidental data deletion
+    // If old schedule has data but new schedule is empty, require explicit confirmation
+    if (oldSchedule.length > 0 && newSchedule.length === 0) {
+      console.warn(`⚠️ [SCHEDULE UPDATE] WARNING: Attempting to delete all ${oldSchedule.length} programs for event ${req.params.id}`);
+      
+      // Only allow if explicitly marked as intentional deletion
+      if (!req.body._intentionalDeletion) {
+        console.error('❌ [SCHEDULE UPDATE] BLOCKED: Refusing to save empty schedule when data exists. This prevents accidental data loss.');
+        return res.status(400).json({ 
+          error: 'Cannot delete all schedule data without explicit confirmation',
+          oldCount: oldSchedule.length,
+          newCount: 0
+        });
+      } else {
+        console.warn('⚠️ [SCHEDULE UPDATE] Intentional deletion confirmed, proceeding...');
+      }
+    }
+    
+    console.log(`💾 [SCHEDULE UPDATE] Updating schedule for event ${req.params.id}: ${oldSchedule.length} → ${newSchedule.length} programs`);
+    
     // Use findOneAndUpdate instead of find + save to avoid version conflicts
     const result = await Table.findOneAndUpdate(
       { 
@@ -2364,18 +2403,21 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
           { sharedWith: req.user.id }
         ]
       },
-      { $set: { programSchedule: req.body.programSchedule || [] } },
+      { $set: { programSchedule: newSchedule } },
       { new: true, runValidators: true }
     );
     
     if (!result) {
-    return res.status(403).json({ error: 'Not authorized or not found' });
-  }
+      return res.status(403).json({ error: 'Not authorized or not found' });
+    }
+    
+    console.log(`✅ [SCHEDULE UPDATE] Successfully updated schedule for event ${req.params.id}`);
+    
     // --- Partial update events ---
-    const newSchedule = req.body.programSchedule || [];
     // Build maps for fast lookup
     const oldMap = new Map(oldSchedule.map(p => [p._id?.toString?.(), p]));
     const newMap = new Map(newSchedule.map(p => [p._id?.toString?.(), p]));
+    
     // Added
     for (const p of newSchedule) {
       if (!oldMap.has(p._id?.toString?.())) {
@@ -2395,9 +2437,10 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
         notifyDataChange('programDeleted', { program: p }, req.params.id);
       }
     }
-  res.json({ message: 'Program schedule updated' });
+    
+    res.json({ message: 'Program schedule updated' });
   } catch (err) {
-    console.error('Error updating program schedule:', err);
+    console.error('❌ [SCHEDULE UPDATE] Error updating program schedule:', err);
     res.status(500).json({ error: 'Failed to update program schedule' });
   }
 });
