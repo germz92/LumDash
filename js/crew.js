@@ -198,9 +198,32 @@ async function loadTable() {
   isOwner = Array.isArray(tableData.owners) && tableData.owners.includes(userId);
 
   // Update UI based on ownership
-  const addDateBtn = document.getElementById('addDateBtn');
+    const addDateBtn = document.getElementById('addDateBtn');
   if (addDateBtn) {
     addDateBtn.style.display = isOwner ? 'inline-flex' : 'none';
+  }
+  
+  // Hide save status for non-owners
+  const saveStatus = document.getElementById('saveStatus');
+  if (saveStatus) {
+    saveStatus.style.display = isOwner ? 'block' : 'none';
+  }
+  
+  // Hide cost calculator and export CSV for non-owners
+  const crewCostCalcBtn = document.getElementById('crewCostCalcBtn');
+  if (crewCostCalcBtn) {
+    crewCostCalcBtn.style.display = isOwner ? 'inline-flex' : 'none';
+  }
+  
+  const exportCsvBtn = document.getElementById('exportCsvBtn');
+  if (exportCsvBtn) {
+    exportCsvBtn.style.display = isOwner ? 'inline-flex' : 'none';
+  }
+  
+  // Adjust layout for non-owners - make filter bar more compact
+  const filterSortBar = document.querySelector('.filter-sort-bar');
+  if (filterSortBar && !isOwner) {
+    filterSortBar.classList.add('non-owner-layout');
   }
 
   if (!cachedUsers.length) await preloadUsers();
@@ -262,9 +285,9 @@ function renderTableSection() {
     headerWrapper.style.justifyContent = 'space-between';
     headerWrapper.style.marginBottom = '8px';
 
-    const header = document.createElement('h2');
-    header.textContent = formatDateLocal(date);
-    headerWrapper.appendChild(header);
+      const header = document.createElement('h2');
+      header.textContent = formatDateLocal(date);
+      headerWrapper.appendChild(header);
 
     if (isOwner) {
       const deleteDateBtn = document.createElement('button');
@@ -368,25 +391,25 @@ function renderTableSection() {
           handleDrop(rowId, draggedId);
         });
       }
-    
+      
       // Show as regular table for everyone (inline editing for owners)
-      tr.innerHTML = `
+        tr.innerHTML = `
         <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-row-id="${rowId}" data-field="name">
           <span class="cell-display">${row.name || (isOwner ? 'Click to add' : '')}</span>
-        </td>
+          </td>
         <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-row-id="${rowId}" data-field="startTime">
           <span class="cell-display">${formatTime(row.startTime)}</span>
-        </td>
+          </td>
         <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-row-id="${rowId}" data-field="endTime">
           <span class="cell-display">${formatTime(row.endTime)}</span>
-        </td>
+          </td>
         <td class="total-hours-cell">${row.totalHours || 0}</td>
         <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-row-id="${rowId}" data-field="role">
           <span class="cell-display">${row.role || (isOwner ? 'Click to add' : '')}</span>
-        </td>
+          </td>
         <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-row-id="${rowId}" data-field="notes">
           <span class="cell-display">${row.notes || ''}</span>
-        </td>
+          </td>
         ${isOwner ? `
           <td class="actions-cell" style="text-align: center;">
             <div class="icon-buttons">
@@ -437,18 +460,18 @@ function renderTableSection() {
   // Crew List button for owners only
   const btnContainer = document.getElementById('crewListBtnContainer');
   if (btnContainer) {
-    if (isOwner) {
-      let crewListBtn = document.getElementById('crewListBtn');
-      if (!crewListBtn) {
-        crewListBtn = document.createElement('button');
-        crewListBtn.id = 'crewListBtn';
-        crewListBtn.textContent = 'Crew List';
+  if (isOwner) {
+    let crewListBtn = document.getElementById('crewListBtn');
+    if (!crewListBtn) {
+      crewListBtn = document.createElement('button');
+      crewListBtn.id = 'crewListBtn';
+      crewListBtn.textContent = 'Crew List';
         crewListBtn.title = 'View all crew members';
-        crewListBtn.onclick = showCrewListModal;
+      crewListBtn.onclick = showCrewListModal;
         btnContainer.innerHTML = '';
         btnContainer.appendChild(crewListBtn);
       }
-    } else {
+      } else {
       // Hide for non-owners
       btnContainer.innerHTML = '';
       btnContainer.style.display = 'none';
@@ -530,7 +553,7 @@ function makeEditable(cell, row) {
           if (field === 'name') {
             if (!cachedUsers.some(u => u.name === newValue)) {
               cachedUsers.push({ name: newValue });
-              cachedUsers.sort((a, b) => a.name.localeCompare(b.name));
+        cachedUsers.sort((a, b) => a.name.localeCompare(b.name));
               
               // Rebuild dropdown with new option
               input.innerHTML = `
@@ -540,7 +563,7 @@ function makeEditable(cell, row) {
               `;
               input.value = newValue;
               valueToSet = newValue;
-            } else {
+      } else {
               showMessage('This name already exists', 'error');
               input.value = currentValue;
             }
@@ -618,12 +641,12 @@ function makeEditable(cell, row) {
         const customRole = await showInputModal('Add New Role', 'Enter role...');
         if (customRole && !cachedRoles.includes(customRole)) {
           cachedRoles.push(customRole);
-          cachedRoles.sort();
+        cachedRoles.sort();
           newValue = customRole;
         } else if (customRole && cachedRoles.includes(customRole)) {
           showMessage('This role already exists', 'error');
           return;
-        } else {
+      } else {
           return;
         }
       }
@@ -631,15 +654,15 @@ function makeEditable(cell, row) {
     
     // Only update if value changed
     if (newValue !== currentValue) {
-      // Update local data
+    // Update local data
       row[field] = newValue;
-      
+    
       // Update display
-      if (field === 'startTime' || field === 'endTime') {
+    if (field === 'startTime' || field === 'endTime') {
         displaySpan.textContent = formatTime(newValue);
         // Recalculate hours
-        row.totalHours = calculateHours(row.startTime, row.endTime);
-        const tr = cell.closest('tr');
+      row.totalHours = calculateHours(row.startTime, row.endTime);
+      const tr = cell.closest('tr');
         const hoursCell = tr.querySelector('.total-hours-cell');
         if (hoursCell) {
           hoursCell.textContent = row.totalHours;
@@ -776,7 +799,7 @@ async function saveAllChanges() {
         if (response.ok) {
           console.log(`✅ Delete ${rowId} succeeded`);
           successCount++;
-        } else {
+    } else {
           const errorText = await response.text();
           console.error(`❌ Delete ${rowId} failed:`, response.status, errorText);
           failCount++;
@@ -792,9 +815,9 @@ async function saveAllChanges() {
       console.log('⚠️ No changes to save');
       hasUnsavedChanges = false;
       updateSaveStatus();
-      return;
-    }
-    
+    return;
+  }
+  
     if (failCount === 0) {
       console.log(`✅ All ${successCount} changes saved successfully`);
       
@@ -873,7 +896,7 @@ function handleAddNewRole(rowId) {
     }
     
     handleFieldChange(rowId, 'role', newRole);
-  } else {
+    } else {
     const select = document.getElementById(`row-${rowId}-role`);
     if (select) {
       const row = tableData.rows.find(r => r._id === rowId);
@@ -1082,15 +1105,15 @@ async function addDateSection() {
   try {
     showMessage('Adding date...', 'info');
     
-    const newRow = {
-      date,
+  const newRow = {
+    date,
       role: '__placeholder__',
-      name: '',
-      startTime: '',
-      endTime: '',
-      totalHours: 0,
-      notes: ''
-    };
+    name: '',
+    startTime: '',
+    endTime: '',
+    totalHours: 0,
+    notes: ''
+  };
     
     const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows`, {
       method: 'POST',
@@ -1168,9 +1191,9 @@ function handleDrop(targetId, draggedId) {
 
   if (rows[draggedIndex].date !== rows[targetIndex].date) {
     alert("You can only reorder within the same day.");
-    return;
-  }
-
+      return;
+    }
+    
   const [movedRow] = rows.splice(draggedIndex, 1);
   rows.splice(targetIndex, 0, movedRow);
 
@@ -1182,15 +1205,15 @@ async function saveRowOrder() {
   try {
     console.log('🔄 Saving row order...');
     const response = await fetch(`${API_BASE}/api/tables/${tableId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: token
-      },
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token
+        },
       body: JSON.stringify({ rows: tableData.rows })
-    });
-
-    if (!response.ok) {
+      });
+      
+      if (!response.ok) {
       throw new Error(`Failed to save row order: ${response.status}`);
     }
 
@@ -1697,11 +1720,11 @@ function attachEventListeners() {
     };
   }
   
-  const exportBtn = document.getElementById('exportCsvBtn');
-  if (exportBtn) exportBtn.onclick = exportCrewCsv;
+    const exportBtn = document.getElementById('exportCsvBtn');
+    if (exportBtn) exportBtn.onclick = exportCrewCsv;
   
-  const costCalcBtn = document.getElementById('crewCostCalcBtn');
-  if (costCalcBtn) costCalcBtn.onclick = showCrewCostCalcModal;
+    const costCalcBtn = document.getElementById('crewCostCalcBtn');
+    if (costCalcBtn) costCalcBtn.onclick = showCrewCostCalcModal;
   
   // Save changes button
   const saveBtn = document.getElementById('saveChangesBtn');

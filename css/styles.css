@@ -1329,6 +1329,18 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
   padding-top: 12px;
 }
 
+/* Non-owner compact layout */
+.filter-sort-bar.non-owner-layout {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.filter-sort-bar.non-owner-layout select,
+.filter-sort-bar.non-owner-layout input[type="text"] {
+  flex: 1;
+  min-width: 200px;
+}
+
 .add-date-btn {
   display: inline-flex;
   align-items: center;
@@ -2011,6 +2023,27 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
   /* Compact filter bar on mobile */
   .filter-sort-bar {
     gap: 8px;
+  }
+  
+  /* Non-owner layout on mobile - keep filter and search on same line */
+  .filter-sort-bar.non-owner-layout {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+    width: 100%;
+  }
+  
+  .filter-sort-bar.non-owner-layout select {
+    grid-column: 1;
+  }
+  
+  .filter-sort-bar.non-owner-layout input[type="text"] {
+    grid-column: 2;
+  }
+  
+  .filter-sort-bar.non-owner-layout button {
+    grid-column: 1 / -1;
+    width: 100%;
   }
   
   .add-date-btn {
