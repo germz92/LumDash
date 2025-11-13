@@ -1232,6 +1232,79 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
   margin-bottom: 16px;
 }
 
+.title-with-save {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 20px;
+}
+
+.title-text {
+  flex: 1;
+  text-align: center;
+}
+
+.save-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+  min-width: 180px;
+}
+
+.save-status {
+  font-size: 13px;
+  font-weight: 500;
+  color: #6c757d;
+  transition: all 0.3s ease;
+}
+
+.save-status.unsaved {
+  color: #ffc107;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.save-changes-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #28a745 0%, #20873a 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+}
+
+.save-changes-btn:hover {
+  background: linear-gradient(135deg, #20873a 0%, #1e7e34 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+}
+
+.save-changes-btn:active {
+  transform: translateY(0);
+}
+
+.save-changes-btn .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.save-changes-btn.saving {
+  background: #6c757d;
+  cursor: wait;
+  pointer-events: none;
+}
+
 .crew-title h1 {
   font-size: 1.8rem;
   font-weight: 700;
@@ -1247,58 +1320,6 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
   text-transform: uppercase;
 }
 
-.top-nav-bar {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding: 12px 0;
-  border-bottom: 1px solid #e9ecef;
-}
-
-.top-nav-bar input[type="date"] {
-  padding: 10px 14px;
-  font-size: 14px;
-  border: 2px solid #dee2e6;
-  border-radius: 8px;
-  background: #fff;
-}
-
-.top-nav-bar input[type="date"]:focus {
-  outline: none;
-  border-color: #CC0007;
-  box-shadow: 0 0 0 4px rgba(204, 0, 7, 0.1);
-}
-
-.top-nav-bar button.add-btn {
-  padding: 10px 20px;
-  background: linear-gradient(135deg, #CC0007 0%, #a30006 100%);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  cursor: pointer;
-  text-transform: uppercase;
-  transition: all 0.3s ease;
-}
-
-.top-nav-bar button.add-btn:hover {
-  background: linear-gradient(135deg, #a30006 0%, #8a0005 100%);
-  transform: translateY(-2px);
-}
-
-#crewCount {
-  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
-  padding: 10px 20px;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #495057;
-  border: 2px solid #dee2e6;
-}
-
 .filter-sort-bar {
   display: flex;
   justify-content: center;
@@ -1306,6 +1327,32 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
   flex-wrap: wrap;
   gap: 12px;
   padding-top: 12px;
+}
+
+.add-date-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #CC0007 0%, #a30006 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(204, 0, 7, 0.2);
+}
+
+.add-date-btn:hover {
+  background: linear-gradient(135deg, #a30006 0%, #8a0005 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(204, 0, 7, 0.3);
+}
+
+.add-date-btn .material-symbols-outlined {
+  font-size: 20px;
 }
 
 .filter-sort-bar select,
@@ -1752,11 +1799,228 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
   background: #5a6268;
 }
 
+/* Input Modal */
+.input-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease;
+}
+
+.input-modal-content {
+  background: #fff;
+  border-radius: 16px;
+  max-width: 420px;
+  width: 92vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  padding: 32px;
+  animation: slideUp 0.3s ease;
+}
+
+.input-modal-content h3 {
+  color: #CC0007;
+  margin: 0 0 20px 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.input-modal-field {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 16px;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  font-family: 'Roboto', sans-serif;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.input-modal-field:focus {
+  outline: none;
+  border-color: #CC0007;
+  box-shadow: 0 0 0 4px rgba(204, 0, 7, 0.1);
+}
+
+.input-modal-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.input-modal-buttons button {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.input-confirm-btn {
+  background: linear-gradient(135deg, #28a745 0%, #20873a 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.3);
+}
+
+.input-confirm-btn:hover {
+  background: linear-gradient(135deg, #20873a 0%, #1e7e34 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(40, 167, 69, 0.4);
+}
+
+.input-cancel-btn {
+  background: #6c757d;
+  color: white;
+}
+
+.input-cancel-btn:hover {
+  background: #5a6268;
+}
+
+/* Date Picker Modal */
+.date-picker-modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(0, 0, 0, 0.5);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 10000;
+  animation: fadeIn 0.2s ease;
+}
+
+.date-picker-content {
+  background: #fff;
+  border-radius: 16px;
+  max-width: 420px;
+  width: 92vw;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  padding: 32px;
+  animation: slideUp 0.3s ease;
+}
+
+.date-picker-content h3 {
+  color: #CC0007;
+  margin: 0 0 20px 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.date-picker-input {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 16px;
+  border: 2px solid #dee2e6;
+  border-radius: 8px;
+  margin-bottom: 24px;
+  font-family: 'Roboto', sans-serif;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.date-picker-input:focus {
+  outline: none;
+  border-color: #CC0007;
+  box-shadow: 0 0 0 4px rgba(204, 0, 7, 0.1);
+}
+
+.date-picker-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+}
+
+.date-picker-buttons button {
+  padding: 10px 24px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 15px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.date-picker-confirm-btn {
+  background: linear-gradient(135deg, #CC0007 0%, #a30006 100%);
+  color: white;
+  box-shadow: 0 4px 12px rgba(204, 0, 7, 0.3);
+}
+
+.date-picker-confirm-btn:hover {
+  background: linear-gradient(135deg, #a30006 0%, #8a0005 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(204, 0, 7, 0.4);
+}
+
+.date-picker-cancel-btn {
+  background: #6c757d;
+  color: white;
+}
+
+.date-picker-cancel-btn:hover {
+  background: #5a6268;
+}
+
 @media (max-width: 768px) {
   .crew-title h1 { font-size: 1.4rem; }
   .date-section { padding: 16px; }
   .date-section h2 { font-size: 1.2rem; }
   .hide-mobile { display: none !important; }
+  
+  /* Stack title and save button on mobile */
+  .title-with-save {
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .title-text {
+    text-align: center;
+  }
+  
+  .save-controls {
+    align-items: center;
+    width: 100%;
+  }
+  
+  .save-changes-btn {
+    width: 100%;
+    max-width: 300px;
+    justify-content: center;
+  }
+  
+  /* Compact filter bar on mobile */
+  .filter-sort-bar {
+    gap: 8px;
+  }
+  
+  .add-date-btn {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+  
+  .add-date-btn .material-symbols-outlined {
+    font-size: 18px;
+  }
   
   /* Make table scroll horizontally on mobile */
   .table-wrapper {

@@ -1,4 +1,4 @@
-// CREW PAGE v3.0 - SIMPLIFIED AUTO-SAVE VERSION
+// CREW PAGE v4.0 - SAVE BUTTON + LOCALSTORAGE VERSION
 (function() {
 window.initPage = undefined;
 window.token = window.token || localStorage.getItem('token');
@@ -30,13 +30,22 @@ let cachedRoles = [
 ];
 let isOwner = false;
 let reloadTimeout = null;
-let saveTimeouts = {}; // For debouncing auto-save
 
-// Socket.IO real-time updates
+// State management for unsaved changes
+let hasUnsavedChanges = false;
+let changedRows = new Set(); // Track which rows changed
+let deletedRows = new Set(); // Track deleted rows
+
+// Socket.IO real-time updates - disabled when there are unsaved changes
 if (window.socket) {
   window.socket.on('crewChanged', (data) => {
     const currentTableId = getCurrentTableId();
     if (data && data.tableId && data.tableId !== currentTableId) {
+      return;
+    }
+    // Don't reload if user has unsaved changes
+    if (hasUnsavedChanges) {
+      console.log('Crew data changed remotely, but you have unsaved changes. Save or discard first.');
       return;
     }
     console.log('Crew data changed, reloading...');
@@ -51,12 +60,80 @@ if (window.socket) {
     if (data && data.tableId && data.tableId !== currentTableId) {
       return;
     }
+    // Don't reload if user has unsaved changes
+    if (hasUnsavedChanges) {
+      console.log('Table updated remotely, but you have unsaved changes. Save or discard first.');
+      return;
+    }
     console.log('Table updated, reloading...');
     tableId = currentTableId;
     
     if (reloadTimeout) clearTimeout(reloadTimeout);
     reloadTimeout = setTimeout(() => loadTable(), 500);
   });
+}
+
+// Update save status UI
+function updateSaveStatus() {
+  const saveBtn = document.getElementById('saveChangesBtn');
+  const saveStatus = document.getElementById('saveStatus');
+  
+  if (!saveBtn || !saveStatus) return;
+  
+  if (hasUnsavedChanges) {
+    saveBtn.style.display = 'inline-flex';
+    saveStatus.textContent = 'Unsaved changes';
+    saveStatus.classList.add('unsaved');
+  } else {
+    saveBtn.style.display = 'none';
+    saveStatus.textContent = 'All changes saved';
+    saveStatus.classList.remove('unsaved');
+  }
+}
+
+// Mark as changed
+function markChanged(rowId) {
+  changedRows.add(rowId);
+  hasUnsavedChanges = true;
+  updateSaveStatus();
+  saveToLocalStorage();
+}
+
+// Save to localStorage as backup
+function saveToLocalStorage() {
+  try {
+    const backup = {
+      tableData: tableData,
+      changedRows: Array.from(changedRows),
+      deletedRows: Array.from(deletedRows),
+      timestamp: Date.now()
+    };
+    localStorage.setItem(`crew_backup_${tableId}`, JSON.stringify(backup));
+  } catch (e) {
+    console.warn('Failed to save to localStorage:', e);
+  }
+}
+
+// Load from localStorage
+function loadFromLocalStorage() {
+  try {
+    const backup = localStorage.getItem(`crew_backup_${tableId}`);
+    if (backup) {
+      const data = JSON.parse(backup);
+      // Check if backup is less than 24 hours old
+      if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
+        return data;
+      }
+    }
+  } catch (e) {
+    console.warn('Failed to load from localStorage:', e);
+  }
+  return null;
+}
+
+// Clear localStorage backup
+function clearLocalStorage() {
+  localStorage.removeItem(`crew_backup_${tableId}`);
 }
 
 function goBack() {
@@ -82,6 +159,7 @@ function formatTime(timeStr) {
 }
 
 function formatDateLocal(dateStr) {
+  if (!dateStr) return 'No Date';
   const [year, month, day] = dateStr.split('-').map(Number);
   const date = new Date(year, month - 1, day);
   return date.toLocaleDateString('en-US', {
@@ -120,16 +198,9 @@ async function loadTable() {
   isOwner = Array.isArray(tableData.owners) && tableData.owners.includes(userId);
 
   // Update UI based on ownership
-  if (!isOwner) {
-    const addDateBtn = document.getElementById('addDateBtn');
-    if (addDateBtn) addDateBtn.style.display = 'none';
-    const newDateInput = document.getElementById('newDate');
-    if (newDateInput) newDateInput.style.display = 'none';
-  } else {
-    const addDateBtn = document.getElementById('addDateBtn');
-    if (addDateBtn) addDateBtn.style.display = 'inline-block';
-    const newDateInput = document.getElementById('newDate');
-    if (newDateInput) newDateInput.style.display = 'inline-block';
+  const addDateBtn = document.getElementById('addDateBtn');
+  if (addDateBtn) {
+    addDateBtn.style.display = isOwner ? 'inline-flex' : 'none';
   }
 
   if (!cachedUsers.length) await preloadUsers();
@@ -156,10 +227,10 @@ function renderTableSection() {
   container.innerHTML = '';
 
   const filterDropdown = document.getElementById('filterDate');
-  const sortDirection = document.getElementById('sortDirection')?.value || 'asc';
   const searchQuery = document.getElementById('searchInput')?.value.toLowerCase() || '';
 
-  let dates = [...new Set(tableData.rows.map(row => row.date))];
+  // Get unique dates, filtering out any undefined/null values
+  let dates = [...new Set(tableData.rows.map(row => row.date).filter(d => d))];
   dates.sort((a, b) => new Date(a) - new Date(b));
 
   if (filterDropdown) {
@@ -177,9 +248,7 @@ function renderTableSection() {
     dates = dates.filter(d => d === selectedDate);
   }
 
-  if (sortDirection === 'desc') {
-    dates.reverse();
-  }
+  // Always show oldest first (already sorted above)
 
   const visibleNames = new Set();
 
@@ -365,30 +434,29 @@ function renderTableSection() {
     container.appendChild(sectionBox);
   });
 
-  const crewCountEl = document.getElementById('crewCount');
-  if (crewCountEl) {
-    crewCountEl.innerHTML = `<strong>Crew Count: ${visibleNames.size}</strong>`;
-  }
-
-  // Crew List button for owners
-  if (isOwner) {
-    let crewListBtn = document.getElementById('crewListBtn');
-    if (!crewListBtn) {
-      crewListBtn = document.createElement('button');
-      crewListBtn.id = 'crewListBtn';
-      crewListBtn.textContent = 'Crew List';
-      crewListBtn.title = 'View all crew members';
-      crewListBtn.onclick = showCrewListModal;
-      const btnContainer = document.getElementById('crewListBtnContainer');
-      if (btnContainer) {
+  // Crew List button for owners only
+  const btnContainer = document.getElementById('crewListBtnContainer');
+  if (btnContainer) {
+    if (isOwner) {
+      let crewListBtn = document.getElementById('crewListBtn');
+      if (!crewListBtn) {
+        crewListBtn = document.createElement('button');
+        crewListBtn.id = 'crewListBtn';
+        crewListBtn.textContent = 'Crew List';
+        crewListBtn.title = 'View all crew members';
+        crewListBtn.onclick = showCrewListModal;
         btnContainer.innerHTML = '';
         btnContainer.appendChild(crewListBtn);
       }
+    } else {
+      // Hide for non-owners
+      btnContainer.innerHTML = '';
+      btnContainer.style.display = 'none';
     }
   }
 }
 
-// Make a cell editable (inline editing)
+// Make a cell editable (inline editing) - NO AUTO-SAVE VERSION
 function makeEditable(cell, row) {
   // Don't re-edit if already editing
   if (cell.classList.contains('editing')) return;
@@ -441,197 +509,323 @@ function makeEditable(cell, row) {
   cell.appendChild(input);
   input.focus();
   
-  // Handle saving on blur or enter
-  const saveAndExit = () => {
-    const newValue = input.value;
-    
-    // Remove input and show display immediately (don't wait for save)
-    input.remove();
-    displaySpan.style.display = '';
-    cell.classList.remove('editing');
-    
-    // Handle special "add new" options
+  // Track if we've already handled "add new" to prevent double modal
+  let addNewHandled = false;
+  
+  // For dropdowns, immediately show modal if "Add new" is selected
+  if (field === 'name' || field === 'role') {
+    input.addEventListener('change', async (e) => {
+      if (e.target.value === '__add_new__') {
+        addNewHandled = true; // Mark as handled
+        
+        // Immediately show the modal
+        const title = field === 'name' ? 'Add New Name' : 'Add New Role';
+        const placeholder = field === 'name' ? 'Enter name...' : 'Enter role...';
+        
+        const newValue = await showInputModal(title, placeholder);
+        
+        if (newValue) {
+          let valueToSet = null;
+          
+          if (field === 'name') {
+            if (!cachedUsers.some(u => u.name === newValue)) {
+              cachedUsers.push({ name: newValue });
+              cachedUsers.sort((a, b) => a.name.localeCompare(b.name));
+              
+              // Rebuild dropdown with new option
+              input.innerHTML = `
+                <option value="">-- Select Name --</option>
+                ${cachedUsers.map(u => `<option value="${u.name}" ${u.name === newValue ? 'selected' : ''}>${u.name}</option>`).join('')}
+                <option value="__add_new__">+ Add new name</option>
+              `;
+              input.value = newValue;
+              valueToSet = newValue;
+            } else {
+              showMessage('This name already exists', 'error');
+              input.value = currentValue;
+            }
+          } else if (field === 'role') {
+            if (!cachedRoles.includes(newValue)) {
+              cachedRoles.push(newValue);
+              cachedRoles.sort();
+              
+              // Rebuild dropdown with new option
+              input.innerHTML = `
+                <option value="">-- Select Role --</option>
+                ${cachedRoles.map(r => `<option value="${r}" ${r === newValue ? 'selected' : ''}>${r}</option>`).join('')}
+                <option value="__add_new__">+ Add new role</option>
+              `;
+              input.value = newValue;
+              valueToSet = newValue;
+            } else {
+              showMessage('This role already exists', 'error');
+              input.value = currentValue;
+            }
+          }
+          
+          // Actually save the value to the row data
+          if (valueToSet && valueToSet !== currentValue) {
+            row[field] = valueToSet;
+            displaySpan.textContent = valueToSet;
+            markChanged(rowId);
+          }
+        } else {
+          // User cancelled, reset to previous value
+          input.value = currentValue;
+        }
+      }
+    });
+  }
+  
+  // Get next editable cell for Tab navigation
+  const getNextEditableCell = () => {
+    const tr = cell.closest('tr');
+    const cells = Array.from(tr.querySelectorAll('.owner-editable'));
+    const currentIndex = cells.indexOf(cell);
+    return cells[currentIndex + 1] || null;
+  };
+  
+  const getPreviousEditableCell = () => {
+    const tr = cell.closest('tr');
+    const cells = Array.from(tr.querySelectorAll('.owner-editable'));
+    const currentIndex = cells.indexOf(cell);
+    return cells[currentIndex - 1] || null;
+  };
+  
+  // Update local data only (no API calls)
+  const updateValue = async (newValue) => {
+    // Skip if "add new" was already handled by change event
     if (newValue === '__add_new__') {
+      if (addNewHandled) {
+        console.log('⏭️ Skipping __add_new__ (already handled by change event)');
+        return; // Already handled by the change event
+      }
+      
+      // Fallback: handle it here if change event didn't fire
       if (field === 'name') {
-        const customName = prompt('Enter new name:');
+        const customName = await showInputModal('Add New Name', 'Enter name...');
         if (customName && !cachedUsers.some(u => u.name === customName)) {
           cachedUsers.push({ name: customName });
           cachedUsers.sort((a, b) => a.name.localeCompare(b.name));
-          displaySpan.textContent = customName;
-          // Save asynchronously without blocking
-          saveFieldChange(rowId, field, customName);
+          newValue = customName;
+        } else if (customName && cachedUsers.some(u => u.name === customName)) {
+          showMessage('This name already exists', 'error');
+          return;
+        } else {
+          return;
         }
       } else if (field === 'role') {
-        const customRole = prompt('Enter new role:');
+        const customRole = await showInputModal('Add New Role', 'Enter role...');
         if (customRole && !cachedRoles.includes(customRole)) {
           cachedRoles.push(customRole);
           cachedRoles.sort();
-          displaySpan.textContent = customRole;
-          // Save asynchronously without blocking
-          saveFieldChange(rowId, field, customRole);
+          newValue = customRole;
+        } else if (customRole && cachedRoles.includes(customRole)) {
+          showMessage('This role already exists', 'error');
+          return;
+        } else {
+          return;
         }
       }
-    } else if (newValue !== currentValue) {
-      // Update display immediately to show the new value
+    }
+    
+    // Only update if value changed
+    if (newValue !== currentValue) {
+      // Update local data
+      row[field] = newValue;
+      
+      // Update display
       if (field === 'startTime' || field === 'endTime') {
         displaySpan.textContent = formatTime(newValue);
-        // Update total hours display
+        // Recalculate hours
+        row.totalHours = calculateHours(row.startTime, row.endTime);
         const tr = cell.closest('tr');
         const hoursCell = tr.querySelector('.total-hours-cell');
         if (hoursCell) {
-          const row = tableData.rows.find(r => r._id === rowId);
-          if (row) {
-            row[field] = newValue;
-            row.totalHours = calculateHours(row.startTime, row.endTime);
-            hoursCell.textContent = row.totalHours;
-          }
+          hoursCell.textContent = row.totalHours;
         }
       } else {
         displaySpan.textContent = newValue || (field === 'notes' ? '' : 'Click to add');
       }
       
-      // Save asynchronously without blocking (don't await)
-      saveFieldChange(rowId, field, newValue);
+      // Mark as changed
+      markChanged(rowId);
     }
   };
   
-  input.addEventListener('blur', saveAndExit);
-  input.addEventListener('keydown', (e) => {
+  // Exit edit mode and restore cell
+  const exitEdit = () => {
+    if (!input.parentNode) return; // Already removed
+    input.remove();
+    displaySpan.style.display = '';
+    cell.classList.remove('editing');
+  };
+  
+  // Simple blur handler
+  input.addEventListener('blur', () => {
+    // Small delay to allow clicking other cells
+    setTimeout(async () => {
+      if (input.parentNode) {
+        await updateValue(input.value);
+        exitEdit();
+      }
+    }, 100);
+  });
+  
+  // Handle keyboard navigation
+  input.addEventListener('keydown', async (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      saveAndExit();
+      await updateValue(input.value);
+      exitEdit();
+    } else if (e.key === 'Tab') {
+      e.preventDefault();
+      await updateValue(input.value);
+      exitEdit();
+      
+      // Move to next/previous field
+      const targetCell = e.shiftKey ? getPreviousEditableCell() : getNextEditableCell();
+      if (targetCell) {
+        const targetRow = tableData.rows.find(r => r._id === targetCell.getAttribute('data-row-id'));
+        if (targetRow) {
+          setTimeout(() => makeEditable(targetCell, targetRow), 50);
+        }
+      }
     } else if (e.key === 'Escape') {
-      // Cancel edit
-      input.remove();
-      displaySpan.style.display = '';
-      cell.classList.remove('editing');
+      e.preventDefault();
+      // Cancel without saving
+      exitEdit();
     }
   });
 }
 
-// Auto-save field changes
-async function handleFieldChange(rowId, field, value, debounce = false) {
-  console.log(`📝 Field changed: ${field} = ${value} for row ${rowId}`);
-  
-  // Handle special cases for add new
-  if (field === 'name' && value === '__add_new__') {
-    handleAddNewName(rowId);
+// Bulk save all changes to the server
+async function saveAllChanges() {
+  if (!hasUnsavedChanges) {
+    showMessage('No changes to save', 'info');
     return;
   }
   
-  if (field === 'role' && value === '__add_new__') {
-    handleAddNewRole(rowId);
-    return;
+  const saveBtn = document.getElementById('saveChangesBtn');
+  const saveStatus = document.getElementById('saveStatus');
+  
+  if (saveBtn) {
+    saveBtn.classList.add('saving');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="material-symbols-outlined">hourglass_empty</span> Saving...';
   }
   
-  // Update local data immediately for responsive UI
-  const row = tableData.rows.find(r => r._id === rowId);
-  if (row) {
-    row[field] = value;
-    
-    // Recalculate hours if time changed
-    if (field === 'startTime' || field === 'endTime') {
-      row.totalHours = calculateHours(row.startTime, row.endTime);
-    }
+  if (saveStatus) {
+    saveStatus.textContent = 'Saving...';
   }
   
-  // Debounce for text inputs (notes)
-  if (debounce) {
-    if (saveTimeouts[rowId]) {
-      clearTimeout(saveTimeouts[rowId]);
-    }
-    saveTimeouts[rowId] = setTimeout(() => {
-      saveFieldChange(rowId, field, value);
-    }, 1000); // Wait 1 second after typing stops
-  } else {
-    // Immediate save for dropdowns and time inputs
-    await saveFieldChange(rowId, field, value);
-  }
-}
-
-// Save field change to database
-async function saveFieldChange(rowId, field, value) {
   try {
-    showSaveIndicator(rowId, 'saving');
+    console.log(`💾 Saving changes: ${changedRows.size} modified, ${deletedRows.size} deleted`);
     
-    const row = tableData.rows.find(r => r._id === rowId);
-    if (!row) {
-      throw new Error('Row not found');
+    let successCount = 0;
+    let failCount = 0;
+    
+    // Step 1: Handle all updates in parallel (safe - different rows)
+    const updatePromises = [];
+    for (const rowId of changedRows) {
+      // Skip if this row is also being deleted
+      if (deletedRows.has(rowId)) {
+        console.log(`⏭️ Skipping save for ${rowId} (marked for deletion)`);
+        continue;
+      }
+      
+      const row = tableData.rows.find(r => r._id === rowId);
+      if (row) {
+        console.log(`📝 Updating row ${rowId}`);
+        updatePromises.push(
+          fetch(`${API_BASE}/api/tables/${tableId}/rows/${rowId}`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: token
+            },
+            body: JSON.stringify(row)
+          }).then(res => {
+            if (res.ok) {
+              console.log(`✅ Update ${rowId} succeeded`);
+              successCount++;
+            } else {
+              console.error(`❌ Update ${rowId} failed:`, res.status);
+              failCount++;
+            }
+            return res;
+          })
+        );
+      }
     }
     
-    // Update the field value in the row object
-    row[field] = value;
-    
-    // Recalculate total hours if time field changed
-    if (field === 'startTime' || field === 'endTime') {
-      row.totalHours = calculateHours(row.startTime, row.endTime);
+    // Wait for all updates to complete
+    if (updatePromises.length > 0) {
+      await Promise.all(updatePromises);
     }
     
-    console.log(`💾 Saving ${field} = "${value}" for row ${rowId}`);
-    console.log('📦 Row data being sent:', row);
-    
-    const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows/${rowId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: token
-      },
-      body: JSON.stringify(row)
-    });
-    
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('❌ API Error:', response.status, errorText);
-      throw new Error(`Save failed: ${response.status} - ${errorText}`);
+    // Step 2: Handle deletes SEQUENTIALLY to avoid version conflicts
+    for (const rowId of deletedRows) {
+      console.log(`🗑️ Deleting row ${rowId}`);
+      try {
+        const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows-by-id/${rowId}`, {
+          method: 'DELETE',
+          headers: { Authorization: token }
+        });
+        
+        if (response.ok) {
+          console.log(`✅ Delete ${rowId} succeeded`);
+          successCount++;
+        } else {
+          const errorText = await response.text();
+          console.error(`❌ Delete ${rowId} failed:`, response.status, errorText);
+          failCount++;
+        }
+      } catch (error) {
+        console.error(`❌ Delete ${rowId} error:`, error);
+        failCount++;
+      }
     }
     
-    const result = await response.json();
-    console.log(`✅ Saved ${field} for row ${rowId}`, result);
-    showSaveIndicator(rowId, 'saved');
-    
-  } catch (error) {
-    console.error('❌ Failed to save:', error);
-    showSaveIndicator(rowId, 'error');
-    showMessage(`Failed to save ${field}. Please try again.`, 'error');
-  }
-}
-
-// Show save indicator on the row
-function showSaveIndicator(rowId, status) {
-  const row = document.getElementById(`row-${rowId}`);
-  if (!row) return;
-  
-  // Don't show indicator if user is actively editing in this row
-  // This prevents focus loss during rapid field transitions
-  if (row.querySelector('.inline-edit-input')) {
-    return;
-  }
-  
-  // Use requestAnimationFrame to defer DOM manipulation
-  // This prevents interference with focus events
-  requestAnimationFrame(() => {
-    // Double-check that user isn't editing anymore
-    if (row.querySelector('.inline-edit-input')) {
+    // Check if we had any operations
+    if (successCount === 0 && failCount === 0) {
+      console.log('⚠️ No changes to save');
+      hasUnsavedChanges = false;
+      updateSaveStatus();
       return;
     }
     
-    // Remove existing indicators
-    row.classList.remove('saving', 'saved', 'error');
-    
-    if (status === 'saving') {
-      row.classList.add('saving');
-    } else if (status === 'saved') {
-      row.classList.add('saved');
-      setTimeout(() => {
-        row.classList.remove('saved');
-      }, 2000);
-    } else if (status === 'error') {
-      row.classList.add('error');
-      setTimeout(() => {
-        row.classList.remove('error');
-      }, 3000);
+    if (failCount === 0) {
+      console.log(`✅ All ${successCount} changes saved successfully`);
+      
+      // Clear changed tracking
+      changedRows.clear();
+      deletedRows.clear();
+      hasUnsavedChanges = false;
+      
+      // Clear localStorage backup
+      clearLocalStorage();
+      
+      // Update UI
+      updateSaveStatus();
+      showMessage(`All ${successCount} changes saved successfully`, 'success');
+      
+      // Reload to get any updates from server
+      setTimeout(() => loadTable(), 500);
+    } else {
+      throw new Error(`${failCount} of ${successCount + failCount} operations failed`);
     }
-  });
+    
+  } catch (error) {
+    console.error('❌ Failed to save changes:', error);
+    showMessage('Failed to save some changes. Please try again.', 'error');
+  } finally {
+    if (saveBtn) {
+      saveBtn.classList.remove('saving');
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<span class="material-symbols-outlined">save</span> Save Changes';
+    }
+  }
 }
 
 // Add new name
@@ -693,8 +887,6 @@ async function addRow(date) {
   if (!isOwner) return;
   
   try {
-    showMessage('Adding row...', 'info');
-    
     const newRow = {
       date,
       name: '',
@@ -704,6 +896,8 @@ async function addRow(date) {
       totalHours: 0,
       notes: ''
     };
+    
+    console.log('📝 Adding new row:', newRow);
     
     const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows`, {
       method: 'POST',
@@ -715,21 +909,36 @@ async function addRow(date) {
     });
     
     if (!response.ok) {
+      const errorText = await response.text();
+      console.error('❌ API Error:', response.status, errorText);
       throw new Error(`Failed to add row: ${response.status}`);
     }
     
-    const savedRow = await response.json();
-    console.log('✅ Row added:', savedRow);
+    const result = await response.json();
+    console.log('✅ Server response:', result);
     
-    // Add to local data
-    if (savedRow.row) {
-      tableData.rows.push(savedRow.row);
+    // Handle different response formats
+    const savedRow = result.row || result;
+    
+    if (savedRow && savedRow._id) {
+      // Ensure date is set correctly
+      if (!savedRow.date) {
+        savedRow.date = date;
+        console.log('⚠️ Date was missing from server response, using original date:', date);
+      }
+      
+      // Add to local data
+      tableData.rows.push(savedRow);
+      console.log('✅ Row added to local data:', savedRow);
+      
+      // Re-render immediately
+      renderTableSection();
+      updateCrewCount();
+      showMessage('Row added successfully!', 'success');
+    } else {
+      console.error('❌ Invalid response format:', result);
+      throw new Error('Invalid response from server');
     }
-    
-    // Re-render
-    renderTableSection();
-    updateCrewCount();
-    showMessage('Row added successfully!', 'success');
     
   } catch (error) {
     console.error('❌ Failed to add row:', error);
@@ -747,47 +956,126 @@ async function deleteRow(rowId) {
   
   const confirmed = await showDeleteConfirmation(
     'Delete Crew Member',
-    `Are you sure you want to delete ${rowName}? This action cannot be undone.`
+    `Are you sure you want to delete ${rowName}? This will be saved when you click "Save Changes".`
   );
   
   if (!confirmed) return;
   
-  try {
-    showMessage('Deleting row...', 'info');
+  console.log(`🗑️ Deleting row ${rowId}`);
+  
+  // Mark for deletion (will be saved with Save Changes button)
+  deletedRows.add(rowId);
+  hasUnsavedChanges = true;
+  
+  // Remove from local display immediately
+  const beforeLength = tableData.rows.length;
+  tableData.rows = tableData.rows.filter(r => r._id !== rowId);
+  const afterLength = tableData.rows.length;
+  
+  console.log(`✅ Removed from local data: ${beforeLength} → ${afterLength} rows`);
+  
+  // Update UI
+  updateSaveStatus();
+  saveToLocalStorage();
+  renderTableSection();
+  updateCrewCount();
+  
+  showMessage(`${rowName || 'Row'} will be deleted when you save changes`, 'info');
+}
+
+// Show date picker modal
+function showDatePickerModal() {
+  return new Promise((resolve) => {
+    // Remove any existing modal
+    const existingModal = document.querySelector('.date-picker-modal');
+    if (existingModal) existingModal.remove();
     
-    const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows-by-id/${rowId}`, {
-      method: 'DELETE',
-      headers: { Authorization: token }
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'date-picker-modal';
+    
+    // Get today's date in YYYY-MM-DD format
+    const today = new Date().toISOString().split('T')[0];
+    
+    modal.innerHTML = `
+      <div class="date-picker-content">
+        <h3>
+          <span class="material-symbols-outlined">event</span>
+          Add New Date
+        </h3>
+        <input type="date" id="datePickerInput" class="date-picker-input" value="${today}" />
+        <div class="date-picker-buttons">
+          <button class="date-picker-cancel-btn" id="datePickerCancel">Cancel</button>
+          <button class="date-picker-confirm-btn" id="datePickerConfirm">Add Date</button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    const dateInput = document.getElementById('datePickerInput');
+    const cancelBtn = document.getElementById('datePickerCancel');
+    const confirmBtn = document.getElementById('datePickerConfirm');
+    
+    // Focus the input field
+    setTimeout(() => dateInput.focus(), 100);
+    
+    // Handle cancel
+    const handleCancel = () => {
+      modal.style.animation = 'fadeOut 0.2s ease';
+      setTimeout(() => {
+        modal.remove();
+        resolve(null);
+      }, 200);
+    };
+    
+    // Handle confirm
+    const handleConfirm = () => {
+      const date = dateInput.value;
+      if (date) {
+        modal.style.animation = 'fadeOut 0.2s ease';
+        setTimeout(() => {
+          modal.remove();
+          resolve(date);
+        }, 200);
+      } else {
+        dateInput.focus();
+      }
+    };
+    
+    cancelBtn.addEventListener('click', handleCancel);
+    confirmBtn.addEventListener('click', handleConfirm);
+    
+    // Enter key to confirm
+    dateInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleConfirm();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCancel();
+      }
     });
     
-    if (!response.ok) {
-      throw new Error(`Delete failed: ${response.status}`);
-    }
-    
-    // Remove from local data
-    tableData.rows = tableData.rows.filter(r => r._id !== rowId);
-    
-    // Re-render
-    renderTableSection();
-    updateCrewCount();
-    showMessage('Row deleted successfully!', 'success');
-    
-  } catch (error) {
-    console.error('❌ Failed to delete row:', error);
-    showMessage('Failed to delete row. Please try again.', 'error');
-  }
+    // Click outside to cancel
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        handleCancel();
+      }
+    });
+  });
 }
 
 // Add new date section
 async function addDateSection() {
   if (!isOwner) return;
   
-  const date = document.getElementById('newDate').value;
-  if (!date) return alert('Please select a date');
+  const date = await showDatePickerModal();
+  if (!date) return; // User cancelled
   
   const exists = tableData.rows.some(row => row.date === date);
   if (exists) {
-    alert('This date already exists.');
+    showMessage('This date already exists.', 'error');
     return;
   }
   
@@ -832,43 +1120,40 @@ async function deleteDate(date) {
   if (!isOwner) return;
   
   // Count rows for this date
-  const rowCount = tableData.rows.filter(row => row.date === date).length;
+  const dateRows = tableData.rows.filter(row => row.date === date);
+  const rowCount = dateRows.length;
   const formattedDate = formatDateLocal(date);
   
   const confirmed = await showDeleteConfirmation(
     'Delete Entire Date',
-    `Are you sure you want to delete ${formattedDate} and all ${rowCount} crew member${rowCount !== 1 ? 's' : ''} assigned to this date? This action cannot be undone.`
+    `Are you sure you want to delete ${formattedDate} and all ${rowCount} crew member${rowCount !== 1 ? 's' : ''} assigned to this date? This will be saved when you click "Save Changes".`
   );
   
   if (!confirmed) return;
   
-  try {
-    showMessage('Deleting date...', 'info');
-    
-    // Remove rows for this date
-    tableData.rows = tableData.rows.filter(row => row.date !== date);
-    
-    // Update database
-    const response = await fetch(`${API_BASE}/api/tables/${tableId}`, {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: token
-      },
-      body: JSON.stringify({ rows: tableData.rows })
-    });
-    
-    if (!response.ok) {
-      throw new Error(`Failed to delete date: ${response.status}`);
-    }
-    
-    await loadTable();
-    showMessage(`Date ${formattedDate} deleted successfully!`, 'success');
-    
-  } catch (error) {
-    console.error('❌ Failed to delete date:', error);
-    showMessage('Failed to delete date. Please try again.', 'error');
-  }
+  console.log(`🗑️ Deleting date ${date} (${rowCount} rows)`);
+  
+  // Mark all rows for this date as deleted
+  dateRows.forEach(row => {
+    deletedRows.add(row._id);
+  });
+  
+  hasUnsavedChanges = true;
+  
+  // Remove from local display immediately
+  const beforeLength = tableData.rows.length;
+  tableData.rows = tableData.rows.filter(row => row.date !== date);
+  const afterLength = tableData.rows.length;
+  
+  console.log(`✅ Removed ${beforeLength - afterLength} rows from local data`);
+  
+  // Update UI
+  updateSaveStatus();
+  saveToLocalStorage();
+  renderTableSection();
+  updateCrewCount();
+  
+  showMessage(`Date ${formattedDate} will be deleted when you save changes`, 'info');
 }
 
 // Drag and drop for reordering
@@ -918,40 +1203,27 @@ async function saveRowOrder() {
 
 // Update crew count
 function updateCrewCount() {
-  const names = tableData.rows
-    .map(row => (row.name || '').trim())
-    .filter(name => name.length > 0);
-
-  const uniqueNames = [...new Set(names)];
-  const crewCountEl = document.getElementById('crewCount');
-  if (crewCountEl) {
-    crewCountEl.innerHTML = `<strong>Crew Count: ${uniqueNames.length}</strong>`;
-  }
+  // Crew count removed - now shown in crew list modal
 }
 
 // Filter functions
 function saveFilterState() {
   const filterDate = document.getElementById('filterDate')?.value || '';
   const searchInput = document.getElementById('searchInput')?.value || '';
-  const sortDirection = document.getElementById('sortDirection')?.value || 'asc';
   
   localStorage.setItem(`crew_filter_date_${tableId}`, filterDate);
   localStorage.setItem(`crew_search_${tableId}`, searchInput);
-  localStorage.setItem(`crew_sort_${tableId}`, sortDirection);
 }
 
 function restoreFilterState() {
   const savedFilterDate = localStorage.getItem(`crew_filter_date_${tableId}`) || '';
   const savedSearch = localStorage.getItem(`crew_search_${tableId}`) || '';
-  const savedSort = localStorage.getItem(`crew_sort_${tableId}`) || 'asc';
   
   const filterDateEl = document.getElementById('filterDate');
   const searchInputEl = document.getElementById('searchInput');
-  const sortDirectionEl = document.getElementById('sortDirection');
   
   if (filterDateEl) filterDateEl.value = savedFilterDate;
   if (searchInputEl) searchInputEl.value = savedSearch;
-  if (sortDirectionEl) sortDirectionEl.value = savedSort;
 }
 
 // Show message to user
@@ -986,6 +1258,88 @@ function showMessage(message, type = 'info') {
 }
 
 // Show custom confirmation modal
+// Show input modal for adding new items
+function showInputModal(title, placeholder, defaultValue = '') {
+  return new Promise((resolve) => {
+    // Remove any existing modal
+    const existingModal = document.querySelector('.input-modal');
+    if (existingModal) existingModal.remove();
+    
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'input-modal';
+    modal.innerHTML = `
+      <div class="input-modal-content">
+        <h3>
+          <span class="material-symbols-outlined">add_circle</span>
+          ${title}
+        </h3>
+        <input type="text" id="inputModalField" class="input-modal-field" placeholder="${placeholder}" value="${defaultValue}" />
+        <div class="input-modal-buttons">
+          <button class="input-cancel-btn" id="inputModalCancel">Cancel</button>
+          <button class="input-confirm-btn" id="inputModalConfirm">Add</button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    const inputField = document.getElementById('inputModalField');
+    const cancelBtn = document.getElementById('inputModalCancel');
+    const confirmBtn = document.getElementById('inputModalConfirm');
+    
+    // Focus the input field
+    setTimeout(() => {
+      inputField.focus();
+      inputField.select();
+    }, 100);
+    
+    // Handle cancel
+    const handleCancel = () => {
+      modal.style.animation = 'fadeOut 0.2s ease';
+      setTimeout(() => {
+        modal.remove();
+        resolve(null);
+      }, 200);
+    };
+    
+    // Handle confirm
+    const handleConfirm = () => {
+      const value = inputField.value.trim();
+      if (value) {
+        modal.style.animation = 'fadeOut 0.2s ease';
+        setTimeout(() => {
+          modal.remove();
+          resolve(value);
+        }, 200);
+      } else {
+        inputField.focus();
+      }
+    };
+    
+    cancelBtn.addEventListener('click', handleCancel);
+    confirmBtn.addEventListener('click', handleConfirm);
+    
+    // Enter key to confirm
+    inputField.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        handleConfirm();
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        handleCancel();
+      }
+    });
+    
+    // Click outside to cancel
+    modal.addEventListener('click', (e) => {
+      if (e.target === modal) {
+        handleCancel();
+      }
+    });
+  });
+}
+
 function showDeleteConfirmation(title, message) {
   return new Promise((resolve) => {
     // Remove any existing modal
@@ -1335,14 +1689,6 @@ function attachEventListeners() {
     };
   }
   
-  const sortDirection = document.getElementById('sortDirection');
-  if (sortDirection) {
-    sortDirection.onchange = () => {
-      saveFilterState();
-      renderTableSection();
-    };
-  }
-  
   const searchInput = document.getElementById('searchInput');
   if (searchInput) {
     searchInput.oninput = () => {
@@ -1356,6 +1702,29 @@ function attachEventListeners() {
   
   const costCalcBtn = document.getElementById('crewCostCalcBtn');
   if (costCalcBtn) costCalcBtn.onclick = showCrewCostCalcModal;
+  
+  // Save changes button
+  const saveBtn = document.getElementById('saveChangesBtn');
+  if (saveBtn) saveBtn.onclick = saveAllChanges;
+  
+  // Ctrl+S keyboard shortcut
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      if (hasUnsavedChanges) {
+        saveAllChanges();
+      }
+    }
+  });
+  
+  // Warn before navigation if unsaved changes
+  window.addEventListener('beforeunload', (e) => {
+    if (hasUnsavedChanges) {
+      e.preventDefault();
+      e.returnValue = 'You have unsaved changes. Are you sure you want to leave?';
+      return e.returnValue;
+    }
+  });
 }
 
 // Initialize page
@@ -1372,8 +1741,8 @@ window.addDateSection = addDateSection;
 window.addRow = addRow;
 window.deleteRow = deleteRow;
 window.deleteDate = deleteDate;
-window.handleFieldChange = handleFieldChange;
 window.makeEditable = makeEditable;
+window.saveAllChanges = saveAllChanges;
 window.exportCrewCsv = exportCrewCsv;
 window.showCrewListModal = showCrewListModal;
 window.showCrewCostCalcModal = showCrewCostCalcModal;

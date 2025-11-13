@@ -21,7 +21,19 @@ function getUserIdFromToken() {
 function showCreateModal() {
   const modal = document.getElementById('createModal');
   if (modal) {
+    // Move modal to body to escape page-container stacking context
+    if (modal.parentElement && modal.parentElement.id === 'page-container') {
+      console.log('[CREATE_MODAL] Moving modal from page-container to body');
+      document.body.appendChild(modal);
+    }
+    
+    // Force display and ensure visibility
     modal.style.display = 'flex';
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
+    modal.style.zIndex = '10000';
+    modal.style.position = 'fixed';
+    modal.style.inset = '0';
     
     // Add click-outside functionality
     setTimeout(() => {
@@ -584,6 +596,8 @@ function renderCalendar(events) {
 
 async function openShareModal(tableId) {
   try {
+    console.log('[SHARE_MODAL] Opening share modal for table:', tableId);
+    
     // First fetch the table to check ownership
     const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
       headers: { Authorization: token }
@@ -608,8 +622,29 @@ async function openShareModal(tableId) {
     // If owner, proceed with opening the share modal
     currentTableId = tableId;
     const shareModal = document.getElementById('shareModal');
+    console.log('[SHARE_MODAL] Found shareModal element:', !!shareModal);
+    
+    if (!shareModal) {
+      console.error('[SHARE_MODAL] shareModal element not found in DOM!');
+      alert('Error: Share modal not found. Please refresh the page.');
+      return;
+    }
+    
     if (shareModal) {
+      // Move modal to body to escape page-container stacking context
+      if (shareModal.parentElement && shareModal.parentElement.id === 'page-container') {
+        console.log('[SHARE_MODAL] Moving modal from page-container to body');
+        document.body.appendChild(shareModal);
+      }
+      
+      // Force display and ensure visibility
       shareModal.style.display = 'flex';
+      shareModal.style.visibility = 'visible';
+      shareModal.style.opacity = '1';
+      shareModal.style.zIndex = '10000';
+      shareModal.style.position = 'fixed';
+      shareModal.style.inset = '0';
+      console.log('[SHARE_MODAL] Modal display set to flex and moved to body');
       
       // Add click-outside functionality
       setTimeout(() => {
@@ -715,6 +750,12 @@ async function openShareModal(tableId) {
     
     // Initialize autofill functionality
     setupUserAutofill();
+    
+    console.log('[SHARE_MODAL] Modal setup complete. Lists populated:', {
+      owners: owners.length,
+      leads: leads.length,
+      shared: shared.length
+    });
 
     // Helper to submit role change and refresh modal
     async function submitRoleChange(email, makeOwner, makeLead) {

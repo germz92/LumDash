@@ -60,6 +60,10 @@ let lastKnownEventId = null; // Add this declaration
 // Store the intended event ID at module level to prevent external interference
 let currentEventId = null;
 
+// Track recently modified checkbox states to prevent race conditions
+const recentCheckboxChanges = new Map(); // programIndex -> {checked: boolean, timestamp: number}
+const CHECKBOX_CHANGE_PROTECTION_WINDOW = 2000; // 2 seconds
+
 // Add logging utility for event ID tracking - SIMPLIFIED VERSION
 function logEventIdState(location) {
   const timestamp = new Date().toISOString();
@@ -573,7 +577,29 @@ async function loadPrograms(tableId = null, retryCount = 0) {
       }
     }
     
+    // Before overwriting local data, preserve any recently changed checkbox states
+    const now = Date.now();
+    const protectedChanges = [];
+    recentCheckboxChanges.forEach((change, indexStr) => {
+      const index = parseInt(indexStr);
+      if (now - change.timestamp < CHECKBOX_CHANGE_PROTECTION_WINDOW) {
+        protectedChanges.push({ index, checked: change.checked });
+      }
+    });
+    
     tableData.programs = loadedPrograms;
+    
+    // Re-apply protected checkbox changes after loading
+    if (protectedChanges.length > 0) {
+      console.log(`✅ [LOAD] Protecting ${protectedChanges.length} recent checkbox changes from being overwritten`);
+      protectedChanges.forEach(({ index, checked }) => {
+        if (tableData.programs[index]) {
+          console.log(`[LOAD] Preserving checkbox state for program ${index}: ${checked}`);
+          tableData.programs[index].done = checked;
+        }
+      });
+    }
+    
     console.log(`✅ [LOAD] Programs loaded for event ${eventId}, count: ${tableData.programs.length}`);
     
     // Mark that we've successfully loaded data
@@ -840,6 +866,23 @@ function renderProgramSections(hasScheduleAccess) {
       focusInfo.programIndex = entry.getAttribute('data-program-index');
     }
   }
+
+  // --- CRITICAL FIX: Preserve checkbox states before clearing DOM ---
+  // This prevents checkbox states from being lost when adding rows
+  const checkboxStates = new Map();
+  container.querySelectorAll('.program-entry').forEach(entry => {
+    const programIndex = entry.getAttribute('data-program-index');
+    const checkbox = entry.querySelector('.done-checkbox');
+    if (checkbox && programIndex !== null) {
+      // Store the CURRENT DOM state, which is the source of truth for user interaction
+      checkboxStates.set(programIndex, checkbox.checked);
+      // Also sync to tableData to ensure data consistency
+      if (tableData.programs[programIndex]) {
+        tableData.programs[programIndex].done = checkbox.checked;
+      }
+    }
+  });
+  console.log(`[RENDER] Preserved ${checkboxStates.size} checkbox states before re-render`);
 
   container.innerHTML = '';
 
@@ -1122,6 +1165,18 @@ function toggleDone(checkbox, index) {
   
   // Update in-memory data immediately for responsive UI
   program.done = newValue;
+  
+  // Track this change to protect against race conditions from socket reloads
+  recentCheckboxChanges.set(String(index), {
+    checked: newValue,
+    timestamp: Date.now()
+  });
+  console.log(`[TOGGLE DONE] Tracked checkbox change for program ${index} (protection for ${CHECKBOX_CHANGE_PROTECTION_WINDOW}ms)`);
+  
+  // Clean up old tracking entries after protection window expires
+  setTimeout(() => {
+    recentCheckboxChanges.delete(String(index));
+  }, CHECKBOX_CHANGE_PROTECTION_WINDOW);
   
   // Update the data attribute to reflect the new original value
   checkbox.setAttribute('data-original-value', newValue ? 'true' : 'false');

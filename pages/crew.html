@@ -9,29 +9,29 @@
     <div class="header-inner">
       <!-- Title Section -->
       <div class="crew-title">
-        <h1 id="tableTitle">Loading Event...</h1>
-        <h2>Crew Management</h2>
-      </div>
-      
-      <!-- Top Navigation: Add Date & Crew Count -->
-      <div class="top-nav-bar">
-        <input id="newDate" type="date" title="Select a date to add">
-        <button id="addDateBtn" class="add-btn">
-          Add Date
-        </button>
-        <div id="crewCount">
-          <strong>Crew Count: 0</strong>
+        <div class="title-with-save">
+          <div class="title-text">
+            <h1 id="tableTitle">Loading Event...</h1>
+            <h2>Crew Management</h2>
+          </div>
+          <div class="save-controls">
+            <span id="saveStatus" class="save-status">All changes saved</span>
+            <button id="saveChangesBtn" class="save-changes-btn" style="display: none;">
+              <span class="material-symbols-outlined">save</span>
+              Save Changes
+            </button>
+          </div>
         </div>
       </div>
       
-      <!-- Filter & Sort Controls -->
+      <!-- Compact Filter & Controls Bar -->
       <div class="filter-sort-bar">
+        <button id="addDateBtn" class="add-date-btn" title="Add a new date">
+          <span class="material-symbols-outlined">add</span>
+          Add Date
+        </button>
         <select id="filterDate" title="Filter by date">
           <option value="">Show All Dates</option>
-        </select>
-        <select id="sortDirection" title="Sort order">
-          <option value="asc">Oldest First</option>
-          <option value="desc">Newest First</option>
         </select>
         <input type="text" id="searchInput" placeholder="Search crew..." title="Search by name, role, or notes">
         <div id="crewListBtnContainer"></div>

@@ -89,37 +89,3 @@
     </div>
   </div>
   <script>console.log('✅ events.html loaded');</script>
-  <script src="https://unpkg.com/lucide@latest"></script>
-  <script>if(window.lucide) lucide.createIcons();</script>
-
-  <!-- Socket.IO for real-time updates -->
-  <script>
-    function loadScriptsSequentially(scripts, index = 0) {
-      if (index >= scripts.length) return;
-      
-      const script = document.createElement('script');
-      script.src = scripts[index];
-      
-      script.onload = function() {
-        loadScriptsSequentially(scripts, index + 1);
-      };
-      
-      script.onerror = function() {
-        console.error('Failed to load script:', scripts[index]);
-        loadScriptsSequentially(scripts, index + 1);
-      };
-      
-      document.head.appendChild(script);
-    }
-    
-    // Load the Socket.IO libraries in order
-    if (typeof API_BASE !== 'undefined') {
-      loadScriptsSequentially([
-        'https://cdn.socket.io/4.7.2/socket.io.min.js',
-        '../js/socket.js',
-        '../js/events.js'
-      ]);
-    } else {
-      console.error('API_BASE not defined, cannot load Socket.IO');
-    }
-  </script>
