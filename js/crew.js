@@ -302,34 +302,8 @@ function renderTableSection() {
     wrapper.className = 'table-wrapper';
 
     const table = document.createElement('table');
-    table.style.tableLayout = 'fixed';
-    table.style.width = '100%';
-    
-    // Column widths - include action column for owners
-    if (isOwner) {
-      table.innerHTML = `
-        <colgroup>
-          <col style="width: 16%;">
-          <col style="width: 12%;">
-          <col style="width: 12%;">
-          <col style="width: 8%;">
-          <col style="width: 19%;">
-          <col style="width: 19%;">
-          <col style="width: 14%;">
-        </colgroup>
-      `;
-    } else {
-      table.innerHTML = `
-        <colgroup>
-          <col style="width: 18%;">
-          <col style="width: 14%;">
-          <col style="width: 14%;">
-          <col style="width: 9%;">
-          <col style="width: 22%;">
-          <col style="width: 23%;">
-        </colgroup>
-      `;
-    }
+    // Let CSS handle table layout and width for responsive behavior
+    // Column widths are defined in styles.css using nth-child selectors
 
     const thead = document.createElement('thead');
     if (isOwner) {
@@ -426,6 +400,31 @@ function renderTableSection() {
         tr.querySelectorAll('.owner-editable').forEach(cell => {
           cell.addEventListener('click', () => makeEditable(cell, row));
         });
+      }
+      
+      // Add click-to-expand for notes on mobile (non-owners and owners when not editing)
+      if (window.innerWidth <= 768) {
+        const notesCell = tr.querySelector('td:nth-child(6) .cell-display');
+        if (notesCell && notesCell.textContent.trim()) {
+          // Use setTimeout to ensure CSS is applied before checking dimensions
+          setTimeout(() => {
+            // Check if content is truncated (scrollHeight will be greater if clamped)
+            const isOverflowing = notesCell.scrollHeight > notesCell.clientHeight + 2; // +2px threshold
+            
+            if (isOverflowing) {
+              notesCell.classList.add('notes-truncated');
+              
+              notesCell.addEventListener('click', (e) => {
+                // Only toggle if not in edit mode
+                if (!notesCell.closest('td').querySelector('.inline-edit-input')) {
+                  e.stopPropagation();
+                  notesCell.classList.toggle('notes-truncated');
+                  notesCell.classList.toggle('notes-expanded');
+                }
+              });
+            }
+          }, 50);
+        }
       }
     
       if (row.name && row.name.trim()) {
