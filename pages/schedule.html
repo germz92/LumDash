@@ -14,6 +14,10 @@
       <button id="exportBtn" class="export-btn" style="margin-left: 8px; background-color: #28a745;">Export to Excel</button>
       <input type="file" id="fileImport" accept=".csv,.xlsx,.xls" style="display: none;">
       <a href="#" id="downloadTemplateBtn" onclick="downloadImportTemplate()" style="margin-left: 8px; font-size: 14px; color: #4a5568;">Download Template</a>
+      <button id="viewToggleBtn" class="view-toggle-btn desktop-only" onclick="toggleScheduleView()" style="margin-left: 16px;">
+        <span class="material-symbols-outlined">view_module</span>
+        <span id="viewToggleText">Card View</span>
+      </button>
     </div>
 
     <div id="searchFilterContainer" class="top-controls">
@@ -26,4 +30,5 @@
   </div>
 
   <div id="programSections" class="program-container"></div>
+  <div id="scheduleTableView" class="schedule-table-view"></div>
 </div>

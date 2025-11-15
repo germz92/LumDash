@@ -4639,4 +4639,375 @@ function initPhase2Features() {
   }
 }
 
+// =============================================================================
+// TABLE VIEW FUNCTIONALITY (Desktop Only)
+// =============================================================================
+
+let currentView = 'table'; // Default to table view
+const SCHEDULE_VIEW_KEY = 'schedule_view_preference';
+
+// Initialize view on page load
+function initializeScheduleView() {
+  // Only for desktop
+  if (window.innerWidth <= 768) {
+    currentView = 'cards';
+    console.log('[TABLE VIEW] Mobile detected - using card view');
+    // Ensure card container is visible on mobile
+    const cardContainer = document.getElementById('programSections');
+    const tableContainer = document.getElementById('scheduleTableView');
+    if (cardContainer) {
+      cardContainer.classList.remove('hidden');
+      cardContainer.style.display = ''; // Restore flex layout
+    }
+    if (tableContainer) {
+      tableContainer.classList.remove('active');
+    }
+    return;
+  }
+  
+  // Load saved preference or default to table
+  const savedView = localStorage.getItem(SCHEDULE_VIEW_KEY);
+  currentView = savedView || 'table';
+  
+  console.log(`[TABLE VIEW] Initialized with view: ${currentView}`);
+  applyScheduleView();
+}
+
+// Toggle between card and table view
+window.toggleScheduleView = function() {
+  // Only works on desktop
+  if (window.innerWidth <= 768) {
+    console.log('[TABLE VIEW] Toggle disabled on mobile');
+    return;
+  }
+  
+  currentView = currentView === 'cards' ? 'table' : 'cards';
+  localStorage.setItem(SCHEDULE_VIEW_KEY, currentView);
+  
+  console.log(`[TABLE VIEW] Switched to ${currentView} view`);
+  applyScheduleView();
+};
+
+// Apply the current view
+function applyScheduleView() {
+  const cardContainer = document.getElementById('programSections');
+  const tableContainer = document.getElementById('scheduleTableView');
+  const toggleBtn = document.getElementById('viewToggleBtn');
+  const toggleText = document.getElementById('viewToggleText');
+  const toggleIcon = toggleBtn?.querySelector('.material-symbols-outlined');
+  
+  if (!cardContainer || !tableContainer) {
+    console.warn('[TABLE VIEW] Containers not found');
+    return;
+  }
+  
+  if (currentView === 'table') {
+    // Show table view, hide cards
+    cardContainer.classList.add('hidden');
+    cardContainer.style.display = 'none';
+    tableContainer.classList.add('active');
+    // Button shows what you'll SWITCH TO (cards), not current view
+    if (toggleText) toggleText.textContent = 'Card View';
+    if (toggleIcon) toggleIcon.textContent = 'view_module';
+    
+    // Render table
+    renderScheduleTable();
+  } else {
+    // Show card view, hide table
+    cardContainer.classList.remove('hidden');
+    cardContainer.style.display = ''; // Remove inline style to restore CSS flex display
+    tableContainer.classList.remove('active');
+    // Button shows what you'll SWITCH TO (table), not current view
+    if (toggleText) toggleText.textContent = 'Table View';
+    if (toggleIcon) toggleIcon.textContent = 'table_chart';
+  }
+}
+
+// Render schedule as table
+function renderScheduleTable() {
+  const tableContainer = document.getElementById('scheduleTableView');
+  if (!tableContainer) return;
+  
+  console.log('[TABLE VIEW] Rendering schedule table');
+  
+  tableContainer.innerHTML = '';
+  
+  if (!tableData || !tableData.programs || tableData.programs.length === 0) {
+    tableContainer.innerHTML = '<div style="text-align:center;padding:40px;color:#777;">No programs yet. Add a new date to get started.</div>';
+    return;
+  }
+  
+  // Group by dates
+  const dates = [...new Set(tableData.programs.map(p => p.date))].sort((a, b) => a.localeCompare(b));
+  
+  dates.forEach(date => {
+    const matchingPrograms = tableData.programs
+      .map((p, i) => ({ ...p, __index: i }))
+      .filter(p => p.date === date && matchesSearch(p))
+      .sort((a, b) => {
+        const aHasTime = a.startTime && a.startTime.trim() !== '';
+        const bHasTime = b.startTime && b.startTime.trim() !== '';
+        
+        if (aHasTime && bHasTime) {
+          return a.startTime.localeCompare(b.startTime);
+        }
+        if (aHasTime && !bHasTime) return -1;
+        if (!aHasTime && bHasTime) return 1;
+        return a.__index - b.__index;
+      });
+    
+    if (matchingPrograms.length === 0) return;
+    
+    const section = document.createElement('div');
+    section.className = 'schedule-table-section';
+    section.setAttribute('data-date', date);
+    
+    const dateHeader = document.createElement('div');
+    dateHeader.className = 'date-header';
+    dateHeader.innerHTML = `
+      <div>${formatDate(date)}</div>
+      ${isOwner ? `<button class="delete-date-btn" onclick="deleteDate('${date}')"><span class="material-symbols-outlined">delete</span></button>` : ''}
+    `;
+    section.appendChild(dateHeader);
+    
+    const table = document.createElement('table');
+    
+    // Table header
+    const thead = document.createElement('thead');
+    thead.innerHTML = `
+      <tr>
+        <th>Start Time</th>
+        <th>End Time</th>
+        <th>Program Name</th>
+        <th>Location</th>
+        <th>Photographer</th>
+        <th>Notes</th>
+        <th>Done</th>
+        ${isOwner ? '<th></th>' : ''}
+      </tr>
+    `;
+    table.appendChild(thead);
+    
+    // Table body
+    const tbody = document.createElement('tbody');
+    matchingPrograms.forEach(program => {
+      const row = document.createElement('tr');
+      row.className = program.done ? 'done-row' : '';
+      row.setAttribute('data-program-index', program.__index);
+      
+      const programId = program._id || program._tempId;
+      if (programId) {
+        row.setAttribute('data-program-id', programId);
+      }
+      
+      row.innerHTML = `
+        <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-field="startTime">
+          <span class="cell-display">${formatTo12Hour(program.startTime || '')}</span>
+        </td>
+        <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-field="endTime">
+          <span class="cell-display">${formatTo12Hour(program.endTime || '')}</span>
+        </td>
+        <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-field="name">
+          <span class="cell-display">${program.name || ''}</span>
+        </td>
+        <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-field="location">
+          <span class="cell-display">${program.location || ''}</span>
+        </td>
+        <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-field="photographer">
+          <span class="cell-display">${program.photographer || ''}</span>
+        </td>
+        <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-field="notes">
+          <span class="cell-display">${program.notes || ''}</span>
+        </td>
+        <td class="done-checkbox-cell">
+          <input type="checkbox" class="done-checkbox"
+            data-field="done"
+            data-original-value="${program.done ? 'true' : 'false'}"
+            ${program.done ? 'checked' : ''}
+            ${isOwner ? `onchange="toggleDone(this, ${program.__index})"` : 'disabled'}>
+        </td>
+        ${isOwner ? `
+          <td>
+            <button class="delete-row-btn" onclick="deleteProgram(this)" title="Delete">
+              <span class="material-symbols-outlined">delete</span>
+            </button>
+          </td>
+        ` : ''}
+      `;
+      
+      tbody.appendChild(row);
+      
+      // Add inline editing for owners
+      if (isOwner) {
+        row.querySelectorAll('.owner-editable').forEach(cell => {
+          cell.addEventListener('click', () => makeTableCellEditable(cell, program));
+        });
+      }
+    });
+    
+    table.appendChild(tbody);
+    section.appendChild(table);
+    
+    // Add row button
+    if (isOwner) {
+      const addRowBtn = document.createElement('button');
+      addRowBtn.className = 'add-row-btn';
+      addRowBtn.innerHTML = '<span class="material-symbols-outlined">add</span> Add Row';
+      addRowBtn.onclick = () => addProgram(date);
+      section.appendChild(addRowBtn);
+    }
+    
+    tableContainer.appendChild(section);
+  });
+  
+  console.log('[TABLE VIEW] Table rendered successfully');
+}
+
+// Make table cell editable (inline editing)
+function makeTableCellEditable(cell, program) {
+  if (cell.classList.contains('editing')) return;
+  
+  const field = cell.getAttribute('data-field');
+  const displaySpan = cell.querySelector('.cell-display');
+  if (!displaySpan) return;
+  
+  const currentValue = program[field] || '';
+  
+  cell.classList.add('editing');
+  
+  let inputElement;
+  if (field === 'startTime' || field === 'endTime') {
+    inputElement = document.createElement('input');
+    inputElement.type = 'time';
+    inputElement.value = currentValue;
+  } else if (field === 'notes' || field === 'location') {
+    inputElement = document.createElement('textarea');
+    inputElement.value = currentValue;
+    inputElement.rows = 2;
+  } else {
+    inputElement = document.createElement('input');
+    inputElement.type = 'text';
+    inputElement.value = currentValue;
+  }
+  
+  inputElement.className = 'inline-edit-input';
+  
+  // Save on blur
+  inputElement.addEventListener('blur', () => {
+    const newValue = inputElement.value;
+    const programIndex = parseInt(cell.closest('tr').getAttribute('data-program-index'));
+    
+    if (newValue !== currentValue) {
+      // Update the program
+      const wasChanged = safeUpdateProgram(programIndex, field, newValue);
+      if (wasChanged) {
+        // Use atomic save if program has ID
+        if (program._id) {
+          atomicSaveField(inputElement, field, program._id, newValue, currentValue)
+            .then(() => console.log(`[TABLE VIEW] Saved ${field} for program ${programIndex}`))
+            .catch(err => {
+              console.error(`[TABLE VIEW] Failed to save ${field}:`, err);
+              alert('Failed to save changes. Please try again.');
+            });
+        } else {
+          scheduleSave();
+        }
+      }
+    }
+    
+    // Restore display
+    displaySpan.textContent = field === 'startTime' || field === 'endTime' ? formatTo12Hour(newValue) : newValue;
+    cell.classList.remove('editing');
+    displaySpan.style.display = 'block';
+    inputElement.remove();
+  });
+  
+  // Save on Enter (except for textarea)
+  if (inputElement.tagName !== 'TEXTAREA') {
+    inputElement.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        inputElement.blur();
+      }
+    });
+  }
+  
+  // Replace display with input
+  displaySpan.style.display = 'none';
+  cell.appendChild(inputElement);
+  inputElement.focus();
+}
+
+// Helper: Format time to 12-hour format
+function formatTo12Hour(timeStr) {
+  if (!timeStr) return '';
+  const [hour, minute] = timeStr.split(':').map(Number);
+  if (isNaN(hour) || isNaN(minute)) return timeStr;
+  
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  const adjustedHour = hour % 12 || 12;
+  return `${adjustedHour}:${minute.toString().padStart(2, '0')} ${ampm}`;
+}
+
+// Override renderProgramSections to also update table view
+const originalRenderProgramSections = renderProgramSections;
+let hasInitializedView = false;
+renderProgramSections = function(hasScheduleAccess) {
+  originalRenderProgramSections.call(this, hasScheduleAccess);
+  
+  // Initialize view on first render if not already done
+  if (!hasInitializedView && window.innerWidth > 768) {
+    hasInitializedView = true;
+    console.log('[TABLE VIEW] First render detected, initializing view');
+    setTimeout(() => {
+      initializeScheduleView();
+    }, 200);
+  }
+  
+  // Update table view if it's active
+  if (currentView === 'table' && window.innerWidth > 768) {
+    setTimeout(() => renderScheduleTable(), 100);
+  }
+};
+
+// Initialize view when page loads - multiple triggers to ensure it works
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', () => {
+    console.log('[TABLE VIEW] DOMContentLoaded triggered');
+    setTimeout(initializeScheduleView, 100);
+  });
+} else {
+  // DOM already loaded
+  console.log('[TABLE VIEW] DOM already loaded, initializing immediately');
+  setTimeout(initializeScheduleView, 100);
+}
+
+// Also try after window load as backup
+window.addEventListener('load', () => {
+  console.log('[TABLE VIEW] Window load triggered');
+  // Only initialize if not already done
+  if (!document.getElementById('scheduleTableView')?.classList.contains('active') && 
+      !document.getElementById('programSections')?.style.display) {
+    setTimeout(initializeScheduleView, 100);
+  }
+});
+
+// Re-check view on window resize
+window.addEventListener('resize', () => {
+  if (window.innerWidth <= 768) {
+    // Force card view on mobile
+    const cardContainer = document.getElementById('programSections');
+    const tableContainer = document.getElementById('scheduleTableView');
+    if (cardContainer) {
+      cardContainer.classList.remove('hidden');
+      cardContainer.style.display = ''; // Restore flex layout
+    }
+    if (tableContainer) tableContainer.classList.remove('active');
+  } else {
+    // Restore saved view on desktop
+    applyScheduleView();
+  }
+});
+
+console.log('✅ [TABLE VIEW] Table view functionality loaded');
+
 })();
