@@ -442,7 +442,17 @@ function showSaveError(message) {
 }
 
 function openDateModal() {
-  document.getElementById('date-modal').style.display = 'flex';
+  const modal = document.getElementById('date-modal');
+  if (modal) {
+    // Ensure modal is appended to body (not trapped in #page-container)
+    if (modal.parentElement !== document.body) {
+      document.body.appendChild(modal);
+    }
+    // Remove generic 'modal' class that conflicts with other CSS files
+    modal.classList.remove('modal');
+    modal.classList.add('card-log-modal');
+    modal.style.display = 'flex';
+  }
 }
 
 function closeDateModal() {
@@ -891,6 +901,27 @@ window.initPage = async function(id) {
   
   // Refresh access control for all rows to ensure owners can edit everything
   refreshAllRowAccessControl();
+  
+  // Ensure modals are moved to body element to escape #page-container overflow
+  // This fixes visibility issues in SPA setup
+  const dateModal = document.getElementById('date-modal');
+  const cardEntryModal = document.getElementById('card-entry-modal');
+  
+  if (dateModal && dateModal.parentElement !== document.body) {
+    console.log('[CARD-LOG] Moving date-modal to body element');
+    document.body.appendChild(dateModal);
+    // Remove generic 'modal' class that conflicts with other page CSS
+    dateModal.classList.remove('modal');
+    dateModal.classList.add('card-log-modal');
+  }
+  
+  if (cardEntryModal && cardEntryModal.parentElement !== document.body) {
+    console.log('[CARD-LOG] Moving card-entry-modal to body element');
+    document.body.appendChild(cardEntryModal);
+    // Remove generic 'modal' class that conflicts with other page CSS
+    cardEntryModal.classList.remove('modal');
+    cardEntryModal.classList.add('card-log-modal');
+  }
 };
 
 async function loadUsers() {
@@ -1188,6 +1219,18 @@ function openCardEntryModal(date, existingEntry = null) {
   currentEditingEntry = existingEntry;
   
   const modal = document.getElementById('card-entry-modal');
+  
+  // Ensure modal is appended to body (not trapped in #page-container)
+  if (modal && modal.parentElement !== document.body) {
+    document.body.appendChild(modal);
+  }
+  
+  // Remove generic 'modal' class that conflicts with other CSS files
+  if (modal) {
+    modal.classList.remove('modal');
+    modal.classList.add('card-log-modal');
+  }
+  
   const title = document.getElementById('card-modal-title');
   const cameraSelect = document.getElementById('card-camera-select');
   const card1Input = document.getElementById('card-card1-input');

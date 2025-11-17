@@ -83,12 +83,80 @@
 .card-log-page .delete-row-btn:hover .material-symbols-outlined {
   color: #555;
 }
-.card-log-page .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0, 0, 0, 0.5); justify-content: center; align-items: center; z-index: 1000; }
-.card-log-page .modal-content { background: white; padding: 30px; border-radius: 8px; text-align: center; width: 90%; max-width: 400px; }
-.card-log-page .modal-buttons { margin-top: 20px; display: flex; gap: 10px; justify-content: center; }
-.card-log-page .modal-buttons button { padding: 10px 16px; font-weight: bold; border: none; border-radius: 6px; cursor: pointer; }
-.card-log-page .modal-buttons button:first-child { background-color: #CC0007; color: white; }
-.card-log-page .modal-buttons button:last-child { background-color: #a1a1a1; color: white; }
+/* Modal styles - work both inside .card-log-page and when moved to body */
+/* Use specific class to avoid conflicts with other page modals */
+.card-log-page .modal,
+.card-log-modal,
+#date-modal,
+#card-entry-modal { 
+  display: none; 
+  position: fixed !important; 
+  top: 0 !important; 
+  left: 0 !important; 
+  width: 100% !important; 
+  height: 100% !important; 
+  background: rgba(0, 0, 0, 0.5) !important; 
+  justify-content: center !important; 
+  align-items: center !important; 
+  z-index: 99999 !important;
+  pointer-events: auto !important;
+}
+
+.card-log-page .modal-content,
+.card-log-modal .modal-content,
+#date-modal .modal-content,
+#card-entry-modal .modal-content { 
+  background: white !important; 
+  padding: 30px !important; 
+  border-radius: 8px !important; 
+  text-align: center; 
+  width: 90%; 
+  max-width: 400px; 
+  position: relative !important; 
+  z-index: 100000 !important;
+  pointer-events: auto !important;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3) !important;
+  margin: 0 auto !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  transform: none !important;
+}
+.card-log-page .modal-buttons,
+.card-log-modal .modal-buttons,
+#date-modal .modal-buttons,
+#card-entry-modal .modal-buttons { 
+  margin-top: 20px; 
+  display: flex; 
+  gap: 10px; 
+  justify-content: center; 
+}
+
+.card-log-page .modal-buttons button,
+.card-log-modal .modal-buttons button,
+#date-modal .modal-buttons button,
+#card-entry-modal .modal-buttons button { 
+  padding: 10px 16px; 
+  font-weight: bold; 
+  border: none; 
+  border-radius: 6px; 
+  cursor: pointer; 
+}
+
+.card-log-page .modal-buttons button:first-child,
+.card-log-modal .modal-buttons button:first-child,
+#date-modal .modal-buttons button:first-child,
+#card-entry-modal .modal-buttons button:first-child { 
+  background-color: #CC0007; 
+  color: white; 
+}
+
+.card-log-page .modal-buttons button:last-child,
+.card-log-modal .modal-buttons button:last-child,
+#date-modal .modal-buttons button:last-child,
+#card-entry-modal .modal-buttons button:last-child { 
+  background-color: #a1a1a1; 
+  color: white; 
+}
 .card-log-page td:last-child, .card-log-page th:last-child { text-align: center; white-space: nowrap; padding: 0 !important; }
 .card-log-page h1, .card-log-page h2 { text-align: center; }
 
@@ -142,6 +210,24 @@
     padding: 6px !important;
     font-size: 18px !important;
   }
+  
+  /* Ensure modals display properly on mobile */
+  .card-log-page .modal,
+  .card-log-modal,
+  #date-modal,
+  #card-entry-modal {
+    z-index: 99999 !important;
+    display: none;
+  }
+  
+  .card-log-page .modal-content,
+  .card-log-modal .modal-content,
+  #date-modal .modal-content,
+  #card-entry-modal .modal-content {
+    width: 95% !important;
+    max-width: 95vw !important;
+    z-index: 100000 !important;
+  }
 }
 
 .card-log-page input,
@@ -160,17 +246,53 @@
   vertical-align: middle; /* Align with text */
 }
 
+/* Modal heading styles */
+.card-log-page .modal-content h3,
+.card-log-modal .modal-content h3,
+#date-modal .modal-content h3,
+#card-entry-modal .modal-content h3 {
+  margin: 0 0 20px 0;
+  color: #333;
+  font-size: 1.4rem;
+  font-weight: 600;
+}
+
+/* Date input styles for date modal */
+#date-modal input[type="date"],
+.card-log-page #new-date-input {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 16px;
+  margin-bottom: 20px;
+  box-sizing: border-box;
+}
+
+#date-modal input[type="date"]:focus,
+.card-log-page #new-date-input:focus {
+  outline: none;
+  border-color: #cc0007;
+  box-shadow: 0 0 0 2px rgba(204, 0, 7, 0.1);
+}
+
 /* Card Entry Modal Styles */
-.card-log-page .card-form {
+.card-log-page .card-form,
+.card-log-modal .card-form,
+#card-entry-modal .card-form {
   text-align: left;
   margin: 20px 0;
 }
 
-.card-log-page .form-group {
+.card-log-page .form-group,
+.card-log-modal .form-group,
+#card-entry-modal .form-group {
   margin-bottom: 15px;
 }
 
-.card-log-page .form-group label {
+.card-log-page .form-group label,
+.card-log-modal .form-group label,
+#card-entry-modal .form-group label {
   display: block;
   margin-bottom: 5px;
   font-weight: bold;
@@ -178,7 +300,11 @@
 }
 
 .card-log-page .form-group input,
-.card-log-page .form-group select {
+.card-log-page .form-group select,
+.card-log-modal .form-group input,
+.card-log-modal .form-group select,
+#card-entry-modal .form-group input,
+#card-entry-modal .form-group select {
   width: 100%;
   padding: 10px;
   border: 1px solid #ccc;
@@ -188,20 +314,28 @@
 }
 
 .card-log-page .form-group input:focus,
-.card-log-page .form-group select:focus {
+.card-log-page .form-group select:focus,
+.card-log-modal .form-group input:focus,
+.card-log-modal .form-group select:focus,
+#card-entry-modal .form-group input:focus,
+#card-entry-modal .form-group select:focus {
   outline: none;
   border-color: #cc0007;
   box-shadow: 0 0 0 2px rgba(204, 0, 7, 0.1);
 }
 
-.card-log-page .form-group select:disabled {
+.card-log-page .form-group select:disabled,
+.card-log-modal .form-group select:disabled,
+#card-entry-modal .form-group select:disabled {
   background-color: #f5f5f5;
   color: #666;
   cursor: not-allowed;
   border-color: #ddd;
 }
 
-.card-log-page .form-group select:disabled::after {
+.card-log-page .form-group select:disabled::after,
+.card-log-modal .form-group select:disabled::after,
+#card-entry-modal .form-group select:disabled::after {
   content: attr(title);
   display: block;
   font-size: 12px;
