@@ -498,14 +498,31 @@ function setupEventListeners() {
     tableContainer.addEventListener('click', async (e) => {
       if (e.target.classList.contains('add-card-btn')) {
         const date = e.target.getAttribute('data-date');
-        console.log(`User clicked "Add Card" for date: ${date}`);
+        console.log(`[CARD-LOG] User clicked "Add Card" for date: ${date}`);
+        
+        // Extra validation to ensure date is valid
+        if (!date || date === 'null' || date === 'undefined') {
+          console.error('[CARD-LOG] Add Card button missing data-date attribute');
+          alert('Error: Date information is missing. Please refresh the page and try again.');
+          return;
+        }
+        
         openCardEntryModal(date);
       }
       
       // Handle row clicks for editing
       if (e.target.closest('.card-log-row') && !e.target.closest('button')) {
         const row = e.target.closest('.card-log-row');
-        const date = row.closest('.day-table').getAttribute('data-date');
+        const dayTable = row.closest('.day-table');
+        const date = dayTable ? dayTable.getAttribute('data-date') : null;
+        
+        // Validate date before proceeding
+        if (!date || date === 'null' || date === 'undefined') {
+          console.error('[CARD-LOG] Row click - missing or invalid data-date attribute');
+          alert('Error: Date information is missing. Please refresh the page and try again.');
+          return;
+        }
+        
         const entryCreatedBy = row.getAttribute('data-created-by');
         const currentUserId = getUserIdFromToken();
         
@@ -1215,6 +1232,14 @@ function addRow(date, entry = {}) {
 
 // Modal functionality for adding/editing card entries
 function openCardEntryModal(date, existingEntry = null) {
+  // Validate date parameter
+  if (!date || date === 'null' || date === 'undefined') {
+    console.error('[CARD-LOG] Invalid date passed to openCardEntryModal:', date);
+    alert('Error: No date selected. Please try again.');
+    return;
+  }
+  
+  console.log('[CARD-LOG] Opening card entry modal for date:', date);
   currentEditingDate = date;
   currentEditingEntry = existingEntry;
   
@@ -1321,6 +1346,15 @@ function closeCardEntryModal() {
 }
 
 async function saveCardEntry() {
+  // Validate that we have a valid date before saving
+  if (!currentEditingDate || currentEditingDate === 'null' || currentEditingDate === 'undefined') {
+    console.error('[CARD-LOG] Cannot save entry - invalid currentEditingDate:', currentEditingDate);
+    alert('Error: No date selected. Please close the modal and try again.');
+    return;
+  }
+  
+  console.log('[CARD-LOG] Saving card entry for date:', currentEditingDate);
+  
   const cameraSelect = document.getElementById('card-camera-select');
   const card1Input = document.getElementById('card-card1-input');
   const card2Input = document.getElementById('card-card2-input');
@@ -1424,6 +1458,14 @@ async function saveCardEntry() {
 }
 
 async function addOrUpdateCardEntry(date, entryData) {
+  // Validate date parameter
+  if (!date || date === 'null' || date === 'undefined') {
+    console.error('[CARD-LOG] Invalid date passed to addOrUpdateCardEntry:', date);
+    throw new Error('Invalid date: cannot save entry');
+  }
+  
+  console.log('[CARD-LOG] Adding/updating entry for date:', date);
+  
   // Get current card log from DOM
   const tables = document.querySelectorAll('.day-table');
   const cardLog = Array.from(tables).map(dayTable => {
