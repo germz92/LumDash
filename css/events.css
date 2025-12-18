@@ -82,7 +82,8 @@
 /* Admin buttons in top bar */
 .top-bar .btn-admin.btn-outlined,
 .top-bar .btn-inventory.btn-outlined,
-.top-bar .btn-crew-planner.btn-outlined {
+.top-bar .btn-crew-planner.btn-outlined,
+.top-bar .btn-crew-calendar.btn-outlined {
     font-size: 14px;
     padding: 8px 16px;
     white-space: nowrap;
@@ -687,7 +688,8 @@
   /* Admin buttons on mobile - make them more compact */
   .top-bar .btn-admin.btn-outlined,
   .top-bar .btn-inventory.btn-outlined,
-  .top-bar .btn-crew-planner.btn-outlined {
+  .top-bar .btn-crew-planner.btn-outlined,
+  .top-bar .btn-crew-calendar.btn-outlined {
     font-size: 10px !important;
     padding: 6px 8px !important;
     border-radius: 6px !important;
@@ -733,7 +735,8 @@
 @media (max-width: 480px) {
   .top-bar .btn-admin.btn-outlined,
   .top-bar .btn-inventory.btn-outlined,
-  .top-bar .btn-crew-planner.btn-outlined {
+  .top-bar .btn-crew-planner.btn-outlined,
+  .top-bar .btn-crew-calendar.btn-outlined {
     padding: 6px !important;
     font-size: 0 !important;
   }
@@ -744,13 +747,15 @@
   }
   
   .top-bar .btn-inventory.btn-outlined .material-symbols-outlined,
-  .top-bar .btn-crew-planner.btn-outlined .material-symbols-outlined {
+  .top-bar .btn-crew-planner.btn-outlined .material-symbols-outlined,
+  .top-bar .btn-crew-calendar.btn-outlined .material-symbols-outlined {
     font-size: 16px !important;
     margin: 0 !important;
   }
   
   .top-bar .btn-inventory.btn-outlined span:not(.material-symbols-outlined),
-  .top-bar .btn-crew-planner.btn-outlined span:not(.material-symbols-outlined) {
+  .top-bar .btn-crew-planner.btn-outlined span:not(.material-symbols-outlined),
+  .top-bar .btn-crew-calendar.btn-outlined span:not(.material-symbols-outlined) {
     display: none;
   }
 }

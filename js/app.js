@@ -86,7 +86,7 @@ console.log(' app.js loaded');
 })();
 
 const PAGE_CLASSES = [
-  'events-page', 'general-page', 'crew-page', 'travel-page', 'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'users-page', 'crew-planner-page'
+  'events-page', 'general-page', 'crew-page', 'travel-page', 'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'users-page', 'crew-planner-page', 'crew-calendar-page'
 ];
 
 function setBodyPageClass(page) {
@@ -124,7 +124,7 @@ function navigate(page, id) {
   window.currentNavigatingPage = page; // Track for debugging
   
   // Only require an ID for pages that need it
-  const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'crew-planner'].includes(page);
+  const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'crew-planner', 'crew-calendar'].includes(page);
   
   // CRITICAL FIX: Determine the final tableId to use consistently throughout navigation
   let finalId = id;
@@ -529,6 +529,7 @@ function loadPageCSS(page) {
     case 'general': cssFile = 'css/general.css'; break;
     case 'crew': cssFile = 'css/crew.css'; break;
     case 'crew-planner': cssFile = 'css/crew-planner.css'; break;
+    case 'crew-calendar': cssFile = 'css/crew-calendar.css'; break;
     case 'travel-accommodation': cssFile = 'css/travel-accommodation.css'; break;
 
     case 'card-log': cssFile = 'css/card-log.css'; break;

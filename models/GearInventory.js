@@ -74,7 +74,7 @@ gearInventorySchema.pre('save', function(next) {
 });
 
 // Method to get available quantity for given dates
-gearInventorySchema.methods.getAvailableQuantity = async function(checkOutDate, checkInDate) {
+gearInventorySchema.methods.getAvailableQuantity = function(checkOutDate, checkInDate) {
   const normalizeDate = (dateStr) => {
     const date = new Date(dateStr);
     date.setUTCHours(0, 0, 0, 0);
@@ -105,42 +105,12 @@ gearInventorySchema.methods.getAvailableQuantity = async function(checkOutDate, 
     }
   });
   
-  // Check manual reservations for date overlaps
-  const ManualReservation = require('./ManualReservation');
-  const manualReservations = await ManualReservation.find({
-    inventoryId: this._id,
-    // Only include reservations that overlap with our date range
-    $or: [
-      {
-        $and: [
-          { startDate: { $lte: reqEnd } },
-          { endDate: { $gte: reqStart } }
-        ]
-      }
-    ]
-  });
-  
-  manualReservations.forEach(reservation => {
-    const resStart = normalizeDate(reservation.startDate);
-    const resEnd = normalizeDate(reservation.endDate);
-    
-    // Skip expired reservations
-    if (resEnd < now) {
-      return;
-    }
-    
-    // Check for overlap: (startA <= endB) && (endA >= startB)
-    if (reqStart <= resEnd && reqEnd >= resStart) {
-      reservedQuantity += reservation.quantity;
-    }
-  });
-  
   return Math.max(0, this.quantity - reservedQuantity);
 };
 
 // Method to reserve quantity
-gearInventorySchema.methods.reserveQuantity = async function(eventId, userId, quantity, checkOutDate, checkInDate) {
-  const availableQty = await this.getAvailableQuantity(checkOutDate, checkInDate);
+gearInventorySchema.methods.reserveQuantity = function(eventId, userId, quantity, checkOutDate, checkInDate) {
+  const availableQty = this.getAvailableQuantity(checkOutDate, checkInDate);
   
   if (quantity > availableQty) {
     throw new Error(`Only ${availableQty} units available for the requested dates`);

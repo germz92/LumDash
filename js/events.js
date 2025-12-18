@@ -1235,6 +1235,25 @@ window.initPage = function(id) {
           };
           adminButtonsContainer.appendChild(crewPlannerBtn);
         }
+
+        // Add crew calendar button
+        let crewCalendarBtn = document.getElementById('crewCalendarBtn');
+        if (!crewCalendarBtn) {
+          crewCalendarBtn = document.createElement('button');
+          crewCalendarBtn.id = 'crewCalendarBtn';
+          crewCalendarBtn.className = 'btn-crew-calendar btn-outlined';
+          crewCalendarBtn.style.display = 'flex';
+          crewCalendarBtn.style.alignItems = 'center';
+          crewCalendarBtn.style.gap = '8px';
+          crewCalendarBtn.innerHTML = `
+            <span class="material-symbols-outlined">calendar_month</span>
+            Crew Calendar
+          `;
+          crewCalendarBtn.onclick = () => {
+            window.location.href = '/pages/crew-calendar.html';
+          };
+          adminButtonsContainer.appendChild(crewCalendarBtn);
+        }
       }
     }
   } catch (e) { console.error('Error adding admin button:', e); }
