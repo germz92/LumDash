@@ -318,21 +318,22 @@
   
   .users-page .user-table th:nth-child(4),
   .users-page .user-table td:nth-child(4) {
-    min-width: 160px;
+    min-width: 120px;
   }
   
   .users-page .action-buttons {
     flex-direction: column;
-    gap: 3px;
-    min-width: 140px;
+    gap: 2px;
+    min-width: 110px;
   }
   
   .users-page .action-btn {
     width: 100%;
     text-align: center;
-    font-size: 11px;
-    padding: 3px 8px;
-    height: 24px;
+    font-size: 10px;
+    padding: 2px 6px;
+    height: 22px;
+    border-radius: 4px;
   }
   
   .modal-content {
@@ -390,20 +391,31 @@
   }
   
   .users-page .user-table {
-    min-width: 400px;
-    font-size: 12px;
+    min-width: 350px;
+    font-size: 11px;
   }
   
   .users-page .user-table th,
   .users-page .user-table td {
-    padding: 4px 6px;
-    font-size: 12px;
+    padding: 3px 4px;
+    font-size: 11px;
+  }
+  
+  .users-page .user-table th:nth-child(4),
+  .users-page .user-table td:nth-child(4) {
+    min-width: 90px;
+  }
+  
+  .users-page .action-buttons {
+    min-width: 80px;
+    gap: 1px;
   }
   
   .users-page .action-btn {
-    font-size: 10px;
-    padding: 2px 6px;
-    height: 20px;
+    font-size: 9px;
+    padding: 1px 4px;
+    height: 18px;
+    border-radius: 3px;
   }
   
   .modal-content {
@@ -411,4 +423,48 @@
     padding: 12px;
     margin: 4px;
   }
-} 
+}
+
+/* Extra extra small devices - use abbreviated button text */
+@media (max-width: 360px) {
+  .users-page .user-table {
+    min-width: 320px;
+    font-size: 10px;
+  }
+  
+  .users-page .user-table th,
+  .users-page .user-table td {
+    padding: 2px 3px;
+    font-size: 10px;
+  }
+  
+  .users-page .user-table th:nth-child(4),
+  .users-page .user-table td:nth-child(4) {
+    min-width: 70px;
+  }
+  
+  .users-page .action-buttons {
+    min-width: 60px;
+    gap: 1px;
+  }
+  
+  .users-page .action-btn {
+    font-size: 8px;
+    padding: 1px 2px;
+    height: 16px;
+    border-radius: 2px;
+  }
+  
+  /* Use abbreviated text for buttons on very small screens */
+  .users-page .action-btn.btn-edit::before { content: "Edit"; }
+  .users-page .action-btn.btn-delete::before { content: "Del"; }
+  .users-page .action-btn.btn-reset::before { content: "Reset"; }
+  
+  .users-page .action-btn {
+    font-size: 0; /* Hide original text */
+  }
+  
+  .users-page .action-btn::before {
+    font-size: 8px;
+  }
+}

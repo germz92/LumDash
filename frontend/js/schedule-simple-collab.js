@@ -31,6 +31,8 @@ function init(eventId, userId, userName) {
     console.log('🚫 Simple collaboration disabled - not on schedule page');
     return;
   }
+  
+  console.log('🤝 Initializing collaboration with UI notifications disabled...');
 
   const sessionId = Date.now() + '-' + Math.random().toString(36).substr(2, 9);
   
@@ -49,12 +51,22 @@ function init(eventId, userId, userName) {
   console.log('   User Name:', userName);
   console.log('   User Color:', collabState.currentUser.color);
   
+  // IMMEDIATE: Remove any existing collaboration indicators on init
+  const existingContainer = document.getElementById('active-collab-users');
+  if (existingContainer) {
+    existingContainer.remove();
+    console.log('🗑️ [COLLAB] Removed existing collaboration indicator on init');
+  }
+
   if (window.socket) {
     setupSocketListeners();
     attachFieldListeners();
     collabState.isEnabled = true;
-    console.log('✅ Simple collaboration enabled for:', userName);
+    console.log('✅ Simple collaboration enabled for:', userName, '(UI notifications disabled)');
     console.log('🔌 Socket status:', window.socket.connected ? 'Connected' : 'Mock/Disconnected');
+    
+    // Start aggressive mobile notification cleanup
+    startMobileNotificationCleanup();
     
     // Join the event room for real-time collaboration
     if (window.socket.connected) {
@@ -81,11 +93,82 @@ function init(eventId, userId, userName) {
         color: collabState.currentUser.color,
         joinedAt: Date.now()
       });
-      updateActiveUsersDisplay();
+      // updateActiveUsersDisplay(); // DISABLED: prevents mobile header blocking
     }
   } else {
     console.warn('⚠️ Socket not available - collaboration disabled');
   }
+  
+  // Note: Periodic cleanup removed - collaboration indicators disabled at source instead
+}
+
+// UI cleanup function - only removes user count notifications, preserves functionality
+function cleanupUserCountNotifications() {
+  console.log('🧹 [COLLAB] Cleaning up user count notifications only...');
+  
+  // Only remove user count displays, not collaboration functionality
+  const userCountSelectors = [
+    '#active-collab-users',
+    '.active-users-indicator',
+    '.collab-header', 
+    '.collab-title',
+    '.presence-container',
+    '#presence-indicators'
+  ];
+  
+  userCountSelectors.forEach(selector => {
+    const elements = document.querySelectorAll(selector);
+    elements.forEach(el => {
+      // Only remove if it contains user count text
+      if (el.textContent.toLowerCase().includes('active users') || 
+          el.textContent.toLowerCase().includes('collaborating')) {
+        el.remove();
+        console.log(`🗑️ [COLLAB] Removed user count notification: ${selector}`);
+      }
+    });
+  });
+}
+
+// Aggressive mobile notification cleanup - runs continuously to catch any mobile-specific notifications
+function startMobileNotificationCleanup() {
+  console.log('📱 [MOBILE] Starting aggressive mobile notification cleanup...');
+  
+  function mobileCleanup() {
+    // Check for any element containing collaboration text
+    const allElements = document.querySelectorAll('*');
+    allElements.forEach(el => {
+      const text = el.textContent.toLowerCase();
+      
+      // Remove elements with collaboration notifications
+      if (text.match(/\d+\s+user.*collaborating/) || 
+          text.includes('user collaborating') ||
+          text.includes('users collaborating') ||
+          text.includes('active users:') ||
+          (text.includes('collaborating') && text.length < 50)) { // Short text likely to be notification
+        
+        // Make sure it's not part of larger content
+        const parent = el.parentElement;
+        if (!parent || !parent.classList.contains('program-entry')) {
+          el.remove();
+          console.log(`🗑️ [MOBILE] Removed collaboration notification: "${el.textContent}"`);
+        }
+      }
+    });
+    
+    // Also remove any fixed position elements that might be notifications
+    const fixedElements = document.querySelectorAll('[style*="position: fixed"], [style*="position:fixed"]');
+    fixedElements.forEach(el => {
+      const text = el.textContent.toLowerCase();
+      if (text.includes('collaborating') || text.includes('active users')) {
+        el.remove();
+        console.log(`🗑️ [MOBILE] Removed fixed notification: "${el.textContent}"`);
+      }
+    });
+  }
+  
+  // Run cleanup immediately and then every 1 second to catch mobile notifications
+  mobileCleanup();
+  setInterval(mobileCleanup, 1000);
 }
 
 // Store handler references for proper cleanup
@@ -559,7 +642,8 @@ function handleRemoteProgramAdded(data) {
   // Reload the schedule to show the new program
   if (window.loadPrograms) {
     window.loadPrograms().then(() => {
-      showNotification(`${data.userName} added a new program`, 'info');
+      // showNotification disabled to prevent mobile UI interference
+      console.log(`🔕 [PROGRAM] Notification disabled: ${data.userName} added a new program`);
     });
   }
 }
@@ -570,7 +654,8 @@ function handleRemoteProgramDeleted(data) {
   // Reload the schedule to reflect the deletion
   if (window.loadPrograms) {
     window.loadPrograms().then(() => {
-      showNotification(`${data.userName} deleted a program`, 'info');
+      // showNotification disabled to prevent mobile UI interference
+      console.log(`🔕 [PROGRAM] Notification disabled: ${data.userName} deleted a program`);
     });
   }
 }
@@ -581,70 +666,16 @@ function handleRemoteScheduleReload() {
   // Reload the entire schedule
   if (window.loadPrograms) {
     window.loadPrograms().then(() => {
-      showNotification('Schedule updated by another user', 'info');
+      // showNotification disabled to prevent mobile UI interference
+      console.log(`🔕 [SCHEDULE] Notification disabled: Schedule updated by another user`);
     });
   }
 }
 
 function showNotification(message, type = 'info') {
-  // Define colors for different notification types
-  const colors = {
-    'info': '#4ECDC4',
-    'join': '#45B7D1',
-    'leave': '#FFA726',
-    'error': '#FF6B6B',
-    'success': '#4CAF50'
-  };
-  
-  // Simple notification system
-  const notification = document.createElement('div');
-  notification.style.cssText = `
-    position: fixed;
-    top: 20px;
-    right: 20px;
-    background: ${colors[type] || colors.info};
-    color: white;
-    padding: 12px 20px;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-    z-index: 10000;
-    font-size: 14px;
-    max-width: 300px;
-    animation: slideIn 0.3s ease-out;
-  `;
-  
-  // Add icon based on type
-  const icons = {
-    'join': '👥',
-    'leave': '👋',
-    'info': 'ℹ️',
-    'error': '❌',
-    'success': '✅'
-  };
-  
-  const icon = icons[type] || '';
-  notification.textContent = `${icon} ${message}`.trim();
-  
-  // Add animation CSS if not exists
-  if (!document.getElementById('collab-notification-styles')) {
-    const style = document.createElement('style');
-    style.id = 'collab-notification-styles';
-    style.textContent = `
-      @keyframes slideIn {
-        from { transform: translateX(100%); opacity: 0; }
-        to { transform: translateX(0); opacity: 1; }
-      }
-    `;
-    document.head.appendChild(style);
-  }
-  
-  document.body.appendChild(notification);
-  
-  // Auto-remove after 3 seconds
-  setTimeout(() => {
-    notification.style.animation = 'slideIn 0.3s ease-out reverse';
-    setTimeout(() => notification.remove(), 300);
-  }, 3000);
+  // DISABLED: All collaboration notifications disabled to prevent mobile UI interference
+  console.log(`🔕 [NOTIFICATION] Disabled: ${type} - ${message}`);
+  return;
 }
 
 // =============================================================================
@@ -695,6 +726,8 @@ function broadcastScheduleReload() {
 
 function cleanup() {
   console.log('🧹 [CLEANUP] Starting simple collaboration cleanup...');
+  
+  // Note: Cleanup interval management removed - no longer needed
   
   // Remove event listeners
   document.removeEventListener('focusin', handleFieldFocus);
@@ -795,8 +828,9 @@ function handleUserJoined(data) {
   });
   
   console.log(`👥 User joined collaboration: ${userName || userId}`);
-  updateActiveUsersDisplay();
-  showNotification(`${userName || 'A user'} joined the collaboration`, 'join');
+  // updateActiveUsersDisplay(); // DISABLED: prevents mobile header blocking
+  // showNotification disabled to prevent mobile UI interference
+  console.log(`🔕 [JOIN] Notification disabled: ${userName || 'A user'} joined the collaboration`);
 }
 
 function handleUserLeft(data) {
@@ -821,8 +855,9 @@ function handleUserLeft(data) {
     });
     
     console.log(`👋 User left collaboration: ${userInfo.userName}`);
-    updateActiveUsersDisplay();
-    showNotification(`${userInfo.userName} left the collaboration`, 'leave');
+    // updateActiveUsersDisplay(); // DISABLED: prevents mobile header blocking
+    // showNotification disabled to prevent mobile UI interference
+    console.log(`🔕 [LEAVE] Notification disabled: ${userInfo.userName} left the collaboration`);
   }
 }
 
@@ -831,61 +866,17 @@ function handleUserLeft(data) {
 // =============================================================================
 
 function updateActiveUsersDisplay() {
-  // Safety check: Only show collaboration UI on schedule page
-  if (!document.querySelector('.schedule-page')) {
-    console.log('🚫 Skipping collaboration UI update - not on schedule page');
-    return;
-  }
-
-  // Find or create the active users container
-  let usersContainer = document.getElementById('active-collab-users');
-  if (!usersContainer) {
-    usersContainer = document.createElement('div');
-    usersContainer.id = 'active-collab-users';
-    usersContainer.className = 'active-users-indicator';
-    
-    // Insert at the top of the schedule page
-    const scheduleContainer = document.querySelector('.schedule-page');
-    if (scheduleContainer) {
-      scheduleContainer.insertBefore(usersContainer, scheduleContainer.firstChild);
-    } else {
-      // This shouldn't happen due to the safety check above, but just in case
-      console.warn('⚠️ No schedule container found for collaboration UI');
-      return;
-    }
-  }
+  console.log('🚫 [COLLAB] User count display disabled - collaboration functionality preserved');
   
-  // Generate HTML for active users
-  const activeUserCount = collabState.activeUsers.size;
-  let html = '';
+  // Clean up any user count notifications that might appear
+  cleanupUserCountNotifications();
   
-  if (activeUserCount > 0) {
-    html = `
-      <div class="collab-header">
-        <span class="collab-title">👥 ${activeUserCount} user${activeUserCount !== 1 ? 's' : ''} collaborating</span>
-      </div>
-      <div class="active-users-list">
-    `;
-    
-    collabState.activeUsers.forEach((userInfo, userId) => {
-      const isCurrentUser = userId === collabState.currentUser.id;
-      html += `
-        <div class="active-user ${isCurrentUser ? 'current-user' : ''}" data-user-id="${userId}">
-          <div class="user-avatar" style="background-color: ${userInfo.color}">
-            ${userInfo.userName.charAt(0).toUpperCase()}
-          </div>
-          <span class="user-name">${userInfo.userName}${isCurrentUser ? ' (you)' : ''}</span>
-        </div>
-      `;
-    });
-    
-    html += '</div>';
-  }
+  // Don't create user count UI, but preserve all collaboration state
+  // This keeps real-time editing working while hiding user count notifications
+  return;
   
-  usersContainer.innerHTML = html;
-  
-  // Add CSS if not already present
-  if (!document.getElementById('collab-users-styles')) {
+  // CSS styles disabled since collaboration indicator is hidden
+  if (false && !document.getElementById('collab-users-styles')) {
     const styles = document.createElement('style');
     styles.id = 'collab-users-styles';
     styles.textContent = `
@@ -990,5 +981,7 @@ window.SimpleCollab = {
     }
   }
 };
+
+// Note: Aggressive cleanup removed - collaboration indicators disabled at source instead
 
 })(); 

@@ -38,7 +38,7 @@
   display: flex;
   flex-direction: column;
   gap: 24px;
-  margin-bottom: 30px;
+  margin-bottom: 8px;
 }
 
 .general-page .info-row {
@@ -50,16 +50,18 @@
 .general-page .info-card {
   background-color: #f9f9f9;
   border: 1px solid #e0e0e0;
-  border-radius: 8px;
+  border-radius: 20px;
   padding: 16px;
   margin-bottom: 16px;
 }
 
 .general-page .info-card label {
   display: flex;
+  text-align: center;
   align-items: center;
+  justify-content: center;
   gap: 8px;
-  font-weight: 500;
+  font-weight: 600;
   margin-bottom: 8px;
   color: #333;
 }
@@ -67,6 +69,25 @@
 .general-page .info-card label .material-symbols-outlined {
   font-size: 20px;
   color: var(--brand-primary);
+}
+
+/* Event Summary toggle icon styles */
+.general-page .info-card label #summaryToggleIcon {
+  font-size: 24px;
+  color: #666;
+  transition: transform 0.3s ease;
+  cursor: pointer;
+}
+
+.general-page .info-card label #summaryToggleIcon:hover {
+  color: #333;
+}
+
+/* Event Summary content wrapper */
+#summaryContent {
+  max-height: 100vh;
+  overflow: visible;
+  transition: max-height 0.3s ease, opacity 0.3s ease;
 }
 
 .general-page .info-card .read-only,
@@ -122,13 +143,13 @@
   max-width: none;
   margin: 1rem 0;
   padding: 0.75rem;
-  border: 1px solid #ccc;
+  border: none;
   border-radius: 0.75rem;
-  background: #f0f0f0;
+  background: transparent;
   box-sizing: border-box;
-  box-shadow: 0 2px 12px rgba(0,0,0,0.06);
+  box-shadow: none;
   overflow-x: auto;
-  margin-bottom: 30px;
+  margin-bottom: 8px;
 }
 
 .general-page .contacts-scroll-wrapper {
@@ -137,7 +158,7 @@
   -webkit-overflow-scrolling: touch;
   max-height: 400px;
   overflow-y: auto;
-  border: 1px solid #e0e0e0;
+  border: none;
   border-radius: 4px;
 }
 
@@ -151,7 +172,7 @@
   border-radius: 10px;
   overflow: hidden;
   box-shadow: 0 3px 12px rgba(0,0,0,0.06);
-  border: 1px solid #e0e0e0;
+  border: none;
 }
 
 .general-page .contacts-container th,
@@ -164,9 +185,15 @@
   word-break: break-word;
   padding: 8px;
   font-size: 0.95em;
-  border: 1px solid #e0e0e0;
+  border-right: 1px solid #e0e0e0;
   text-align: left;
   vertical-align: top;
+}
+
+/* Remove right border from last cell */
+.general-page .contacts-container th:last-child,
+.general-page .contacts-container td:last-child {
+  border-right: none;
 }
 
 .general-page .contacts-container th {
@@ -174,12 +201,39 @@
   color: #222;
   font-weight: bold;
   text-align: left;
-  border-radius: 0.5em 0.5em 0 0;
+  border-radius: 0;
   border-bottom: 2.5px solid #e0e0e0;
   letter-spacing: 0.01em;
   position: sticky;
   top: 0;
   z-index: 1;
+}
+
+/* Add borders to outer edges and round only the outer corners of the header */
+.general-page .contacts-container th:first-child {
+  border-top-left-radius: 10px;
+  border-left: 1px solid #e0e0e0;
+}
+
+.general-page .contacts-container th:last-child {
+  border-top-right-radius: 10px;
+  border-right: 1px solid #e0e0e0;
+}
+
+/* Add top border to all header cells */
+.general-page .contacts-container th {
+  border-top: 1px solid #e0e0e0;
+}
+
+/* Hide last column header in view mode (when no textareas in tbody) */
+.general-page .contacts-container table:not(:has(tbody textarea)) th:last-child {
+  display: none;
+}
+
+/* When last header is hidden, apply radius and border to second-to-last header */
+.general-page .contacts-container table:not(:has(tbody textarea)) th:nth-last-child(2) {
+  border-top-right-radius: 10px;
+  border-right: 1px solid #e0e0e0;
 }
 
 .general-page .contacts-container td {
@@ -188,6 +242,30 @@
   white-space: pre-wrap;
   border-bottom: 1px solid #ececec;
   transition: background 0.2s;
+}
+
+/* Add left and right borders to outer cells */
+.general-page .contacts-container td:first-child {
+  border-left: 1px solid #e0e0e0;
+}
+
+.general-page .contacts-container td:last-child {
+  border-right: 1px solid #e0e0e0;
+}
+
+/* Round bottom corners of the last row */
+.general-page .contacts-container tbody tr:last-child td:first-child {
+  border-bottom-left-radius: 10px;
+}
+
+.general-page .contacts-container tbody tr:last-child td:last-child {
+  border-bottom-right-radius: 10px;
+}
+
+/* When last column is hidden in view mode, apply bottom-right radius to second-to-last cell */
+.general-page .contacts-container table:not(:has(tbody textarea)) tbody tr:last-child td:nth-last-child(2) {
+  border-bottom-right-radius: 10px;
+  border-right: 1px solid #e0e0e0;
 }
 
 .general-page .contacts-container tr:nth-child(even) td {
@@ -376,26 +454,7 @@
   border-color: #ddd;
 }
 
-.general-page .view-only-indicator {
-  font-size: 0.85rem;
-  background-color: #f0f0f0;
-  color: #666;
-  padding: 6px 12px;
-  border-radius: 4px;
-  position: absolute;
-  top: 15px;
-  right: 15px;
-  font-weight: bold;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.general-page .view-only-indicator:before {
-  content: "👁️";
-  margin-right: 4px;
-}
+/* View Only indicator styles removed - not needed */
 
 .general-page .contacts-container th:last-child,
 .general-page .contacts-container td:last-child {
@@ -547,22 +606,7 @@
   color: #a30005;
   background-color: #e0e0e0;
 }
-.clock-popup {
-  display: none;
-  position: absolute;
-  top: 40px;
-  right: 0;
-  background: #fff;
-  color: #222;
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-  padding: 12px 18px;
-  font-size: 1.5rem;
-  min-width: 120px;
-  text-align: center;
-  z-index: 2100;
-}
+/* Clock popup styles removed - now using fullscreen modal */
 @media (max-width: 600px) {
   .container > div:first-child {
     display: flex !important;
@@ -582,17 +626,11 @@
   .general-page .container {
     padding-top: 10px !important;
   }
-  .clock-popup {
-    font-size: 1rem;
-    min-width: 90px;
-    padding: 8px 10px;
-  }
+  /* Mobile clock popup styles removed */
 }
 
 #clockIconContainer {
-  position: absolute;
-  top: 8px;
-  right: 16px;
+  position: relative;
   z-index: 2100;
   display: inline-block;
 }
@@ -652,6 +690,194 @@
 .contacts-container table button:hover .material-symbols-outlined {
   color: #555; /* Darker gray on hover for feedback */
 }
+
+/* ====== TinyMCE Rich Text Editor Styles ====== */
+.general-page .tinymce-editor {
+  width: 100%;
+  min-height: 300px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.general-page .tox-tinymce {
+  border: 1px solid #ccc !important;
+  border-radius: 8px !important;
+  font-family: 'Roboto', Arial, sans-serif !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+}
+
+.general-page .tox-toolbar {
+  background: #f9f9f9 !important;
+  border-bottom: 1px solid #e0e0e0 !important;
+  border-radius: 8px 8px 0 0 !important;
+  padding: 8px !important;
+}
+
+.general-page .tox-toolbar__group {
+  border-right: 1px solid #e0e0e0 !important;
+  padding: 0 8px !important;
+}
+
+.general-page .tox-tbtn {
+  border-radius: 4px !important;
+  color: #333 !important;
+  margin: 0 2px !important;
+  transition: all 0.2s !important;
+}
+
+.general-page .tox-tbtn:hover {
+  background: #e0e0e0 !important;
+  border-color: #bbb !important;
+}
+
+.general-page .tox-tbtn--enabled {
+  background: #cc0007 !important;
+  color: #fff !important;
+}
+
+.general-page .tox-editor-header {
+  border-bottom: 1px solid #e0e0e0 !important;
+  background: #fff !important;
+}
+
+.general-page .tox-edit-area {
+  border: none !important;
+  border-radius: 0 0 8px 8px !important;
+}
+
+.general-page .tox-statusbar {
+  border-top: 1px solid #e0e0e0 !important;
+  background: #f9f9f9 !important;
+  border-radius: 0 0 8px 8px !important;
+}
+
+.general-page .tox-editor-container {
+  border-radius: 0 0 8px 8px !important;
+}
+
+.general-page .tox-sidebar-wrap {
+  border-radius: 0 0 8px 8px !important;
+}
+
+/* Rich content display styles */
+.general-page .rich-content {
+  font-size: 1rem;
+  line-height: 1.5;
+  color: #333;
+  font-family: 'Roboto', Arial, sans-serif;
+}
+
+/* Preserve natural spacing - let Quill's default behavior work */
+.general-page .rich-content p {
+  margin: 0 0 1em 0; /* Standard paragraph spacing */
+}
+
+.general-page .rich-content p:last-child {
+  margin-bottom: 0;
+}
+
+.general-page .rich-content ul,
+.general-page .rich-content ol {
+  margin: 1em 0; /* Standard list spacing */
+  padding-left: 24px;
+}
+
+/* Preserve line breaks */
+.general-page .rich-content br {
+  line-height: 1.5;
+}
+
+/* Only remove margin from very first and last elements */
+.general-page .rich-content > *:first-child {
+  margin-top: 0;
+}
+
+.general-page .rich-content > *:last-child {
+  margin-bottom: 0;
+}
+
+.general-page .rich-content li {
+  margin-bottom: 4px;
+}
+
+.general-page .rich-content strong {
+  font-weight: 600;
+}
+
+.general-page .rich-content em {
+  font-style: italic;
+}
+
+.general-page .rich-content u {
+  text-decoration: underline;
+}
+
+.general-page .rich-content a {
+  color: #1976d2;
+  text-decoration: underline;
+}
+
+.general-page .rich-content a:hover {
+  text-decoration: none;
+}
+
+/* Fallback textarea styling */
+.general-page #summaryFallback,
+.general-page .fallback-textarea {
+  width: 100%;
+  min-height: 120px;
+  padding: 12px;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-family: 'Roboto', Arial, sans-serif;
+  resize: vertical;
+  box-sizing: border-box;
+  background: #fff;
+  color: #333;
+  line-height: 1.5;
+  transition: border 0.2s, box-shadow 0.2s;
+}
+
+.general-page #summaryFallback:focus,
+.general-page .fallback-textarea:focus {
+  border: 1.5px solid #cc0007;
+  outline: 2px solid #cc0007;
+  background: #fff;
+}
+
+/* Mobile responsiveness for TinyMCE editor */
+@media (max-width: 768px) {
+  .general-page .tox-toolbar {
+    padding: 6px !important;
+  }
+  
+  .general-page .tox-toolbar__group {
+    padding: 0 4px !important;
+  }
+  
+  .general-page .tox-tbtn {
+    padding: 4px 6px !important;
+    margin: 0 1px !important;
+  }
+  
+  .general-page .tox-edit-area {
+    min-height: 150px !important;
+  }
+  
+  .general-page .tinymce-editor {
+    min-height: 200px;
+  }
+  
+  .general-page #summaryFallback,
+  .general-page .fallback-textarea {
+    min-height: 100px;
+    padding: 10px;
+  }
+}
+
 
 /* Desktop layout for info section */
 @media (min-width: 769px) {

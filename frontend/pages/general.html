@@ -3,6 +3,7 @@
 <!-- Add Material Symbols -->
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
 
+
 <div class="general-page">
   <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
     <div id="adminNotesBtnContainer"></div>
@@ -12,17 +13,26 @@
         <!-- Replace SVG with Material Symbol -->
         <span class="material-symbols-outlined" style="display:block; width: 32px; height: 32px; font-size: 32px;">schedule</span>
       </button>
-      <div id="clockPopup" class="clock-popup"></div>
       </div>
     </div>
   </div>
   <h2 id="eventTitle" style="text-align: center; margin-bottom: 20px;"></h2>
-  <h1>General Event Info</h1>
   <form id="generalForm">
     <div class="info-section">
       <div class="info-card">
-        <label for="summary"><span class="material-symbols-outlined">description</span> Event Summary</label>
-        <div id="summary" class="read-only"></div>
+        <label for="summary" style="cursor: pointer; user-select: none;" onclick="toggleEventSummary()">
+          <span class="material-symbols-outlined" id="summaryToggleIcon" style="transition: transform 0.3s ease;">expand_more</span>
+          <span class="material-symbols-outlined">description</span> 
+          Event Summary
+        </label>
+        <div id="summaryContent" style="transition: max-height 0.3s ease, opacity 0.3s ease;">
+          <div id="summary" class="read-only"></div>
+          <div id="summaryEditorContainer" style="display: none;">
+            <div id="summaryEditor" class="tinymce-editor">
+              <!-- TinyMCE will initialize here -->
+            </div>
+          </div>
+        </div>
       </div>
       <div class="info-row">
         <div class="info-card">

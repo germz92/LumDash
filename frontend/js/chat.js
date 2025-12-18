@@ -24,14 +24,19 @@ class ChatWidget {
     if (!document.querySelector('link[href*="chat.css"]')) {
       const cssLink = document.createElement('link');
       cssLink.rel = 'stylesheet';
-      cssLink.href = 'css/chat.css';
+      // Check if we're in a subdirectory (like pages/)
+      const isInSubDir = window.location.pathname.includes('/pages/');
+      cssLink.href = isInSubDir ? '../css/chat.css' : 'css/chat.css';
       document.head.appendChild(cssLink);
     }
 
     // Load HTML if not already loaded
     if (!document.getElementById('chatButton')) {
       try {
-        const response = await fetch('components/chat.html');
+        // Check if we're in a subdirectory (like pages/)
+        const isInSubDir = window.location.pathname.includes('/pages/');
+        const chatHtmlPath = isInSubDir ? '../components/chat.html' : 'components/chat.html';
+        const response = await fetch(chatHtmlPath);
         const html = await response.text();
         document.body.insertAdjacentHTML('beforeend', html);
       } catch (error) {
@@ -147,13 +152,23 @@ class ChatWidget {
     this.isLoading = true;
     this.updateSendButton(false);
 
+    // Show immediate thinking message for faster perceived response
+    setTimeout(() => {
+      if (this.isLoading) {
+        this.hideTypingIndicator();
+        const messageContainer = this.addStreamingMessage('assistant');
+        messageContainer.innerHTML = 'Let me check that for you...<span class="thinking-dots">...</span>';
+      }
+    }, 200);
+
     try {
-      // Gather additional context about the current page/state
+      // Gather comprehensive context about the current page/state
       const pageContext = {
-        currentPage: window.location.pathname,
+        currentPage: this.getCurrentPageName(),
         activeTab: document.querySelector('.tab-button.active')?.textContent?.trim() || null,
         currentView: document.querySelector('.view-container.active')?.id || null,
-        browserLanguage: navigator.language || 'en-US'
+        browserLanguage: navigator.language || 'en-US',
+        pageData: this.getPageSpecificContext()
       };
 
       const response = await fetch(`${this.API_BASE}/api/chat/${this.tableId}`, {
@@ -179,8 +194,11 @@ class ChatWidget {
       // Remove typing indicator and prepare for streaming response
       this.hideTypingIndicator();
       
-      // Create message container for streaming response
-      const messageContainer = this.addStreamingMessage('assistant');
+      // Check if we already have a thinking message, if so reuse it
+      let messageContainer = document.querySelector('.chat-message.assistant:last-child .message-content');
+      if (!messageContainer || !messageContainer.innerHTML.includes('Let me check')) {
+        messageContainer = this.addStreamingMessage('assistant');
+      }
       
       // Handle streaming response
       await this.handleStreamingResponse(response, messageContainer);
@@ -285,10 +303,10 @@ class ChatWidget {
                 // Add to conversation history
                 this.conversationHistory.push({ role: 'assistant', content: fullResponse });
                 
-                // Keep only last 20 messages to avoid memory issues
-                if (this.conversationHistory.length > 20) {
-                  this.conversationHistory = this.conversationHistory.slice(-20);
-                }
+                        // Keep only last 8 messages to avoid memory issues and improve speed
+        if (this.conversationHistory.length > 8) {
+          this.conversationHistory = this.conversationHistory.slice(-8);
+        }
                 return;
               }
             } catch (parseError) {
@@ -343,6 +361,138 @@ class ChatWidget {
     if (sendBtn) {
       sendBtn.disabled = !enabled;
     }
+  }
+
+  getCurrentPageName() {
+    // Try to detect current page from URL hash, body class, or nav
+    const hash = window.location.hash;
+    if (hash.includes('/general')) return 'general';
+    if (hash.includes('/schedule')) return 'schedule';
+    if (hash.includes('/crew')) return 'crew';
+    if (hash.includes('/shotlist')) return 'shotlist';
+    if (hash.includes('/gear')) return 'gear';
+    if (hash.includes('/tasks')) return 'tasks';
+    if (hash.includes('/travel')) return 'travel-accommodation';
+    if (hash.includes('/card-log')) return 'card-log';
+    if (hash.includes('/documents')) return 'documents';
+    if (hash.includes('/notes')) return 'notes';
+    if (hash.includes('/inventory')) return 'inventory-management';
+    
+    // Check active nav item
+    const activeNav = document.querySelector('.bottom-nav-material a.active, nav a.active');
+    if (activeNav) {
+      const dataPage = activeNav.getAttribute('data-page');
+      if (dataPage) return dataPage;
+      
+      const navText = activeNav.textContent?.toLowerCase().trim();
+      if (navText) return navText;
+    }
+    
+    // Check body class
+    const bodyClass = document.body.className;
+    if (bodyClass.includes('page-')) {
+      const pageMatch = bodyClass.match(/page-(\w+)/);
+      if (pageMatch) return pageMatch[1];
+    }
+    
+    return 'dashboard';
+  }
+
+  getPageSpecificContext() {
+    const currentPage = this.getCurrentPageName();
+    const context = { page: currentPage };
+    
+    try {
+      switch (currentPage) {
+        case 'schedule':
+          context.visibleSessions = this.getVisibleScheduleItems();
+          context.currentDate = this.getCurrentScheduleDate();
+          break;
+          
+        case 'crew':
+          context.visibleCrew = this.getVisibleCrewMembers();
+          context.selectedDate = this.getCurrentCrewDate();
+          break;
+          
+        case 'gear':
+          context.currentGearList = this.getCurrentGearList();
+          context.gearCategory = this.getCurrentGearCategory();
+          break;
+          
+        case 'tasks':
+          context.taskFilter = this.getCurrentTaskFilter();
+          break;
+          
+        case 'shotlist':
+          context.currentShotlist = this.getCurrentShotlist();
+          break;
+          
+        case 'card-log':
+          context.selectedDate = this.getCurrentCardLogDate();
+          break;
+          
+        default:
+          break;
+      }
+    } catch (error) {
+      // Silently handle errors in context gathering
+      console.debug('Error gathering page context:', error);
+    }
+    
+    return context;
+  }
+
+  getVisibleScheduleItems() {
+    const scheduleItems = document.querySelectorAll('.schedule-item:not([style*="display: none"])');
+    return Array.from(scheduleItems).slice(0, 5).map(item => ({
+      name: item.querySelector('.session-name')?.textContent?.trim(),
+      time: item.querySelector('.session-time')?.textContent?.trim(),
+      location: item.querySelector('.session-location')?.textContent?.trim()
+    })).filter(item => item.name);
+  }
+
+  getCurrentScheduleDate() {
+    const dateSelector = document.querySelector('#scheduleDate, .date-selector input[type="date"]');
+    return dateSelector?.value || new Date().toISOString().split('T')[0];
+  }
+
+  getVisibleCrewMembers() {
+    const crewItems = document.querySelectorAll('.crew-row:not([style*="display: none"])');
+    return Array.from(crewItems).slice(0, 5).map(item => ({
+      name: item.querySelector('.crew-name')?.textContent?.trim(),
+      role: item.querySelector('.crew-role')?.textContent?.trim(),
+      date: item.querySelector('.crew-date')?.textContent?.trim()
+    })).filter(item => item.name);
+  }
+
+  getCurrentCrewDate() {
+    const dateSelector = document.querySelector('#crewDate, .crew-date-selector');
+    return dateSelector?.value || new Date().toISOString().split('T')[0];
+  }
+
+  getCurrentGearList() {
+    const activeList = document.querySelector('.gear-list-tab.active, .current-list-indicator');
+    return activeList?.textContent?.trim() || 'Main List';
+  }
+
+  getCurrentGearCategory() {
+    const activeCategory = document.querySelector('.gear-category.active, .category-tab.active');
+    return activeCategory?.textContent?.trim() || 'All';
+  }
+
+  getCurrentTaskFilter() {
+    const filterSelect = document.querySelector('#taskFilter, .task-filter-select');
+    return filterSelect?.value || 'all';
+  }
+
+  getCurrentShotlist() {
+    const activeShotlist = document.querySelector('.shotlist-tab.active, .current-shotlist');
+    return activeShotlist?.textContent?.trim() || 'Main Shotlist';
+  }
+
+  getCurrentCardLogDate() {
+    const dateSelector = document.querySelector('#cardLogDate, .card-log-date');
+    return dateSelector?.value || new Date().toISOString().split('T')[0];
   }
 
   destroy() {

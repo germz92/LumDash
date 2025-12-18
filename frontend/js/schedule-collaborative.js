@@ -319,13 +319,6 @@ class CollaborationManager {
   onFieldInput(field) {
     if (!this.isInitialized) return;
     
-    // CRITICAL SAFETY: Don't process programmatic updates (from collaborative system)
-    if (field.dataset.collaborativeUpdate === 'true') {
-      console.log(`🛡️ Ignoring programmatic update for field: ${field.getAttribute('data-field')}`);
-      delete field.dataset.collaborativeUpdate; // Clear the flag
-      return;
-    }
-    
     const programId = this.getProgramId(field);
     const fieldName = field.getAttribute('data-field');
     const newValue = field.type === 'checkbox' ? field.checked : field.value;
@@ -442,51 +435,24 @@ class CollaborationManager {
 
   async sendViaRestAPI(operation) {
     try {
-      // CRITICAL FIX: Only update the specific field, don't send entire array
-      const { programId, field, value } = operation.data;
-      const program = tableData.programs.find(p => p._id === programId);
-      if (!program) {
-        console.error('❌ Program not found for REST API update:', programId);
-        return;
-      }
+      // Update the entire program
+      const program = tableData.programs.find(p => p._id === operation.data.programId);
+      if (!program) return;
 
-      console.log(`🔧 Updating single field via REST API: ${field} = ${value} for program ${programId}`);
-
-      // Create a minimal update payload with only the changed field
-      const updatePayload = {
-        programId: programId,
-        field: field,
-        value: value
-      };
-
-      const response = await fetch(`${API_BASE}/api/tables/${currentEventId}/program-field`, {
-        method: 'PATCH',
+      const response = await fetch(`${API_BASE}/api/tables/${currentEventId}/program-schedule`, {
+        method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': localStorage.getItem('token')
         },
-        body: JSON.stringify(updatePayload)
+        body: JSON.stringify({ programSchedule: tableData.programs })
       });
 
       if (!response.ok) {
-        console.warn(`⚠️ Single field update failed, falling back to full save. Status: ${response.status}`);
-        // Fallback to the original approach only if the single field update fails
-        const fallbackResponse = await fetch(`${API_BASE}/api/tables/${currentEventId}/program-schedule`, {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': localStorage.getItem('token')
-          },
-          body: JSON.stringify({ programSchedule: tableData.programs })
-        });
-
-        if (!fallbackResponse.ok) {
-          throw new Error(`HTTP ${fallbackResponse.status}: ${fallbackResponse.statusText}`);
-        }
-        console.log('✅ Program saved via REST API fallback');
-      } else {
-        console.log('✅ Program field updated via REST API');
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
       }
+
+      console.log('✅ Program saved via REST API');
     } catch (error) {
       console.error('❌ Failed to save via REST API:', error);
       // Could show user notification here
@@ -735,9 +701,6 @@ class CollaborationManager {
       if (!isCurrentlyActive) {
         const oldValue = fieldElement.type === 'checkbox' ? fieldElement.checked : fieldElement.value;
         
-        // CRITICAL: Mark as programmatic update to prevent feedback loops
-        fieldElement.dataset.collaborativeUpdate = 'true';
-        
         if (fieldElement.type === 'checkbox') {
           fieldElement.checked = value;
         } else {
@@ -752,8 +715,8 @@ class CollaborationManager {
           fieldElement.style.background = '';
         }, 1000);
         
-        // REMOVED: Dangerous dispatchEvent that was causing feedback loops
-        // fieldElement.dispatchEvent(new Event('change', { bubbles: true }));
+        // Dispatch change event to notify other systems
+        fieldElement.dispatchEvent(new Event('change', { bubbles: true }));
       } else {
         console.log(`⏸️ Skipped update - field is currently being edited`);
       }

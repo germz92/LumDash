@@ -4,6 +4,8 @@ window.token = window.token || localStorage.getItem('token');
 const params = new URLSearchParams(window.location.search);
 let tableId = params.get('id') || localStorage.getItem('eventId');
 let isOwner = false;
+let clockInterval = null; // Global clock interval for time modal
+let isSummaryExpanded = true; // Track Event Summary collapse state
 
 // Socket.IO real-time updates
 if (window.socket) {
@@ -68,6 +70,25 @@ function updateWeatherIcon() {
   // Ensure the label starts with the icon span, then text
   weatherLabel.innerHTML = `<span class="material-symbols-outlined">${iconName}</span> Weather`;
 }
+
+// Toggle Event Summary expand/collapse
+window.toggleEventSummary = function() {
+  isSummaryExpanded = !isSummaryExpanded;
+  const summaryContent = document.getElementById('summaryContent');
+  const toggleIcon = document.getElementById('summaryToggleIcon');
+  
+  if (isSummaryExpanded) {
+    summaryContent.style.maxHeight = summaryContent.scrollHeight + 'px';
+    summaryContent.style.opacity = '1';
+    summaryContent.style.overflow = 'visible';
+    toggleIcon.style.transform = 'rotate(0deg)';
+  } else {
+    summaryContent.style.maxHeight = '0';
+    summaryContent.style.opacity = '0';
+    summaryContent.style.overflow = 'hidden';
+    toggleIcon.style.transform = 'rotate(-90deg)';
+  }
+};
 
 function getUserIdFromToken() {
   try {
@@ -142,25 +163,11 @@ function createLinkHTML(value, type) {
   return `<a href="${href}" target="_blank" style="color: #1976d2; text-decoration: underline;">${value}</a>`;
 }
 
+// Enhanced linkifyText function that preserves HTML formatting
 function linkifyText(text) {
   if (!text) return '';
   
-  // First, escape HTML to prevent XSS (but preserve our line breaks)
-  text = text.replace(/&/g, '&amp;')
-             .replace(/</g, '&lt;')
-             .replace(/>/g, '&gt;');
-  
-  // Convert line breaks to HTML: double newlines = paragraphs, single newlines = line breaks
-  text = text.replace(/\r\n/g, '\n'); // Normalize Windows line endings
-  text = text.replace(/\n\s*\n/g, '</p><p>'); // Double line breaks = new paragraph
-  text = text.replace(/\n/g, '<br>'); // Single line breaks = <br>
-  text = `<p>${text}</p>`; // Wrap in paragraph tags
-  
-  // Clean up empty paragraphs
-  text = text.replace(/<p><\/p>/g, '');
-  text = text.replace(/<p>\s*<br>\s*<\/p>/g, '<p></p>');
-  
-  // Handle markdown-style custom links: [Custom Name](URL)
+  // Handle markdown-style custom links first: [Custom Name](URL)
   const markdownLinkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
   text = text.replace(markdownLinkRegex, (match, linkText, url) => {
     let href = url.trim();
@@ -201,6 +208,116 @@ function linkifyText(text) {
   return text;
 }
 
+// Function to convert HTML to plain text for editing
+function htmlToPlainText(html) {
+  if (!html) return '';
+  const tempDiv = document.createElement('div');
+  tempDiv.innerHTML = html;
+  return tempDiv.textContent || tempDiv.innerText || '';
+}
+
+// TinyMCE editor instance
+let summaryEditor = null;
+
+// Load TinyMCE dynamically
+function loadTinyMCE() {
+  return new Promise((resolve, reject) => {
+    if (window.tinymce) {
+      resolve();
+      return;
+    }
+    
+    const script = document.createElement('script');
+    // Use API key from config file, fallback to no-api-key for development
+    const apiKey = window.TINYMCE_API_KEY || 'no-api-key';
+    
+    // For development/testing, you can temporarily use no-api-key
+    // const apiKey = 'no-api-key'; // Uncomment this line for development
+    
+    script.src = `https://cdn.tiny.cloud/1/${apiKey}/tinymce/6/tinymce.min.js`;
+    script.onload = () => resolve();
+    script.onerror = () => reject(new Error('Failed to load TinyMCE'));
+    document.head.appendChild(script);
+  });
+}
+
+// Initialize TinyMCE editor
+async function initializeTinyMCE(initialContent = '') {
+  try {
+    await loadTinyMCE();
+    
+    // Remove any existing editor first
+    if (summaryEditor) {
+      summaryEditor.remove();
+      summaryEditor = null;
+    }
+    
+    // Initialize TinyMCE
+    await tinymce.init({
+      selector: '#summaryEditor',
+      height: 300,
+      menubar: false,
+      toolbar: 'bold italic | bullist numlist | link unlink | removeformat',
+      plugins: 'lists link',
+      branding: false,
+      content_style: `
+        body {
+          font-family: 'Roboto', Arial, sans-serif;
+          font-size: 14px;
+          line-height: 1.6;
+          color: #333;
+          padding: 10px;
+          margin: 0;
+        }
+        p { margin: 0 0 10px 0; }
+        ul, ol { margin: 0 0 10px 20px; padding: 0; }
+        li { margin: 0 0 4px 0; }
+      `,
+      setup: function(editor) {
+        editor.on('init', function() {
+          console.log('TinyMCE initialized successfully');
+          editor.setContent(initialContent);
+        });
+      }
+    });
+    
+    // Get the editor instance
+    summaryEditor = tinymce.get('summaryEditor');
+    
+    if (summaryEditor) {
+      summaryEditor.setContent(initialContent);
+      console.log('TinyMCE editor ready with content');
+    }
+    
+  } catch (error) {
+    console.error('Error initializing TinyMCE:', error);
+    throw error;
+  }
+}
+
+// Get content from TinyMCE editor
+function getTinyMCEContent() {
+  if (summaryEditor) {
+    return summaryEditor.getContent();
+  }
+  return '';
+}
+
+// Set content in TinyMCE editor
+function setTinyMCEContent(content) {
+  if (summaryEditor) {
+    summaryEditor.setContent(content || '');
+  }
+}
+
+// Clean up TinyMCE editor
+function cleanupTinyMCE() {
+  if (summaryEditor) {
+    summaryEditor.remove();
+    summaryEditor = null;
+  }
+}
+
 function renderContactRow(data = {}, readOnly = false) {
   const tbody = document.getElementById('contactRows');
   const row = document.createElement('tr');
@@ -213,14 +330,16 @@ function renderContactRow(data = {}, readOnly = false) {
     row.appendChild(td);
   });
 
-  const deleteTd = document.createElement('td');
+  // Only add action column when not in read-only mode
   if (!readOnly) {
+    const deleteTd = document.createElement('td');
     const btn = document.createElement('button');
     btn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
     btn.onclick = () => row.remove();
     deleteTd.appendChild(btn);
+    row.appendChild(deleteTd);
   }
-  row.appendChild(deleteTd);
+  
   tbody.appendChild(row);
 }
 
@@ -236,14 +355,16 @@ function renderLocationRow(data = {}, readOnly = false) {
     row.appendChild(td);
   });
 
-  const deleteTd = document.createElement('td');
+  // Only add action column when not in read-only mode
   if (!readOnly) {
+    const deleteTd = document.createElement('td');
     const btn = document.createElement('button');
     btn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
     btn.onclick = () => row.remove();
     deleteTd.appendChild(btn);
+    row.appendChild(deleteTd);
   }
-  row.appendChild(deleteTd);
+  
   tbody.appendChild(row);
 }
 
@@ -340,6 +461,17 @@ function insertAdminNotesBtn(tableId) {
   };
   container.appendChild(folderBtn);
 
+  // Add QR Code button for all users, styled like folder icon
+  const qrBtn = document.createElement('button');
+  qrBtn.innerHTML = '<span class="material-symbols-outlined">qr_code</span>';
+  qrBtn.className = 'qr-code-btn';
+  qrBtn.style = 'margin-bottom: 18px; margin-left: 8px; background: none; color: #888; border: none; border-radius: 8px; padding: 8px; font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;';
+  qrBtn.title = 'QR Code';
+  qrBtn.onclick = () => {
+    showQRCodeModal();
+  };
+  container.appendChild(qrBtn);
+
   // Add Task icon button for owners, styled like folder icon, to the right
   if (isOwner) {
     const taskBtn = document.createElement('button');
@@ -353,6 +485,163 @@ function insertAdminNotesBtn(tableId) {
     container.appendChild(taskBtn);
   }
   console.log('Folder logs button added for all users');
+}
+
+function showQRCodeModal() {
+  // Create modal overlay
+  const modal = document.createElement('div');
+  modal.id = 'qrCodeModal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.9);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    cursor: pointer;
+  `;
+
+  // Create QR code container
+  const qrContainer = document.createElement('div');
+  qrContainer.style.cssText = `
+    background: white;
+    border-radius: 16px;
+    padding: 20px;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.3);
+  `;
+
+  // Create close button
+  const closeBtn = document.createElement('button');
+  closeBtn.innerHTML = '×';
+  closeBtn.style.cssText = `
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    font-size: 30px;
+    color: #666;
+    cursor: pointer;
+    padding: 0;
+    width: 40px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  `;
+  closeBtn.onclick = (e) => {
+    e.stopPropagation();
+    closeQRCodeModal();
+  };
+
+  // Create QR code image
+  const qrImage = document.createElement('img');
+  qrImage.src = '../assets/qr-code.png'; // QR code that links to https://www.lumtags.com/#/attendee
+  qrImage.alt = 'QR Code for LumTags Attendee';
+  qrImage.style.cssText = `
+    max-width: 100%;
+    max-height: 60vh;
+    width: auto;
+    height: auto;
+    border-radius: 8px;
+    cursor: pointer;
+  `;
+  
+  // Make QR code clickable to open the link
+  qrImage.onclick = (e) => {
+    e.stopPropagation();
+    window.open('https://www.lumtags.com/#/attendee', '_blank');
+  };
+
+  // Create title
+  const title = document.createElement('h3');
+  title.textContent = 'LumTags Attendee Portal';
+  title.style.cssText = `
+    margin: 0 0 15px 0;
+    color: #333;
+    font-size: 24px;
+    text-align: center;
+  `;
+
+  // Create subtitle with link
+  const subtitle = document.createElement('p');
+  subtitle.innerHTML = 'Scan QR code or <a href="https://www.lumtags.com/#/attendee" target="_blank" style="color: #CC0007; text-decoration: none; font-weight: bold;">click here</a> to access the attendee portal';
+  subtitle.style.cssText = `
+    margin: 0 0 20px 0;
+    color: #666;
+    font-size: 16px;
+    text-align: center;
+    max-width: 300px;
+  `;
+
+  // Create URL display
+  const urlDisplay = document.createElement('div');
+  urlDisplay.textContent = 'www.lumtags.com/#/attendee';
+  urlDisplay.style.cssText = `
+    margin: 15px 0 0 0;
+    color: #888;
+    font-size: 14px;
+    text-align: center;
+    font-family: monospace;
+    background: #f5f5f5;
+    padding: 8px 12px;
+    border-radius: 4px;
+    user-select: all;
+  `;
+
+  // Add elements to container
+  qrContainer.appendChild(closeBtn);
+  qrContainer.appendChild(title);
+  qrContainer.appendChild(subtitle);
+  qrContainer.appendChild(qrImage);
+  qrContainer.appendChild(urlDisplay);
+
+  // Add container to modal
+  modal.appendChild(qrContainer);
+
+  // Add modal to document
+  document.body.appendChild(modal);
+
+  // Close modal when clicking outside
+  modal.onclick = (e) => {
+    if (e.target === modal) {
+      closeQRCodeModal();
+    }
+  };
+
+  // Prevent scrolling when modal is open
+  document.body.style.overflow = 'hidden';
+
+  // Handle image load error
+  qrImage.onerror = () => {
+    qrImage.style.display = 'none';
+    const errorMsg = document.createElement('p');
+    errorMsg.textContent = 'QR code image not found. Please add the LumTags QR code as qr-code.png to the assets folder.';
+    errorMsg.style.cssText = `
+      color: #666;
+      text-align: center;
+      margin: 20px;
+      font-size: 16px;
+    `;
+    qrContainer.appendChild(errorMsg);
+  };
+}
+
+function closeQRCodeModal() {
+  const modal = document.getElementById('qrCodeModal');
+  if (modal) {
+    modal.remove();
+    document.body.style.overflow = '';
+  }
 }
 
 function initPage(id) {
@@ -394,8 +683,16 @@ function initPage(id) {
           if (field === 'location') {
             div.innerHTML = createLinkHTML(general.location || '', 'address');
           } else if (field === 'eventSummary') {
-            // Make URLs in summary clickable
-            div.innerHTML = linkifyText(general.summary || '');
+            // Display rich HTML content with URL linkification
+            const summaryContent = general.summary || '';
+            if (summaryContent.includes('<') && summaryContent.includes('>')) {
+              // Contains HTML tags, treat as rich content
+              div.innerHTML = linkifyText(summaryContent);
+              div.classList.add('rich-content');
+            } else {
+              // Plain text, apply basic linkification
+              div.innerHTML = linkifyText(summaryContent);
+            }
           } else {
             div.textContent = general[field] || '';
           }
@@ -474,28 +771,46 @@ function initPage(id) {
         btn.style.display = isOwner ? 'inline-block' : 'none';
       });
       
-      // 🔒 Add a "View Only" indicator for non-owners
-      if (!isOwner) {
-        const viewOnlyIndicator = document.createElement('div');
-        viewOnlyIndicator.textContent = 'View Only';
-        viewOnlyIndicator.className = 'view-only-indicator';
-        viewOnlyIndicator.style.position = 'absolute';
-        viewOnlyIndicator.style.top = '20px';
-        viewOnlyIndicator.style.right = '20px';
-        viewOnlyIndicator.style.backgroundColor = '#f0f0f0';
-        viewOnlyIndicator.style.color = '#666';
-        viewOnlyIndicator.style.padding = '6px 12px';
-        viewOnlyIndicator.style.borderRadius = '4px';
-        viewOnlyIndicator.style.fontSize = '14px';
-        viewOnlyIndicator.style.fontWeight = 'bold';
-        document.querySelector('.container').style.position = 'relative';
-        document.querySelector('.container').appendChild(viewOnlyIndicator);
-      }
+      // View Only indicator removed - not needed
       
       // Set up navigation using the centralized function from app.js
       if (window.setupBottomNavigation) {
-        window.setupBottomNavigation(navContainer, tableId, 'general'); // Changed page to general
+        window.setupBottomNavigation(null, tableId, 'general'); // Changed page to general
       }
+      
+      // Initialize clock functionality after DOM is ready
+      // Use multiple attempts to ensure DOM elements are available
+      console.log('[CLOCK] Starting clock initialization, isOwner:', isOwner, 'isAdmin:', isAdmin());
+      console.log('[CLOCK] Page container content:', document.getElementById('page-container')?.innerHTML?.substring(0, 200));
+      
+      let clockInitAttempts = 0;
+      const tryInitClock = () => {
+        clockInitAttempts++;
+        const clockBtn = document.getElementById('clockIconBtn');
+        const clockContainer = document.getElementById('clockIconContainer');
+        
+        console.log(`[CLOCK] Attempt ${clockInitAttempts} - clockBtn:`, !!clockBtn, 'clockContainer:', !!clockContainer);
+        console.log(`[CLOCK] Clock button element:`, clockBtn);
+        
+        if (clockBtn) {
+          console.log('[CLOCK] Clock button found, initializing...');
+          initializeClock();
+        } else if (clockInitAttempts < 10) { // Increased attempts
+          console.log(`[CLOCK] Clock button not ready yet (attempt ${clockInitAttempts}), retrying...`);
+          setTimeout(tryInitClock, 300); // Increased delay
+        } else {
+          console.error('[CLOCK] Failed to find clock button after 10 attempts');
+          console.error('[CLOCK] DOM state:', {
+            clockContainer: !!document.getElementById('clockIconContainer'),
+            clockBtn: !!document.getElementById('clockIconBtn'),
+            adminContainer: !!document.getElementById('adminNotesBtnContainer'),
+            pageContainer: !!document.getElementById('page-container'),
+            generalPage: !!document.querySelector('.general-page')
+          });
+          console.error('[CLOCK] All elements with schedule class:', document.querySelectorAll('.material-symbols-outlined'));
+        }
+      };
+      setTimeout(tryInitClock, 500); // Increased initial delay
     })
     .catch(err => console.error('Error loading event:', err));
 }
@@ -507,8 +822,42 @@ async function saveGeneralInfo() {
   }
 
   const getText = id => {
-    const el = document.getElementById(id);
-    return el?.tagName === 'TEXTAREA' ? el.value.trim() : el?.textContent.trim() || '';
+    if (id === 'summary') {
+      // Get content from TinyMCE editor if active, otherwise from read-only div
+      const summaryEditorContainer = document.getElementById('summaryEditorContainer');
+      if (summaryEditorContainer && summaryEditorContainer.style.display !== 'none') {
+        // Check if TinyMCE is available
+        const content = getTinyMCEContent();
+        if (content !== '') {
+          console.log('Getting content from TinyMCE for save:', content);
+          return content;
+        } else {
+          // Fallback to textarea if TinyMCE failed
+          const fallbackTextarea = document.getElementById('summaryFallback');
+          if (fallbackTextarea) {
+            console.log('Getting content from fallback textarea for save:', fallbackTextarea.value);
+            return fallbackTextarea.value.trim();
+          }
+        }
+      } else {
+        // Fall back to the read-only div
+        const el = document.getElementById(id);
+        return el?.dataset.value || el?.innerHTML || '';
+      }
+    } else {
+      const el = document.getElementById(id);
+      return el?.tagName === 'TEXTAREA' ? el.value.trim() : el?.textContent.trim() || '';
+    }
+  };
+
+  // Get event title from input if in edit mode, otherwise from h2 element
+  const getEventTitle = () => {
+    const titleInput = document.getElementById('eventTitleInput');
+    if (titleInput) {
+      return titleInput.value.trim();
+    }
+    const titleEl = document.getElementById('eventTitle');
+    return titleEl?.textContent.trim() || '';
   };
 
   // Create the general data object with the exact schema structure expected by the backend
@@ -539,6 +888,9 @@ async function saveGeneralInfo() {
     
     console.log('Saving to table ID:', currentTableId);
     
+    // Get the event title
+    const eventTitle = getEventTitle();
+    
     // Key difference: Wrap the generalData in a "general" property to match the backend API expectation
     const res = await fetch(`${API_BASE}/api/tables/${currentTableId}/general`, {
       method: 'PUT',
@@ -546,8 +898,11 @@ async function saveGeneralInfo() {
         'Content-Type': 'application/json',
         'Authorization': window.token
       },
-      // This is the key fix - the server.js API expects a body with a "general" property
-      body: JSON.stringify({ general: generalData })
+      // This is the key fix - the server.js API expects a body with a "general" property and title
+      body: JSON.stringify({ 
+        title: eventTitle,
+        general: generalData 
+      })
     });
 
     if (!res.ok) {
@@ -569,27 +924,92 @@ function switchToEdit() {
 
   console.log('[GENERAL] switchToEdit called');
 
+  // Handle event title editing
+  const eventTitleEl = document.getElementById('eventTitle');
+  if (eventTitleEl) {
+    const currentTitle = eventTitleEl.textContent || '';
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.id = 'eventTitleInput';
+    titleInput.value = currentTitle;
+    titleInput.style.cssText = `
+      width: 100%;
+      max-width: 600px;
+      font-size: 1.5rem;
+      font-weight: 600;
+      color: #333;
+      text-align: center;
+      border: 2px solid #cc0007;
+      border-radius: 8px;
+      padding: 8px 16px;
+      background: #fff;
+      box-shadow: 0 2px 8px rgba(204, 0, 7, 0.1);
+      outline: none;
+      font-family: inherit;
+      margin: 0 auto;
+      display: block;
+    `;
+    titleInput.dataset.originalValue = currentTitle;
+    eventTitleEl.replaceWith(titleInput);
+  }
+
   ['eventSummary', 'location', 'weather', 'attendees', 'budget'].forEach(id => {
     const element = document.getElementById(id === 'eventSummary' ? 'summary' : id);
     if (!element) return;
     
-    // If it's already a textarea, preserve its current value
-    if (element.tagName === 'TEXTAREA') {
-      console.log(`[GENERAL] ${id} is already a textarea, preserving value:`, element.value);
-      return; // Already in edit mode, don't change anything
-    }
-    
-    console.log(`[GENERAL] Converting ${id} from div to textarea`);
-    // Convert div to textarea
-    const textarea = document.createElement('textarea');
-    textarea.id = id === 'eventSummary' ? 'summary' : id;
-    textarea.value = element.dataset.value || element.textContent || '';
-    element.replaceWith(textarea);
-    autoResizeTextarea(textarea);
-    
-    // Add input handler for weather field to update icon
-    if (id === 'weather') {
-      textarea.addEventListener('input', updateWeatherIcon);
+    if (id === 'eventSummary') {
+      // Handle event summary with TinyMCE editor
+      const summaryEditorContainer = document.getElementById('summaryEditorContainer');
+      
+      if (summaryEditorContainer) {
+        // Hide the read-only div and show the editor
+        element.style.display = 'none';
+        summaryEditorContainer.style.display = 'block';
+        
+        // Get existing HTML content for editing
+        const currentContent = element.dataset.value || element.innerHTML || '';
+        
+        // Initialize TinyMCE with current content
+        initializeTinyMCE(currentContent).then(() => {
+          console.log('TinyMCE editor ready with content');
+        }).catch(error => {
+          console.error('Failed to initialize TinyMCE:', error);
+          // Fallback to a simple textarea if TinyMCE fails
+          const fallbackTextarea = document.createElement('textarea');
+          fallbackTextarea.id = 'summaryFallback';
+          fallbackTextarea.value = htmlToPlainText(currentContent);
+          fallbackTextarea.style.width = '100%';
+          fallbackTextarea.style.minHeight = '200px';
+          fallbackTextarea.style.fontFamily = 'inherit';
+          fallbackTextarea.style.fontSize = '14px';
+          fallbackTextarea.style.padding = '10px';
+          fallbackTextarea.style.border = '1px solid #ccc';
+          fallbackTextarea.style.borderRadius = '4px';
+          summaryEditorContainer.appendChild(fallbackTextarea);
+        });
+        
+      } else {
+        console.error('summaryEditorContainer element not found');
+      }
+    } else {
+      // Handle other fields with regular textareas
+      if (element.tagName === 'TEXTAREA') {
+        console.log(`[GENERAL] ${id} is already a textarea, preserving value:`, element.value);
+        return; // Already in edit mode, don't change anything
+      }
+      
+      console.log(`[GENERAL] Converting ${id} from div to textarea`);
+      // Convert div to textarea
+      const textarea = document.createElement('textarea');
+      textarea.id = id;
+      textarea.value = element.dataset.value || element.textContent || '';
+      element.replaceWith(textarea);
+      autoResizeTextarea(textarea);
+      
+      // Add input handler for weather field to update icon
+      if (id === 'weather') {
+        textarea.addEventListener('input', updateWeatherIcon);
+      }
     }
   });
 
@@ -613,9 +1033,9 @@ function switchToEdit() {
 }
 
 function addContactRow() {
-  // Check if we're already in edit mode by looking for textareas
-  const summaryEl = document.getElementById('summary');
-  const isAlreadyInEditMode = summaryEl && summaryEl.tagName === 'TEXTAREA';
+  // Check if we're already in edit mode by looking for TinyMCE editor or textareas
+  const summaryEditorContainer = document.getElementById('summaryEditorContainer');
+  const isAlreadyInEditMode = summaryEditorContainer && summaryEditorContainer.style.display !== 'none';
   
   console.log('[GENERAL] addContactRow called, already in edit mode:', isAlreadyInEditMode);
   
@@ -629,9 +1049,9 @@ function addContactRow() {
 }
 
 function addLocationRow() {
-  // Check if we're already in edit mode by looking for textareas
-  const summaryEl = document.getElementById('summary');
-  const isAlreadyInEditMode = summaryEl && summaryEl.tagName === 'TEXTAREA';
+  // Check if we're already in edit mode by looking for TinyMCE editor or textareas
+  const summaryEditorContainer = document.getElementById('summaryEditorContainer');
+  const isAlreadyInEditMode = summaryEditorContainer && summaryEditorContainer.style.display !== 'none';
   
   console.log('[GENERAL] addLocationRow called, already in edit mode:', isAlreadyInEditMode);
   
@@ -644,55 +1064,239 @@ function addLocationRow() {
   renderLocationRow({}, false);
 }
 
+
 // ✅ Ensure it's globally accessible for SPA router
 window.initPage = initPage;
+
+// Cleanup function for when leaving the page
+window.addEventListener('beforeunload', function() {
+  cleanupTinyMCE();
+});
 window.addContactRow = addContactRow;
 window.addLocationRow = addLocationRow;
 window.saveGeneralInfo = saveGeneralInfo;
 window.switchToEdit = switchToEdit;
 
 // CLOCK ICON LOGIC
-(function() {
+function showTimeModal() {
+  console.log('[CLOCK] showTimeModal called - user type:', {isOwner, isAdmin: isAdmin()});
+  // Create modal overlay
+  const modal = document.createElement('div');
+  modal.id = 'timeModal';
+  modal.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.95);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 10000;
+    cursor: pointer;
+    backdrop-filter: blur(5px);
+  `;
+
+  // Create time container
+  const timeContainer = document.createElement('div');
+  timeContainer.style.cssText = `
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 24px;
+    padding: 60px 40px;
+    max-width: 90vw;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  `;
+
+  // Create close button
+  const closeBtn = document.createElement('button');
+  closeBtn.innerHTML = '×';
+  closeBtn.style.cssText = `
+    position: absolute;
+    top: 20px;
+    right: 25px;
+    background: rgba(255, 255, 255, 0.2);
+    border: none;
+    font-size: 40px;
+    color: white;
+    cursor: pointer;
+    padding: 10px;
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.3s ease;
+  `;
+  closeBtn.onmouseover = () => closeBtn.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+  closeBtn.onmouseout = () => closeBtn.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+  closeBtn.onclick = (e) => {
+    e.stopPropagation();
+    closeTimeModal();
+  };
+
+  // Create time display
+  const timeDisplay = document.createElement('div');
+  timeDisplay.id = 'modalTimeDisplay';
+  timeDisplay.style.cssText = `
+    font-size: clamp(2.5rem, 8vw, 4rem);
+    font-weight: 300;
+    color: white;
+    text-align: center;
+    font-family: 'Roboto', monospace;
+    letter-spacing: 0.1em;
+    text-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    margin-bottom: 20px;
+  `;
+
+  // Create date display
+  const dateDisplay = document.createElement('div');
+  dateDisplay.id = 'modalDateDisplay';
+  dateDisplay.style.cssText = `
+    font-size: clamp(1rem, 4vw, 1.5rem);
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.9);
+    text-align: center;
+    margin-bottom: 30px;
+  `;
+
+  // Create timezone display
+  const timezoneDisplay = document.createElement('div');
+  timezoneDisplay.style.cssText = `
+    font-size: 1rem;
+    font-weight: 400;
+    color: rgba(255, 255, 255, 0.7);
+    text-align: center;
+  `;
+
+  function updateTime() {
+    const now = new Date();
+    
+    // Format time
+    timeDisplay.textContent = now.toLocaleTimeString([], { 
+      hour: '2-digit', 
+      minute: '2-digit', 
+      second: '2-digit',
+      hour12: false 
+    });
+    
+    // Format date
+    dateDisplay.textContent = now.toLocaleDateString([], { 
+      weekday: 'long',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+    
+    // Format timezone
+    const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    timezoneDisplay.textContent = timezone.replace('_', ' ');
+  }
+
+  // Initial time update
+  updateTime();
+  
+  // Start interval for live updates
+  clockInterval = setInterval(updateTime, 1000);
+
+  // Add elements to container
+  timeContainer.appendChild(closeBtn);
+  timeContainer.appendChild(timeDisplay);
+  timeContainer.appendChild(dateDisplay);
+  timeContainer.appendChild(timezoneDisplay);
+
+  // Add container to modal
+  modal.appendChild(timeContainer);
+
+  // Add modal to document
+  document.body.appendChild(modal);
+
+  // Close modal when clicking outside
+  modal.onclick = (e) => {
+    if (e.target === modal) {
+      closeTimeModal();
+    }
+  };
+
+  // Prevent scrolling when modal is open
+  document.body.style.overflow = 'hidden';
+
+  // Handle ESC key
+  const handleEsc = (e) => {
+    if (e.key === 'Escape') {
+      closeTimeModal();
+    }
+  };
+  document.addEventListener('keydown', handleEsc);
+  
+  // Store the event listener for cleanup
+  modal.escHandler = handleEsc;
+
+  console.log('[CLOCK] Time modal opened');
+}
+
+function closeTimeModal() {
+  const modal = document.getElementById('timeModal');
+  if (modal) {
+    // Clear the interval
+    if (clockInterval) {
+      clearInterval(clockInterval);
+      clockInterval = null;
+    }
+    
+    // Remove ESC key listener
+    if (modal.escHandler) {
+      document.removeEventListener('keydown', modal.escHandler);
+    }
+    
+    modal.remove();
+    document.body.style.overflow = '';
+    console.log('[CLOCK] Time modal closed');
+  }
+}
+
+function initializeClock() {
   const clockBtn = document.getElementById('clockIconBtn');
-  const clockPopup = document.getElementById('clockPopup');
-  let clockInterval = null;
+  
+  console.log('[CLOCK] initializeClock called, button found:', !!clockBtn);
+  console.log('[CLOCK] Button element details:', clockBtn);
 
-  function formatTime(date) {
-    return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  }
-
-  function showClock() {
-    clockPopup.style.display = 'block';
-    clockPopup.textContent = formatTime(new Date());
-    clockInterval = setInterval(() => {
-      clockPopup.textContent = formatTime(new Date());
-    }, 1000);
-  }
-
-  function hideClock() {
-    clockPopup.style.display = 'none';
-    if (clockInterval) clearInterval(clockInterval);
-    clockInterval = null;
-  }
-
-  if (clockBtn && clockPopup) {
-    let isVisible = false;
-    clockBtn.addEventListener('click', (e) => {
+  if (clockBtn) {
+    console.log('[CLOCK] Clock button found, initializing click handler');
+    console.log('[CLOCK] Button is visible:', clockBtn.offsetParent !== null);
+    console.log('[CLOCK] Button computed style:', window.getComputedStyle(clockBtn).display);
+    
+    // Remove any existing listeners to prevent duplicates
+    if (window.clockButtonHandler) {
+      clockBtn.removeEventListener('click', window.clockButtonHandler);
+      console.log('[CLOCK] Removed existing click handler');
+    }
+    
+    // Create named handler for easier removal
+    window.clockButtonHandler = (e) => {
+      console.log('[CLOCK] *** CLOCK BUTTON CLICKED *** - user:', {isOwner, isAdmin: isAdmin()});
       e.stopPropagation();
-      isVisible = !isVisible;
-      if (isVisible) {
-        showClock();
-      } else {
-        hideClock();
-      }
+      e.preventDefault();
+      showTimeModal();
+    };
+    
+    clockBtn.addEventListener('click', window.clockButtonHandler);
+    
+    // Test click handler by adding a temporary test
+    clockBtn.addEventListener('mousedown', () => {
+      console.log('[CLOCK] Mouse down detected on clock button');
     });
-    // Hide popup when clicking outside
-    document.addEventListener('click', (e) => {
-      if (isVisible && !clockPopup.contains(e.target) && e.target !== clockBtn) {
-        hideClock();
-        isVisible = false;
-      }
-    });
+    
+    console.log('[CLOCK] Clock handlers attached successfully');
+    console.log('[CLOCK] Button has event listeners:', clockBtn);
+  } else {
+    console.warn('[CLOCK] Clock button not found in initializeClock');
   }
-})();
+}
 })();

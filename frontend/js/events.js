@@ -8,6 +8,8 @@ if (!token && !window.location.pathname.endsWith('index.html')) {
 let currentTableId = null;
 let showArchived = false;
 let searchEventsValue = '';
+let allUsers = [];
+let selectedUsers = [];
 
 function getUserIdFromToken() {
   const token = localStorage.getItem('token');
@@ -18,12 +20,35 @@ function getUserIdFromToken() {
 
 function showCreateModal() {
   const modal = document.getElementById('createModal');
-  if (modal) modal.style.display = 'flex';
+  if (modal) {
+    // Move modal to body to escape page-container stacking context
+    if (modal.parentElement && modal.parentElement.id === 'page-container') {
+      console.log('[CREATE_MODAL] Moving modal from page-container to body');
+      document.body.appendChild(modal);
+    }
+    
+    // Force display and ensure visibility
+    modal.style.display = 'flex';
+    modal.style.visibility = 'visible';
+    modal.style.opacity = '1';
+    modal.style.zIndex = '10000';
+    modal.style.position = 'fixed';
+    modal.style.inset = '0';
+    
+    // Add click-outside functionality
+    setTimeout(() => {
+      modal.addEventListener('click', handleCreateModalClick);
+    }, 0);
+  }
 }
 
 function hideCreateModal() {
   const modal = document.getElementById('createModal');
-  if (modal) modal.style.display = 'none';
+  if (modal) {
+    modal.style.display = 'none';
+    // Remove click-outside event listener
+    modal.removeEventListener('click', handleCreateModalClick);
+  }
 }
 
 async function submitCreate() {
@@ -74,8 +99,8 @@ async function loadTables() {
   const tables = await res.json();
   const userId = getUserIdFromToken();
 
-  // Filter tables based on archived status
-  let filteredTables = tables.filter(table => !!table.archived === showArchived);
+  // Filter tables based on user-specific archived status
+  let filteredTables = tables.filter(table => !!table.userArchived === showArchived);
 
   // Filter by search box
   if (searchEventsValue) {
@@ -109,122 +134,112 @@ async function loadTables() {
   const list = document.getElementById('tableList');
   if (list) list.innerHTML = '';
 
-  filteredTables.forEach(table => {
-    const general = table.general || {};
-    const client = general.client || 'N/A';
+  // Check if we're showing archived events
+  if (showArchived) {
+    // For archived events, show single list as before
+    // Reset the list container to use table-cards class for proper layout
+    list.className = 'table-cards';
+    // Reset inline styles that might have been set for non-archived view
+    list.style.display = '';
+    list.style.flexDirection = '';
+    list.style.gap = '';
+    filteredTables.forEach(table => {
+      renderEventCard(table, list, userId);
+    });
+  } else {
+    // For non-archived events, split into Active and All Events sections
+    // Reset the list container to remove table-cards class since we'll use sections
+    list.className = '';
+    // Ensure sections stack vertically
+    list.style.display = 'flex';
+    list.style.flexDirection = 'column';
+    list.style.gap = '0';
     
-    // Format dates consistently with UTC to prevent timezone shifts
-    const formatDate = (dateStr) => {
-      if (!dateStr) return 'N/A';
-      const date = new Date(dateStr);
-      // Use UTC date methods to prevent timezone issues
-      return date.toLocaleDateString('en-US', { 
-        year: 'numeric', 
-        month: 'short', 
-        day: 'numeric',
-        timeZone: 'UTC' // Prevent timezone shifts
+    const today = new Date();
+    today.setHours(0, 0, 0, 0); // Set to start of day for comparison
+    
+    // Helper function to check if an event is active
+    const isEventActive = (table) => {
+      const general = table.general || {};
+      if (!general.start || !general.end) return false;
+      
+      // Parse dates and extract just the date portion to avoid timezone issues
+      const startDateStr = general.start.split('T')[0]; // Get YYYY-MM-DD part
+      const endDateStr = general.end.split('T')[0]; // Get YYYY-MM-DD part
+      const todayStr = today.toISOString().split('T')[0]; // Get YYYY-MM-DD part
+      
+      // Compare date strings directly to avoid timezone conversion issues
+      return todayStr >= startDateStr && todayStr <= endDateStr;
+    };
+    
+    // Split events into active and non-active
+    const activeEvents = filteredTables.filter(isEventActive);
+    const nonActiveEvents = filteredTables.filter(table => !isEventActive(table));
+    
+    // Create Active Events section if there are active events
+    if (activeEvents.length > 0) {
+      const activeSection = document.createElement('div');
+      activeSection.className = 'events-section';
+      
+      const activeHeader = document.createElement('h3');
+      activeHeader.className = 'events-section-header';
+      activeHeader.textContent = 'Active Events';
+      activeHeader.style.cssText = `
+        margin: 0 0 16px 0;
+        padding: 12px 0;
+        border-bottom: 2px solid #CC0007;
+        color: #CC0007;
+        font-size: 1.2em;
+        font-weight: 600;
+        text-align: center;
+      `;
+      
+      // Create the cards container with proper flex layout
+      const activeCardsContainer = document.createElement('div');
+      activeCardsContainer.className = 'table-cards';
+      
+      activeSection.appendChild(activeHeader);
+      activeSection.appendChild(activeCardsContainer);
+      
+      activeEvents.forEach(table => {
+        renderEventCard(table, activeCardsContainer, userId);
       });
-    };
-    
-    const start = formatDate(general.start);
-    const end = formatDate(general.end);
-
-    const card = document.createElement('div');
-    card.className = 'table-card';
-
-    const header = document.createElement('div');
-    header.className = 'event-header';
-
-    const title = document.createElement('h3');
-    title.textContent = table.title;
-
-    const details = document.createElement('div');
-    details.className = 'event-details';
-    details.innerHTML = `Client: ${client} <br> ${start} - ${end}`;
-
-    header.appendChild(title);
-    header.appendChild(details);
-
-    const actions = document.createElement('div');
-    actions.className = 'action-buttons';
-
-    const openBtn = document.createElement('button');
-    openBtn.className = 'btn-open';
-    openBtn.textContent = 'Open';
-    openBtn.onclick = () => {
-      const page = 'general'; // Set this to the correct page identifier
-      const tableId = table._id;
-      window.navigate(page, tableId);
-    };
-
-    const isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
-
-    const shareBtn = document.createElement('button');
-    shareBtn.className = 'btn-share';
-    shareBtn.textContent = 'Share';
-    shareBtn.onclick = () => {
-      openShareModal(table._id);
-    };
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'btn-delete';
-    deleteBtn.textContent = 'Delete';
-    deleteBtn.onclick = async () => {
-      if (confirm('Are you sure you want to delete this event?\n\nThis will also release all gear items reserved for this event back to inventory.')) {
-        try {
-          const response = await fetch(`${API_BASE}/api/tables/${table._id}`, {
-          method: 'DELETE',
-          headers: { Authorization: token }
-        });
-          
-          if (response.ok) {
-            const result = await response.json();
-            // Show success message with gear release info
-            if (result.message) {
-              alert(`Event deleted successfully!\n${result.message}`);
-            }
-          } else {
-            const error = await response.json();
-            alert(`Error deleting event: ${error.error || 'Unknown error'}`);
-          }
-        } catch (err) {
-          console.error('Error deleting event:', err);
-          alert('Error deleting event. Please try again.');
-        }
-        loadTables();
-      }
-    };
-
-    // Always add Open button
-    actions.appendChild(openBtn);
-    
-    // Only add Share and Delete buttons for owners
-    if (isOwner) {
-      actions.appendChild(shareBtn);
-      // Add Archive button before Delete for better grouping
-      const archiveBtn = document.createElement('button');
-      archiveBtn.className = 'btn-archive';
-      archiveBtn.textContent = 'Archive';
-      archiveBtn.onclick = async () => {
-        if (confirm('Are you sure you want to archive this event?')) {
-          await fetch(`${API_BASE}/api/tables/${table._id}/archive`, {
-            method: 'PATCH',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: token
-            },
-            body: JSON.stringify({ archived: true })
-          });
-          loadTables();
-        }
-      };
-      actions.appendChild(archiveBtn);
-      actions.appendChild(deleteBtn);
+      
+      list.appendChild(activeSection);
     }
-
-    card.append(header, actions);
-    if (list) list.appendChild(card);
-  });
+    
+    // Create All Events section
+    if (nonActiveEvents.length > 0) {
+      const allEventsSection = document.createElement('div');
+      allEventsSection.className = 'events-section';
+      
+      const allHeader = document.createElement('h3');
+      allHeader.className = 'events-section-header';
+      allHeader.textContent = 'All Events';
+      allHeader.style.cssText = `
+        margin: ${activeEvents.length > 0 ? '32px' : '0'} 0 16px 0;
+        padding: 12px 0;
+        border-bottom: 2px solid #CC0007;
+        color: #CC0007;
+        font-size: 1.2em;
+        font-weight: 600;
+        text-align: center;
+      `;
+      
+      // Create the cards container with proper flex layout
+      const allCardsContainer = document.createElement('div');
+      allCardsContainer.className = 'table-cards';
+      
+      allEventsSection.appendChild(allHeader);
+      allEventsSection.appendChild(allCardsContainer);
+      
+      nonActiveEvents.forEach(table => {
+        renderEventCard(table, allCardsContainer, userId);
+      });
+      
+      list.appendChild(allEventsSection);
+    }
+  }
 
   renderCalendar(filteredTables);
 
@@ -239,6 +254,183 @@ async function loadTables() {
       cal.style.display = 'none';
     }
   }
+}
+
+// Helper function to render a single event card
+function renderEventCard(table, container, userId) {
+  const general = table.general || {};
+  const client = general.client || 'N/A';
+  
+  // Format dates consistently with UTC to prevent timezone shifts
+  const formatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    // Use UTC date methods to prevent timezone issues
+    return date.toLocaleDateString('en-US', { 
+      weekday: 'short',
+      month: 'short', 
+      day: 'numeric',
+      timeZone: 'UTC' // Prevent timezone shifts
+    });
+  };
+  
+  const start = formatDate(general.start);
+  const end = formatDate(general.end);
+
+  const card = document.createElement('div');
+  card.className = 'table-card';
+
+  const header = document.createElement('div');
+  header.className = 'event-header';
+  
+  // Title and details container
+  const titleContainer = document.createElement('div');
+  titleContainer.className = 'event-title-container';
+
+  const title = document.createElement('h3');
+  title.textContent = table.title;
+
+  const details = document.createElement('div');
+  details.className = 'event-details';
+  details.innerHTML = `Client: ${client} <br> ${start} - ${end}`;
+  
+  titleContainer.appendChild(title);
+  titleContainer.appendChild(details);
+  
+  // 3-dot menu button in top right
+  const menuContainer = document.createElement('div');
+  menuContainer.className = 'event-menu-container';
+  
+  const menuBtn = document.createElement('button');
+  menuBtn.className = 'event-menu-btn';
+  menuBtn.innerHTML = '<span class="material-symbols-outlined">more_vert</span>';
+  menuBtn.setAttribute('aria-label', 'Event options');
+  
+  const menuDropdown = document.createElement('div');
+  menuDropdown.className = 'event-menu-dropdown';
+  
+  menuContainer.appendChild(menuBtn);
+  menuContainer.appendChild(menuDropdown);
+
+  header.appendChild(titleContainer);
+  header.appendChild(menuContainer);
+
+  const actions = document.createElement('div');
+  actions.className = 'action-buttons';
+
+  const openBtn = document.createElement('button');
+  openBtn.className = 'btn-open';
+  openBtn.textContent = 'OPEN';
+  openBtn.onclick = () => {
+    const page = 'general'; // Set this to the correct page identifier
+    const tableId = table._id;
+    window.navigate(page, tableId);
+  };
+
+  const addToCalendarBtn = document.createElement('button');
+  addToCalendarBtn.className = 'btn-add-calendar';
+  addToCalendarBtn.innerHTML = '<span class="material-symbols-outlined">event</span> Add to Calendar';
+  addToCalendarBtn.onclick = () => {
+    // TODO: Implement add to calendar functionality
+    alert('Add to Calendar functionality coming soon!');
+  };
+
+  const isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
+
+  // Create menu items for dropdown
+  const archiveMenuItem = document.createElement('button');
+  archiveMenuItem.className = 'menu-item';
+  archiveMenuItem.innerHTML = `<span class="material-symbols-outlined">archive</span> ${table.userArchived ? 'Unarchive' : 'Archive'}`;
+  archiveMenuItem.onclick = async (e) => {
+    e.stopPropagation();
+    menuDropdown.classList.remove('show');
+    const action = table.userArchived ? 'unarchive' : 'archive';
+    const confirmMessage = table.userArchived 
+      ? 'Are you sure you want to unarchive this event for yourself?' 
+      : 'Are you sure you want to archive this event for yourself?';
+    
+    if (confirm(confirmMessage)) {
+      await fetch(`${API_BASE}/api/tables/${table._id}/user-archive`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token
+        },
+        body: JSON.stringify({ archive: !table.userArchived })
+      });
+      loadTables();
+    }
+  };
+
+  const shareMenuItem = document.createElement('button');
+  shareMenuItem.className = 'menu-item';
+  shareMenuItem.innerHTML = '<span class="material-symbols-outlined">share</span> Share';
+  shareMenuItem.onclick = (e) => {
+    e.stopPropagation();
+    menuDropdown.classList.remove('show');
+    openShareModal(table._id);
+  };
+
+  const deleteMenuItem = document.createElement('button');
+  deleteMenuItem.className = 'menu-item menu-item-danger';
+  deleteMenuItem.innerHTML = '<span class="material-symbols-outlined">delete</span> Delete';
+  deleteMenuItem.onclick = async (e) => {
+    e.stopPropagation();
+    menuDropdown.classList.remove('show');
+    if (confirm('Are you sure you want to delete this event?\n\nThis will also release all gear items reserved for this event back to inventory.')) {
+      try {
+        const response = await fetch(`${API_BASE}/api/tables/${table._id}`, {
+          method: 'DELETE',
+          headers: { Authorization: token }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.message) {
+            alert(`Event deleted successfully!\n${result.message}`);
+          }
+        } else {
+          const error = await response.json();
+          alert(`Error deleting event: ${error.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        console.error('Error deleting event:', err);
+        alert('Error deleting event. Please try again.');
+      }
+      loadTables();
+    }
+  };
+
+  // Add menu items to dropdown
+  menuDropdown.appendChild(archiveMenuItem);
+  if (isOwner) {
+    menuDropdown.appendChild(shareMenuItem);
+    menuDropdown.appendChild(deleteMenuItem);
+  }
+
+  // Toggle menu on button click
+  menuBtn.onclick = (e) => {
+    e.stopPropagation();
+    // Close all other menus
+    document.querySelectorAll('.event-menu-dropdown.show').forEach(menu => {
+      if (menu !== menuDropdown) {
+        menu.classList.remove('show');
+      }
+    });
+    menuDropdown.classList.toggle('show');
+  };
+
+  // Close menu when clicking outside
+  document.addEventListener('click', () => {
+    menuDropdown.classList.remove('show');
+  });
+
+  // Add buttons to actions (Open and Add to Calendar in same row)
+  actions.appendChild(openBtn);
+  actions.appendChild(addToCalendarBtn);
+
+  card.append(header, actions);
+  if (container) container.appendChild(card);
 }
 
 function renderCalendar(events) {
@@ -457,6 +649,8 @@ function renderCalendar(events) {
 
 async function openShareModal(tableId) {
   try {
+    console.log('[SHARE_MODAL] Opening share modal for table:', tableId);
+    
     // First fetch the table to check ownership
     const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
       headers: { Authorization: token }
@@ -481,13 +675,44 @@ async function openShareModal(tableId) {
     // If owner, proceed with opening the share modal
     currentTableId = tableId;
     const shareModal = document.getElementById('shareModal');
-    if (shareModal) shareModal.style.display = 'flex';
+    console.log('[SHARE_MODAL] Found shareModal element:', !!shareModal);
+    
+    if (!shareModal) {
+      console.error('[SHARE_MODAL] shareModal element not found in DOM!');
+      alert('Error: Share modal not found. Please refresh the page.');
+      return;
+    }
+    
+    if (shareModal) {
+      // Move modal to body to escape page-container stacking context
+      if (shareModal.parentElement && shareModal.parentElement.id === 'page-container') {
+        console.log('[SHARE_MODAL] Moving modal from page-container to body');
+        document.body.appendChild(shareModal);
+      }
+      
+      // Force display and ensure visibility
+      shareModal.style.display = 'flex';
+      shareModal.style.visibility = 'visible';
+      shareModal.style.opacity = '1';
+      shareModal.style.zIndex = '10000';
+      shareModal.style.position = 'fixed';
+      shareModal.style.inset = '0';
+      console.log('[SHARE_MODAL] Modal display set to flex and moved to body');
+      
+      // Add click-outside functionality
+      setTimeout(() => {
+        shareModal.addEventListener('click', handleModalClick);
+      }, 0);
+    }
 
     // Fetch users for the lists
     const userRes = await fetch(`${API_BASE}/api/users`, {
       headers: { Authorization: token }
     });
     const users = await userRes.json();
+    
+    // Store all users for autofill functionality
+    allUsers = users;
 
     const owners = users.filter(u => table.owners.includes(u._id));
     const leads = users.filter(u => table.leads.includes(u._id) && !table.owners.includes(u._id));
@@ -575,6 +800,15 @@ async function openShareModal(tableId) {
       });
     }
     addRoleButtonListeners();
+    
+    // Initialize autofill functionality
+    setupUserAutofill();
+    
+    console.log('[SHARE_MODAL] Modal setup complete. Lists populated:', {
+      owners: owners.length,
+      leads: leads.length,
+      shared: shared.length
+    });
 
     // Helper to submit role change and refresh modal
     async function submitRoleChange(email, makeOwner, makeLead) {
@@ -628,15 +862,242 @@ async function openShareModal(tableId) {
   }
 }
 
+function setupUserAutofill() {
+  const shareEmailInput = document.getElementById('shareEmail');
+  const suggestionsContainer = document.getElementById('userSuggestions');
+  const selectedUsersContainer = document.getElementById('selectedUsersList');
+  
+  if (!shareEmailInput || !suggestionsContainer || !selectedUsersContainer) return;
+  
+  // Clear any existing event listeners
+  shareEmailInput.removeEventListener('input', handleUserInput);
+  shareEmailInput.removeEventListener('keydown', handleKeyDown);
+  shareEmailInput.removeEventListener('blur', hideSuggestions);
+  
+  // Reset selectedUsers array
+  selectedUsers = [];
+  renderSelectedUsers();
+  
+  function handleUserInput(e) {
+    const query = e.target.value.toLowerCase().trim();
+    
+    if (query.length < 1) {
+      hideSuggestions();
+      return;
+    }
+    
+    // Filter users based on name or email
+    const filteredUsers = allUsers.filter(user => {
+      const name = (user.name || user.fullName || '').toLowerCase();
+      const email = (user.email || '').toLowerCase();
+      
+      // Don't show already selected users
+      const isAlreadySelected = selectedUsers.some(selected => selected._id === user._id);
+      
+      return !isAlreadySelected && (name.includes(query) || email.includes(query));
+    });
+    
+    showSuggestions(filteredUsers.slice(0, 8)); // Limit to 8 suggestions
+  }
+  
+  function handleKeyDown(e) {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const activeSuggestion = suggestionsContainer.querySelector('.suggestion-active');
+      if (activeSuggestion) {
+        activeSuggestion.click();
+      }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      navigateSuggestions(1);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      navigateSuggestions(-1);
+    } else if (e.key === 'Escape') {
+      hideSuggestions();
+    }
+  }
+  
+  function navigateSuggestions(direction) {
+    const suggestions = suggestionsContainer.querySelectorAll('.user-suggestion');
+    const active = suggestionsContainer.querySelector('.suggestion-active');
+    
+    let newIndex = 0;
+    if (active) {
+      const currentIndex = Array.from(suggestions).indexOf(active);
+      newIndex = currentIndex + direction;
+    }
+    
+    if (newIndex < 0) newIndex = suggestions.length - 1;
+    if (newIndex >= suggestions.length) newIndex = 0;
+    
+    suggestions.forEach(s => {
+      s.classList.remove('suggestion-active');
+      s.style.backgroundColor = 'white';
+    });
+    if (suggestions[newIndex]) {
+      suggestions[newIndex].classList.add('suggestion-active');
+      suggestions[newIndex].style.backgroundColor = '#e3f2fd';
+    }
+  }
+  
+  function showSuggestions(users) {
+    if (users.length === 0) {
+      hideSuggestions();
+      return;
+    }
+    
+    suggestionsContainer.innerHTML = users.map(user => {
+      const name = user.name || user.fullName || user.email;
+      const email = user.email;
+      return `
+        <div class="user-suggestion" data-user-id="${user._id}" style="
+          padding: 8px 12px; 
+          cursor: pointer; 
+          border-bottom: 1px solid #eee; 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center;
+          transition: background-color 0.15s;
+        ">
+          <div>
+            <div style="font-weight: 500;">${name}</div>
+            <div style="font-size: 0.85em; color: #666;">${email}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+    
+    // Add click handlers for suggestions
+    suggestionsContainer.querySelectorAll('.user-suggestion').forEach(suggestion => {
+      suggestion.addEventListener('mouseenter', () => {
+        suggestionsContainer.querySelectorAll('.user-suggestion').forEach(s => {
+          s.classList.remove('suggestion-active');
+          s.style.backgroundColor = 'white';
+        });
+        suggestion.classList.add('suggestion-active');
+        suggestion.style.backgroundColor = '#e3f2fd';
+      });
+      
+      suggestion.addEventListener('click', () => {
+        const userId = suggestion.getAttribute('data-user-id');
+        const user = allUsers.find(u => u._id === userId);
+        if (user) {
+          addSelectedUser(user);
+          shareEmailInput.value = '';
+          hideSuggestions();
+        }
+      });
+    });
+    
+    suggestionsContainer.style.display = 'block';
+  }
+  
+  function hideSuggestions() {
+    setTimeout(() => {
+      suggestionsContainer.style.display = 'none';
+    }, 200);
+  }
+  
+  function addSelectedUser(user) {
+    if (!selectedUsers.some(selected => selected._id === user._id)) {
+      selectedUsers.push(user);
+      renderSelectedUsers();
+    }
+  }
+  
+  function removeSelectedUser(userId) {
+    selectedUsers = selectedUsers.filter(user => user._id !== userId);
+    renderSelectedUsers();
+  }
+  
+  function renderSelectedUsers() {
+    if (selectedUsers.length === 0) {
+      selectedUsersContainer.innerHTML = '';
+      return;
+    }
+    
+    selectedUsersContainer.innerHTML = selectedUsers.map(user => {
+      const name = user.name || user.fullName || user.email;
+      return `
+        <div class="selected-user-tag" style="
+          background: #f0f0f0; 
+          border: 1px solid #ccc; 
+          border-radius: 16px; 
+          padding: 4px 8px; 
+          display: flex; 
+          align-items: center; 
+          gap: 6px;
+          font-size: 0.9em;
+        ">
+          <span>${name}</span>
+          <button type="button" onclick="removeSelectedUserById('${user._id}')" style="
+            background: none; 
+            border: none; 
+            color: #666; 
+            cursor: pointer; 
+            font-size: 16px; 
+            line-height: 1; 
+            padding: 0; 
+            width: 18px; 
+            height: 18px; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            border-radius: 50%;
+          ">&times;</button>
+        </div>
+      `;
+    }).join('');
+  }
+  
+  // Make removeSelectedUser available globally for onclick handlers
+  window.removeSelectedUserById = removeSelectedUser;
+  
+  // Add event listeners
+  shareEmailInput.addEventListener('input', handleUserInput);
+  shareEmailInput.addEventListener('keydown', handleKeyDown);
+  shareEmailInput.addEventListener('blur', hideSuggestions);
+}
+
+function handleModalClick(e) {
+  const shareModal = document.getElementById('shareModal');
+  const modalContent = shareModal?.querySelector('.modal-content');
+  
+  // If click is on the modal backdrop (not the content), close the modal
+  if (e.target === shareModal && !modalContent?.contains(e.target)) {
+    closeModal();
+  }
+}
+
+function handleCreateModalClick(e) {
+  const createModal = document.getElementById('createModal');
+  const modalContent = createModal?.querySelector('.modal-content');
+  
+  // If click is on the modal backdrop (not the content), close the modal
+  if (e.target === createModal && !modalContent?.contains(e.target)) {
+    hideCreateModal();
+  }
+}
+
 function closeModal() {
   const shareModal = document.getElementById('shareModal');
-  if (shareModal) shareModal.style.display = 'none';
+  if (shareModal) {
+    shareModal.style.display = 'none';
+    // Remove click-outside event listener
+    shareModal.removeEventListener('click', handleModalClick);
+  }
   const shareEmail = document.getElementById('shareEmail');
   if (shareEmail) shareEmail.value = '';
-  const makeOwnerCheckbox = document.getElementById('makeOwnerCheckbox');
-  if (makeOwnerCheckbox) makeOwnerCheckbox.checked = false;
-  const makeLeadCheckbox = document.getElementById('makeLeadCheckbox');
-  if (makeLeadCheckbox) makeLeadCheckbox.checked = false;
+  
+  // Clear selected users
+  selectedUsers = [];
+  const selectedUsersContainer = document.getElementById('selectedUsersList');
+  if (selectedUsersContainer) selectedUsersContainer.innerHTML = '';
+  
+  // Hide suggestions
+  const suggestionsContainer = document.getElementById('userSuggestions');
+  if (suggestionsContainer) suggestionsContainer.style.display = 'none';
 
   const ownerList = document.getElementById('ownerList')?.querySelector('ul');
   const leadList = document.getElementById('leadList')?.querySelector('ul');
@@ -647,38 +1108,66 @@ function closeModal() {
 }
 
 async function submitShare() {
-  const email = document.getElementById('shareEmail')?.value;
-  const makeOwner = document.getElementById('makeOwnerCheckbox')?.checked;
-  const makeLead = document.getElementById('makeLeadCheckbox')?.checked;
-
-  if (!email || !currentTableId) return alert('Missing info');
+  if (!currentTableId) return alert('Missing event information');
+  
+  // Check if any users are selected
+  if (selectedUsers.length === 0) {
+    return alert('Please select at least one user to share with.');
+  }
 
   try {
-    const res = await fetch(`${API_BASE}/api/tables/${currentTableId}/share`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: token
-      },
-      body: JSON.stringify({ email, makeOwner, makeLead })
-    });
-
-    const result = await res.json();
+    const results = [];
     
-    if (res.ok) {
-      let msg = result.message || 'Done.';
-      if (makeOwner) {
-        msg += `\n\n${email} is now an owner for this event.`;
-      } else if (makeLead) {
-        msg += `\n\n${email} has been given lead access to this event. This gives them full schedule access for this event only.`;
+    // Share with each selected user (as regular collaborators by default)
+    for (const user of selectedUsers) {
+      const res = await fetch(`${API_BASE}/api/tables/${currentTableId}/share`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token
+        },
+        body: JSON.stringify({ 
+          email: user.email, 
+          makeOwner: false, 
+          makeLead: false 
+        })
+      });
+
+      const result = await res.json();
+      
+      if (res.ok) {
+        results.push({ success: true, user: user.name || user.fullName || user.email, message: result.message });
       } else {
-        msg += `\n\n${email} has been shared as a collaborator for this event.`;
+        results.push({ success: false, user: user.name || user.fullName || user.email, error: result.error });
       }
-      alert(msg + '\nAn email notification has been sent.');
-      closeModal();
-    } else {
-      alert(result.error || 'Error sharing event');
     }
+    
+    // Show summary of results
+    const successCount = results.filter(r => r.success).length;
+    const failureCount = results.filter(r => !r.success).length;
+    
+    let message = `Successfully shared with ${successCount} user(s).`;
+    
+    if (failureCount > 0) {
+      message += `\n\nFailed to share with ${failureCount} user(s):`;
+      results.filter(r => !r.success).forEach(r => {
+        message += `\n- ${r.user}: ${r.error}`;
+      });
+    }
+    
+    if (successCount > 0) {
+      message += '\n\nEmail notifications have been sent to successfully shared users.';
+    }
+    
+    alert(message);
+    
+    // Refresh the modal if any were successful
+    if (successCount > 0) {
+      await openShareModal(currentTableId);
+    } else {
+      closeModal();
+    }
+    
   } catch (err) {
     console.error('Error sharing event:', err);
     alert('Failed to share event. Please try again.');
@@ -733,6 +1222,50 @@ window.initPage = function(id) {
       };
       
       if (payload.role === 'admin') {
+        // Restructure top bar into two rows
+        const topBar = document.querySelector('.top-bar');
+        const usernameDisplay = document.getElementById('usernameDisplay');
+        const logoutBtn = document.getElementById('logoutBtn');
+        
+        if (topBar && usernameDisplay && logoutBtn) {
+          // Check if rows already exist
+          let topRow = topBar.querySelector('.top-bar-row.welcome-row');
+          let adminRow = topBar.querySelector('.top-bar-row.admin-row');
+          
+          if (!topRow) {
+            // Create top row for welcome + logout
+            topRow = document.createElement('div');
+            topRow.className = 'top-bar-row welcome-row';
+            
+            // Move username and logout to top row
+            topBar.appendChild(topRow);
+            topRow.appendChild(usernameDisplay);
+            topRow.appendChild(logoutBtn);
+          }
+          
+          if (!adminRow) {
+            // Create admin row for all admin buttons
+            adminRow = document.createElement('div');
+            adminRow.className = 'top-bar-row admin-row';
+            adminRow.style.justifyContent = 'center';
+            topBar.appendChild(adminRow);
+          }
+          
+          // Create admin buttons container if it doesn't exist
+          let adminButtonsContainer = document.getElementById('adminButtonsContainer');
+          if (!adminButtonsContainer) {
+            adminButtonsContainer = document.createElement('div');
+            adminButtonsContainer.id = 'adminButtonsContainer';
+            adminButtonsContainer.style.display = 'flex';
+            adminButtonsContainer.style.gap = '8px';
+            adminButtonsContainer.style.alignItems = 'center';
+            adminButtonsContainer.style.flexWrap = 'wrap';
+            adminButtonsContainer.style.justifyContent = 'center';
+            adminRow.appendChild(adminButtonsContainer);
+          }
+        }
+
+        // Add admin console button
         let adminBtn = document.getElementById('adminConsoleBtn');
         if (!adminBtn) {
           adminBtn = document.createElement('button');
@@ -742,11 +1275,64 @@ window.initPage = function(id) {
           adminBtn.onclick = () => {
             window.location.href = '/pages/users.html';
           };
-          // Insert before logout button
-          const logoutBtn = document.getElementById('logoutBtn');
-          if (logoutBtn && logoutBtn.parentNode) {
-            logoutBtn.parentNode.insertBefore(adminBtn, logoutBtn);
-          }
+          adminButtonsContainer.appendChild(adminBtn);
+        }
+
+        // Add inventory management button
+        let inventoryBtn = document.getElementById('inventoryManagementBtn');
+        if (!inventoryBtn) {
+          inventoryBtn = document.createElement('button');
+          inventoryBtn.id = 'inventoryManagementBtn';
+          inventoryBtn.className = 'btn-inventory btn-outlined';
+          inventoryBtn.style.display = 'flex';
+          inventoryBtn.style.alignItems = 'center';
+          inventoryBtn.style.gap = '8px';
+          inventoryBtn.innerHTML = `
+            <span class="material-symbols-outlined">inventory</span>
+            Inventory
+          `;
+          inventoryBtn.onclick = () => {
+            window.location.href = '/pages/inventory-management.html';
+          };
+          adminButtonsContainer.appendChild(inventoryBtn);
+        }
+
+        // Add crew planner button
+        let crewPlannerBtn = document.getElementById('crewPlannerBtn');
+        if (!crewPlannerBtn) {
+          crewPlannerBtn = document.createElement('button');
+          crewPlannerBtn.id = 'crewPlannerBtn';
+          crewPlannerBtn.className = 'btn-crew-planner btn-outlined';
+          crewPlannerBtn.style.display = 'flex';
+          crewPlannerBtn.style.alignItems = 'center';
+          crewPlannerBtn.style.gap = '8px';
+          crewPlannerBtn.innerHTML = `
+            <span class="material-symbols-outlined">groups</span>
+            Crew Planner
+          `;
+          crewPlannerBtn.onclick = () => {
+            window.location.href = '/pages/crew-planner.html';
+          };
+          adminButtonsContainer.appendChild(crewPlannerBtn);
+        }
+
+        // Add crew calendar button
+        let crewCalendarBtn = document.getElementById('crewCalendarBtn');
+        if (!crewCalendarBtn) {
+          crewCalendarBtn = document.createElement('button');
+          crewCalendarBtn.id = 'crewCalendarBtn';
+          crewCalendarBtn.className = 'btn-crew-calendar btn-outlined';
+          crewCalendarBtn.style.display = 'flex';
+          crewCalendarBtn.style.alignItems = 'center';
+          crewCalendarBtn.style.gap = '8px';
+          crewCalendarBtn.innerHTML = `
+            <span class="material-symbols-outlined">calendar_month</span>
+            Crew Calendar
+          `;
+          crewCalendarBtn.onclick = () => {
+            window.location.href = '/pages/crew-calendar.html';
+          };
+          adminButtonsContainer.appendChild(crewCalendarBtn);
         }
       }
     }
@@ -790,7 +1376,7 @@ window.initPage = function(id) {
           .then(r => r.json())
           .then(tables => {
             const showArchived = !!document.getElementById('toggleArchivedBtn')?.classList.contains('active');
-            const filteredTables = tables.filter(table => !!table.archived === showArchived);
+            const filteredTables = tables.filter(table => !!table.userArchived === showArchived);
             renderCalendar(filteredTables);
           });
       } else {
@@ -837,6 +1423,7 @@ function setupSocketListeners() {
     'tableUpdated',
     'tableDeleted',
     'tableArchived',
+    'userEventArchived', // When user archives/unarchives an event
     'generalChanged' // When event details are updated
   ];
   

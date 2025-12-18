@@ -125,3 +125,9 @@ console.log('✅ Config loaded - Version:', window.LUMDASH_VERSION);
 })();
 
 window.API_BASE = API_BASE;
+
+// TinyMCE Configuration
+const TINYMCE_API_KEY = 'fas4afhgpg6cpjqy95m2culn60eo1xzhsk3riraqhhlrk8pv';
+
+// Make TinyMCE API key globally accessible
+window.TINYMCE_API_KEY = TINYMCE_API_KEY;

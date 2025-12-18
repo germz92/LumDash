@@ -22,8 +22,71 @@ if (!localStorage.getItem('token') && !window.location.pathname.endsWith('index.
 console.log('🚀 app.js loaded and executing');
 console.log(' app.js loaded');
 
+// Global collaboration notification cleanup for mobile devices
+(function() {
+  console.log('📱 Starting global mobile collaboration cleanup...');
+  
+  function globalMobileCleanup() {
+    // Remove any elements with collaboration text patterns
+    const allElements = document.querySelectorAll('*');
+    allElements.forEach(el => {
+      if (!el || !el.textContent) return;
+      
+      const text = el.textContent.toLowerCase().trim();
+      
+      // Match specific collaboration notification patterns
+      if (text.match(/^\d+\s+user.*collaborating$/i) ||
+          text.match(/^\d+\s+users?\s+collaborating$/i) ||
+          text === 'user collaborating' ||
+          text === 'users collaborating' ||
+          text.match(/^active users?:?\s*$/i)) {
+        
+        // Safety check - don't remove if it's part of important content
+        const parent = el.parentElement;
+        const isImportantContent = parent && (
+          parent.classList.contains('program-entry') ||
+          parent.classList.contains('general-page') ||
+          parent.classList.contains('schedule-page') ||
+          el.tagName === 'TITLE' ||
+          el.tagName === 'H1' ||
+          el.tagName === 'H2'
+        );
+        
+        if (!isImportantContent) {
+          console.log(`🗑️ [GLOBAL] Removed mobile collaboration notification: "${el.textContent}"`);
+          el.remove();
+        }
+      }
+    });
+    
+    // Also remove any elements with collaboration-related classes
+    const collabClassElements = document.querySelectorAll('[class*="collab"], [class*="notification"], [id*="collab"], [id*="notification"]');
+    collabClassElements.forEach(el => {
+      if (!el || !el.textContent) return;
+      const text = el.textContent.toLowerCase();
+      if (text.includes('collaborating') || text.includes('active users')) {
+        console.log(`🗑️ [GLOBAL] Removed collaboration element by class: "${el.textContent}"`);
+        el.remove();
+      }
+    });
+  }
+  
+  // Run cleanup immediately
+  globalMobileCleanup();
+  
+  // Run cleanup every 2 seconds
+  setInterval(globalMobileCleanup, 2000);
+  
+  // Also run cleanup when page changes
+  window.addEventListener('hashchange', () => {
+    setTimeout(globalMobileCleanup, 500);
+  });
+  
+  console.log('📱 Global mobile collaboration cleanup initialized');
+})();
+
 const PAGE_CLASSES = [
-  'events-page', 'general-page', 'crew-page', 'travel-page', 'gear-page', 'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'users-page'
+  'events-page', 'general-page', 'crew-page', 'travel-page', 'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'users-page', 'crew-planner-page', 'crew-calendar-page'
 ];
 
 function setBodyPageClass(page) {
@@ -61,7 +124,7 @@ function navigate(page, id) {
   window.currentNavigatingPage = page; // Track for debugging
   
   // Only require an ID for pages that need it
-  const needsId = !['events', 'dashboard', 'login', 'register', 'users'].includes(page);
+  const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'crew-planner', 'crew-calendar'].includes(page);
   
   // CRITICAL FIX: Determine the final tableId to use consistently throughout navigation
   let finalId = id;
@@ -299,9 +362,17 @@ function injectPageContent(html, page, id) {
     console.log(`[SCRIPT_LOAD] window.initPage exists: ${typeof window.initPage === 'function'}`);
     
     // Check if the script actually executed by looking for our debug marker
-    if (window.__documentsJsLoaded) {
-      console.log(`[SCRIPT_LOAD] documents.js execution confirmed via marker`);
-    } else {
+    const pageMarkers = {
+      'documents': 'window.__documentsJsLoaded',
+      'schedule': 'window.__scheduleJsLoaded',
+      'card-log': 'window.__cardLogJsLoaded',
+      'shotlist': 'window.__shotlistJsLoaded'
+    };
+    
+    const markerName = pageMarkers[page];
+    if (markerName && window[markerName.replace('window.', '')]) {
+      console.log(`[SCRIPT_LOAD] ${page}.js execution confirmed via marker`);
+    } else if (markerName) {
       console.warn(`[SCRIPT_LOAD] ${page}.js may not have executed properly - no execution marker found`);
     }
     
@@ -427,7 +498,17 @@ function setupDropdownMenu(tableId) {
       const currentEventId = localStorage.getItem('eventId');
       console.log(`Dropdown link clicked: ${page}, using currentEventId: ${currentEventId}`);
       dropdownMenu.classList.remove('show');
-      window.navigate(page, currentEventId);
+      
+      // Special handling for gear page - redirect to new gear system
+      if (page === 'gear') {
+        if (currentEventId) {
+          window.location.href = `pages/gear.html?eventId=${currentEventId}`;
+        } else {
+          alert('No event selected. Please select an event first.');
+        }
+      } else {
+        window.navigate(page, currentEventId);
+      }
     };
     link.addEventListener('click', linkHandler);
     dropdownEventListeners.links.push({ element: link, handler: linkHandler });
@@ -447,8 +528,10 @@ function loadPageCSS(page) {
     case 'events': cssFile = 'css/events.css'; break;
     case 'general': cssFile = 'css/general.css'; break;
     case 'crew': cssFile = 'css/crew.css'; break;
+    case 'crew-planner': cssFile = 'css/crew-planner.css'; break;
+    case 'crew-calendar': cssFile = 'css/crew-calendar.css'; break;
     case 'travel-accommodation': cssFile = 'css/travel-accommodation.css'; break;
-    case 'gear': cssFile = 'css/gear.css'; break;
+
     case 'card-log': cssFile = 'css/card-log.css'; break;
     case 'schedule': cssFile = 'css/schedule.css'; break;
     case 'shotlist': cssFile = 'css/shotlist.css'; break;
@@ -508,7 +591,7 @@ window.addEventListener('DOMContentLoaded', () => {
   
   // Reset body classes
   const PAGE_CLASSES_RESET = [
-    'events-page', 'general-page', 'crew-page', 'travel-page', 'gear-page', 
+    'events-page', 'general-page', 'crew-page', 'travel-page', 
     'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page'
   ];
   PAGE_CLASSES_RESET.forEach(cls => document.body.classList.remove(cls));
@@ -541,7 +624,7 @@ if (window.PullToRefresh) {
     shouldPullToRefresh: function() {
       // Prevent pull-to-refresh if the user is pulling on a scrollable element
       const scrollableSelectors = [
-        '.item-list', '.program-container', '.modal-content', '.table-cards', '.gear-container', '.card-log-table', '.schedule-page', '.crew-page', '.travel-page', '.general-page', '.card-container', '.modal', '.modal-content', '.list-group', '.info-section', '.contacts-container', '.contacts-scroll-wrapper', '.program-container', '.program-entry', '.date-section', '.date-header', '.event-header', '.event-details', '.action-buttons', '.table-card', '.table-cards', '.gear-page', '.schedule-page', '.crew-page', '.travel-page', '.general-page', '.dashboard-page', '.card-log-page', '.login-page', '.register-page'
+        '.item-list', '.program-container', '.modal-content', '.table-cards', '.card-log-table', '.schedule-page', '.crew-page', '.travel-page', '.general-page', '.card-container', '.modal', '.modal-content', '.list-group', '.info-section', '.contacts-container', '.contacts-scroll-wrapper', '.program-container', '.program-entry', '.date-section', '.date-header', '.event-header', '.event-details', '.action-buttons', '.table-card', '.table-cards', '.schedule-page', '.crew-page', '.travel-page', '.general-page', '.dashboard-page', '.card-log-page', '.login-page', '.register-page'
       ];
       let el = document.elementFromPoint(window.innerWidth/2, 10);
       while (el) {
@@ -583,11 +666,11 @@ function setupBottomNavigation(navContainer, tableId, currentPage) {
 
   console.log(`Setting up bottom navigation with explicit tableId: ${tableId} for page: ${currentPage}`);
 
-  // Check if we should show desktop navigation (all buttons) or mobile navigation (with dropdown)
-  const isDesktop = window.innerWidth >= 768;
-  console.log(`Screen width: ${window.innerWidth}px, using ${isDesktop ? 'desktop' : 'mobile'} navigation`);
+  // Track current navigation mode (like gear page)
+  let currentIsDesktop = window.innerWidth >= 768;
+  console.log(`Screen width: ${window.innerWidth}px, using ${currentIsDesktop ? 'desktop' : 'mobile'} navigation`);
   
-  if (isDesktop) {
+  if (currentIsDesktop) {
     setupDesktopNavigation(navContainer, tableId, currentPage);
   } else {
     setupMobileNavigation(navContainer, tableId, currentPage);
@@ -596,8 +679,9 @@ function setupBottomNavigation(navContainer, tableId, currentPage) {
   // Handle window resize to switch between desktop and mobile navigation
   const resizeHandler = () => {
     const newIsDesktop = window.innerWidth >= 768;
-    if (newIsDesktop !== isDesktop) {
-      console.log(`Screen size changed, switching to ${newIsDesktop ? 'desktop' : 'mobile'} navigation`);
+    if (newIsDesktop !== currentIsDesktop) {
+      console.log(`Screen size changed from ${currentIsDesktop ? 'desktop' : 'mobile'} to ${newIsDesktop ? 'desktop' : 'mobile'} navigation`);
+      currentIsDesktop = newIsDesktop; // Update the tracked state
       if (newIsDesktop) {
         setupDesktopNavigation(navContainer, tableId, currentPage);
       } else {
@@ -620,11 +704,37 @@ function setupBottomNavigation(navContainer, tableId, currentPage) {
 function setupDesktopNavigation(navContainer, tableId, currentPage) {
   console.log('Setting up desktop navigation with all buttons visible');
   
+  // Reset any mobile-specific styles (simple approach like gear page)
+  navContainer.style.display = '';
+  navContainer.style.gridTemplateColumns = '';
+  navContainer.style.gap = '';
+  
+  // Reset grid positioning for all navigation items
+  const allNavItems = navContainer.querySelectorAll('a, .nav-dropdown');
+  allNavItems.forEach(item => {
+    item.style.gridColumn = '';
+    item.style.display = '';
+  });
+  
+  // Show all regular navigation items and reset their mobile styles
+  const regularNavItems = navContainer.querySelectorAll('a[data-page]:not(.desktop-nav-item), .chat-button-nav');
+  regularNavItems.forEach(item => {
+    if (!item.closest('.dropdown-menu')) {
+      item.style.display = 'flex';
+      // Reset any mobile grid positioning
+      item.style.gridColumn = '';
+    }
+  });
+  
   // Hide the dropdown container
   const navDropdown = navContainer.querySelector('.nav-dropdown');
   if (navDropdown) {
     navDropdown.style.display = 'none';
+    navDropdown.style.gridColumn = '';
   }
+  
+  // Remove any existing desktop nav items we added previously
+  navContainer.querySelectorAll('.desktop-nav-item').forEach(item => item.remove());
   
   // Create and add the dropdown items as direct navigation buttons
   const dropdownItems = [
@@ -634,9 +744,6 @@ function setupDesktopNavigation(navContainer, tableId, currentPage) {
     { page: 'documents', icon: 'map', label: 'Map' },
     { page: 'events', icon: 'exit_to_app', label: 'Exit' }
   ];
-  
-  // Remove any existing desktop nav items we added previously
-  navContainer.querySelectorAll('.desktop-nav-item').forEach(item => item.remove());
   
   // Add the dropdown items as direct navigation links
   dropdownItems.forEach(item => {
@@ -655,7 +762,17 @@ function setupDesktopNavigation(navContainer, tableId, currentPage) {
       const page = navLink.getAttribute('data-page');
       const currentEventId = localStorage.getItem('eventId');
       console.log(`Desktop nav link clicked: ${page}, using currentEventId: ${currentEventId}`);
-      window.navigate(page, currentEventId);
+      
+      // Special handling for gear page - redirect to new gear system
+      if (page === 'gear') {
+        if (currentEventId) {
+          window.location.href = `pages/gear.html?eventId=${currentEventId}`;
+        } else {
+          alert('No event selected. Please select an event first.');
+        }
+      } else {
+        window.navigate(page, currentEventId);
+      }
     });
     
     navContainer.appendChild(navLink);
@@ -674,10 +791,39 @@ function setupDesktopNavigation(navContainer, tableId, currentPage) {
 function setupMobileNavigation(navContainer, tableId, currentPage) {
   console.log('Setting up mobile navigation with dropdown menu');
   
+  // Apply mobile grid layout (this will be handled by CSS media queries, but ensure it's not overridden)
+  navContainer.style.display = '';
+  navContainer.style.gridTemplateColumns = '';
+  navContainer.style.gap = '';
+  
+  // Reset grid positioning for all navigation items (let CSS handle positioning)
+  const allNavItems = navContainer.querySelectorAll('a, .nav-dropdown');
+  allNavItems.forEach(item => {
+    item.style.gridColumn = '';
+    item.style.display = '';
+  });
+  
+  // Show only specific navigation items for mobile
+  const regularNavItems = navContainer.querySelectorAll('a[data-page]:not(.desktop-nav-item)');
+  regularNavItems.forEach(item => {
+    if (!item.closest('.dropdown-menu')) {
+      // Show only core navigation items in mobile mode
+      const page = item.getAttribute('data-page');
+      if (['general', 'crew', 'schedule', 'shotlist'].includes(page) || item.classList.contains('chat-button-nav')) {
+        item.style.display = 'flex';
+      } else {
+        item.style.display = 'none';
+      }
+      // Reset any explicit grid column assignments (let CSS handle it)
+      item.style.gridColumn = '';
+    }
+  });
+  
   // Show the dropdown container
   const navDropdown = navContainer.querySelector('.nav-dropdown');
   if (navDropdown) {
     navDropdown.style.display = 'flex';
+    navDropdown.style.gridColumn = '';
   }
   
   // Remove any desktop nav items we added
@@ -730,7 +876,17 @@ function setupRegularNavLinks(navContainer) {
         console.log('Closing dropdown menu due to regular nav link click');
         dropdownMenu.classList.remove('show');
       }
-      window.navigate(page, currentEventId);
+      
+      // Special handling for gear page - redirect to new gear system
+      if (page === 'gear') {
+        if (currentEventId) {
+          window.location.href = `pages/gear.html?eventId=${currentEventId}`;
+        } else {
+          alert('No event selected. Please select an event first.');
+        }
+      } else {
+        window.navigate(page, currentEventId);
+      }
     });
   });
   
@@ -823,7 +979,7 @@ function updateActiveNavigation(currentPage) {
         if (iconElement.textContent !== iconElement.dataset.inactiveIconName) {
             iconElement.textContent = iconElement.dataset.inactiveIconName;
         }
-        console.warn('[DEBUG] Could not determine canonical inactive Material Symbol for item:', item, 'using fallback textContent.');
+        console.log('[DEBUG] Could not determine canonical inactive Material Symbol for item:', item, 'using fallback textContent.');
       }
     }
   });

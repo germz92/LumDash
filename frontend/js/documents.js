@@ -805,7 +805,11 @@ class DocumentsPage {
 
   formatDate(dateString) {
     const date = new Date(dateString);
-    return date.toLocaleDateString();
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      month: 'short',
+      day: 'numeric'
+    });
   }
 
   formatFileSize(bytes) {

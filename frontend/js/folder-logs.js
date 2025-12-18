@@ -41,9 +41,9 @@ window.initPage = undefined;
       if (!dateStr) return '';
       const [year, month, day] = dateStr.split('-');
       return new Date(Number(year), Number(month) - 1, Number(day)).toLocaleDateString('en-US', {
-        month: 'long',
-        day: '2-digit',
-        year: 'numeric'
+        weekday: 'short',
+        month: 'short',
+        day: 'numeric'
       });
     }
 

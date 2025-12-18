@@ -873,182 +873,6 @@
                 line-height: 1.3;
             }
         }
-
-        /* Manual Items Styles - Match Regular Categories */
-        .manual-items-category {
-            margin-top: 20px;
-            /* Use same styling as regular gear categories */
-        }
-
-        .add-manual-item-section {
-            margin-top: 16px;
-            padding: 16px;
-            border-top: 1px solid #e0e4e7;
-            background: #f8f9fa;
-        }
-
-        .add-manual-btn {
-            width: 100%;
-            padding: 12px 16px;
-            background: #007bff;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 8px;
-            transition: all 0.2s ease;
-        }
-
-        .add-manual-btn:hover {
-            background: #0056b3;
-            transform: translateY(-1px);
-        }
-
-        .add-manual-form {
-            display: flex;
-            flex-direction: column;
-            gap: 12px;
-        }
-
-        .add-manual-form input {
-            padding: 12px 16px;
-            border: 2px solid #e0e4e7;
-            border-radius: 8px;
-            font-size: 14px;
-            transition: border-color 0.2s ease;
-            margin-bottom: 8px;
-        }
-
-        .add-manual-form input:focus {
-            outline: none;
-            border-color: #007bff;
-            box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.1);
-        }
-
-        .form-actions {
-            display: flex;
-            gap: 8px;
-        }
-
-        .form-actions .action-btn {
-            flex: 1;
-            padding: 10px 16px;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            font-size: 14px;
-            font-weight: 500;
-            transition: all 0.2s ease;
-        }
-
-        .add-btn {
-            background: #22c55e;
-            color: white;
-        }
-
-        .add-btn:hover {
-            background: #16a34a;
-        }
-
-        .cancel-btn {
-            background: #6b7280;
-            color: white;
-        }
-
-        .cancel-btn:hover {
-            background: #4b5563;
-        }
-
-        .empty-category {
-            text-align: center;
-            padding: 40px 20px;
-            color: #6b7280;
-        }
-
-        .empty-category .material-symbols-outlined {
-            font-size: 48px;
-            color: #d1d5db;
-            margin-bottom: 12px;
-        }
-
-        .empty-category p {
-            margin: 0 0 8px 0;
-            font-size: 16px;
-            font-weight: 500;
-        }
-
-        .empty-category small {
-            font-size: 14px;
-            color: #9ca3af;
-        }
-
-        /* Manual Items Layout Fixes */
-        .manual-items-category .gear-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            width: 100%;
-            padding: 16px 20px;
-            background: white;
-            border-bottom: 1px solid #e0e4e7;
-        }
-
-        .manual-items-category .gear-item:last-child {
-            border-bottom: none;
-        }
-
-        .manual-items-category .item-content {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            flex: 1;
-        }
-
-        .manual-items-category .item-details {
-            flex: 1;
-        }
-
-        .manual-items-category .item-name {
-            font-size: 16px;
-            font-weight: 600;
-            color: #374151;
-            margin-bottom: 4px;
-        }
-
-        .manual-items-category .item-info {
-            display: flex;
-            gap: 8px;
-            align-items: center;
-        }
-
-        .manual-items-category .item-meta {
-            font-size: 12px;
-            color: #6b7280;
-        }
-
-        .manual-items-category .item-actions {
-            flex-shrink: 0;
-        }
-
-        .manual-items-category .delete-btn {
-            padding: 8px;
-            background: #ef4444;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .manual-items-category .delete-btn:hover {
-            background: #dc2626;
-            transform: scale(1.05);
-        }
     </style>
 </head>
 <body>
@@ -1121,68 +945,25 @@
             <div class="loading-spinner"></div>
             <p>Loading gear...</p>
         </div>
-        </div>
-
-    <!-- Bottom Navigation -->
-    <nav class="bottom-nav-material" id="bottomNav">
-        <a href="#" id="navHome" data-page="general"><span class="material-symbols-outlined">home</span><span>Home</span></a>
-        <a href="#" id="navCrew" data-page="crew"><span class="material-symbols-outlined">group</span><span>Crew</span></a>
-        <a href="#" id="navLuma" class="chat-button-nav"><span class="material-symbols-outlined">lightbulb_2</span><span>Luma</span></a>
-        <a href="#" id="navSchedule" data-page="schedule"><span class="material-symbols-outlined">calendar_today</span><span>Schedule</span></a>
-        <a href="#" id="navShotlist" data-page="shotlist"><span class="material-symbols-outlined">checklist</span><span>Shotlist</span></a>
-        
-        <!-- Dropdown menu for Travel, Gear, Cards, Map, Exit -->
-        <div class="nav-dropdown" id="navMore">
-            <a href="#" class="dropdown-toggle active">
-                <span class="material-symbols-outlined">more_horiz</span>
-                <span>More</span>
-            </a>
-            <div class="dropdown-menu" id="dropdownMenu">
-                <a href="#" data-page="travel-accommodation">
-                    <span class="material-symbols-outlined">flight_takeoff</span>
-                    <span>Travel</span>
-                </a>
-                <a href="#" data-page="gear" class="active">
-                    <span class="material-symbols-outlined">photo_camera</span>
-                    <span>Gear</span>
-                </a>
-                <a href="#" data-page="card-log">
-                    <span class="material-symbols-outlined">sd_card</span>
-                    <span>Cards</span>
-                </a>
-                <a href="#" data-page="documents">
-                    <span class="material-symbols-outlined">map</span>
-                    <span>Map</span>
-                </a>
-                <a href="#" data-page="shotlist" class="mobile-shotlist-dropdown">
-                    <span class="material-symbols-outlined">checklist</span>
-                    <span>Shotlist</span>
-                </a>
-                <a href="#" id="navExit" data-page="events">
-                    <span class="material-symbols-outlined">exit_to_app</span>
-                    <span>Exit</span>
-                </a>
-            </div>
-        </div>
-    </nav>
+    </div>
 
     <!-- Action Buttons -->
-        <div class="action-buttons">
-            <div class="action-buttons-content">
-                <button class="btn btn-primary" onclick="addItems()" id="addItemsBtn">
-                    <span class="material-symbols-outlined">add_shopping_cart</span>
-                    Add Items
-                </button>
-                <button class="btn btn-secondary" onclick="viewCart()" id="viewCartBtn">
-                    <span class="material-symbols-outlined">shopping_cart</span>
-                    View Cart
-                </button>
-                <button class="btn btn-secondary" onclick="manageInventory()" id="manageInventoryBtn" style="display: none;">
-                    <span class="material-symbols-outlined">inventory</span>
-                    Manage Inventory
-                </button>
-            </div>
+    <div class="action-buttons">
+        <div class="action-buttons-content">
+            <button class="btn btn-primary" onclick="addItems()" id="addItemsBtn">
+                <span class="material-symbols-outlined">add_shopping_cart</span>
+                Add Items
+            </button>
+            <button class="btn btn-secondary" onclick="viewCart()" id="viewCartBtn">
+                <span class="material-symbols-outlined">shopping_cart</span>
+                View Cart
+            </button>
+            <button class="btn btn-secondary" onclick="manageInventory()" id="manageInventoryBtn" style="display: none;">
+                <span class="material-symbols-outlined">inventory</span>
+                Manage Inventory
+            </button>
         </div>
+    </div>
 
     <!-- New Package Modal -->
     <div id="newPackageModal" class="modal">
@@ -1291,29 +1072,185 @@
             </div>
             <div class="modal-footer">
                 <button class="package-btn" onclick="closeCreateTemplateModal()">Cancel</button>
-                <button class="package-btn primary" onclick="createTemplateFromModal()">Create Template</button>
+                <button class="package-btn primary" onclick="createTemplate()">Create Template</button>
             </div>
         </div>
-          </div>
-  
-        <!-- Load config and chat scripts -->
-        <script src="../js/config.js"></script>
-        <script src="../js/chat.js"></script>
-        
-        <script>
-        // Page-specific variables
+    </div>
+
+    <script src="../js/config.js"></script>
+    <script src="../js/app.js"></script>
+    <script src="../js/chat.js"></script>
+    <script>
         let currentEvent = null;
         let currentGear = [];
-        let manualItems = [];
         let gearLists = [];
         let currentListName = 'Main List';
         let packageTemplates = [];
         let currentTemplateId = null;
         let currentTemplate = null;
-        let currentEventId = null;
         let eventId = null;
         let currentUser = null;
-        let userPermissions = { canReserve: false, canManageLists: false, canPack: true };
+
+        // Load shared bottom navigation - SIMPLIFIED VERSION  
+        async function loadBottomNavigation() {
+            console.log('🚀 Starting bottom navigation setup...');
+            
+            const container = document.getElementById('bottomNavContainer');
+            if (!container) {
+                console.error('❌ bottomNavContainer element not found');
+                return;
+            }
+            
+            // Always use the direct navigation HTML (skip fetch complexity)
+            console.log('📝 Injecting navigation HTML directly...');
+            container.innerHTML = `
+                <!-- Bottom nav -->
+                <nav class="bottom-nav-material" id="bottomNav">
+                  <a href="#" id="navHome" data-page="general"><span class="material-symbols-outlined">home</span><span>Home</span></a>
+                  <a href="#" id="navCrew" data-page="crew"><span class="material-symbols-outlined">group</span><span>Crew</span></a>
+                  <a href="#" id="navLuma" class="chat-button-nav"><span class="material-symbols-outlined">lightbulb_2</span><span>Luma</span></a>
+                  <a href="#" id="navSchedule" data-page="schedule"><span class="material-symbols-outlined">calendar_today</span><span>Schedule</span></a>
+                  <a href="#" id="navShotlist" data-page="shotlist"><span class="material-symbols-outlined">checklist</span><span>Shotlist</span></a>
+                  
+                  <!-- Dropdown menu for Travel, Gear, Cards, Map, Shotlist (mobile), Exit -->
+                  <div class="nav-dropdown" id="navMore">
+                    <a href="#" class="dropdown-toggle">
+                      <span class="material-symbols-outlined">more_horiz</span>
+                      <span>More</span>
+                    </a>
+                    <div class="dropdown-menu" id="dropdownMenu">
+                      <a href="#" data-page="travel-accommodation">
+                        <span class="material-symbols-outlined">flight_takeoff</span>
+                        <span>Travel</span>
+                      </a>
+                      <a href="#" data-page="gear">
+                        <span class="material-symbols-outlined">photo_camera</span>
+                        <span>Gear</span>
+                      </a>
+                      <a href="#" data-page="card-log">
+                        <span class="material-symbols-outlined">sd_card</span>
+                        <span>Cards</span>
+                      </a>
+                      <a href="#" data-page="documents">
+                        <span class="material-symbols-outlined">map</span>
+                        <span>Map</span>
+                      </a>
+                      <a href="#" data-page="shotlist" class="mobile-shotlist-dropdown">
+                        <span class="material-symbols-outlined">checklist</span>
+                        <span>Shotlist</span>
+                      </a>
+                      <a href="#" id="navExit" data-page="events">
+                        <span class="material-symbols-outlined">exit_to_app</span>
+                        <span>Exit</span>
+                      </a>
+                    </div>
+                  </div>
+                </nav> 
+            `;
+            
+            const navContainer = document.getElementById('bottomNav');
+            if (!navContainer) {
+                console.error('❌ bottomNav element not found after injection');
+                return;
+            }
+            
+            console.log('✅ Navigation HTML injected successfully');
+            
+            // Simple setup without relying on complex SPA functions
+            setupGearPageNavigation(navContainer);
+        }
+        
+        // Standalone navigation setup specifically for gear page
+        function setupGearPageNavigation(navContainer) {
+            console.log('🔧 Setting up gear page navigation...');
+            
+            // Set up all navigation links
+            const navLinks = navContainer.querySelectorAll('a[data-page]');
+            navLinks.forEach(link => {
+                if (link.closest('.dropdown-menu')) return; // Skip dropdown items for now
+                
+                link.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    const page = link.getAttribute('data-page');
+                    console.log(`🖱️ Nav link clicked: ${page}`);
+                    
+                    if (page !== 'gear') {
+                        if (page === 'events') {
+                            window.location.href = `../dashboard.html#events`;
+                        } else {
+                            window.location.href = `../dashboard.html?eventId=${eventId}&page=${page}`;
+                        }
+                    }
+                });
+            });
+            
+            // Set up chat button
+            const chatButton = navContainer.querySelector('.chat-button-nav');
+            if (chatButton) {
+                chatButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    console.log('💬 Chat button clicked');
+                    
+                    // Try to open chat
+                    if (typeof openChat === 'function') {
+                        openChat();
+                    } else if (window.chatWidget) {
+                        window.chatWidget.toggleChat();
+                    } else {
+                        window.location.href = `../components/chat.html?eventId=${eventId}`;
+                    }
+                });
+            }
+            
+            // Set up dropdown menu
+            const dropdownToggle = navContainer.querySelector('.dropdown-toggle');
+            const dropdownMenu = navContainer.querySelector('.dropdown-menu');
+            
+            if (dropdownToggle && dropdownMenu) {
+                dropdownToggle.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    dropdownMenu.classList.toggle('show');
+                });
+                
+                // Setup dropdown links
+                const dropdownLinks = dropdownMenu.querySelectorAll('a[data-page]');
+                dropdownLinks.forEach(link => {
+                    link.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        const page = link.getAttribute('data-page');
+                        dropdownMenu.classList.remove('show');
+                        
+                        if (page !== 'gear') {
+                            if (page === 'events') {
+                                window.location.href = `../dashboard.html#events`;
+                            } else {
+                                window.location.href = `../dashboard.html?eventId=${eventId}&page=${page}`;
+                            }
+                        }
+                    });
+                });
+                
+                // Close dropdown when clicking outside
+                document.addEventListener('click', function(e) {
+                    if (!dropdownToggle.contains(e.target) && !dropdownMenu.contains(e.target)) {
+                        dropdownMenu.classList.remove('show');
+                    }
+                });
+            }
+            
+            // Mark gear as active
+            const gearLink = navContainer.querySelector('a[data-page="gear"]');
+            if (gearLink) {
+                gearLink.classList.add('active');
+            }
+            
+            const moreToggle = navContainer.querySelector('.dropdown-toggle');
+            if (moreToggle) {
+                moreToggle.classList.add('active');
+            }
+            
+            console.log('✅ Gear page navigation setup complete');
+        }
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', async function() {
@@ -1324,14 +1261,13 @@
                 return;
             }
 
+            // Load the shared bottom navigation
+            await loadBottomNavigation();
+
             checkUserRole();
             loadEvent();
             await loadGearLists(); // Wait for gear lists to load before loading gear
             loadGear();
-            setupBottomNavigation();
-            
-            // Initialize chat widget after everything else is set up
-            setTimeout(initializeChatWidget, 100);
         });
 
         // Load event data
@@ -1346,13 +1282,6 @@
                 if (response.ok) {
                     currentEvent = await response.json();
                     updateDateInputs();
-                    
-                    // Update header with event name and list name
-                    const gearHeader = document.querySelector('.header h1');
-                    if (gearHeader) {
-                        const eventName = currentEvent?.title || 'Event';
-                        gearHeader.textContent = `${eventName} - ${currentListName}`;
-                    }
                 }
             } catch (error) {
                 console.error('Error loading event:', error);
@@ -1400,19 +1329,12 @@
                 if (response.ok) {
                     const result = await response.json();
                     currentGear = result.reservedItems || [];
-                    manualItems = result.manualItems || [];
-                    userPermissions = result.userPermissions || { canReserve: false, canManageLists: false, canPack: true };
-                    console.log('User permissions:', userPermissions);
                     renderGear();
                     updateProgress();
-                    updateUIBasedOnPermissions();
                 } else {
                     // No gear reserved yet
                     currentGear = [];
-                    manualItems = [];
-                    userPermissions = { canReserve: false, canManageLists: false, canPack: true };
                     renderGear();
-                    updateUIBasedOnPermissions();
                 }
             } catch (error) {
                 console.error('Error loading gear:', error);
@@ -1453,23 +1375,18 @@
         function renderGear() {
             const container = document.getElementById('gearContainer');
             
-            // Update header to show event name and list name
+            // Update header to show current list
             const gearHeader = document.querySelector('.header h1');
             if (gearHeader) {
-                const eventName = currentEvent?.title || 'Event';
-                gearHeader.textContent = `${eventName} - ${currentListName}`;
+                gearHeader.textContent = `Gear - ${currentListName}`;
             }
             
             if (currentGear.length === 0) {
-                const emptyMessage = userPermissions.canReserve 
-                    ? 'Click "Add Items" below to start building your gear list.' 
-                    : 'Event owners can add items to this list.';
-                    
                 container.innerHTML = `
                     <div style="text-align: center; padding: 60px 20px; color: #666;">
                         <div style="font-size: 64px; color: #ccc; margin-bottom: 16px;">📦</div>
                         <h3>No gear in "${currentListName}" yet</h3>
-                        <p>${emptyMessage}</p>
+                        <p>Click "Add Items" below to start building your gear list.</p>
                     </div>
                 `;
                 return;
@@ -1478,12 +1395,6 @@
             // Group gear by category
             const categories = {};
             currentGear.forEach(item => {
-                // Skip items with null inventoryId (orphaned items)
-                if (!item.inventoryId) {
-                    console.warn('Skipping item with null inventoryId:', item);
-                    return;
-                }
-                
                 const category = item.inventoryId.category || 'Uncategorized';
                 if (!categories[category]) {
                     categories[category] = [];
@@ -1510,11 +1421,9 @@
                         
                         <div class="gear-list">
                             ${items.map(item => {
-                                // Handle cases where inventoryId might be null (shouldn't happen after filtering, but be safe)
-                                const label = item.inventoryId?.label || `${item.brand} ${item.model}`;
-                                const labelParts = label.split(' ');
-                                const brand = labelParts[0] || item.brand || 'Unknown';
-                                const model = labelParts.slice(1).join(' ') || item.model || 'Unknown';
+                                const labelParts = item.inventoryId.label.split(' ');
+                                const brand = labelParts[0] || 'Unknown';
+                                const model = labelParts.slice(1).join(' ') || 'Unknown';
                                 
                                 return `
                                     <div class="gear-item ${item.isPacked ? 'packed' : ''}">
@@ -1531,12 +1440,10 @@
                                             </div>
                                         </div>
                                         <div class="gear-controls">
-                                            ${userPermissions.canReserve ? `
-                                                <button class="delete-btn" onclick="deleteGearItem('${item._id}')" 
-                                                        title="Remove from list">
-                                                    <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
-                                                </button>
-                                            ` : ''}
+                                            <button class="delete-btn" onclick="deleteGearItem('${item._id}')" 
+                                                    title="Remove from list">
+                                                <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
+                                            </button>
                                         </div>
                                     </div>
                                 `;
@@ -1546,110 +1453,17 @@
                 `;
             }).join('');
 
-            // Render manual items section
-            const manualItemsHTML = renderManualItems();
-            
-            container.innerHTML = `
-                <div class="categories-grid">${categoriesHTML}</div>
-                ${manualItemsHTML}
-            `;
+            container.innerHTML = `<div class="categories-grid">${categoriesHTML}</div>`;
         }
 
-        // Render manual items section
-        function renderManualItems() {
-            if (!manualItems || manualItems.length === 0) {
-                // Show empty state only if user can manage lists (add items)
-                if (!userPermissions.canManageLists) {
-                    return ''; // Hide section entirely for non-managers when empty
-                }
-            }
-
-            const manualItemsHTML = manualItems.map(item => {
-                return `
-                    <div class="gear-item ${item.completed ? 'packed' : ''}">
-                        <div class="item-content">
-                            <label class="checkbox-container">
-                                <input type="checkbox" ${item.completed ? 'checked' : ''} 
-                                       onchange="toggleManualItem('${item._id}')" class="checkbox">
-                                <span class="checkmark"></span>
-                            </label>
-                            <div class="item-details">
-                                <div class="item-name">${item.text}</div>
-                                <div class="item-info">
-                                    <span class="item-meta">Added ${formatDate(item.createdAt)}</span>
-                                </div>
-                            </div>
-                        </div>
-                        ${userPermissions.canManageLists ? `
-                            <div class="item-actions">
-                                <button class="action-btn delete-btn" onclick="deleteManualItem('${item._id}')" 
-                                        title="Delete manual item">
-                                    <span class="material-symbols-outlined" style="font-size: 16px;">delete</span>
-                                </button>
-                            </div>
-                        ` : ''}
-                    </div>
-                `;
-            }).join('');
-
-            const addButtonHTML = userPermissions.canManageLists ? `
-                <div class="add-manual-item-section">
-                    <div class="add-manual-form" id="addManualForm" style="display: none;">
-                        <input type="text" id="manualItemInput" placeholder="Enter item name (e.g., Rental Camera)" maxlength="100">
-                        <div class="form-actions">
-                            <button type="button" onclick="addManualItem()" class="action-btn add-btn">Add</button>
-                            <button type="button" onclick="cancelAddManualItem()" class="action-btn cancel-btn">Cancel</button>
-                        </div>
-                    </div>
-                    <button onclick="showAddManualForm()" class="add-manual-btn" id="showAddManualBtn">
-                        <span class="material-symbols-outlined">add</span>
-                        Add Manual Item
-                    </button>
-                </div>
-            ` : '';
-
-            return `
-                <div class="gear-category manual-items-category">
-                    <div class="category-header">
-                        <h3 class="category-title">
-                            <span class="material-symbols-outlined">checklist</span>
-                            Manual Items
-                            ${manualItems.length > 0 ? `<span class="item-count">${manualItems.length}</span>` : ''}
-                        </h3>
-
-                    </div>
-                    <div class="category-content">
-                        ${manualItems.length > 0 ? `
-                            <div class="gear-items">
-                                ${manualItemsHTML}
-                            </div>
-                        ` : `
-                            <div class="empty-category">
-                                <span class="material-symbols-outlined">checklist</span>
-                                <p>No manual items added yet</p>
-                                <small>Add custom items like "Rental Camera" or "Extra Batteries" that aren't in inventory</small>
-                            </div>
-                        `}
-                        ${addButtonHTML}
-                    </div>
-                </div>
-            `;
-        }
-
-        // Update progress (including manual items)
+        // Update progress
         function updateProgress() {
-            const gearItems = currentGear.length;
-            const packedGear = currentGear.filter(item => item.isPacked).length;
-            
-            const manualItemsCount = manualItems.length;
-            const completedManualItems = manualItems.filter(item => item.completed).length;
-            
-            const totalItems = gearItems + manualItemsCount;
-            const totalPacked = packedGear + completedManualItems;
-            const percentage = totalItems > 0 ? Math.round((totalPacked / totalItems) * 100) : 0;
+            const totalItems = currentGear.length;
+            const packedItems = currentGear.filter(item => item.isPacked).length;
+            const percentage = totalItems > 0 ? Math.round((packedItems / totalItems) * 100) : 0;
 
             document.getElementById('totalCount').textContent = totalItems;
-            document.getElementById('packedCount').textContent = totalPacked;
+            document.getElementById('packedCount').textContent = packedItems;
             document.getElementById('progressFill').style.width = `${percentage}%`;
         }
 
@@ -1685,138 +1499,11 @@
             }
         }
 
-        // MANUAL ITEMS FUNCTIONS
-        // Show add manual item form
-        function showAddManualForm() {
-            document.getElementById('addManualForm').style.display = 'block';
-            document.getElementById('showAddManualBtn').style.display = 'none';
-            document.getElementById('manualItemInput').focus();
-        }
-
-        // Cancel add manual item
-        function cancelAddManualItem() {
-            document.getElementById('addManualForm').style.display = 'none';
-            document.getElementById('showAddManualBtn').style.display = 'block';
-            document.getElementById('manualItemInput').value = '';
-        }
-
-        // Add manual item
-        async function addManualItem() {
-            const input = document.getElementById('manualItemInput');
-            const text = input.value.trim();
-            
-            if (!text) {
-                alert('Please enter an item name');
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE}/api/tables/${eventId}/gear-lists/${encodeURIComponent(currentListName)}/manual-items`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    },
-                    body: JSON.stringify({ text })
-                });
-
-                if (response.ok) {
-                    const result = await response.json();
-                    manualItems.push(result.item);
-                    cancelAddManualItem();
-                    renderGear();
-                    updateProgress();
-                    showToast('Manual item added successfully!', 'success');
-                } else {
-                    const error = await response.json();
-                    alert(error.error || 'Failed to add manual item');
-                }
-            } catch (error) {
-                console.error('Error adding manual item:', error);
-                alert('Failed to add manual item. Please try again.');
-            }
-        }
-
-        // Toggle manual item completion
-        async function toggleManualItem(itemId) {
-            const item = manualItems.find(i => i._id === itemId);
-            if (!item) return;
-
-            try {
-                const response = await fetch(`${API_BASE}/api/tables/${eventId}/gear-lists/${encodeURIComponent(currentListName)}/manual-items/${itemId}/toggle`, {
-                    method: 'PATCH',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-
-                if (response.ok) {
-                    item.completed = !item.completed;
-                    renderGear();
-                    updateProgress();
-                } else {
-                    // Revert checkbox
-                    const checkbox = event.target;
-                    checkbox.checked = !checkbox.checked;
-                    alert('Failed to update item status');
-                }
-            } catch (error) {
-                console.error('Error toggling manual item:', error);
-                // Revert checkbox
-                const checkbox = event.target;
-                checkbox.checked = !checkbox.checked;
-                alert('Failed to update item status');
-            }
-        }
-
-        // Delete manual item
-        async function deleteManualItem(itemId) {
-            const item = manualItems.find(i => i._id === itemId);
-            if (!item) return;
-
-            if (!confirm(`Delete "${item.text}"?`)) {
-                return;
-            }
-
-            try {
-                const response = await fetch(`${API_BASE}/api/tables/${eventId}/gear-lists/${encodeURIComponent(currentListName)}/manual-items/${itemId}`, {
-                    method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${localStorage.getItem('token')}`
-                    }
-                });
-
-                if (response.ok) {
-                    manualItems = manualItems.filter(i => i._id !== itemId);
-                    renderGear();
-                    updateProgress();
-                    showToast('Manual item deleted', 'success');
-                } else {
-                    const error = await response.json();
-                    alert(error.error || 'Failed to delete manual item');
-                }
-            } catch (error) {
-                console.error('Error deleting manual item:', error);
-                alert('Failed to delete manual item. Please try again.');
-            }
-        }
-
-        // Handle Enter key in manual item input
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Enter') {
-                const manualInput = document.getElementById('manualItemInput');
-                if (manualInput && document.activeElement === manualInput) {
-                    e.preventDefault();
-                    addManualItem();
-                }
-            }
-        });
-
         // Delete gear item
         async function deleteGearItem(itemId) {
             console.log('[DELETE] Starting delete process for item:', itemId);
             
-            if (!confirm('Are you sure you want to remove this item from the gear list?')) {
+            if (!confirm('Are you sure you want to remove this item from your gear list?')) {
                 console.log('[DELETE] User cancelled deletion');
                 return;
             }
@@ -1863,11 +1550,11 @@
             }
         }
 
-        // Helper function to normalize date strings without timezone issues
+        // Helper function to normalize date strings to avoid timezone issues
         function normalizeDateString(dateStr) {
             if (!dateStr) return null;
-            // Keep dates as simple date strings without timezone manipulation
-            return dateStr;
+            // Ensure the date string is interpreted as UTC midnight
+            return dateStr + 'T00:00:00.000Z';
         }
 
         // Save dates
@@ -1880,26 +1567,12 @@
                 return;
             }
 
-            // Parse dates without timezone manipulation
-            const checkOutDateNorm = new Date(checkOutDate + 'T00:00:00');
-            const checkInDateNorm = new Date(checkInDate + 'T00:00:00');
-            const today = new Date();
-            today.setHours(0, 0, 0, 0);
+            // Use normalized dates for comparison to avoid timezone issues
+            const checkOutDateNorm = new Date(normalizeDateString(checkOutDate));
+            const checkInDateNorm = new Date(normalizeDateString(checkInDate));
 
-            // Validate dates cannot be in the past
-            if (checkOutDateNorm < today) {
-                alert('Check-out date cannot be in the past');
-                return;
-            }
-
-            if (checkInDateNorm < today) {
-                alert('Check-in date cannot be in the past');
-                return;
-            }
-
-            // Check-in date can be same day or after check-out date
-            if (checkInDateNorm < checkOutDateNorm) {
-                alert('Check-in date must be on or after check-out date');
+            if (checkOutDateNorm >= checkInDateNorm) {
+                alert('Check-in date must be after check-out date');
                 return;
             }
 
@@ -1920,26 +1593,23 @@
             }
 
             try {
-                const response = await fetch(`${API_BASE}/api/tables/${eventId}/gear`, {
+                const response = await fetch(`${API_BASE}/api/tables/${eventId}`, {
                     method: 'PUT',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
                     },
                     body: JSON.stringify({
-                        lists: currentEvent.gear?.lists || {},
-                        checkOutDate: checkOutDate,
-                        checkInDate: checkInDate
+                        gear: {
+                            ...currentEvent.gear,
+                            checkOutDate: normalizeDateString(checkOutDate),
+                            checkInDate: normalizeDateString(checkInDate)
+                        }
                     })
                 });
 
                 if (response.ok) {
-                    const result = await response.json();
-                    // Update current event dates locally
-                    if (!currentEvent.gear) currentEvent.gear = {};
-                    currentEvent.gear.checkOutDate = checkOutDate;
-                    currentEvent.gear.checkInDate = checkInDate;
-                    
+                    currentEvent = await response.json();
                     // If there were existing reservations, clear them
                     if (currentGear && currentGear.length > 0) {
                         showToast('Dates saved! Clearing existing reservations...', 'info');
@@ -2185,7 +1855,7 @@
                         <h4 style="margin: 0 0 4px 0; color: #333;">${template.name}</h4>
                         ${template.description ? `<p style="margin: 0 0 8px 0; color: #666; font-size: 14px;">${template.description}</p>` : ''}
                         <div style="font-size: 12px; color: #888;">
-                            ${template.items.length} items • Created ${formatDate(template.createdAt)}
+                            ${template.items.length} items • Created ${new Date(template.createdAt).toLocaleDateString()}
                         </div>
                     </div>
                     <div style="display: flex; gap: 8px; align-items: center;">
@@ -3047,43 +2717,6 @@
             }
         }
 
-        // Update UI based on user permissions
-        function updateUIBasedOnPermissions() {
-            console.log('Updating UI based on permissions:', userPermissions);
-            
-            // Show/hide Add Items button
-            const addItemsBtn = document.getElementById('addItemsBtn');
-            if (addItemsBtn) {
-                if (userPermissions.canReserve) {
-                    addItemsBtn.style.display = 'flex';
-                } else {
-                    addItemsBtn.style.display = 'none';
-                }
-            }
-
-            // Show/hide View Cart button (only show if can reserve)
-            const viewCartBtn = document.getElementById('viewCartBtn');
-            if (viewCartBtn) {
-                if (userPermissions.canReserve) {
-                    viewCartBtn.style.display = 'flex';
-                } else {
-                    viewCartBtn.style.display = 'none';
-                }
-            }
-
-            // Update package controls based on permissions
-            const packageControls = document.querySelectorAll('.package-controls button');
-            packageControls.forEach(btn => {
-                if (btn.textContent.includes('Add') || btn.textContent.includes('Create')) {
-                    if (userPermissions.canManageLists) {
-                        btn.style.display = 'inline-flex';
-                    } else {
-                        btn.style.display = 'none';
-                    }
-                }
-            });
-        }
-
         // Navigation
         function addItems() {
             const checkOutDate = document.getElementById('checkOutDate').value;
@@ -3092,9 +2725,6 @@
             if (!checkOutDate || !checkInDate) {
                 if (confirm('No dates set. Would you like to set check-out and check-in dates first?')) {
                     document.getElementById('checkOutDate').focus();
-                    return;
-                } else {
-                    // User clicked Cancel, stay on current page
                     return;
                 }
             }
@@ -3106,375 +2736,16 @@
             window.location.href = `inventory-management.html`;
         }
 
-        // Setup bottom navigation - matches main dashboard exactly
-        function setupBottomNavigation() {
-            const navContainer = document.getElementById('bottomNav');
-            if (!navContainer) {
-                console.error('No navigation container found');
-                return;
-            }
-
-            console.log('Setting up bottom navigation for gear page');
-
-            // Track current navigation mode
-            let currentIsDesktop = window.innerWidth >= 768;
-            console.log(`Screen width: ${window.innerWidth}px, using ${currentIsDesktop ? 'desktop' : 'mobile'} navigation`);
-            
-            if (currentIsDesktop) {
-                setupDesktopNavigation(navContainer);
-            } else {
-                setupMobileNavigation(navContainer);
-            }
-            
-            // Handle window resize to switch between desktop and mobile navigation
-            const resizeHandler = () => {
-                const newIsDesktop = window.innerWidth >= 768;
-                if (newIsDesktop !== currentIsDesktop) {
-                    console.log(`Screen size changed from ${currentIsDesktop ? 'desktop' : 'mobile'} to ${newIsDesktop ? 'desktop' : 'mobile'} navigation`);
-                    currentIsDesktop = newIsDesktop; // Update the tracked state
-                    if (newIsDesktop) {
-                        setupDesktopNavigation(navContainer);
-                    } else {
-                        setupMobileNavigation(navContainer);
-                    }
-                }
-            };
-            
-            // Remove any existing resize listener to avoid duplicates
-            if (window.__navigationResizeHandler) {
-                window.removeEventListener('resize', window.__navigationResizeHandler);
-            }
-            window.__navigationResizeHandler = resizeHandler;
-            window.addEventListener('resize', resizeHandler);
-            
-            console.log('Bottom navigation setup complete');
-        }
-
-        // Desktop navigation: show all buttons directly - matches main dashboard exactly
-        function setupDesktopNavigation(navContainer) {
-            console.log('Setting up desktop navigation with all buttons visible');
-            
-            // Reset any mobile-specific styles
-            navContainer.style.display = '';
-            navContainer.style.gridTemplateColumns = '';
-            navContainer.style.gap = '';
-            
-            // Show all regular navigation items (including Luma button)
-            const regularNavItems = navContainer.querySelectorAll('a[data-page]:not(.desktop-nav-item), .chat-button-nav');
-            regularNavItems.forEach(item => {
-                if (!item.closest('.dropdown-menu')) {
-                    item.style.display = 'flex';
-                    // Reset any mobile grid positioning
-                    item.style.gridColumn = '';
-                }
-            });
-            
-            // Hide the dropdown container
-            const navDropdown = navContainer.querySelector('.nav-dropdown');
-            if (navDropdown) {
-                navDropdown.style.display = 'none';
-                navDropdown.style.gridColumn = '';
-            }
-            
-            // Create and add the dropdown items as direct navigation buttons
-            const dropdownItems = [
-                { page: 'travel-accommodation', icon: 'flight_takeoff', label: 'Travel' },
-                { page: 'gear', icon: 'photo_camera', label: 'Gear' },
-                { page: 'card-log', icon: 'sd_card', label: 'Cards' },
-                { page: 'documents', icon: 'map', label: 'Map' },
-                { page: 'events', icon: 'exit_to_app', label: 'Exit' }
-            ];
-            
-            // Remove any existing desktop nav items we added previously
-            navContainer.querySelectorAll('.desktop-nav-item').forEach(item => item.remove());
-            
-            // Add the dropdown items as direct navigation links
-            dropdownItems.forEach(item => {
-                const navLink = document.createElement('a');
-                navLink.href = '#';
-                navLink.setAttribute('data-page', item.page);
-                navLink.className = 'desktop-nav-item';
-                if (item.page === 'gear') {
-                    navLink.classList.add('active');
-                }
-                navLink.innerHTML = `
-                    <span class="material-symbols-outlined">${item.icon}</span>
-                    <span>${item.label}</span>
-                `;
-                
-                // Add click handler
-                navLink.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const page = navLink.getAttribute('data-page');
-                    console.log(`Desktop nav link clicked: ${page}, using eventId: ${eventId}`);
-                    
-                    if (page !== 'gear') {
-                        if (page === 'events') {
-                            window.location.href = `../dashboard.html#events`;
-                        } else {
-                            // Navigate to main dashboard with the specific page
-                            window.location.href = `../dashboard.html?eventId=${eventId}&page=${page}`;
-                        }
-                    }
-                });
-                
-                navContainer.appendChild(navLink);
-            });
-            
-            // Set up navigation for existing regular nav links
-            setupRegularNavLinks(navContainer);
-            
-            // Update active navigation state
-            updateActiveNavigation('gear');
-        }
-
-        // Mobile navigation: use dropdown menu - matches main dashboard exactly
-        function setupMobileNavigation(navContainer) {
-            console.log('Setting up mobile navigation with dropdown menu');
-            
-            // Apply mobile grid layout (this will be handled by CSS media queries, but ensure it's not overridden)
-            navContainer.style.display = '';
-            navContainer.style.gridTemplateColumns = '';
-            navContainer.style.gap = '';
-            
-            // Show only specific navigation items for mobile
-            const regularNavItems = navContainer.querySelectorAll('a[data-page]:not(.desktop-nav-item)');
-            regularNavItems.forEach(item => {
-                if (!item.closest('.dropdown-menu')) {
-                    // Show only core navigation items in mobile mode
-                    const page = item.getAttribute('data-page');
-                    if (['general', 'crew', 'schedule', 'shotlist'].includes(page) || item.classList.contains('chat-button-nav')) {
-                        item.style.display = 'flex';
-                    } else {
-                        item.style.display = 'none';
-                    }
-                    // Reset any explicit grid column assignments (let CSS handle it)
-                    item.style.gridColumn = '';
-                }
-            });
-            
-            // Show the dropdown container
-            const navDropdown = navContainer.querySelector('.nav-dropdown');
-            if (navDropdown) {
-                navDropdown.style.display = 'flex';
-                navDropdown.style.gridColumn = '';
-            }
-            
-            // Remove any desktop nav items we added
-            navContainer.querySelectorAll('.desktop-nav-item').forEach(item => item.remove());
-            
-            // Set up navigation for regular nav links
-            setupRegularNavLinks(navContainer);
-            
-            // Set up dropdown menu functionality
-            setupDropdownMenu();
-            
-            // Update active navigation state
-            updateActiveNavigation('gear');
-        }
-
-        // Helper function to set up regular navigation links - matches main dashboard exactly
-        function setupRegularNavLinks(navContainer) {
-            const navLinks = navContainer.querySelectorAll('a[data-page]');
-            console.log('Found', navLinks.length, 'navigation links with data-page attribute');
-            
-            navLinks.forEach(link => {
-                // Skip if this is inside a dropdown menu (will be handled separately)
-                if (link.closest('.dropdown-menu')) {
-                    console.log('Skipping dropdown menu link:', link.getAttribute('data-page'));
-                    return;
-                }
-                
-                // Skip if this is a desktop nav item (already has handler)
-                if (link.classList.contains('desktop-nav-item')) {
-                    return;
-                }
-                
-                console.log('Setting up navigation for:', link.getAttribute('data-page'));
-                
-                // Remove any existing click listeners to avoid duplicates
-                const newLink = link.cloneNode(true);
-                link.parentNode.replaceChild(newLink, link);
-                
-                newLink.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    const page = newLink.getAttribute('data-page');
-                    console.log(`Regular nav link clicked: ${page}, using eventId: ${eventId}`);
-                    
-                    // Close dropdown menu if it's open
-                    const dropdownMenu = document.getElementById('dropdownMenu');
-                    if (dropdownMenu && dropdownMenu.classList.contains('show')) {
-                        console.log('Closing dropdown menu due to regular nav link click');
-                        dropdownMenu.classList.remove('show');
-                    }
-                    
-                    if (page !== 'gear') {
-                        if (page === 'events') {
-                            window.location.href = `../dashboard.html#events`;
-                        } else {
-                            // Navigate to main dashboard with the specific page
-                            window.location.href = `../dashboard.html?eventId=${eventId}&page=${page}`;
-                        }
-                    }
-                });
-            });
-            
-            // Set up the chat button in navbar (for both mobile and desktop)
-            const chatNavButton = navContainer.querySelector('.chat-button-nav');
-            if (chatNavButton) {
-                console.log('Setting up chat button in navbar');
-                
-                // Remove any existing click listeners to avoid duplicates
-                const newChatButton = chatNavButton.cloneNode(true);
-                chatNavButton.parentNode.replaceChild(newChatButton, chatNavButton);
-                
-                newChatButton.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    console.log('Chat navbar button clicked');
-                    
-                    // Close dropdown menu if it's open
-                    const dropdownMenu = document.getElementById('dropdownMenu');
-                    if (dropdownMenu && dropdownMenu.classList.contains('show')) {
-                        console.log('Closing dropdown menu due to chat button click');
-                        dropdownMenu.classList.remove('show');
-                    }
-                    
-                    // Toggle chat widget - use the same interface as the main dashboard
-                    if (window.chatWidget) {
-                        window.chatWidget.toggleChat();
-                    } else {
-                        // Initialize chat if not already done
-                        if (typeof window.initChat === 'function') {
-                            window.initChat(eventId);
-                            // Try to toggle after initialization
-                            setTimeout(() => {
-                                if (window.chatWidget) {
-                                    window.chatWidget.toggleChat();
-                                }
-                            }, 100);
-                        } else {
-                            console.error('Chat system not available');
-                        }
-                    }
-                });
-            }
-        }
-
-        // Setup dropdown menu functionality - matches main dashboard exactly
-        function setupDropdownMenu() {
-            const dropdownToggle = document.querySelector('.dropdown-toggle');
-            const dropdownMenu = document.getElementById('dropdownMenu');
-            
-            if (!dropdownToggle || !dropdownMenu) {
-                console.log('Dropdown elements not found, skipping dropdown setup');
-                return;
-            }
-            
-            console.log('Setting up dropdown menu functionality');
-            
-            // Remove existing event listeners to avoid duplicates
-            const newToggle = dropdownToggle.cloneNode(true);
-            dropdownToggle.parentNode.replaceChild(newToggle, dropdownToggle);
-            
-            const toggleHandler = function(e) {
-                e.preventDefault();
-                console.log('Dropdown toggle clicked');
-                dropdownMenu.classList.toggle('show');
-            };
-            
-            const documentHandler = function(e) {
-                if (!newToggle.contains(e.target) && !dropdownMenu.contains(e.target)) {
-                    if (dropdownMenu.classList.contains('show')) {
-                        console.log('Clicking outside dropdown, closing menu');
-                        dropdownMenu.classList.remove('show');
-                    }
-                }
-            };
-            
-            newToggle.addEventListener('click', toggleHandler);
-            document.addEventListener('click', documentHandler);
-            
-            // Set up dropdown menu links
-            const dropdownLinks = dropdownMenu.querySelectorAll('a[data-page]');
-            console.log('Found', dropdownLinks.length, 'dropdown links');
-            
-            dropdownLinks.forEach(link => {
-                const linkHandler = function(e) {
-                    e.preventDefault();
-                    const page = link.getAttribute('data-page');
-                    console.log(`Dropdown link clicked: ${page}, using eventId: ${eventId}`);
-                    
-                    // Close the dropdown
-                    dropdownMenu.classList.remove('show');
-                    
-                    if (page !== 'gear') {
-                        if (page === 'events') {
-                            window.location.href = `../dashboard.html#events`;
-                        } else {
-                            // Navigate to main dashboard with the specific page
-                            window.location.href = `../dashboard.html?eventId=${eventId}&page=${page}`;
-                        }
-                    }
-                };
-                
-                // Remove existing listeners and add new one
-                const newLink = link.cloneNode(true);
-                link.parentNode.replaceChild(newLink, link);
-                newLink.addEventListener('click', linkHandler);
-            });
-        }
-
-        // Update active navigation state - matches main dashboard exactly
-        function updateActiveNavigation(currentPage) {
-            console.log('Updating active navigation for page:', currentPage);
-
-            const allNavItems = document.querySelectorAll('.bottom-nav-material a, .bottom-nav-material .dropdown-toggle');
-
-            allNavItems.forEach(item => {
-                item.classList.remove('active');
-                const iconElement = item.querySelector('span.material-symbols-outlined');
-                
-                if (iconElement) {
-                    // Reset icon to default state
-                    const page = item.getAttribute('data-page');
-                    if (page === 'gear' && currentPage === 'gear') {
-                        item.classList.add('active');
-                    } else if (item.classList.contains('dropdown-toggle') && 
-                               ['travel-accommodation', 'gear', 'card-log', 'documents', 'events'].includes(currentPage)) {
-                        item.classList.add('active');
-                    }
-                }
-            });
-        }
+        // All navigation functions removed - now using shared navigation from app.js
 
         // Utility functions
         function updateDateInputs() {
             if (currentEvent && currentEvent.gear) {
                 if (currentEvent.gear.checkOutDate) {
-                    // If it's already a date string like "2025-07-02", use it directly
-                    if (typeof currentEvent.gear.checkOutDate === 'string' && currentEvent.gear.checkOutDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                        document.getElementById('checkOutDate').value = currentEvent.gear.checkOutDate;
-                    } else {
-                        // Handle other date formats by extracting date part
-                        const checkOutDate = new Date(currentEvent.gear.checkOutDate);
-                        const checkOutDateStr = checkOutDate.getFullYear() + '-' + 
-                            String(checkOutDate.getMonth() + 1).padStart(2, '0') + '-' + 
-                            String(checkOutDate.getDate()).padStart(2, '0');
-                        document.getElementById('checkOutDate').value = checkOutDateStr;
-                    }
+                    document.getElementById('checkOutDate').value = currentEvent.gear.checkOutDate.split('T')[0];
                 }
                 if (currentEvent.gear.checkInDate) {
-                    // If it's already a date string like "2025-07-02", use it directly
-                    if (typeof currentEvent.gear.checkInDate === 'string' && currentEvent.gear.checkInDate.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                        document.getElementById('checkInDate').value = currentEvent.gear.checkInDate;
-                    } else {
-                        // Handle other date formats by extracting date part
-                        const checkInDate = new Date(currentEvent.gear.checkInDate);
-                        const checkInDateStr = checkInDate.getFullYear() + '-' + 
-                            String(checkInDate.getMonth() + 1).padStart(2, '0') + '-' + 
-                            String(checkInDate.getDate()).padStart(2, '0');
-                        document.getElementById('checkInDate').value = checkInDateStr;
-                    }
+                    document.getElementById('checkInDate').value = currentEvent.gear.checkInDate.split('T')[0];
                 }
             }
         }
@@ -3491,25 +2762,6 @@
                 'Power': 'battery_full'
             };
             return icons[category] || 'inventory_2';
-        }
-
-        function formatDate(dateStr) {
-            if (!dateStr || dateStr === 'Not set') return dateStr;
-            
-            // Handle simple date strings like "2025-07-02" without timezone conversion
-            if (typeof dateStr === 'string' && dateStr.match(/^\d{4}-\d{2}-\d{2}$/)) {
-                const [year, month, day] = dateStr.split('-').map(Number);
-                return `${month}/${day}/${year}`;
-            }
-            
-            // Parse other date formats and format consistently without timezone issues
-            const date = new Date(dateStr);
-            
-            // Check if the date is valid
-            if (isNaN(date.getTime())) return 'Invalid Date';
-            
-            // Format as MM/DD/YYYY without timezone manipulation
-            return (date.getMonth() + 1) + '/' + date.getDate() + '/' + date.getFullYear();
         }
 
         function showToast(message, type) {
@@ -3542,20 +2794,6 @@
                 closeNewPackageModal();
             }
         }
-
-        // Initialize chat widget after page setup is complete
-        function initializeChatWidget() {
-            console.log('Initializing chat widget for gear page');
-            if (typeof window.initChat === 'function' && eventId) {
-                window.initChat(eventId);
-            } else {
-                console.log('Chat initialization deferred - eventId or initChat not available yet');
-                // Try again after a short delay
-                setTimeout(initializeChatWidget, 500);
-            }
-        }
-
-
     </script>
 </body>
 </html>

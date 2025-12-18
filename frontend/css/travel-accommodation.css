@@ -1,14 +1,11 @@
 .travel-page { margin: 0; padding: 0; padding-bottom: 100px; font-family: 'Roboto', Arial, sans-serif; background: #f5f7fa; color: #333; min-height: 100%; overflow-x: hidden; }
-.travel-page .section { background: white; border-radius: 16px; padding: 24px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); max-width: 100%; margin-bottom: 24px; }
+.travel-page .section { background: transparent; border-radius: 16px; padding: 24px; box-shadow: none; max-width: 100%; margin-bottom: 24px; }
 .travel-page h1 { font-size: 26px; margin-bottom: 18px; }
 .travel-page .section h2 { margin-top: 0; font-size: 18px; color: #222; margin-bottom: 12px; }
 .travel-page .table-wrapper {
   width: 100%;
   overflow-x: auto;
-  border-radius: 14px;
-  box-shadow: 0 4px 18px rgba(0,0,0,0.08);
   margin-bottom: 18px;
-  background: #fff;
 }
 .travel-page table {
   min-width: 600px;
@@ -75,7 +72,7 @@
 .travel-page tr:hover td {
   background: #f0f4fa !important;
 }
-.travel-page input[type="text"], .travel-page input[type="date"], .travel-page input[type="time"] {
+.travel-page input[type="text"], .travel-page input[type="date"], .travel-page input[type="time"], .travel-page select {
   padding: 8px 10px;
   font-size: 15px;
   width: 100%;
@@ -83,6 +80,17 @@
   border: 1px solid #ccc;
   box-sizing: border-box;
   background: #f9f9f9;
+}
+
+.travel-page select.name-select {
+  padding: 8px 10px;
+  font-size: 15px;
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  box-sizing: border-box;
+  background: #fff;
+  cursor: pointer;
 }
 .travel-page .add-btn {
   background: #cc0007;
@@ -184,15 +192,15 @@
 
 @media (max-width: 768px) {
   .travel-page { padding: 5px 2px; }
-  .travel-page .section { padding: 10px 2px; }
+  .travel-page .section { padding: 10px 2px; background: transparent; box-shadow: none; }
   .travel-page .table-wrapper { border-radius: 8px; }
-  .travel-page table { min-width: 420px; font-size: 16px; }
-  .travel-page th, .travel-page td { font-size: 16px; padding: 6px 4px; }
+  .travel-page table { min-width: 550px; font-size: 16px; }
+  .travel-page th, .travel-page td { font-size: 16px; padding: 8px 6px; }
   .travel-page th, .travel-page td { white-space: nowrap; }
-  .travel-page th, .travel-page td { min-width: 110px; max-width: 140px; }
-  .travel-page th.text, .travel-page td.text { min-width: 90px; max-width: 120px; }
-  .travel-page th.hotel-column, .travel-page td.hotel-column { min-width: 200px !important; max-width: none !important; width: 200px !important; }
-  .travel-page th.date, .travel-page td.date, .travel-page th.time, .travel-page td.time { min-width: 80px; max-width: 90px; }
+  .travel-page th, .travel-page td { min-width: 140px; max-width: 180px; }
+  .travel-page th.text, .travel-page td.text { min-width: 120px; max-width: 160px; }
+  .travel-page th.hotel-column, .travel-page td.hotel-column { min-width: 250px !important; max-width: none !important; width: 250px !important; }
+  .travel-page th.date, .travel-page td.date, .travel-page th.time, .travel-page td.time { min-width: 100px; max-width: 120px; }
   .travel-page th.action { 
     min-width: 80px; 
     max-width: 90px;
