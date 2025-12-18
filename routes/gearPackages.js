@@ -217,17 +217,25 @@ router.delete('/:id', async (req, res) => {
     const { id: itemId } = req.params;
     const userId = req.user.id;
 
-    console.log(`[DELETE GEAR PACKAGE] Looking for gear package with ID: ${itemId}, userId: ${userId}`);
+    console.log(`[DELETE GEAR PACKAGE] Looking for gear package with ID: ${itemId}`);
     
-    const GearPackage = require('../models/GearPackage');
-    const gearPackage = await ReservedGearItem.findOne({ 
-      _id: itemId, 
-      userId 
-    });
+    const gearPackage = await ReservedGearItem.findById(itemId);
 
     if (!gearPackage) {
-      console.log(`[DELETE GEAR PACKAGE] Gear package not found for ID: ${itemId}, userId: ${userId}`);
+      console.log(`[DELETE GEAR PACKAGE] Gear package not found for ID: ${itemId}`);
       return res.status(404).json({ error: 'Gear package not found' });
+    }
+
+    // Check if user has permission to delete this reservation
+    const Table = require('../models/Table');
+    const event = await Table.findById(gearPackage.eventId);
+    if (!event) {
+      return res.status(404).json({ error: 'Event not found' });
+    }
+
+    // Only owners and admins can delete reservations
+    if (!event.owners.includes(userId) && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Only event owners and admins can remove reservations' });
     }
 
     console.log(`[DELETE GEAR PACKAGE] Found gear package:`, {
@@ -243,15 +251,7 @@ router.delete('/:id', async (req, res) => {
     if (gearPackage.inventoryId && gearPackage.eventId) {
       console.log(`[DELETE GEAR PACKAGE] Processing reservation release...`);
       
-      // Get the event to retrieve checkout dates (not needed for new release method but kept for verification)
-      const Table = require('../models/Table');
-      const event = await Table.findById(gearPackage.eventId);
-      if (!event) {
-        console.log(`[DELETE GEAR PACKAGE] Event not found: ${gearPackage.eventId}`);
-        return res.status(400).json({ error: 'Event not found' });
-      }
-
-      console.log(`[DELETE GEAR PACKAGE] Found event: ${event._id}`);
+      console.log(`[DELETE GEAR PACKAGE] Using event: ${event._id}`);
 
       const GearInventory = require('../models/GearInventory');
       const inventoryItem = await GearInventory.findById(gearPackage.inventoryId);
@@ -280,7 +280,7 @@ router.delete('/:id', async (req, res) => {
 
     // Delete the gear package
     console.log(`[DELETE GEAR PACKAGE] Deleting gear package: ${itemId}`);
-    const deleteResult = await ReservedGearItem.findOneAndDelete({ _id: itemId, userId });
+    const deleteResult = await ReservedGearItem.findByIdAndDelete(itemId);
     
     if (deleteResult) {
       console.log(`[DELETE GEAR PACKAGE] Successfully deleted gear package: ${itemId}`);

@@ -1,69 +1,44 @@
-// Minimal service worker with no caching
-const CACHE_NAME = "event-dashboard-no-cache";
+const CACHE_NAME = "event-dashboard-cache-v5";
+const urlsToCache = [
+  "/",
+  "/index.html",
+  "/dashboard.html",
+  "/assets/logo.png"
+];
 
 self.addEventListener("install", (event) => {
-  self.skipWaiting(); // Activate this version immediately
-  console.log('Service worker installed - no caching active');
-});
-
-self.addEventListener("activate", (event) => {
-  // Clear any existing caches
+  self.skipWaiting(); // 🔥 Immediately activate this version
   event.waitUntil(
-    caches.keys().then(cacheNames => {
-      return Promise.all(
-        cacheNames.map(cacheName => {
-          console.log("Deleting cache:", cacheName);
-          return caches.delete(cacheName);
-        })
-      );
-    }).then(() => {
-      console.log("All caches cleared - no caching active");
-      return self.clients.claim();
+    caches.open(CACHE_NAME).then((cache) => {
+      return cache.addAll(urlsToCache);
     })
   );
 });
 
-// Fetch event - don't cache anything, always use network
+self.addEventListener("activate", (event) => {
+  event.waitUntil(
+    caches.keys().then(keys =>
+      Promise.all(
+        keys.map(key => {
+          if (key !== CACHE_NAME) {
+            return caches.delete(key); // 🔥 Delete old caches
+          }
+        })
+      )
+    )
+  );
+  self.clients.claim(); // 🔥 Take control of all pages
+});
+
 self.addEventListener("fetch", (event) => {
-  // Let the browser handle all requests normally
-  // This disables any service worker caching
-  console.log("Service worker fetch event for:", event.request.url);
-  
-  // Important: Pass through the request to the network
-  event.respondWith(fetch(event.request));
-});
-
-// Handle push notifications
-self.addEventListener('push', function(event) {
-  const data = event.data.json();
-  const options = {
-    body: data.body,
-    icon: `assets/favicon.png`,
-    badge: `assets/favicon.png`,
-    data: {
-      url: data.url || '/'
-    }
-  };
-
-  event.waitUntil(
-    self.registration.showNotification(data.title, options)
-  );
-});
-
-// Handle notification click
-self.addEventListener('notificationclick', function(event) {
-  event.notification.close();
-  
-  event.waitUntil(
-    clients.openWindow(event.notification.data.url)
-  );
-});
-
-// Handle PWA visibility changes to save page state
-self.addEventListener('message', function(event) {
-  if (event.data && event.data.type === 'PAGE_VISIBILITY_CHANGE') {
-    // The main app will send us visibility changes
-    // We can use this to trigger page state saves
-    console.log('[SW] Page visibility changed:', event.data.hidden);
+  // Skip caching for CSS files
+  if (event.request.url.endsWith('.css')) {
+    return;
   }
+
+  event.respondWith(
+    caches.match(event.request).then((response) => {
+      return response || fetch(event.request);
+    })
+  );
 });

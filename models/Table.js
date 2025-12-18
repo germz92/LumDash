@@ -101,7 +101,26 @@ const tableSchema = new mongoose.Schema({
       createdBy: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'User'
-      }
+      },
+      manualItems: [{
+        text: {
+          type: String,
+          required: true
+        },
+        completed: {
+          type: Boolean,
+          default: false
+        },
+        createdBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: 'User',
+          required: true
+        },
+        createdAt: {
+          type: Date,
+          default: Date.now
+        }
+      }]
     }],
     currentList: {
       type: String,
@@ -111,9 +130,12 @@ const tableSchema = new mongoose.Schema({
   travel: [
     {
       date: String,
-      time: String,
+      time: String,  // Keep for backward compatibility
+      depart: String,
+      arrive: String,
       airline: String,
       name: String,
+      fromTo: String,
       ref: String
     }
   ],
@@ -136,7 +158,10 @@ const tableSchema = new mongoose.Schema({
           camera: String,
           card1: String,
           card2: String,
-          user: String
+          user: String,
+          createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+          createdAt: { type: Date, default: Date.now },
+          updatedAt: { type: Date, default: Date.now }
         }
       ]
     }
