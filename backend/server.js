@@ -6319,6 +6319,45 @@ app.delete('/api/crew-planner/:id', authenticate, async (req, res) => {
 
 // ========= END CREW PLANNER API =========
 
+// ========= CREW CALENDAR API =========
+
+// Get all crew assignments across all events for calendar view (admin only)
+app.get('/api/crew-calendar', authenticate, async (req, res) => {
+  try {
+    // Check if user is admin
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin privileges required' });
+    }
+
+    // Fetch all tables (including archived) with crew data
+    const tables = await Table.find({})
+      .select('title archived rows')
+      .lean();
+
+    // Transform data to include only crew rows with dates
+    const eventsWithCrew = tables.map(table => ({
+      _id: table._id,
+      title: table.title,
+      archived: table.archived || false,
+      crew: (table.rows || [])
+        .filter(row => row.date && row.name && row.role !== '__placeholder__')
+        .map(row => ({
+          date: row.date,
+          name: row.name,
+          role: row.role,
+          _id: row._id
+        }))
+    })).filter(event => event.crew.length > 0); // Only include events with crew data
+
+    res.json({ events: eventsWithCrew });
+  } catch (error) {
+    console.error('Error fetching crew calendar data:', error);
+    res.status(500).json({ error: 'Failed to fetch crew calendar data' });
+  }
+});
+
+// ========= END CREW CALENDAR API =========
+
 // SERVER
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));
