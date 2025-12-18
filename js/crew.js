@@ -36,6 +36,12 @@ let hasUnsavedChanges = false;
 let changedRows = new Set(); // Track which rows changed
 let deletedRows = new Set(); // Track deleted rows
 
+// Autosave management
+let autosaveTimeout = null;
+let autosaveEnabled = true; // Can be toggled by user
+let currentlyEditingCell = null; // Track which cell is being edited
+let isSaving = false; // Prevent concurrent saves
+
 // Socket.IO real-time updates - disabled when there are unsaved changes
 if (window.socket) {
   window.socket.on('crewChanged', (data) => {
@@ -43,9 +49,9 @@ if (window.socket) {
     if (data && data.tableId && data.tableId !== currentTableId) {
       return;
     }
-    // Don't reload if user has unsaved changes
-    if (hasUnsavedChanges) {
-      console.log('Crew data changed remotely, but you have unsaved changes. Save or discard first.');
+    // Don't reload if user has unsaved changes or is currently editing
+    if (hasUnsavedChanges || currentlyEditingCell) {
+      console.log('Crew data changed remotely, but you have unsaved changes or are editing.');
       return;
     }
     console.log('Crew data changed, reloading...');
@@ -60,9 +66,9 @@ if (window.socket) {
     if (data && data.tableId && data.tableId !== currentTableId) {
       return;
     }
-    // Don't reload if user has unsaved changes
-    if (hasUnsavedChanges) {
-      console.log('Table updated remotely, but you have unsaved changes. Save or discard first.');
+    // Don't reload if user has unsaved changes or is currently editing
+    if (hasUnsavedChanges || currentlyEditingCell) {
+      console.log('Table updated remotely, but you have unsaved changes or are editing.');
       return;
     }
     console.log('Table updated, reloading...');
@@ -97,6 +103,125 @@ function markChanged(rowId) {
   hasUnsavedChanges = true;
   updateSaveStatus();
   saveToLocalStorage();
+  scheduleAutosave(); // Schedule autosave after change
+}
+
+// Autosave function - saves without re-rendering
+async function autosaveChanges() {
+  if (!autosaveEnabled || !hasUnsavedChanges || isSaving) {
+    return;
+  }
+  
+  // Don't autosave if user is currently editing
+  if (currentlyEditingCell) {
+    console.log('⏸️ Autosave skipped - user is editing');
+    // Reschedule autosave for later
+    scheduleAutosave();
+    return;
+  }
+  
+  isSaving = true;
+  console.log('💾 Autosaving changes...');
+  
+  const saveStatus = document.getElementById('saveStatus');
+  if (saveStatus) {
+    saveStatus.textContent = 'Saving...';
+  }
+  
+  try {
+    let successCount = 0;
+    let failCount = 0;
+    
+    // Step 1: Handle all updates
+    for (const rowId of changedRows) {
+      if (deletedRows.has(rowId)) continue; // Skip if being deleted
+      
+      const row = tableData.rows.find(r => r._id === rowId);
+      if (!row) continue;
+      
+      try {
+        const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows/${rowId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token
+          },
+          body: JSON.stringify({
+            name: row.name || '',
+            role: row.role || '',
+            startTime: row.startTime || '',
+            endTime: row.endTime || '',
+            notes: row.notes || '',
+            date: row.date
+          })
+        });
+        
+        if (response.ok) {
+          successCount++;
+          changedRows.delete(rowId);
+        } else {
+          failCount++;
+          console.error(`Failed to save row ${rowId}:`, response.status);
+        }
+      } catch (error) {
+        failCount++;
+        console.error(`Error saving row ${rowId}:`, error);
+      }
+    }
+    
+    // Step 2: Handle deletions
+    for (const rowId of deletedRows) {
+      try {
+        const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows/${rowId}`, {
+          method: 'DELETE',
+          headers: { Authorization: token }
+        });
+        
+        if (response.ok) {
+          successCount++;
+          deletedRows.delete(rowId);
+          // Remove from tableData
+          tableData.rows = tableData.rows.filter(r => r._id !== rowId);
+        } else {
+          failCount++;
+          console.error(`Failed to delete row ${rowId}:`, response.status);
+        }
+      } catch (error) {
+        failCount++;
+        console.error(`Error deleting row ${rowId}:`, error);
+      }
+    }
+    
+    // Update state
+    hasUnsavedChanges = (changedRows.size > 0 || deletedRows.size > 0);
+    updateSaveStatus();
+    
+    if (failCount === 0) {
+      console.log(`✅ Autosave complete: ${successCount} operations`);
+    } else {
+      console.warn(`⚠️ Autosave partial: ${successCount} succeeded, ${failCount} failed`);
+    }
+    
+  } catch (error) {
+    console.error('❌ Autosave error:', error);
+  } finally {
+    isSaving = false;
+  }
+}
+
+// Schedule autosave after changes
+function scheduleAutosave() {
+  if (!autosaveEnabled) return;
+  
+  // Clear existing timeout
+  if (autosaveTimeout) {
+    clearTimeout(autosaveTimeout);
+  }
+  
+  // Schedule new autosave after 3 seconds of inactivity
+  autosaveTimeout = setTimeout(() => {
+    autosaveChanges();
+  }, 3000);
 }
 
 // Save to localStorage as backup
@@ -489,6 +614,7 @@ function makeEditable(cell, row) {
   const currentValue = row[field] || '';
   
   cell.classList.add('editing');
+  currentlyEditingCell = cell; // Track currently editing cell
   
   // Create appropriate input based on field type
   let input;
@@ -681,6 +807,8 @@ function makeEditable(cell, row) {
     input.remove();
     displaySpan.style.display = '';
     cell.classList.remove('editing');
+    currentlyEditingCell = null; // Clear editing state
+    scheduleAutosave(); // Schedule autosave after editing
   };
   
   // Simple blur handler
@@ -1001,6 +1129,7 @@ async function deleteRow(rowId) {
   saveToLocalStorage();
   renderTableSection();
   updateCrewCount();
+  scheduleAutosave(); // Schedule autosave after deletion
   
   showMessage(`${rowName || 'Row'} will be deleted when you save changes`, 'info');
 }
@@ -1127,7 +1256,6 @@ async function addDateSection() {
       throw new Error(`Failed to add date: ${response.status}`);
     }
     
-    document.getElementById('newDate').value = '';
     await loadTable();
     showMessage('Date added successfully!', 'success');
     
@@ -1174,6 +1302,7 @@ async function deleteDate(date) {
   saveToLocalStorage();
   renderTableSection();
   updateCrewCount();
+  scheduleAutosave(); // Schedule autosave after deletion
   
   showMessage(`Date ${formattedDate} will be deleted when you save changes`, 'info');
 }

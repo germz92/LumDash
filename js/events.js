@@ -282,6 +282,10 @@ function renderEventCard(table, container, userId) {
 
   const header = document.createElement('div');
   header.className = 'event-header';
+  
+  // Title and details container
+  const titleContainer = document.createElement('div');
+  titleContainer.className = 'event-title-container';
 
   const title = document.createElement('h3');
   title.textContent = table.title;
@@ -289,68 +293,57 @@ function renderEventCard(table, container, userId) {
   const details = document.createElement('div');
   details.className = 'event-details';
   details.innerHTML = `Client: ${client} <br> ${start} - ${end}`;
+  
+  titleContainer.appendChild(title);
+  titleContainer.appendChild(details);
+  
+  // 3-dot menu button in top right
+  const menuContainer = document.createElement('div');
+  menuContainer.className = 'event-menu-container';
+  
+  const menuBtn = document.createElement('button');
+  menuBtn.className = 'event-menu-btn';
+  menuBtn.innerHTML = '<span class="material-symbols-outlined">more_vert</span>';
+  menuBtn.setAttribute('aria-label', 'Event options');
+  
+  const menuDropdown = document.createElement('div');
+  menuDropdown.className = 'event-menu-dropdown';
+  
+  menuContainer.appendChild(menuBtn);
+  menuContainer.appendChild(menuDropdown);
 
-  header.appendChild(title);
-  header.appendChild(details);
+  header.appendChild(titleContainer);
+  header.appendChild(menuContainer);
 
   const actions = document.createElement('div');
   actions.className = 'action-buttons';
 
   const openBtn = document.createElement('button');
   openBtn.className = 'btn-open';
-  openBtn.textContent = 'Open';
+  openBtn.textContent = 'OPEN';
   openBtn.onclick = () => {
     const page = 'general'; // Set this to the correct page identifier
     const tableId = table._id;
     window.navigate(page, tableId);
   };
 
+  const addToCalendarBtn = document.createElement('button');
+  addToCalendarBtn.className = 'btn-add-calendar';
+  addToCalendarBtn.innerHTML = '<span class="material-symbols-outlined">event</span> Add to Calendar';
+  addToCalendarBtn.onclick = () => {
+    // TODO: Implement add to calendar functionality
+    alert('Add to Calendar functionality coming soon!');
+  };
+
   const isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
 
-  const shareBtn = document.createElement('button');
-  shareBtn.className = 'btn-share';
-  shareBtn.textContent = 'Share';
-  shareBtn.onclick = () => {
-    openShareModal(table._id);
-  };
-
-  const deleteBtn = document.createElement('button');
-  deleteBtn.className = 'btn-delete';
-  deleteBtn.textContent = 'Delete';
-  deleteBtn.onclick = async () => {
-    if (confirm('Are you sure you want to delete this event?\n\nThis will also release all gear items reserved for this event back to inventory.')) {
-      try {
-        const response = await fetch(`${API_BASE}/api/tables/${table._id}`, {
-        method: 'DELETE',
-        headers: { Authorization: token }
-      });
-        
-        if (response.ok) {
-          const result = await response.json();
-          // Show success message with gear release info
-          if (result.message) {
-            alert(`Event deleted successfully!\n${result.message}`);
-          }
-        } else {
-          const error = await response.json();
-          alert(`Error deleting event: ${error.error || 'Unknown error'}`);
-        }
-      } catch (err) {
-        console.error('Error deleting event:', err);
-        alert('Error deleting event. Please try again.');
-      }
-      loadTables();
-    }
-  };
-
-  // Always add Open button
-  actions.appendChild(openBtn);
-  
-  // Add user-specific archive button for ALL users
-  const userArchiveBtn = document.createElement('button');
-  userArchiveBtn.className = table.userArchived ? 'btn-unarchive' : 'btn-archive-user';
-  userArchiveBtn.textContent = table.userArchived ? 'Unarchive' : 'Archive';
-  userArchiveBtn.onclick = async () => {
+  // Create menu items for dropdown
+  const archiveMenuItem = document.createElement('button');
+  archiveMenuItem.className = 'menu-item';
+  archiveMenuItem.innerHTML = `<span class="material-symbols-outlined">archive</span> ${table.userArchived ? 'Unarchive' : 'Archive'}`;
+  archiveMenuItem.onclick = async (e) => {
+    e.stopPropagation();
+    menuDropdown.classList.remove('show');
     const action = table.userArchived ? 'unarchive' : 'archive';
     const confirmMessage = table.userArchived 
       ? 'Are you sure you want to unarchive this event for yourself?' 
@@ -368,13 +361,73 @@ function renderEventCard(table, container, userId) {
       loadTables();
     }
   };
-  actions.appendChild(userArchiveBtn);
-  
-  // Only add Share and Delete buttons for owners
+
+  const shareMenuItem = document.createElement('button');
+  shareMenuItem.className = 'menu-item';
+  shareMenuItem.innerHTML = '<span class="material-symbols-outlined">share</span> Share';
+  shareMenuItem.onclick = (e) => {
+    e.stopPropagation();
+    menuDropdown.classList.remove('show');
+    openShareModal(table._id);
+  };
+
+  const deleteMenuItem = document.createElement('button');
+  deleteMenuItem.className = 'menu-item menu-item-danger';
+  deleteMenuItem.innerHTML = '<span class="material-symbols-outlined">delete</span> Delete';
+  deleteMenuItem.onclick = async (e) => {
+    e.stopPropagation();
+    menuDropdown.classList.remove('show');
+    if (confirm('Are you sure you want to delete this event?\n\nThis will also release all gear items reserved for this event back to inventory.')) {
+      try {
+        const response = await fetch(`${API_BASE}/api/tables/${table._id}`, {
+          method: 'DELETE',
+          headers: { Authorization: token }
+        });
+        
+        if (response.ok) {
+          const result = await response.json();
+          if (result.message) {
+            alert(`Event deleted successfully!\n${result.message}`);
+          }
+        } else {
+          const error = await response.json();
+          alert(`Error deleting event: ${error.error || 'Unknown error'}`);
+        }
+      } catch (err) {
+        console.error('Error deleting event:', err);
+        alert('Error deleting event. Please try again.');
+      }
+      loadTables();
+    }
+  };
+
+  // Add menu items to dropdown
+  menuDropdown.appendChild(archiveMenuItem);
   if (isOwner) {
-    actions.appendChild(shareBtn);
-    actions.appendChild(deleteBtn);
+    menuDropdown.appendChild(shareMenuItem);
+    menuDropdown.appendChild(deleteMenuItem);
   }
+
+  // Toggle menu on button click
+  menuBtn.onclick = (e) => {
+    e.stopPropagation();
+    // Close all other menus
+    document.querySelectorAll('.event-menu-dropdown.show').forEach(menu => {
+      if (menu !== menuDropdown) {
+        menu.classList.remove('show');
+      }
+    });
+    menuDropdown.classList.toggle('show');
+  };
+
+  // Close menu when clicking outside
+  document.addEventListener('click', () => {
+    menuDropdown.classList.remove('show');
+  });
+
+  // Add buttons to actions (Open and Add to Calendar in same row)
+  actions.appendChild(openBtn);
+  actions.appendChild(addToCalendarBtn);
 
   card.append(header, actions);
   if (container) container.appendChild(card);
@@ -1169,19 +1222,46 @@ window.initPage = function(id) {
       };
       
       if (payload.role === 'admin') {
-        // Create admin buttons container if it doesn't exist
-        let adminButtonsContainer = document.getElementById('adminButtonsContainer');
-        if (!adminButtonsContainer) {
-          adminButtonsContainer = document.createElement('div');
-          adminButtonsContainer.id = 'adminButtonsContainer';
-          adminButtonsContainer.style.display = 'flex';
-          adminButtonsContainer.style.gap = '8px';
-          adminButtonsContainer.style.alignItems = 'center';
+        // Restructure top bar into two rows
+        const topBar = document.querySelector('.top-bar');
+        const usernameDisplay = document.getElementById('usernameDisplay');
+        const logoutBtn = document.getElementById('logoutBtn');
+        
+        if (topBar && usernameDisplay && logoutBtn) {
+          // Check if rows already exist
+          let topRow = topBar.querySelector('.top-bar-row.welcome-row');
+          let adminRow = topBar.querySelector('.top-bar-row.admin-row');
           
-          // Insert before logout button
-          const logoutBtn = document.getElementById('logoutBtn');
-          if (logoutBtn && logoutBtn.parentNode) {
-            logoutBtn.parentNode.insertBefore(adminButtonsContainer, logoutBtn);
+          if (!topRow) {
+            // Create top row for welcome + logout
+            topRow = document.createElement('div');
+            topRow.className = 'top-bar-row welcome-row';
+            
+            // Move username and logout to top row
+            topBar.appendChild(topRow);
+            topRow.appendChild(usernameDisplay);
+            topRow.appendChild(logoutBtn);
+          }
+          
+          if (!adminRow) {
+            // Create admin row for all admin buttons
+            adminRow = document.createElement('div');
+            adminRow.className = 'top-bar-row admin-row';
+            adminRow.style.justifyContent = 'center';
+            topBar.appendChild(adminRow);
+          }
+          
+          // Create admin buttons container if it doesn't exist
+          let adminButtonsContainer = document.getElementById('adminButtonsContainer');
+          if (!adminButtonsContainer) {
+            adminButtonsContainer = document.createElement('div');
+            adminButtonsContainer.id = 'adminButtonsContainer';
+            adminButtonsContainer.style.display = 'flex';
+            adminButtonsContainer.style.gap = '8px';
+            adminButtonsContainer.style.alignItems = 'center';
+            adminButtonsContainer.style.flexWrap = 'wrap';
+            adminButtonsContainer.style.justifyContent = 'center';
+            adminRow.appendChild(adminButtonsContainer);
           }
         }
 
