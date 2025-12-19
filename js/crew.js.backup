@@ -31,13 +31,10 @@ let cachedRoles = [
 let isOwner = false;
 let reloadTimeout = null;
 
-// State management for unsaved changes
-let hasUnsavedChanges = false;
-let changedRows = new Set(); // Track which rows changed
-let deletedRows = new Set(); // Track deleted rows
-let autosaveTimeout = null; // Debounce autosave
-let isSaving = false; // Track if currently saving
-let isEditing = false; // Track if any field is currently being edited
+// Simple state management - Google Sheets style
+let currentlyEditingCell = null; // Track which cell is being edited
+let savingOperations = new Set(); // Track rows currently being saved
+let isInitialPageLoad = true; // Track if this is the first load
 
 // Socket.IO real-time updates - disabled when there are unsaved changes
 if (window.socket) {
@@ -46,9 +43,9 @@ if (window.socket) {
     if (data && data.tableId && data.tableId !== currentTableId) {
       return;
     }
-    // Don't reload if user has unsaved changes
-    if (hasUnsavedChanges) {
-      console.log('Crew data changed remotely, but you have unsaved changes. Save or discard first.');
+    // Don't reload if user has unsaved changes or is currently editing
+    if (hasUnsavedChanges || currentlyEditingCell) {
+      console.log('Crew data changed remotely, but you have unsaved changes or are editing.');
       return;
     }
     console.log('Crew data changed, reloading...');
@@ -63,9 +60,9 @@ if (window.socket) {
     if (data && data.tableId && data.tableId !== currentTableId) {
       return;
     }
-    // Don't reload if user has unsaved changes
-    if (hasUnsavedChanges) {
-      console.log('Table updated remotely, but you have unsaved changes. Save or discard first.');
+    // Don't reload if user has unsaved changes or is currently editing
+    if (hasUnsavedChanges || currentlyEditingCell) {
+      console.log('Table updated remotely, but you have unsaved changes or are editing.');
       return;
     }
     console.log('Table updated, reloading...');
@@ -77,87 +74,464 @@ if (window.socket) {
 }
 
 // Update save status UI
-function updateSaveStatus(status = null) {
+function updateSaveStatus(message = 'All changes saved', className = 'saved') {
   const saveStatus = document.getElementById('saveStatus');
-  
   if (!saveStatus) return;
   
-  if (status === 'saving') {
-    saveStatus.textContent = 'Saving...';
-    saveStatus.className = 'saving';
-  } else if (status === 'saved') {
-    saveStatus.textContent = 'All changes saved';
-    saveStatus.className = 'saved';
-  } else if (hasUnsavedChanges) {
-    saveStatus.textContent = 'Unsaved changes';
-    saveStatus.className = 'unsaved';
-  } else {
-    saveStatus.textContent = 'All changes saved';
-    saveStatus.className = 'saved';
+  saveStatus.textContent = message;
+  saveStatus.className = `save-status ${className}`;
+}
+
+// Simple immediate save - Google Sheets style
+async function saveRowImmediately(rowId, rowData) {
+  // Validate
+  if (!rowId || rowId === tableId) {
+    console.warn(`⚠️ Invalid rowId: ${rowId}`);
+    return false;
+  }
+  
+  const row = tableData.rows.find(r => r._id === rowId);
+  if (!row || row.role === '__placeholder__') {
+    console.warn(`⚠️ Invalid row: ${rowId}`);
+    return false;
+  }
+  
+  // Prevent duplicate saves
+  if (savingOperations.has(rowId)) {
+    console.log(`⏸️ Already saving row ${rowId}`);
+    return false;
+  }
+  
+  savingOperations.add(rowId);
+  updateSaveStatus('Saving...', 'saving');
+  
+  try {
+    const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows/${rowId}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: token
+      },
+      body: JSON.stringify({
+        name: row.name || '',
+        role: row.role || '',
+        startTime: row.startTime || '',
+        endTime: row.endTime || '',
+        notes: row.notes || '',
+        date: row.date
+      })
+    });
+    
+    if (response.ok) {
+      console.log(`✅ Saved row ${rowId}`);
+      updateSaveStatus('All changes saved', 'saved');
+      savingOperations.delete(rowId);
+      return true;
+    } else {
+      throw new Error(`Save failed: ${response.status}`);
+    }
+  } catch (error) {
+    console.error(`❌ Failed to save row ${rowId}:`, error);
+    savingOperations.delete(rowId);
+    updateSaveStatus('Failed to save', 'error');
+    
+    // Retry once after 2 seconds
+    setTimeout(async () => {
+      console.log(`🔄 Retrying save for row ${rowId}`);
+      await saveRowImmediately(rowId, rowData);
+    }, 2000);
+    
+    return false;
   }
 }
 
-// Mark as changed
-function markChanged(rowId) {
-  changedRows.add(rowId);
-  hasUnsavedChanges = true;
-  updateSaveStatus();
+// [DEPRECATED] Old complex autosave - keeping for reference, will be removed
+async function autosaveChanges_OLD(retryAttempt = 0) {
+  if (!autosaveEnabled || !hasUnsavedChanges || isSaving) {
+    return;
+  }
+  
+  // Don't autosave if user is currently editing
+  if (currentlyEditingCell) {
+    console.log('⏸️ Autosave skipped - user is editing');
+    // Reschedule autosave for later
+    scheduleAutosave();
+    return;
+  }
+  
+  isSaving = true;
+  const saveStatus = document.getElementById('saveStatus');
+  
+  // STEP 1: Save to localStorage FIRST (instant, never fails)
   saveToLocalStorage();
-  triggerAutosave();
+  console.log('💾 Autosaving changes... (attempt ' + (retryAttempt + 1) + ')');
+  
+  if (saveStatus) {
+    saveStatus.textContent = 'Saving...';
+    saveStatus.className = 'save-status saving';
+  }
+  
+  // Define these outside try block so they're accessible in finally
+  let successCount = 0;
+  let failCount = 0;
+  let hadError = false;
+  
+  try {
+    const failedOperations = [];
+    
+    // Create a snapshot of current changes
+    const changesToSave = new Set(changedRows);
+    const deletionsToSave = new Set(deletedRows);
+    
+    // STEP 2: Handle all updates with retry
+    for (const rowId of changesToSave) {
+      if (deletionsToSave.has(rowId)) continue; // Skip if being deleted
+      
+      const row = tableData.rows.find(r => r._id === rowId);
+      if (!row) {
+        console.warn(`⚠️ Row ${rowId} not found in tableData, skipping`);
+        changedRows.delete(rowId);
+        continue;
+      }
+      
+      // ✅ Skip placeholder rows and invalid rows (e.g., rowId === tableId)
+      if (row.role === '__placeholder__' || rowId === tableId) {
+        console.warn(`⚠️ Skipping invalid/placeholder row ${rowId}`);
+        changedRows.delete(rowId);
+        continue;
+      }
+      
+      try {
+        const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows/${rowId}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: token
+          },
+          body: JSON.stringify({
+            name: row.name || '',
+            role: row.role || '',
+            startTime: row.startTime || '',
+            endTime: row.endTime || '',
+            notes: row.notes || '',
+            date: row.date
+          })
+        });
+        
+        if (response.ok) {
+          successCount++;
+          changedRows.delete(rowId);
+        } else {
+          failCount++;
+          failedOperations.push({ type: 'update', rowId });
+          console.error(`Failed to save row ${rowId}:`, response.status);
+        }
+      } catch (error) {
+        failCount++;
+        failedOperations.push({ type: 'update', rowId });
+        console.error(`Error saving row ${rowId}:`, error);
+      }
+    }
+    
+    // STEP 3: Handle deletions with retry
+    for (const rowId of deletionsToSave) {
+      try {
+        const response = await fetch(`${API_BASE}/api/tables/${tableId}/rows/${rowId}`, {
+          method: 'DELETE',
+          headers: { Authorization: token }
+        });
+        
+        if (response.ok) {
+          successCount++;
+          deletedRows.delete(rowId);
+          // Remove from tableData
+          tableData.rows = tableData.rows.filter(r => r._id !== rowId);
+        } else {
+          failCount++;
+          failedOperations.push({ type: 'delete', rowId });
+          console.error(`Failed to delete row ${rowId}:`, response.status);
+        }
+      } catch (error) {
+        failCount++;
+        failedOperations.push({ type: 'delete', rowId });
+        console.error(`Error deleting row ${rowId}:`, error);
+      }
+    }
+    
+    // STEP 4: Update state
+    hasUnsavedChanges = (changedRows.size > 0 || deletedRows.size > 0);
+    
+    if (failCount === 0) {
+      // Perfect success!
+      console.log(`✅ Autosave complete: ${successCount} operations`);
+      saveRetryCount = 0;
+      clearLocalStorageBackup(); // Clear backup after successful save
+      
+      if (saveStatus) {
+        saveStatus.textContent = 'All changes saved';
+        saveStatus.className = 'save-status saved';
+      }
+    } else {
+      // Some failures occurred
+      console.warn(`⚠️ Autosave partial: ${successCount} succeeded, ${failCount} failed`);
+      
+      // STEP 5: Retry logic for failed operations
+      if (retryAttempt < MAX_RETRY_ATTEMPTS) {
+        saveRetryCount = retryAttempt + 1;
+        console.log(`🔄 Retrying failed operations in 5 seconds...`);
+        
+        if (saveStatus) {
+          saveStatus.textContent = `Retrying... (${failCount} failed)`;
+          saveStatus.className = 'save-status warning';
+        }
+        
+        setTimeout(() => {
+          isSaving = false;
+          autosaveChanges(retryAttempt + 1);
+        }, 5000);
+        return; // Don't set isSaving = false yet
+      } else {
+        // Max retries reached
+        console.error(`❌ Max retry attempts reached. ${failCount} operations failed.`);
+        saveRetryCount = 0;
+        
+        if (saveStatus) {
+          saveStatus.textContent = `${failCount} changes failed to save`;
+          saveStatus.className = 'save-status error';
+        }
+        
+        showMessage(`Failed to save ${failCount} changes. Your data is backed up locally. Please check your connection.`, 'error');
+      }
+    }
+    
+    updateSaveStatus();
+    
+  } catch (error) {
+    console.error('❌ Autosave error:', error);
+    hadError = true;
+    
+    // Retry on critical error
+    if (retryAttempt < MAX_RETRY_ATTEMPTS) {
+      setTimeout(() => {
+        isSaving = false;
+        autosaveChanges(retryAttempt + 1);
+      }, 5000);
+      return;
+    }
+    
+    if (saveStatus) {
+      saveStatus.textContent = 'Save failed - data backed up locally';
+      saveStatus.className = 'save-status error';
+    }
+  } finally {
+    // Only clear isSaving if we're not retrying
+    if (hadError && retryAttempt >= MAX_RETRY_ATTEMPTS) {
+      isSaving = false;
+    } else if (!hadError && (retryAttempt >= MAX_RETRY_ATTEMPTS || failCount === 0)) {
+      isSaving = false;
+    }
+  }
 }
 
-// Trigger autosave with debouncing
-function triggerAutosave() {
-  // Clear any pending autosave
+// Schedule autosave after changes (faster - 2 seconds)
+function scheduleAutosave() {
+  if (!autosaveEnabled) return;
+  
+  // Clear existing timeout
   if (autosaveTimeout) {
     clearTimeout(autosaveTimeout);
   }
   
-  // Schedule autosave after 2.5 seconds of inactivity
+  // Schedule new autosave after 2 seconds of inactivity (reduced from 3)
   autosaveTimeout = setTimeout(() => {
-    // Don't autosave if currently editing or already saving
-    if (!isEditing && !isSaving && hasUnsavedChanges) {
-      console.log('🔄 Autosaving...');
-      saveAllChanges(true); // true = silent mode
-    }
-  }, 2500);
+    autosaveChanges();
+  }, 2000);
 }
 
-// Save to localStorage as backup
+// Save to localStorage as backup (scoped per event)
 function saveToLocalStorage() {
   try {
     const backup = {
+      tableId: tableId, // ✅ Store tableId for verification
+      eventTitle: tableData?.title || 'Unknown Event', // ✅ Store event name
       tableData: tableData,
       changedRows: Array.from(changedRows),
       deletedRows: Array.from(deletedRows),
       timestamp: Date.now()
     };
     localStorage.setItem(`crew_backup_${tableId}`, JSON.stringify(backup));
+    console.log(`💾 Saved backup for event: ${tableId}`);
   } catch (e) {
     console.warn('Failed to save to localStorage:', e);
   }
 }
 
-// Load from localStorage
+// Load from localStorage with safety checks
 function loadFromLocalStorage() {
   try {
     const backup = localStorage.getItem(`crew_backup_${tableId}`);
-    if (backup) {
-      const data = JSON.parse(backup);
-      // Check if backup is less than 24 hours old
-      if (Date.now() - data.timestamp < 24 * 60 * 60 * 1000) {
-        return data;
-      }
+    if (!backup) return null;
+    
+    const data = JSON.parse(backup);
+    
+    // ✅ SAFETY CHECK 1: Verify tableId matches (prevent cross-event contamination)
+    if (data.tableId !== tableId) {
+      console.warn(`⚠️ Backup tableId mismatch: expected ${tableId}, got ${data.tableId}`);
+      clearLocalStorageBackup(); // Clear invalid backup
+      return null;
     }
+    
+    // ✅ SAFETY CHECK 2: Check if backup is less than 24 hours old
+    const ageInHours = (Date.now() - data.timestamp) / (1000 * 60 * 60);
+    if (ageInHours > 24) {
+      console.log(`🗑️ Backup too old (${ageInHours.toFixed(1)} hours), discarding`);
+      clearLocalStorageBackup();
+      return null;
+    }
+    
+    // ✅ SAFETY CHECK 3: Verify backup has changes
+    if (data.changedRows.length === 0 && data.deletedRows.length === 0) {
+      console.log('📭 Backup has no changes, discarding');
+      clearLocalStorageBackup();
+      return null;
+    }
+    
+    console.log(`✅ Valid backup found for event: ${data.eventTitle} (${data.tableId})`);
+    return data;
+    
   } catch (e) {
     console.warn('Failed to load from localStorage:', e);
+    clearLocalStorageBackup(); // Clear corrupted backup
   }
   return null;
 }
 
-// Clear localStorage backup
-function clearLocalStorage() {
+// Clear localStorage backup for current event
+function clearLocalStorageBackup() {
   localStorage.removeItem(`crew_backup_${tableId}`);
+  console.log(`🗑️ Cleared localStorage backup for event: ${tableId}`);
+}
+
+// Clean up stale backups from all events (24+ hours old)
+function cleanupStaleBackups() {
+  try {
+    const keysToRemove = [];
+    
+    // Find all crew backup keys
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('crew_backup_')) {
+        try {
+          const data = JSON.parse(localStorage.getItem(key));
+          const ageInHours = (Date.now() - data.timestamp) / (1000 * 60 * 60);
+          
+          if (ageInHours > 24) {
+            keysToRemove.push(key);
+          }
+        } catch (e) {
+          // Corrupted backup, mark for removal
+          keysToRemove.push(key);
+        }
+      }
+    }
+    
+    // Remove stale backups
+    keysToRemove.forEach(key => {
+      localStorage.removeItem(key);
+      console.log(`🗑️ Removed stale backup: ${key}`);
+    });
+    
+    if (keysToRemove.length > 0) {
+      console.log(`✅ Cleaned up ${keysToRemove.length} stale backup(s)`);
+    }
+    
+  } catch (e) {
+    console.warn('Failed to cleanup stale backups:', e);
+  }
+}
+
+// Show recovery modal for unsaved changes
+function showRecoveryModal(backup) {
+  return new Promise((resolve) => {
+    const existingModal = document.querySelector('.recovery-modal');
+    if (existingModal) existingModal.remove();
+    
+    const changeCount = backup.changedRows.length + backup.deletedRows.length;
+    const timeAgo = Math.round((Date.now() - backup.timestamp) / 60000); // minutes
+    const eventTitle = backup.eventTitle || 'this event';
+    
+    const modal = document.createElement('div');
+    modal.className = 'recovery-modal';
+    modal.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.6);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 10000;
+    `;
+    
+    modal.innerHTML = `
+      <div style="
+        background: white;
+        padding: 32px;
+        border-radius: 16px;
+        max-width: 500px;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      ">
+        <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+          <span class="material-symbols-outlined" style="font-size: 32px; color: #FF9800;">warning</span>
+          <h2 style="margin: 0; color: #333;">Unsaved Changes Found</h2>
+        </div>
+        <p style="color: #666; margin-bottom: 8px; line-height: 1.6;">
+          <strong style="color: #333;">${eventTitle}</strong>
+        </p>
+        <p style="color: #666; margin-bottom: 24px; line-height: 1.6;">
+          We found <strong>${changeCount} unsaved change(s)</strong> from ${timeAgo} minute(s) ago. 
+          Would you like to recover them?
+        </p>
+        <div style="display: flex; gap: 12px; justify-content: flex-end;">
+          <button id="discardChanges" style="
+            padding: 12px 24px;
+            border: 2px solid #ccc;
+            background: white;
+            color: #666;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+          ">Discard</button>
+          <button id="recoverChanges" style="
+            padding: 12px 24px;
+            border: none;
+            background: #CC0007;
+            color: white;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            font-size: 14px;
+            box-shadow: 0 2px 8px rgba(204,0,7,0.2);
+          ">Recover Changes</button>
+        </div>
+      </div>
+    `;
+    
+    document.body.appendChild(modal);
+    
+    document.getElementById('recoverChanges').onclick = () => {
+      modal.remove();
+      resolve(true);
+    };
+    
+    document.getElementById('discardChanges').onclick = () => {
+      modal.remove();
+      resolve(false);
+    };
+  });
 }
 
 function goBack() {
@@ -202,11 +576,27 @@ function getUserIdFromToken() {
 async function loadTable() {
   const currentTableId = getCurrentTableId();
   if (currentTableId !== tableId) {
-    console.log(`TableId changed from ${tableId} to ${currentTableId}`);
+    console.log(`🔄 TableId changed from ${tableId} to ${currentTableId}`);
+    
+    // ✅ IMPORTANT: Reset state when switching events
+    changedRows.clear();
+    deletedRows.clear();
+    hasUnsavedChanges = false;
+    currentlyEditingCell = null;
+    
+    if (autosaveTimeout) {
+      clearTimeout(autosaveTimeout);
+      autosaveTimeout = null;
+    }
+    
     tableId = currentTableId;
+    console.log(`✅ State reset for new event: ${tableId}`);
   }
   
-  console.log(`Loading table data for tableId: ${tableId}`);
+  console.log(`📂 Loading table data for tableId: ${tableId}`);
+  
+  // ✅ Clean up stale backups from all events on page load
+  cleanupStaleBackups();
   
   const res = await fetch(`${API_BASE}/api/tables/${tableId}`, {
     headers: { Authorization: token }
@@ -220,6 +610,35 @@ async function loadTable() {
   tableData = await res.json();
   const userId = getUserIdFromToken();
   isOwner = Array.isArray(tableData.owners) && tableData.owners.includes(userId);
+  
+  // RECOVERY: Check for unsaved changes ONLY on initial page load
+  if (isInitialPageLoad) {
+    const backup = loadFromLocalStorage();
+    if (backup && (backup.changedRows.length > 0 || backup.deletedRows.length > 0)) {
+      console.log('📦 Found unsaved changes in localStorage backup on initial load');
+      const shouldRecover = await showRecoveryModal(backup);
+      
+      if (shouldRecover) {
+        // Restore unsaved changes
+        tableData = backup.tableData;
+        changedRows = new Set(backup.changedRows);
+        deletedRows = new Set(backup.deletedRows);
+        hasUnsavedChanges = true;
+        
+        console.log('✅ Recovered unsaved changes from localStorage');
+        showMessage('Recovered unsaved changes! Saving now...', 'info');
+        
+        // Immediately trigger autosave to push to server
+        setTimeout(() => autosaveChanges(), 1000);
+      } else {
+        // User declined recovery, clear backup
+        clearLocalStorageBackup();
+      }
+    }
+    
+    // Mark that initial load is complete
+    isInitialPageLoad = false;
+  }
 
   // Update UI based on ownership
     const addDateBtn = document.getElementById('addDateBtn');
@@ -513,7 +932,7 @@ function makeEditable(cell, row) {
   const currentValue = row[field] || '';
   
   cell.classList.add('editing');
-  isEditing = true; // Mark that editing is in progress
+  currentlyEditingCell = cell; // Track currently editing cell
   
   // Create appropriate input based on field type
   let input;
@@ -706,7 +1125,8 @@ function makeEditable(cell, row) {
     input.remove();
     displaySpan.style.display = '';
     cell.classList.remove('editing');
-    isEditing = false; // Mark that editing is done
+    currentlyEditingCell = null; // Clear editing state
+    scheduleAutosave(); // Schedule autosave after editing
   };
   
   // Simple blur handler
@@ -748,22 +1168,24 @@ function makeEditable(cell, row) {
 }
 
 // Bulk save all changes to the server
-async function saveAllChanges(silent = false) {
+async function saveAllChanges() {
   if (!hasUnsavedChanges) {
-    if (!silent) {
-      showMessage('No changes to save', 'info');
-    }
+    showMessage('No changes to save', 'info');
     return;
   }
   
-  // Prevent concurrent saves
-  if (isSaving) {
-    console.log('⏳ Already saving, skipping...');
-    return;
+  const saveBtn = document.getElementById('saveChangesBtn');
+  const saveStatus = document.getElementById('saveStatus');
+  
+  if (saveBtn) {
+    saveBtn.classList.add('saving');
+    saveBtn.disabled = true;
+    saveBtn.innerHTML = '<span class="material-symbols-outlined">hourglass_empty</span> Saving...';
   }
   
-  isSaving = true;
-  updateSaveStatus('saving');
+  if (saveStatus) {
+    saveStatus.textContent = 'Saving...';
+  }
   
   try {
     console.log(`💾 Saving changes: ${changedRows.size} modified, ${deletedRows.size} deleted`);
@@ -850,29 +1272,27 @@ async function saveAllChanges(silent = false) {
       hasUnsavedChanges = false;
       
       // Clear localStorage backup
-      clearLocalStorage();
+      clearLocalStorageBackup();
       
       // Update UI
-      updateSaveStatus('saved');
+      updateSaveStatus();
+      showMessage(`All ${successCount} changes saved successfully`, 'success');
       
-      if (!silent) {
-        showMessage(`All ${successCount} changes saved successfully`, 'success');
-      }
-      
-      // Don't reload the page for autosave - keeps user in place
-      // Real-time updates will come through sockets when needed
+      // Reload to get any updates from server
+      setTimeout(() => loadTable(), 500);
     } else {
       throw new Error(`${failCount} of ${successCount + failCount} operations failed`);
     }
     
   } catch (error) {
     console.error('❌ Failed to save changes:', error);
-    if (!silent) {
-      showMessage('Failed to save some changes. Please try again.', 'error');
-    }
-    updateSaveStatus('unsaved');
+    showMessage('Failed to save some changes. Please try again.', 'error');
   } finally {
-    isSaving = false;
+    if (saveBtn) {
+      saveBtn.classList.remove('saving');
+      saveBtn.disabled = false;
+      saveBtn.innerHTML = '<span class="material-symbols-outlined">save</span> Save Changes';
+    }
   }
 }
 
@@ -979,6 +1399,9 @@ async function addRow(date) {
       tableData.rows.push(savedRow);
       console.log('✅ Row added to local data:', savedRow);
       
+      // Clear localStorage backup since server is in sync
+      clearLocalStorageBackup();
+      
       // Re-render immediately
       renderTableSection();
       updateCrewCount();
@@ -1004,7 +1427,7 @@ async function deleteRow(rowId) {
   
   const confirmed = await showDeleteConfirmation(
     'Delete Crew Member',
-    `Are you sure you want to delete ${rowName}? This will be saved automatically.`
+    `Are you sure you want to delete ${rowName}? This will be saved when you click "Save Changes".`
   );
   
   if (!confirmed) return;
@@ -1027,8 +1450,9 @@ async function deleteRow(rowId) {
   saveToLocalStorage();
   renderTableSection();
   updateCrewCount();
+  scheduleAutosave(); // Schedule autosave after deletion
   
-  showMessage(`${rowName || 'Row'} will be deleted shortly (autosaving...)`, 'info');
+  showMessage(`${rowName || 'Row'} will be deleted when you save changes`, 'info');
 }
 
 // Show date picker modal
@@ -1153,6 +1577,9 @@ async function addDateSection() {
       throw new Error(`Failed to add date: ${response.status}`);
     }
     
+    // Clear localStorage backup since server is in sync
+    clearLocalStorageBackup();
+    
     await loadTable();
     showMessage('Date added successfully!', 'success');
     
@@ -1173,7 +1600,7 @@ async function deleteDate(date) {
   
   const confirmed = await showDeleteConfirmation(
     'Delete Entire Date',
-    `Are you sure you want to delete ${formattedDate} and all ${rowCount} crew member${rowCount !== 1 ? 's' : ''} assigned to this date? This will be saved automatically.`
+    `Are you sure you want to delete ${formattedDate} and all ${rowCount} crew member${rowCount !== 1 ? 's' : ''} assigned to this date? This will be saved when you click "Save Changes".`
   );
   
   if (!confirmed) return;
@@ -1199,8 +1626,9 @@ async function deleteDate(date) {
   saveToLocalStorage();
   renderTableSection();
   updateCrewCount();
+  scheduleAutosave(); // Schedule autosave after deletion
   
-  showMessage(`Date ${formattedDate} will be deleted shortly (autosaving...)`, 'info');
+  showMessage(`Date ${formattedDate} will be deleted when you save changes`, 'info');
 }
 
 // Drag and drop for reordering
@@ -1750,10 +2178,39 @@ function attachEventListeners() {
     const costCalcBtn = document.getElementById('crewCostCalcBtn');
     if (costCalcBtn) costCalcBtn.onclick = showCrewCostCalcModal;
   
-  // No longer need save button or keyboard shortcut with autosave
-  // Removed: Save changes button
-  // Removed: Ctrl+S keyboard shortcut
-  // Removed: beforeunload warning (autosave handles it)
+  // Hide manual save button (autosave handles everything)
+  const saveBtn = document.getElementById('saveChangesBtn');
+  if (saveBtn) {
+    saveBtn.style.display = 'none';
+  }
+  
+  // Ctrl+S keyboard shortcut - trigger immediate autosave
+  document.addEventListener('keydown', (e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+      e.preventDefault();
+      if (hasUnsavedChanges && !isSaving) {
+        showMessage('Saving...', 'info');
+        autosaveChanges();
+      } else if (!hasUnsavedChanges) {
+        showMessage('All changes already saved', 'success');
+      }
+    }
+  });
+  
+  // Warn before navigation if unsaved changes (even with autosave, show warning during save)
+  window.addEventListener('beforeunload', (e) => {
+    if (hasUnsavedChanges || isSaving) {
+      e.preventDefault();
+      e.returnValue = 'Changes are being saved. Are you sure you want to leave?';
+      
+      // Try to save immediately before leaving
+      if (hasUnsavedChanges && !isSaving) {
+        autosaveChanges();
+      }
+      
+      return e.returnValue;
+    }
+  });
 }
 
 // Initialize page
@@ -1771,6 +2228,7 @@ window.addRow = addRow;
 window.deleteRow = deleteRow;
 window.deleteDate = deleteDate;
 window.makeEditable = makeEditable;
+window.saveAllChanges = saveAllChanges;
 window.exportCrewCsv = exportCrewCsv;
 window.showCrewListModal = showCrewListModal;
 window.showCrewCostCalcModal = showCrewCostCalcModal;
