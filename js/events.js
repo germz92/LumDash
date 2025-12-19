@@ -330,9 +330,9 @@ function renderEventCard(table, container, userId) {
   const addToCalendarBtn = document.createElement('button');
   addToCalendarBtn.className = 'btn-add-calendar';
   addToCalendarBtn.innerHTML = '<span class="material-symbols-outlined">event</span> Add to Calendar';
-  addToCalendarBtn.onclick = () => {
-    // TODO: Implement add to calendar functionality
-    alert('Add to Calendar functionality coming soon!');
+  addToCalendarBtn.onclick = (e) => {
+    e.stopPropagation();
+    showAddToCalendarModal(table);
   };
 
   const isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
@@ -1443,5 +1443,443 @@ if (document.readyState === 'loading') {
   // Small delay to ensure Socket.IO is loaded
   setTimeout(setupSocketListeners, 100);
 }
+
+// ========= ADD TO CALENDAR FUNCTIONALITY =========
+
+// Get user's full name from token
+function getUserNameFromToken() {
+  const token = localStorage.getItem('token');
+  if (!token) return null;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.fullName || payload.name || null;
+  } catch (e) {
+    console.error('Error parsing token:', e);
+    return null;
+  }
+}
+
+// Group consecutive dates
+function groupConsecutiveDates(dates) {
+  if (!dates || dates.length === 0) return [];
+  
+  // Sort dates
+  const sortedDates = dates.map(d => new Date(d)).sort((a, b) => a - b);
+  const groups = [];
+  let currentGroup = [sortedDates[0]];
+  
+  for (let i = 1; i < sortedDates.length; i++) {
+    const prevDate = sortedDates[i - 1];
+    const currDate = sortedDates[i];
+    const diffDays = Math.round((currDate - prevDate) / (1000 * 60 * 60 * 24));
+    
+    if (diffDays === 1) {
+      // Consecutive day
+      currentGroup.push(currDate);
+    } else {
+      // Gap found, start new group
+      groups.push(currentGroup);
+      currentGroup = [currDate];
+    }
+  }
+  
+  // Add the last group
+  groups.push(currentGroup);
+  
+  return groups;
+}
+
+// Format date for iCalendar (YYYYMMDD format)
+function formatICalDate(date) {
+  const d = new Date(date);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}${month}${day}`;
+}
+
+// Format date for Google Calendar URL (YYYYMMDD format for all-day events)
+function formatGoogleCalendarDate(date) {
+  return formatICalDate(date);
+}
+
+// Generate Google Calendar URL
+function generateGoogleCalendarUrl(event) {
+  const baseUrl = 'https://calendar.google.com/calendar/render';
+  
+  // For all-day events, use YYYYMMDD format (no time)
+  const startDate = formatGoogleCalendarDate(event.startDate);
+  
+  // For Google Calendar, end date for all-day events should be the day AFTER
+  const endDateObj = new Date(event.endDate);
+  endDateObj.setDate(endDateObj.getDate() + 1);
+  const endDate = formatGoogleCalendarDate(endDateObj);
+  
+  const params = new URLSearchParams({
+    action: 'TEMPLATE',
+    text: event.title,
+    dates: `${startDate}/${endDate}`,
+    details: event.description || '',
+    location: event.location || '',
+    ctz: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'
+  });
+  
+  return `${baseUrl}?${params.toString()}`;
+}
+
+// Open Google Calendar (single event only - Google Calendar doesn't support multiple events in one URL)
+function openGoogleCalendar(events) {
+  if (events.length === 0) return;
+  
+  if (events.length === 1) {
+    // Single event - open directly
+    window.open(generateGoogleCalendarUrl(events[0]), '_blank');
+  } else {
+    // Multiple events - open them in sequence
+    events.forEach((event, index) => {
+      setTimeout(() => {
+        window.open(generateGoogleCalendarUrl(event), '_blank');
+      }, index * 300); // Stagger by 300ms to avoid popup blocker
+    });
+    
+    showMessage(`Opening ${events.length} events in Google Calendar...`, 'info');
+  }
+}
+
+// Generate iCalendar (.ics) content
+function generateICalendar(events) {
+  let icsContent = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//LumDash//Event Calendar//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH'
+  ];
+  
+  events.forEach((event, index) => {
+    const uid = `${Date.now()}-${index}@lumdash.com`;
+    const timestamp = new Date().toISOString().replace(/[-:]/g, '').split('.')[0] + 'Z';
+    
+    icsContent.push('BEGIN:VEVENT');
+    icsContent.push(`UID:${uid}`);
+    icsContent.push(`DTSTAMP:${timestamp}`);
+    icsContent.push(`DTSTART;VALUE=DATE:${formatICalDate(event.startDate)}`);
+    
+    // For multi-day events, DTEND should be the day AFTER the last day (iCalendar spec)
+    const endDate = new Date(event.endDate);
+    endDate.setDate(endDate.getDate() + 1);
+    icsContent.push(`DTEND;VALUE=DATE:${formatICalDate(endDate)}`);
+    
+    icsContent.push(`SUMMARY:${event.title}`);
+    
+    if (event.location) {
+      icsContent.push(`LOCATION:${event.location}`);
+    }
+    
+    if (event.description) {
+      // Escape special characters and wrap long lines
+      const desc = event.description.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\n/g, '\\n');
+      icsContent.push(`DESCRIPTION:${desc}`);
+    }
+    
+    icsContent.push('STATUS:CONFIRMED');
+    icsContent.push('TRANSP:OPAQUE');
+    icsContent.push('END:VEVENT');
+  });
+  
+  icsContent.push('END:VCALENDAR');
+  
+  return icsContent.join('\r\n');
+}
+
+// Fetch crew data for an event
+async function fetchCrewData(tableId) {
+  try {
+    const response = await fetch(`${API_BASE}/api/tables/${tableId}`, {
+      headers: { Authorization: token }
+    });
+    
+    if (!response.ok) {
+      throw new Error('Failed to fetch crew data');
+    }
+    
+    const data = await response.json();
+    return data.rows || [];
+  } catch (error) {
+    console.error('Error fetching crew data:', error);
+    return [];
+  }
+}
+
+// Detect mobile device
+function isMobileDevice() {
+  return /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+}
+
+// Detect iOS specifically
+function isIOS() {
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+}
+
+// Download .ics file (desktop) or auto-open (mobile)
+function downloadICS(content, filename) {
+  // For mobile, we need special handling
+  if (isMobileDevice()) {
+    // Create blob with proper MIME type for calendar
+    const blob = new Blob([content], { type: 'text/calendar' });
+    
+    // Try using navigator.share API if available (best for mobile)
+    if (navigator.share && navigator.canShare && navigator.canShare({ files: [new File([blob], filename, { type: 'text/calendar' })] })) {
+      const file = new File([blob], filename, { type: 'text/calendar' });
+      navigator.share({
+        files: [file],
+        title: 'Add to Calendar',
+        text: 'Add this event to your calendar'
+      }).catch(err => {
+        console.log('Share failed, falling back to download:', err);
+        // Fallback to download
+        downloadICSFallback(blob, filename);
+      });
+    } else {
+      // Fallback: download the file
+      downloadICSFallback(blob, filename);
+    }
+  } else {
+    // Desktop: Standard download
+    const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
+  }
+}
+
+// Fallback download method for mobile
+function downloadICSFallback(blob, filename) {
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  
+  // Try to trigger download
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  
+  // Show instructions after download
+  setTimeout(() => {
+    showMobileInstructions();
+  }, 500);
+  
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// Show instructions for mobile users
+function showMobileInstructions() {
+  const instructionModal = document.createElement('div');
+  instructionModal.className = 'calendar-modal';
+  instructionModal.innerHTML = `
+    <div class="calendar-modal-content">
+      <div class="calendar-modal-header">
+        <h3>
+          <span class="material-symbols-outlined">info</span>
+          Next Steps
+        </h3>
+        <button class="close-btn" onclick="this.closest('.calendar-modal').remove()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="calendar-modal-body">
+        <p style="margin-bottom: 16px;">The calendar file has been downloaded.</p>
+        <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; border-left: 4px solid #CC0007;">
+          <p style="margin: 0 0 12px 0; font-weight: 600;">To add to your calendar:</p>
+          <ol style="margin: 0; padding-left: 20px; line-height: 1.6;">
+            <li>Open your <strong>Downloads</strong> or <strong>Files</strong> app</li>
+            <li>Tap on the <strong>.ics file</strong> you just downloaded</li>
+            <li>Your calendar app will open</li>
+            <li>Tap <strong>"Add"</strong> to save the event</li>
+          </ol>
+        </div>
+        <button onclick="this.closest('.calendar-modal').remove()" style="
+          width: 100%;
+          padding: 12px;
+          margin-top: 16px;
+          background: #CC0007;
+          color: white;
+          border: none;
+          border-radius: 8px;
+          font-weight: 600;
+          cursor: pointer;
+        ">Got it!</button>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(instructionModal);
+  
+  instructionModal.addEventListener('click', (e) => {
+    if (e.target === instructionModal) {
+      instructionModal.remove();
+    }
+  });
+}
+
+// Show Add to Calendar modal
+async function showAddToCalendarModal(table) {
+  // Fetch crew data
+  const crewRows = await fetchCrewData(table._id);
+  const userName = getUserNameFromToken();
+  
+  // Find user's call days
+  const userRows = crewRows.filter(row => 
+    row.name === userName && row.role !== '__placeholder__' && row.date
+  );
+  
+  // Get unique dates for user
+  const userDates = [...new Set(userRows.map(row => row.date))];
+  const hasCallDays = userDates.length > 0;
+  
+  // Get user's role (first non-placeholder role found)
+  const userRole = userRows.find(row => row.role && row.role !== '__placeholder__')?.role || '';
+  
+  // Prepare event data for full event
+  const fullEventData = [{
+    title: table.title || 'Event',
+    startDate: table.general?.start || new Date(),
+    endDate: table.general?.end || new Date(),
+    location: table.general?.location || '',
+    description: `Client: ${table.client || ''}`
+  }];
+  
+  // Prepare event data for user's call days
+  const dateGroups = hasCallDays ? groupConsecutiveDates(userDates) : [];
+  const userEventData = dateGroups.map((group, index) => {
+    const startDate = group[0];
+    const endDate = group[group.length - 1];
+    
+    return {
+      title: `${table.title || 'Event'}${userRole ? ` - ${userRole}` : ''}`,
+      startDate: startDate,
+      endDate: endDate,
+      location: table.general?.location || '',
+      description: `Role: ${userRole}\nClient: ${table.client || ''}`
+    };
+  });
+  
+  // Create modal
+  const modal = document.createElement('div');
+  modal.className = 'calendar-modal';
+  modal.innerHTML = `
+    <div class="calendar-modal-content">
+      <div class="calendar-modal-header">
+        <h3>
+          <span class="material-symbols-outlined">event</span>
+          Add to Calendar
+        </h3>
+        <button class="close-btn" onclick="this.closest('.calendar-modal').remove()">
+          <span class="material-symbols-outlined">close</span>
+        </button>
+      </div>
+      <div class="calendar-modal-body">
+        <p>Choose what to add to your calendar:</p>
+        <div class="calendar-options">
+          <button class="calendar-option-btn" id="addFullEventBtn">
+            <span class="material-symbols-outlined">event_available</span>
+            <div>
+              <strong>Add Event Dates</strong>
+              <small>Add the entire event (${table.general?.start ? new Date(table.general.start).toLocaleDateString() : ''} - ${table.general?.end ? new Date(table.general.end).toLocaleDateString() : ''})</small>
+            </div>
+          </button>
+          ${hasCallDays ? `
+          <button class="calendar-option-btn" id="addMyCallDaysBtn">
+            <span class="material-symbols-outlined">person_pin_circle</span>
+            <div>
+              <strong>Add My Call Days</strong>
+              <small>Add only the days you're assigned (${userDates.length} day${userDates.length !== 1 ? 's' : ''})</small>
+            </div>
+          </button>
+          ` : `
+          <div class="calendar-option-disabled">
+            <span class="material-symbols-outlined">info</span>
+            <div>
+              <strong>My Call Days</strong>
+              <small>You are not assigned to any days on this event</small>
+            </div>
+          </div>
+          `}
+        </div>
+      </div>
+    </div>
+  `;
+  
+  document.body.appendChild(modal);
+  
+  // Close on background click
+  modal.addEventListener('click', (e) => {
+    if (e.target === modal) {
+      modal.remove();
+    }
+  });
+  
+  // Add full event button handler (Google Calendar)
+  const addFullEventBtn = modal.querySelector('#addFullEventBtn');
+  if (addFullEventBtn) {
+    addFullEventBtn.onclick = () => {
+      openGoogleCalendar(fullEventData);
+      modal.remove();
+      showMessage('Opening Google Calendar...', 'success');
+    };
+  }
+  
+  // Add my call days button handler (Google Calendar)
+  const addMyCallDaysBtn = modal.querySelector('#addMyCallDaysBtn');
+  if (addMyCallDaysBtn && hasCallDays) {
+    addMyCallDaysBtn.onclick = () => {
+      openGoogleCalendar(userEventData);
+      modal.remove();
+      if (userEventData.length > 1) {
+        showMessage(`Opening ${userEventData.length} events in Google Calendar...`, 'info');
+      } else {
+        showMessage('Opening Google Calendar...', 'success');
+      }
+    };
+  }
+}
+
+function showMessage(message, type = 'info') {
+  const messageEl = document.createElement('div');
+  messageEl.className = `toast-message toast-${type}`;
+  messageEl.textContent = message;
+  messageEl.style.cssText = `
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 16px 24px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    z-index: 10001;
+    opacity: 0;
+    transition: opacity 0.3s;
+    ${type === 'success' ? 'background: #28a745;' : 
+      type === 'error' ? 'background: #dc3545;' : 
+      'background: #17a2b8;'}
+  `;
+  
+  document.body.appendChild(messageEl);
+  
+  setTimeout(() => messageEl.style.opacity = '1', 10);
+  
+  setTimeout(() => {
+    messageEl.style.opacity = '0';
+    setTimeout(() => messageEl.remove(), 300);
+  }, 3000);
+}
+
+// ========= END ADD TO CALENDAR FUNCTIONALITY =========
 
 })();
