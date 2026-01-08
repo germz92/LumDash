@@ -56,6 +56,8 @@ const tableSchema = new mongoose.Schema({
   
   general: {
     location: String,
+    city: String,
+    state: String,
     weather: String,
     start: String,
     end: String,

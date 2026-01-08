@@ -350,6 +350,12 @@ body:has(.bottom-nav-material) #page-container {
   display: none !important;
 }
 
+/* Hide bottom navbar on call-times page */
+.call-times-page .bottom-nav-material,
+.call-times-page #bottomNav {
+  display: none !important;
+}
+
 /* Also hide floating Luma button on events page */
 .events-page .chat-button-nav,
 .events-page #chatButton {

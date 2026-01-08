@@ -86,7 +86,7 @@ console.log(' app.js loaded');
 })();
 
 const PAGE_CLASSES = [
-  'events-page', 'general-page', 'crew-page', 'travel-page', 'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'users-page', 'crew-planner-page', 'crew-calendar-page'
+  'events-page', 'general-page', 'crew-page', 'travel-page', 'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'users-page', 'crew-planner-page', 'crew-calendar-page', 'call-times-page'
 ];
 
 function setBodyPageClass(page) {
@@ -124,7 +124,7 @@ function navigate(page, id) {
   window.currentNavigatingPage = page; // Track for debugging
   
   // Only require an ID for pages that need it
-  const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'crew-planner', 'crew-calendar'].includes(page);
+  const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'crew-planner', 'crew-calendar', 'call-times'].includes(page);
   
   // CRITICAL FIX: Determine the final tableId to use consistently throughout navigation
   let finalId = id;
@@ -247,7 +247,7 @@ function injectPageContent(html, page, id) {
   // Show/hide bottom nav based on page and set it up
   const bottomNav = document.getElementById('bottomNav');
   if (bottomNav) {
-    if (page === 'events') { // 'events' page usually doesn't show the main event-specific nav
+    if (page === 'events' || page === 'call-times') { // 'events' and 'call-times' pages don't show the main event-specific nav
       bottomNav.style.display = 'none';
     } else {
       bottomNav.style.display = ''; // Ensure it's visible for other pages
@@ -592,7 +592,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Reset body classes
   const PAGE_CLASSES_RESET = [
     'events-page', 'general-page', 'crew-page', 'travel-page', 
-    'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page'
+    'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'call-times-page'
   ];
   PAGE_CLASSES_RESET.forEach(cls => document.body.classList.remove(cls));
   

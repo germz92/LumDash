@@ -261,6 +261,16 @@ function renderEventCard(table, container, userId) {
   const general = table.general || {};
   const client = general.client || 'N/A';
   
+  // Build location from city and state
+  let location = null;
+  if (general.city && general.state) {
+    location = `${general.city}, ${general.state}`;
+  } else if (general.city) {
+    location = general.city;
+  } else if (general.state) {
+    location = general.state;
+  }
+  
   // Format dates consistently with UTC to prevent timezone shifts
   const formatDate = (dateStr) => {
     if (!dateStr) return 'N/A';
@@ -292,7 +302,13 @@ function renderEventCard(table, container, userId) {
 
   const details = document.createElement('div');
   details.className = 'event-details';
-  details.innerHTML = `Client: ${client} <br> ${start} - ${end}`;
+  // Build details HTML with location if available
+  let detailsHTML = `Client: ${client}`;
+  if (location) {
+    detailsHTML += ` <br> 📍 ${location}`;
+  }
+  detailsHTML += ` <br> ${start} - ${end}`;
+  details.innerHTML = detailsHTML;
   
   titleContainer.appendChild(title);
   titleContainer.appendChild(details);
@@ -442,6 +458,16 @@ function renderCalendar(events) {
   const eventObjs = events.map(table => {
     const general = table.general || {};
     
+    // Build location from city and state
+    let location = null;
+    if (general.city && general.state) {
+      location = `${general.city}, ${general.state}`;
+    } else if (general.city) {
+      location = general.city;
+    } else if (general.state) {
+      location = general.state;
+    }
+    
     // Parse dates as UTC to prevent timezone shifts
     const parseUTCDate = (dateStr) => {
       if (!dateStr) return null;
@@ -453,6 +479,7 @@ function renderCalendar(events) {
     return {
       id: table._id,
       title: table.title,
+      location: location,
       start: parseUTCDate(general.start),
       end: parseUTCDate(general.end),
       color: '#CC0007', // main accent
@@ -592,7 +619,8 @@ function renderCalendar(events) {
         const pill = document.createElement('div');
         pill.textContent = ev.title;
         pill.className = 'calendar-event-pill';
-        pill.title = ev.title;
+        // Add location to tooltip if available
+        pill.title = ev.location ? `${ev.title}\n📍 ${ev.location}` : ev.title;
         pill.style.background = ev.color;
         pill.style.color = '#fff';
         pill.style.position = 'absolute';
@@ -1209,130 +1237,159 @@ window.initPage = function(id) {
         
         try {
           const payload = JSON.parse(atob(token.split('.')[1]));
-          return { 
-            isAdmin: payload.role === 'admin',
-            role: payload.role,
-            fullName: payload.fullName,
-            id: payload.id,
-            tokenExpiry: new Date(payload.exp * 1000).toLocaleString()
-          };
-        } catch (err) {
-          return { error: 'Invalid token', details: err.message };
-        }
-      };
+        return { 
+          isAdmin: payload.role === 'admin',
+          role: payload.role,
+          fullName: payload.fullName,
+          id: payload.id,
+          tokenExpiry: new Date(payload.exp * 1000).toLocaleString()
+        };
+      } catch (err) {
+        return { error: 'Invalid token', details: err.message };
+      }
+    };
+    
+    // Add admin-user class to body for CSS targeting
+    if (payload.role === 'admin') {
+      document.body.classList.add('admin-user');
+    } else {
+      document.body.classList.remove('admin-user');
+    }
+    
+    // Restructure top bar into two rows for ALL users
+    const topBar = document.querySelector('.top-bar');
+      const usernameDisplay = document.getElementById('usernameDisplay');
+      const logoutBtn = document.getElementById('logoutBtn');
       
-      if (payload.role === 'admin') {
-        // Restructure top bar into two rows
-        const topBar = document.querySelector('.top-bar');
-        const usernameDisplay = document.getElementById('usernameDisplay');
-        const logoutBtn = document.getElementById('logoutBtn');
+      if (topBar && usernameDisplay && logoutBtn) {
+        // Check if rows already exist
+        let topRow = topBar.querySelector('.top-bar-row.welcome-row');
+        let buttonsRow = topBar.querySelector('.top-bar-row.admin-row');
         
-        if (topBar && usernameDisplay && logoutBtn) {
-          // Check if rows already exist
-          let topRow = topBar.querySelector('.top-bar-row.welcome-row');
-          let adminRow = topBar.querySelector('.top-bar-row.admin-row');
+        if (!topRow) {
+          // Create top row for welcome + logout
+          topRow = document.createElement('div');
+          topRow.className = 'top-bar-row welcome-row';
           
-          if (!topRow) {
-            // Create top row for welcome + logout
-            topRow = document.createElement('div');
-            topRow.className = 'top-bar-row welcome-row';
-            
-            // Move username and logout to top row
-            topBar.appendChild(topRow);
-            topRow.appendChild(usernameDisplay);
-            topRow.appendChild(logoutBtn);
-          }
-          
-          if (!adminRow) {
-            // Create admin row for all admin buttons
-            adminRow = document.createElement('div');
-            adminRow.className = 'top-bar-row admin-row';
-            adminRow.style.justifyContent = 'center';
-            topBar.appendChild(adminRow);
-          }
-          
-          // Create admin buttons container if it doesn't exist
-          let adminButtonsContainer = document.getElementById('adminButtonsContainer');
-          if (!adminButtonsContainer) {
-            adminButtonsContainer = document.createElement('div');
-            adminButtonsContainer.id = 'adminButtonsContainer';
-            adminButtonsContainer.style.display = 'flex';
-            adminButtonsContainer.style.gap = '8px';
-            adminButtonsContainer.style.alignItems = 'center';
-            adminButtonsContainer.style.flexWrap = 'wrap';
-            adminButtonsContainer.style.justifyContent = 'center';
-            adminRow.appendChild(adminButtonsContainer);
-          }
+          // Move username and logout to top row
+          topBar.appendChild(topRow);
+          topRow.appendChild(usernameDisplay);
+          topRow.appendChild(logoutBtn);
         }
-
-        // Add admin console button
-        let adminBtn = document.getElementById('adminConsoleBtn');
-        if (!adminBtn) {
-          adminBtn = document.createElement('button');
-          adminBtn.id = 'adminConsoleBtn';
-          adminBtn.className = 'btn-admin btn-outlined';
-          adminBtn.textContent = 'Admin Console';
-          adminBtn.onclick = () => {
-            window.location.href = '/pages/users.html';
-          };
-          adminButtonsContainer.appendChild(adminBtn);
+        
+        if (!buttonsRow) {
+          // Create buttons row for all utility buttons (available to all users)
+          buttonsRow = document.createElement('div');
+          buttonsRow.className = 'top-bar-row admin-row';
+          buttonsRow.style.justifyContent = 'center';
+          topBar.appendChild(buttonsRow);
         }
-
-        // Add inventory management button
-        let inventoryBtn = document.getElementById('inventoryManagementBtn');
-        if (!inventoryBtn) {
-          inventoryBtn = document.createElement('button');
-          inventoryBtn.id = 'inventoryManagementBtn';
-          inventoryBtn.className = 'btn-inventory btn-outlined';
-          inventoryBtn.style.display = 'flex';
-          inventoryBtn.style.alignItems = 'center';
-          inventoryBtn.style.gap = '8px';
-          inventoryBtn.innerHTML = `
-            <span class="material-symbols-outlined">inventory</span>
-            Inventory
+        
+        // Create buttons container if it doesn't exist
+        let adminButtonsContainer = document.getElementById('adminButtonsContainer');
+        if (!adminButtonsContainer) {
+          adminButtonsContainer = document.createElement('div');
+          adminButtonsContainer.id = 'adminButtonsContainer';
+          adminButtonsContainer.style.display = 'flex';
+          adminButtonsContainer.style.gap = '8px';
+          adminButtonsContainer.style.alignItems = 'center';
+          adminButtonsContainer.style.flexWrap = 'wrap';
+          adminButtonsContainer.style.justifyContent = 'center';
+          buttonsRow.appendChild(adminButtonsContainer);
+        }
+        
+        // Add Call Times button (available to ALL users)
+        let callTimesBtn = document.getElementById('callTimesBtn');
+        if (!callTimesBtn) {
+          callTimesBtn = document.createElement('button');
+          callTimesBtn.id = 'callTimesBtn';
+          callTimesBtn.className = 'btn-call-times btn-outlined';
+          callTimesBtn.style.display = 'flex';
+          callTimesBtn.style.alignItems = 'center';
+          callTimesBtn.style.gap = '8px';
+          callTimesBtn.innerHTML = `
+            <span class="material-symbols-outlined">schedule</span>
+            Call Times
           `;
-          inventoryBtn.onclick = () => {
-            window.location.href = '/pages/inventory-management.html';
+          callTimesBtn.onclick = () => {
+            if (window.navigate) {
+              window.navigate('call-times');
+            }
           };
-          adminButtonsContainer.appendChild(inventoryBtn);
+          adminButtonsContainer.appendChild(callTimesBtn);
         }
+        
+        // Add admin-only buttons if user is admin
+        if (payload.role === 'admin') {
+          // Add admin console button
+          let adminBtn = document.getElementById('adminConsoleBtn');
+          if (!adminBtn) {
+            adminBtn = document.createElement('button');
+            adminBtn.id = 'adminConsoleBtn';
+            adminBtn.className = 'btn-admin btn-outlined';
+            adminBtn.textContent = 'Admin Console';
+            adminBtn.onclick = () => {
+              window.location.href = '/pages/users.html';
+            };
+            adminButtonsContainer.appendChild(adminBtn);
+          }
 
-        // Add crew planner button
-        let crewPlannerBtn = document.getElementById('crewPlannerBtn');
-        if (!crewPlannerBtn) {
-          crewPlannerBtn = document.createElement('button');
-          crewPlannerBtn.id = 'crewPlannerBtn';
-          crewPlannerBtn.className = 'btn-crew-planner btn-outlined';
-          crewPlannerBtn.style.display = 'flex';
-          crewPlannerBtn.style.alignItems = 'center';
-          crewPlannerBtn.style.gap = '8px';
-          crewPlannerBtn.innerHTML = `
-            <span class="material-symbols-outlined">groups</span>
-            Crew Planner
-          `;
-          crewPlannerBtn.onclick = () => {
-            window.location.href = '/pages/crew-planner.html';
-          };
-          adminButtonsContainer.appendChild(crewPlannerBtn);
-        }
+          // Add inventory management button
+          let inventoryBtn = document.getElementById('inventoryManagementBtn');
+          if (!inventoryBtn) {
+            inventoryBtn = document.createElement('button');
+            inventoryBtn.id = 'inventoryManagementBtn';
+            inventoryBtn.className = 'btn-inventory btn-outlined';
+            inventoryBtn.style.display = 'flex';
+            inventoryBtn.style.alignItems = 'center';
+            inventoryBtn.style.gap = '8px';
+            inventoryBtn.innerHTML = `
+              <span class="material-symbols-outlined">inventory</span>
+              Inventory
+            `;
+            inventoryBtn.onclick = () => {
+              window.location.href = '/pages/inventory-management.html';
+            };
+            adminButtonsContainer.appendChild(inventoryBtn);
+          }
 
-        // Add crew calendar button
-        let crewCalendarBtn = document.getElementById('crewCalendarBtn');
-        if (!crewCalendarBtn) {
-          crewCalendarBtn = document.createElement('button');
-          crewCalendarBtn.id = 'crewCalendarBtn';
-          crewCalendarBtn.className = 'btn-crew-calendar btn-outlined';
-          crewCalendarBtn.style.display = 'flex';
-          crewCalendarBtn.style.alignItems = 'center';
-          crewCalendarBtn.style.gap = '8px';
-          crewCalendarBtn.innerHTML = `
-            <span class="material-symbols-outlined">calendar_month</span>
-            Crew Calendar
-          `;
-          crewCalendarBtn.onclick = () => {
-            window.location.href = '/pages/crew-calendar.html';
-          };
-          adminButtonsContainer.appendChild(crewCalendarBtn);
+          // Add crew planner button
+          let crewPlannerBtn = document.getElementById('crewPlannerBtn');
+          if (!crewPlannerBtn) {
+            crewPlannerBtn = document.createElement('button');
+            crewPlannerBtn.id = 'crewPlannerBtn';
+            crewPlannerBtn.className = 'btn-crew-planner btn-outlined';
+            crewPlannerBtn.style.display = 'flex';
+            crewPlannerBtn.style.alignItems = 'center';
+            crewPlannerBtn.style.gap = '8px';
+            crewPlannerBtn.innerHTML = `
+              <span class="material-symbols-outlined">groups</span>
+              Crew Planner
+            `;
+            crewPlannerBtn.onclick = () => {
+              window.location.href = '/pages/crew-planner.html';
+            };
+            adminButtonsContainer.appendChild(crewPlannerBtn);
+          }
+
+          // Add crew calendar button
+          let crewCalendarBtn = document.getElementById('crewCalendarBtn');
+          if (!crewCalendarBtn) {
+            crewCalendarBtn = document.createElement('button');
+            crewCalendarBtn.id = 'crewCalendarBtn';
+            crewCalendarBtn.className = 'btn-crew-calendar btn-outlined';
+            crewCalendarBtn.style.display = 'flex';
+            crewCalendarBtn.style.alignItems = 'center';
+            crewCalendarBtn.style.gap = '8px';
+            crewCalendarBtn.innerHTML = `
+              <span class="material-symbols-outlined">calendar_month</span>
+              Crew Calendar
+            `;
+            crewCalendarBtn.onclick = () => {
+              window.location.href = '/pages/crew-calendar.html';
+            };
+            adminButtonsContainer.appendChild(crewCalendarBtn);
+          }
         }
       }
     }
