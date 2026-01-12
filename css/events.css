@@ -110,7 +110,8 @@
 .top-bar .btn-inventory.btn-outlined,
 .top-bar .btn-crew-planner.btn-outlined,
 .top-bar .btn-crew-calendar.btn-outlined,
-.top-bar .btn-call-times.btn-outlined {
+.top-bar .btn-call-times.btn-outlined,
+.top-bar .btn-flights.btn-outlined {
     font-size: 14px;
     padding: 8px 16px;
     white-space: nowrap;
@@ -875,12 +876,21 @@
     flex-shrink: 0;
   }
   
+  /* Admin buttons container - 3 column grid on mobile for admins */
+  body.admin-user .top-bar #adminButtonsContainer {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 6px;
+    width: 100%;
+  }
+  
   /* Admin buttons and utility buttons on mobile - make them more compact */
   .top-bar .btn-admin.btn-outlined,
   .top-bar .btn-inventory.btn-outlined,
   .top-bar .btn-crew-planner.btn-outlined,
   .top-bar .btn-crew-calendar.btn-outlined,
-  .top-bar .btn-call-times.btn-outlined {
+  .top-bar .btn-call-times.btn-outlined,
+  .top-bar .btn-flights.btn-outlined {
     font-size: 10px !important;
     padding: 6px 8px !important;
     border-radius: 6px !important;
@@ -928,7 +938,8 @@
   .top-bar .btn-inventory.btn-outlined,
   .top-bar .btn-crew-planner.btn-outlined,
   .top-bar .btn-crew-calendar.btn-outlined,
-  .top-bar .btn-call-times.btn-outlined {
+  .top-bar .btn-call-times.btn-outlined,
+  .top-bar .btn-flights.btn-outlined {
     padding: 6px !important;
     font-size: 0 !important;
   }
@@ -941,7 +952,8 @@
   .top-bar .btn-inventory.btn-outlined .material-symbols-outlined,
   .top-bar .btn-crew-planner.btn-outlined .material-symbols-outlined,
   .top-bar .btn-crew-calendar.btn-outlined .material-symbols-outlined,
-  .top-bar .btn-call-times.btn-outlined .material-symbols-outlined {
+  .top-bar .btn-call-times.btn-outlined .material-symbols-outlined,
+  .top-bar .btn-flights.btn-outlined .material-symbols-outlined {
     font-size: 16px !important;
     margin: 0 !important;
   }
@@ -949,22 +961,26 @@
   .top-bar .btn-inventory.btn-outlined span:not(.material-symbols-outlined),
   .top-bar .btn-crew-planner.btn-outlined span:not(.material-symbols-outlined),
   .top-bar .btn-crew-calendar.btn-outlined span:not(.material-symbols-outlined),
-  .top-bar .btn-call-times.btn-outlined span:not(.material-symbols-outlined) {
+  .top-bar .btn-call-times.btn-outlined span:not(.material-symbols-outlined),
+  .top-bar .btn-flights.btn-outlined span:not(.material-symbols-outlined) {
     display: none;
   }
   
-  /* For non-admin users, show full text on Call Times button (they have plenty of space) */
-  body:not(.admin-user) .top-bar .btn-call-times.btn-outlined {
+  /* For non-admin users, show full text on Call Times and Flights buttons (they have plenty of space) */
+  body:not(.admin-user) .top-bar .btn-call-times.btn-outlined,
+  body:not(.admin-user) .top-bar .btn-flights.btn-outlined {
     padding: 6px 12px !important;
     font-size: 13px !important;
   }
   
-  body:not(.admin-user) .top-bar .btn-call-times.btn-outlined .material-symbols-outlined {
+  body:not(.admin-user) .top-bar .btn-call-times.btn-outlined .material-symbols-outlined,
+  body:not(.admin-user) .top-bar .btn-flights.btn-outlined .material-symbols-outlined {
     font-size: 18px !important;
     margin-right: 4px !important;
   }
   
-  body:not(.admin-user) .top-bar .btn-call-times.btn-outlined span:not(.material-symbols-outlined) {
+  body:not(.admin-user) .top-bar .btn-call-times.btn-outlined span:not(.material-symbols-outlined),
+  body:not(.admin-user) .top-bar .btn-flights.btn-outlined span:not(.material-symbols-outlined) {
     display: inline !important;
   }
 }

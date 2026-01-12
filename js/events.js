@@ -1319,6 +1319,27 @@ window.initPage = function(id) {
           adminButtonsContainer.appendChild(callTimesBtn);
         }
         
+        // Add Flights button (available to ALL users)
+        let flightsBtn = document.getElementById('flightsBtn');
+        if (!flightsBtn) {
+          flightsBtn = document.createElement('button');
+          flightsBtn.id = 'flightsBtn';
+          flightsBtn.className = 'btn-flights btn-outlined';
+          flightsBtn.style.display = 'flex';
+          flightsBtn.style.alignItems = 'center';
+          flightsBtn.style.gap = '8px';
+          flightsBtn.innerHTML = `
+            <span class="material-symbols-outlined">flight_takeoff</span>
+            Flights
+          `;
+          flightsBtn.onclick = () => {
+            if (window.navigate) {
+              window.navigate('flights');
+            }
+          };
+          adminButtonsContainer.appendChild(flightsBtn);
+        }
+        
         // Add admin-only buttons if user is admin
         if (payload.role === 'admin') {
           // Add admin console button

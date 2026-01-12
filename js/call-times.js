@@ -11,7 +11,7 @@
   let isAdmin = false;
   
   // Filter states
-  let statusFilter = localStorage.getItem('callTimes_statusFilter') || 'all';
+  let statusFilter = localStorage.getItem('callTimes_statusFilter') || 'upcoming';
   let dateFilter = localStorage.getItem('callTimes_dateFilter') || 'all';
   let myCallsFilter = localStorage.getItem('callTimes_myCallsFilter') || 'all';
   let searchQuery = '';
