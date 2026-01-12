@@ -6359,6 +6359,162 @@ app.get('/api/crew-calendar', authenticate, async (req, res) => {
 // ========= END CREW CALENDAR API =========
 
 // ===========================================
+// FLIGHTS - Get all flight data across all events
+// ===========================================
+app.get('/api/flights/all', authenticate, async (req, res) => {
+  try {
+    const userId = req.user.id;
+    const userFullName = req.user.fullName;
+    const isAdmin = req.user.role === 'admin';
+    const statusFilter = req.query.status || 'all'; // 'all', 'upcoming', 'past'
+    const dateFilter = req.query.dateFilter || 'all';
+    const customStart = req.query.customStart;
+    const customEnd = req.query.customEnd;
+    
+    // Find all tables the user has access to
+    let query = {};
+    if (!isAdmin) {
+      // Non-admins only see events they have access to (owners, leads, shared)
+      query = {
+        $or: [
+          { owners: userId },
+          { leads: userId },
+          { sharedWith: userId }
+        ]
+      };
+    }
+    
+    const tables = await Table.find(query)
+      .populate('owners', 'fullName')
+      .select('title travel general owners leads');
+    
+    // Get today's date at midnight for comparisons
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+    
+    // Calculate date filter range
+    let filterStartDate = null;
+    let filterEndDate = null;
+    
+    if (dateFilter === 'this-month') {
+      filterStartDate = new Date(now.getFullYear(), now.getMonth(), 1);
+      filterEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    } else if (dateFilter === 'last-month') {
+      filterStartDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+      filterEndDate = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+    } else if (dateFilter === 'last-3-months') {
+      filterStartDate = new Date(now.getFullYear(), now.getMonth() - 3, 1);
+      filterEndDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+    } else if (dateFilter === 'this-year') {
+      filterStartDate = new Date(now.getFullYear(), 0, 1);
+      filterEndDate = new Date(now.getFullYear(), 11, 31, 23, 59, 59, 999);
+    } else if (dateFilter === 'last-year') {
+      filterStartDate = new Date(now.getFullYear() - 1, 0, 1);
+      filterEndDate = new Date(now.getFullYear() - 1, 11, 31, 23, 59, 59, 999);
+    } else if (dateFilter === 'custom' && customStart && customEnd) {
+      filterStartDate = new Date(customStart);
+      filterEndDate = new Date(customEnd);
+      filterEndDate.setHours(23, 59, 59, 999);
+    }
+    
+    // Helper to parse date string as local date
+    function parseLocalDate(dateStr) {
+      if (!dateStr) return null;
+      const match = String(dateStr).match(/^(\d{4})-(\d{2})-(\d{2})/);
+      if (match) {
+        const [, year, month, day] = match;
+        return new Date(parseInt(year), parseInt(month) - 1, parseInt(day), 0, 0, 0, 0);
+      }
+      return new Date(dateStr);
+    }
+    
+    // Check if user is a lead/planner for an event
+    function isUserLeadForEvent(table) {
+      return table.leads && table.leads.some(lead => lead.toString() === userId);
+    }
+    
+    // Flatten flights from all tables
+    let allFlights = [];
+    
+    for (const table of tables) {
+      if (!table.travel || table.travel.length === 0) continue;
+      
+      const isOwner = table.owners && table.owners.some(owner => owner._id.toString() === userId);
+      const isLead = isUserLeadForEvent(table);
+      
+      for (const flight of table.travel) {
+        // Skip if no name exists
+        if (!flight.name) continue;
+        
+        // Permission logic:
+        // - Admins see all flights
+        // - Leads/planners see all flights for their events
+        // - Regular users only see their own flights
+        if (!isAdmin && !isLead && flight.name.toLowerCase() !== userFullName.toLowerCase()) {
+          continue;
+        }
+        
+        // Parse the flight date
+        const flightDate = parseLocalDate(flight.date);
+        
+        // Apply status filter based on flight date
+        if (statusFilter !== 'all' && flightDate) {
+          if (statusFilter === 'upcoming') {
+            // Upcoming = flight date is today or in the future
+            if (flightDate < todayStart) continue;
+          } else if (statusFilter === 'past') {
+            // Past = flight date is before today
+            if (flightDate >= todayStart) continue;
+          }
+        }
+        
+        // Apply date range filter
+        if (filterStartDate && filterEndDate && flightDate) {
+          if (flightDate < filterStartDate || flightDate > filterEndDate) continue;
+        }
+        
+        allFlights.push({
+          _id: flight._id ? flight._id.toString() : `${table._id}-${flight.date}-${flight.name}`,
+          date: flight.date || '',
+          depart: flight.depart || '',
+          arrive: flight.arrive || '',
+          name: flight.name || '',
+          airline: flight.airline || '',
+          fromTo: flight.fromTo || '',
+          ref: flight.ref || '',
+          event: {
+            _id: table._id.toString(),
+            title: table.title || 'Untitled Event',
+            city: table.general?.city || '',
+            state: table.general?.state || ''
+          }
+        });
+      }
+    }
+    
+    // Sort by date (soonest first), then by event name
+    allFlights.sort((a, b) => {
+      const dateA = a.date ? new Date(a.date) : new Date(0);
+      const dateB = b.date ? new Date(b.date) : new Date(0);
+      const dateCompare = dateA - dateB;
+      if (dateCompare !== 0) return dateCompare;
+      return (a.event.title || '').localeCompare(b.event.title || '');
+    });
+    
+    res.json({
+      flights: allFlights,
+      totalCount: allFlights.length,
+      isAdmin,
+      isLead: tables.some(table => isUserLeadForEvent(table))
+    });
+  } catch (err) {
+    console.error('Error fetching all flights:', err);
+    res.status(500).json({ error: 'Server error' });
+  }
+});
+
+// ===========================================
 // CALL TIMES - Get all crew call times across all events
 // ===========================================
 app.get('/api/calltimes/all', authenticate, async (req, res) => {
