@@ -496,8 +496,10 @@ function setupEventListeners() {
   
   if (tableContainer) {
     tableContainer.addEventListener('click', async (e) => {
-      if (e.target.classList.contains('add-card-btn')) {
-        const date = e.target.getAttribute('data-date');
+      // Use closest() to find the button even if a child element was clicked
+      const addCardBtn = e.target.closest('.add-card-btn');
+      if (addCardBtn) {
+        const date = addCardBtn.getAttribute('data-date');
         console.log(`[CARD-LOG] User clicked "Add Card" for date: ${date}`);
         
         // Extra validation to ensure date is valid
