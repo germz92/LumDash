@@ -248,24 +248,6 @@ const tableSchema = new mongoose.Schema({
   ]
 }, { timestamps: true });
 
-// Pre-save hook to clean invalid adminNotes entries (missing required date field)
-tableSchema.pre('save', function(next) {
-  if (this.adminNotes && Array.isArray(this.adminNotes)) {
-    // Filter out adminNotes entries that are missing the required 'date' field
-    const originalLength = this.adminNotes.length;
-    this.adminNotes = this.adminNotes.filter(note => {
-      // Keep notes that have a valid date field
-      return note && note.date !== undefined && note.date !== null && note.date !== '';
-    });
-    
-    // Log if we filtered out any invalid notes
-    if (this.adminNotes.length < originalLength) {
-      console.warn(`[Table Model] Filtered out ${originalLength - this.adminNotes.length} invalid adminNotes entries missing required 'date' field`);
-    }
-  }
-  next();
-});
-
 // Add utility methods for date handling if needed
 tableSchema.methods.getFormattedDate = function(dateStr) {
   if (!dateStr) return null;

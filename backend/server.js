@@ -6361,6 +6361,9 @@ app.get('/api/crew-calendar', authenticate, async (req, res) => {
 // ===========================================
 // FLIGHTS - Get all flight data across all events
 // ===========================================
+const FlightRequest = require('./models/FlightRequest');
+const Passenger = require('./models/Passenger');
+
 app.get('/api/flights/all', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
@@ -6491,6 +6494,85 @@ app.get('/api/flights/all', authenticate, async (req, res) => {
           }
         });
       }
+    }
+    
+    // Also fetch flights from the flight requests collection
+    try {
+      const flightRequests = await FlightRequest.find({ status: 'booked' });
+      
+      for (const request of flightRequests) {
+        if (!request.passengers || request.passengers.length === 0) continue;
+        
+        // Check permissions for each passenger
+        for (const passenger of request.passengers) {
+          if (!passenger.passengerId) continue;
+          
+          // Look up the actual passenger record to get the linked user
+          const passengerRecord = await Passenger.findById(passenger.passengerId).populate('userId', 'fullName');
+          if (!passengerRecord || !passengerRecord.userId) continue;
+          
+          const passengerUserId = passengerRecord.userId._id.toString();
+          const passengerUserName = passengerRecord.userId.fullName;
+          
+          // Permission logic: Check if this passenger belongs to the logged-in user
+          if (!isAdmin && passengerUserId !== userId) {
+            continue;
+          }
+          
+          // Parse the flight date (use departDate from root)
+          const flightDate = parseLocalDate(request.departDate);
+          
+          // Apply status filter
+          if (statusFilter !== 'all' && flightDate) {
+            if (statusFilter === 'upcoming') {
+              if (flightDate < todayStart) continue;
+            } else if (statusFilter === 'past') {
+              if (flightDate >= todayStart) continue;
+            }
+          }
+          
+          // Apply date range filter
+          if (filterStartDate && filterEndDate && flightDate) {
+            if (flightDate < filterStartDate || flightDate > filterEndDate) continue;
+          }
+          
+          // Build from/to string using from/to objects
+          let fromTo = '';
+          if (request.from && request.to) {
+            const fromStr = request.from.city || request.from.code || '';
+            const toStr = request.to.city || request.to.code || '';
+            if (fromStr && toStr) {
+              fromTo = `${fromStr} → ${toStr}`;
+            }
+          }
+          
+          // Get depart and arrive times from bookedDetails if available
+          const departTime = request.bookedDetails?.departTime || '';
+          const arriveTime = request.bookedDetails?.arriveTime || '';
+          const airline = request.bookedDetails?.airline || '';
+          const confirmationRef = request.bookedDetails?.confirmationCode || request.bookedDetails?.flightNumber || '';
+          
+          allFlights.push({
+            _id: request._id.toString() + '-' + passengerUserId,
+            date: request.departDate || '',
+            depart: departTime,
+            arrive: arriveTime,
+            name: passengerUserName || '',  // Use the actual user account name
+            airline: airline,
+            fromTo: fromTo,
+            ref: confirmationRef,
+            event: {
+              _id: request.eventId ? request.eventId.toString() : '',
+              title: request.eventName || 'Flight Request',
+              city: '',
+              state: ''
+            }
+          });
+        }
+      }
+    } catch (flightReqErr) {
+      console.error('Error fetching flight requests:', flightReqErr);
+      // Continue even if flight requests fail
     }
     
     // Sort by date (soonest first), then by event name
