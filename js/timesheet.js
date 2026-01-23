@@ -357,9 +357,10 @@
     const timeRow = document.createElement('div');
     timeRow.className = 'entry-card-pair-times';
     
-    // Clock In time
+    // Clock In time (clickable in edit mode)
     const inTime = document.createElement('div');
     inTime.className = 'entry-card-pair-time in';
+    inTime.dataset.entryId = clockIn._id;
     inTime.innerHTML = `
       <span class="entry-type-badge type-in">IN</span>
       <span class="time-value">${formatTime(clockIn.time)}</span>
@@ -372,9 +373,10 @@
     arrow.innerHTML = '<span class="material-symbols-outlined">arrow_forward</span>';
     timeRow.appendChild(arrow);
     
-    // Clock Out time
+    // Clock Out time (clickable in edit mode)
     const outTime = document.createElement('div');
     outTime.className = 'entry-card-pair-time out';
+    outTime.dataset.entryId = clockOut._id;
     outTime.innerHTML = `
       <span class="entry-type-badge type-out">OUT</span>
       <span class="time-value">${formatTime(clockOut.time)}</span>
@@ -382,6 +384,21 @@
     timeRow.appendChild(outTime);
     
     card.appendChild(timeRow);
+    
+    // Add click handlers for individual IN/OUT times in edit mode
+    inTime.onclick = (e) => {
+      if (editMode) {
+        e.stopPropagation();
+        openEditModal(clockIn);
+      }
+    };
+    
+    outTime.onclick = (e) => {
+      if (editMode) {
+        e.stopPropagation();
+        openEditModal(clockOut);
+      }
+    };
     
     // Notes section (if either has notes)
     const hasNotes = clockIn.notes || clockOut.notes;
@@ -410,11 +427,9 @@
       card.appendChild(notesContent);
     }
     
-    // Edit mode click handler - opens modal for clock in entry
+    // Edit mode - clicking on header area does nothing (must click IN or OUT specifically)
     card.onclick = () => {
-      if (editMode) {
-        openEditModal(clockIn);
-      }
+      // No action - user must click on IN or OUT time specifically
     };
     
     return card;
@@ -863,12 +878,12 @@
     // Set type
     if (typeSelect) typeSelect.value = entry.type;
     
-    // Set date
+    // Set date - use UTC to avoid timezone shifts
     if (dateInput) {
       const date = new Date(entry.date);
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(date.getUTCDate()).padStart(2, '0');
       dateInput.value = `${year}-${month}-${day}`;
     }
     
