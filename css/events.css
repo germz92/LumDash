@@ -81,6 +81,55 @@
     border-color: #b0101e;
 }
 
+/* Top bar icon buttons container */
+.top-bar-icons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+/* Icon buttons (timesheet, logout) */
+.top-bar .icon-btn {
+    width: 40px !important;
+    height: 40px !important;
+    min-width: 40px !important;
+    max-width: 40px !important;
+    border-radius: 50% !important;
+    border: 1.5px solid #e0e0e0;
+    background: #fff;
+    color: #666;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0 !important;
+    text-transform: none !important;
+}
+
+.top-bar .icon-btn:hover {
+    background: #f5f5f5;
+    border-color: #ccc;
+    color: #333;
+}
+
+.top-bar .icon-btn .material-symbols-outlined {
+    font-size: 22px;
+}
+
+/* Logout icon button special styling */
+.top-bar .icon-btn.logout-btn {
+    background: #fff0f0;
+    color: #d11a2a;
+    border-color: #ffcdd2;
+}
+
+.top-bar .icon-btn.logout-btn:hover {
+    background: #d11a2a;
+    color: #fff;
+    border-color: #d11a2a;
+}
+
 /* Top bar rows */
 .top-bar .welcome-row {
     padding-bottom: 8px;
@@ -863,11 +912,17 @@
     flex: 1;
     min-width: 0;
   }
-  .top-bar button.logout-btn {
-    font-size: 11px !important;
-    padding: 6px 10px !important;
-    border-radius: 6px !important;
-    flex-shrink: 0;
+  .top-bar-icons {
+    gap: 6px !important;
+  }
+  
+  .top-bar .icon-btn {
+    width: 36px !important;
+    height: 36px !important;
+  }
+  
+  .top-bar .icon-btn .material-symbols-outlined {
+    font-size: 20px !important;
   }
   
   /* Admin buttons container on mobile */

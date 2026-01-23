@@ -496,10 +496,8 @@ function setupEventListeners() {
   
   if (tableContainer) {
     tableContainer.addEventListener('click', async (e) => {
-      // Use closest() to find the button even if a child element was clicked
-      const addCardBtn = e.target.closest('.add-card-btn');
-      if (addCardBtn) {
-        const date = addCardBtn.getAttribute('data-date');
+      if (e.target.classList.contains('add-card-btn')) {
+        const date = e.target.getAttribute('data-date');
         console.log(`[CARD-LOG] User clicked "Add Card" for date: ${date}`);
         
         // Extra validation to ensure date is valid
@@ -1247,11 +1245,6 @@ function openCardEntryModal(date, existingEntry = null) {
   
   const modal = document.getElementById('card-entry-modal');
   
-  // Store date on modal element as backup (prevents race condition bugs)
-  if (modal) {
-    modal.dataset.date = date;
-  }
-  
   // Ensure modal is appended to body (not trapped in #page-container)
   if (modal && modal.parentElement !== document.body) {
     document.body.appendChild(modal);
@@ -1353,27 +1346,14 @@ function closeCardEntryModal() {
 }
 
 async function saveCardEntry() {
-  // Get date from modal's data attribute as fallback (more reliable than global variable)
-  const modal = document.getElementById('card-entry-modal');
-  const modalDate = modal?.dataset?.date;
-  
-  // Use global variable first, fallback to modal's data attribute
-  const dateToUse = currentEditingDate || modalDate;
-  
   // Validate that we have a valid date before saving
-  if (!dateToUse || dateToUse === 'null' || dateToUse === 'undefined') {
-    console.error('[CARD-LOG] Cannot save entry - invalid date. currentEditingDate:', currentEditingDate, 'modalDate:', modalDate);
+  if (!currentEditingDate || currentEditingDate === 'null' || currentEditingDate === 'undefined') {
+    console.error('[CARD-LOG] Cannot save entry - invalid currentEditingDate:', currentEditingDate);
     alert('Error: No date selected. Please close the modal and try again.');
     return;
   }
   
-  // Sync the global variable if it was missing
-  if (!currentEditingDate && modalDate) {
-    console.log('[CARD-LOG] Recovered date from modal data attribute:', modalDate);
-    currentEditingDate = modalDate;
-  }
-  
-  console.log('[CARD-LOG] Saving card entry for date:', dateToUse);
+  console.log('[CARD-LOG] Saving card entry for date:', currentEditingDate);
   
   const cameraSelect = document.getElementById('card-camera-select');
   const card1Input = document.getElementById('card-card1-input');

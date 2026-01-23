@@ -1259,22 +1259,22 @@ window.initPage = function(id) {
     // Restructure top bar into two rows for ALL users
     const topBar = document.querySelector('.top-bar');
       const usernameDisplay = document.getElementById('usernameDisplay');
-      const logoutBtn = document.getElementById('logoutBtn');
+      const topBarIcons = document.querySelector('.top-bar-icons');
       
-      if (topBar && usernameDisplay && logoutBtn) {
+      if (topBar && usernameDisplay && topBarIcons) {
         // Check if rows already exist
         let topRow = topBar.querySelector('.top-bar-row.welcome-row');
         let buttonsRow = topBar.querySelector('.top-bar-row.admin-row');
         
         if (!topRow) {
-          // Create top row for welcome + logout
+          // Create top row for welcome + icons (timesheet, logout)
           topRow = document.createElement('div');
           topRow.className = 'top-bar-row welcome-row';
           
-          // Move username and logout to top row
+          // Move username and icons container to top row
           topBar.appendChild(topRow);
           topRow.appendChild(usernameDisplay);
-          topRow.appendChild(logoutBtn);
+          topRow.appendChild(topBarIcons);
         }
         
         if (!buttonsRow) {
@@ -1412,6 +1412,7 @@ window.initPage = function(id) {
             adminButtonsContainer.appendChild(crewCalendarBtn);
           }
         }
+        
       }
     }
   } catch (e) { console.error('Error adding admin button:', e); }
@@ -1423,6 +1424,16 @@ window.initPage = function(id) {
   // Set up logout button
   const logoutBtn = document.getElementById('logoutBtn');
   if (logoutBtn) logoutBtn.onclick = logout;
+
+  // Set up timesheet button
+  const timesheetBtn = document.getElementById('timesheetBtn');
+  if (timesheetBtn) {
+    timesheetBtn.onclick = () => {
+      if (window.navigate) {
+        window.navigate('timesheet');
+      }
+    };
+  }
 
   // Set up Create Event button
   const createBtn = document.querySelector('.btn-create');
