@@ -169,18 +169,19 @@
         }
       }
       
-      // Find closest clock out on same date or after
-      const clockInDate = new Date(clockIn.date);
+      // Find closest clock out on same date or shortly after
       const clockInTime = clockIn.time || '00:00';
       
-      // Find clock out that is on the same date or closest future date
+      // Maximum time gap for pairing: 24 hours
+      const MAX_PAIR_GAP_MS = 24 * 60 * 60 * 1000;
+      
+      // Find clock out that is on the same date or within 24 hours
       let bestMatch = null;
       let bestDiff = Infinity;
       
       clockOuts.forEach(clockOut => {
         if (usedClockOuts.has(clockOut._id)) return;
         
-        const clockOutDate = new Date(clockOut.date);
         const clockOutTime = clockOut.time || '00:00';
         
         // Calculate time difference
@@ -194,8 +195,11 @@
         
         const diff = outDateTime - inDateTime;
         
-        // Only consider clock outs after clock in
-        if (diff > 0 && diff < bestDiff) {
+        // Only consider clock outs that are:
+        // 1. After the clock in
+        // 2. Within 24 hours (to avoid pairing entries days apart)
+        // 3. Closer than any previous match
+        if (diff > 0 && diff <= MAX_PAIR_GAP_MS && diff < bestDiff) {
           bestDiff = diff;
           bestMatch = clockOut;
         }
@@ -835,6 +839,9 @@
     if (notesInput) notesInput.value = '';
     
     if (modal) {
+      // Prevent body scroll
+      document.body.classList.add('modal-open');
+      
       // Move modal to body if needed
       if (modal.parentElement && modal.parentElement.tagName !== 'BODY') {
         document.body.appendChild(modal);
@@ -851,6 +858,7 @@
   window.closeManualEntryModal = function() {
     const modal = document.getElementById('manualEntryModal');
     if (modal) modal.style.display = 'none';
+    document.body.classList.remove('modal-open');
   };
 
   // Current entry being edited
@@ -905,6 +913,9 @@
     // Force reflow
     modal.offsetHeight;
     
+    // Prevent body scroll
+    document.body.classList.add('modal-open');
+    
     console.log('Edit modal opened');
     console.log('Modal display:', modal.style.display);
     console.log('Modal computed display:', window.getComputedStyle(modal).display);
@@ -931,6 +942,7 @@
     const modal = document.getElementById('editEntryModal');
     if (modal) modal.style.display = 'none';
     currentEditEntryId = null;
+    document.body.classList.remove('modal-open');
   };
 
 
