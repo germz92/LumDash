@@ -866,6 +866,7 @@ body #editEntryModal,
   
   .timesheet-actions-footer {
     padding: 12px;
+    padding-bottom: calc(24px + env(safe-area-inset-bottom, 12px));
   }
   
   .timesheet-actions-footer .action-group {
