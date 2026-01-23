@@ -6754,6 +6754,164 @@ app.get('/api/calltimes/all', authenticate, async (req, res) => {
   }
 });
 
+// ===================== TIMESHEET ROUTES =====================
+
+const Timesheet = require('./models/Timesheet');
+
+// Get user's timesheet
+app.get('/api/timesheet', authenticate, async (req, res) => {
+  try {
+    let timesheet = await Timesheet.findOne({ userId: req.user.id });
+    if (!timesheet) {
+      // Create empty timesheet for user if doesn't exist
+      timesheet = new Timesheet({ userId: req.user.id, entries: [] });
+      await timesheet.save();
+    }
+    res.json(timesheet);
+  } catch (error) {
+    console.error('Get timesheet error:', error);
+    res.status(500).json({ error: 'Failed to get timesheet' });
+  }
+});
+
+// Add a new timesheet entry (clock in, clock out, or travel)
+app.post('/api/timesheet/entry', authenticate, async (req, res) => {
+  try {
+    const { type, date, time, notes, isManual, hours, utcTimestamp } = req.body;
+    
+    if (!type || !date) {
+      return res.status(400).json({ error: 'Type and date are required' });
+    }
+    
+    if (!['clock_in', 'clock_out', 'travel'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid entry type' });
+    }
+    
+    let timesheet = await Timesheet.findOne({ userId: req.user.id });
+    if (!timesheet) {
+      timesheet = new Timesheet({ userId: req.user.id, entries: [] });
+    }
+    
+    const newEntry = {
+      type,
+      date: new Date(date),
+      time: time || null,
+      notes: notes || '',
+      isManual: isManual || false,
+      hours: type === 'travel' ? (hours || 4) : null,
+      pairId: null,
+      // Store UTC timestamp for accurate elapsed time calculation
+      // Handles timezone changes (e.g., clock in PT, travel to ET, clock out)
+      utcTimestamp: utcTimestamp ? new Date(utcTimestamp) : null
+    };
+    
+    timesheet.entries.push(newEntry);
+    await timesheet.save();
+    
+    // Return the newly created entry
+    const createdEntry = timesheet.entries[timesheet.entries.length - 1];
+    res.json({ message: 'Entry added', entry: createdEntry });
+  } catch (error) {
+    console.error('Add timesheet entry error:', error);
+    res.status(500).json({ error: 'Failed to add timesheet entry' });
+  }
+});
+
+// Update a timesheet entry
+app.put('/api/timesheet/entry/:entryId', authenticate, async (req, res) => {
+  try {
+    const { entryId } = req.params;
+    const { type, date, time, notes, hours, pairId } = req.body;
+    
+    const timesheet = await Timesheet.findOne({ userId: req.user.id });
+    if (!timesheet) {
+      return res.status(404).json({ error: 'Timesheet not found' });
+    }
+    
+    const entry = timesheet.entries.id(entryId);
+    if (!entry) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+    
+    // Update fields if provided
+    if (type) entry.type = type;
+    if (date) entry.date = new Date(date);
+    if (time !== undefined) entry.time = time;
+    if (notes !== undefined) entry.notes = notes;
+    if (hours !== undefined) entry.hours = hours;
+    if (pairId !== undefined) entry.pairId = pairId;
+    
+    await timesheet.save();
+    res.json({ message: 'Entry updated', entry });
+  } catch (error) {
+    console.error('Update timesheet entry error:', error);
+    res.status(500).json({ error: 'Failed to update timesheet entry' });
+  }
+});
+
+// Delete a timesheet entry
+app.delete('/api/timesheet/entry/:entryId', authenticate, async (req, res) => {
+  try {
+    const { entryId } = req.params;
+    
+    const timesheet = await Timesheet.findOne({ userId: req.user.id });
+    if (!timesheet) {
+      return res.status(404).json({ error: 'Timesheet not found' });
+    }
+    
+    const entryIndex = timesheet.entries.findIndex(e => e._id.toString() === entryId);
+    if (entryIndex === -1) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+    
+    timesheet.entries.splice(entryIndex, 1);
+    await timesheet.save();
+    
+    res.json({ message: 'Entry deleted' });
+  } catch (error) {
+    console.error('Delete timesheet entry error:', error);
+    res.status(500).json({ error: 'Failed to delete timesheet entry' });
+  }
+});
+
+// Pair clock in/out entries
+app.post('/api/timesheet/pair', authenticate, async (req, res) => {
+  try {
+    const { clockInId, clockOutId } = req.body;
+    
+    if (!clockInId || !clockOutId) {
+      return res.status(400).json({ error: 'Both clockInId and clockOutId are required' });
+    }
+    
+    const timesheet = await Timesheet.findOne({ userId: req.user.id });
+    if (!timesheet) {
+      return res.status(404).json({ error: 'Timesheet not found' });
+    }
+    
+    const clockInEntry = timesheet.entries.id(clockInId);
+    const clockOutEntry = timesheet.entries.id(clockOutId);
+    
+    if (!clockInEntry || !clockOutEntry) {
+      return res.status(404).json({ error: 'One or both entries not found' });
+    }
+    
+    if (clockInEntry.type !== 'clock_in' || clockOutEntry.type !== 'clock_out') {
+      return res.status(400).json({ error: 'Invalid entry types for pairing' });
+    }
+    
+    // Generate a unique pair ID
+    const pairId = `pair_${Date.now()}`;
+    clockInEntry.pairId = pairId;
+    clockOutEntry.pairId = pairId;
+    
+    await timesheet.save();
+    res.json({ message: 'Entries paired', pairId });
+  } catch (error) {
+    console.error('Pair timesheet entries error:', error);
+    res.status(500).json({ error: 'Failed to pair entries' });
+  }
+});
+
 // SERVER
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => console.log(`Server started on port ${PORT}`));
