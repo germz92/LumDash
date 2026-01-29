@@ -6605,7 +6605,7 @@ app.get('/api/calltimes/all', authenticate, async (req, res) => {
     const userFullName = req.user.fullName;
     const isAdmin = req.user.role === 'admin';
     const myCallsOnly = req.query.myCalls === 'true';
-    const statusFilter = req.query.status || 'all'; // 'all', 'live', 'upcoming', 'past'
+    // NOTE: Status filter removed - now handled client-side to avoid timezone issues
     const dateFilter = req.query.dateFilter || 'all'; // 'all', 'this-month', 'last-month', 'last-3-months', 'this-year', 'last-year', 'custom'
     const customStart = req.query.customStart; // ISO date string
     const customEnd = req.query.customEnd; // ISO date string
@@ -6696,19 +6696,9 @@ app.get('/api/calltimes/all', authenticate, async (req, res) => {
         // Parse the crew call date
         const callDate = parseLocalDate(row.date);
         
-        // Apply status filter based on crew call date
-        if (statusFilter !== 'all' && callDate) {
-          if (statusFilter === 'live') {
-            // Live = call date is today
-            if (callDate < todayStart || callDate > todayEnd) continue;
-          } else if (statusFilter === 'upcoming') {
-            // Upcoming = call date is today or after
-            if (callDate < todayStart) continue;
-          } else if (statusFilter === 'past') {
-            // Past = call date is before today
-            if (callDate >= todayStart) continue;
-          }
-        }
+        // NOTE: Status filtering (live/upcoming/past) is now handled client-side
+        // to avoid timezone mismatches between server and user.
+        // We only apply date range filters server-side.
         
         // Apply date range filter
         if (filterStartDate && filterEndDate && callDate) {
