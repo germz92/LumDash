@@ -70,6 +70,33 @@
   font-weight: 500;
 }
 
+/* Info Notice */
+.info-notice {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  background: #e3f2fd;
+  border: 1.5px solid #2196F3;
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 20px;
+}
+
+.info-notice .material-symbols-outlined {
+  font-size: 24px;
+  color: #2196F3;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.info-notice p {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.5;
+  color: #1565c0;
+  font-weight: 500;
+}
+
 /* Filters */
 .flights-filters {
   background: #f8fafd;
@@ -550,6 +577,20 @@ td.col-name {
   }
   
   .header-stats {
+    font-size: 14px;
+  }
+  
+  .info-notice {
+    padding: 12px 14px;
+    margin-left: 4px;
+    margin-right: 4px;
+  }
+  
+  .info-notice .material-symbols-outlined {
+    font-size: 20px;
+  }
+  
+  .info-notice p {
     font-size: 14px;
   }
   

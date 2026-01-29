@@ -99,8 +99,9 @@
       }
       
       // Build query params
+      // NOTE: We don't send status filter to backend anymore - it's handled client-side
+      // to avoid timezone issues between server and user
       const params = new URLSearchParams();
-      params.append('status', statusFilter);
       params.append('dateFilter', dateFilter);
       if (dateFilter === 'custom' && customStartDate && customEndDate) {
         params.append('customStart', customStartDate);
@@ -147,10 +148,33 @@
   
   // Apply filters and render
   function applyFilters() {
+    // Start with all flights
+    filteredFlights = [...allFlights];
+    
+    // Apply status filter client-side (using user's timezone)
+    if (statusFilter !== 'all') {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      
+      filteredFlights = filteredFlights.filter(flight => {
+        const flightDate = parseLocalDate(flight.date);
+        if (!flightDate) return true; // Include flights without dates
+        
+        if (statusFilter === 'upcoming') {
+          // Upcoming = flight date is today or in the future (in user's timezone)
+          return flightDate >= todayStart;
+        } else if (statusFilter === 'past') {
+          // Past = flight date is before today (in user's timezone)
+          return flightDate < todayStart;
+        }
+        return true;
+      });
+    }
+    
     // Apply search filter client-side
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filteredFlights = allFlights.filter(flight => {
+      filteredFlights = filteredFlights.filter(flight => {
         return (
           (flight.name && flight.name.toLowerCase().includes(query)) ||
           (flight.airline && flight.airline.toLowerCase().includes(query)) ||
@@ -160,8 +184,6 @@
           (flight.date && flight.date.includes(query))
         );
       });
-    } else {
-      filteredFlights = [...allFlights];
     }
     
     // Reset to page 1 when filters change
