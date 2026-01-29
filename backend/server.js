@@ -6702,8 +6702,8 @@ app.get('/api/calltimes/all', authenticate, async (req, res) => {
             // Live = call date is today
             if (callDate < todayStart || callDate > todayEnd) continue;
           } else if (statusFilter === 'upcoming') {
-            // Upcoming = call date is after today
-            if (callDate <= todayEnd) continue;
+            // Upcoming = call date is today or after
+            if (callDate < todayStart) continue;
           } else if (statusFilter === 'past') {
             // Past = call date is before today
             if (callDate >= todayStart) continue;
