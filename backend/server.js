@@ -6369,7 +6369,7 @@ app.get('/api/flights/all', authenticate, async (req, res) => {
     const userId = req.user.id;
     const userFullName = req.user.fullName;
     const isAdmin = req.user.role === 'admin';
-    const statusFilter = req.query.status || 'all'; // 'all', 'upcoming', 'past'
+    // NOTE: Status filter removed - now handled client-side to avoid timezone issues
     const dateFilter = req.query.dateFilter || 'all';
     const customStart = req.query.customStart;
     const customEnd = req.query.customEnd;
@@ -6461,16 +6461,9 @@ app.get('/api/flights/all', authenticate, async (req, res) => {
         // Parse the flight date
         const flightDate = parseLocalDate(flight.date);
         
-        // Apply status filter based on flight date
-        if (statusFilter !== 'all' && flightDate) {
-          if (statusFilter === 'upcoming') {
-            // Upcoming = flight date is today or in the future
-            if (flightDate < todayStart) continue;
-          } else if (statusFilter === 'past') {
-            // Past = flight date is before today
-            if (flightDate >= todayStart) continue;
-          }
-        }
+        // NOTE: Status filtering (upcoming/past) is now handled client-side
+        // to avoid timezone mismatches between server and user.
+        // We only apply date range filters server-side.
         
         // Apply date range filter
         if (filterStartDate && filterEndDate && flightDate) {
@@ -6522,14 +6515,9 @@ app.get('/api/flights/all', authenticate, async (req, res) => {
           // Parse the flight date (use departDate from root)
           const flightDate = parseLocalDate(request.departDate);
           
-          // Apply status filter
-          if (statusFilter !== 'all' && flightDate) {
-            if (statusFilter === 'upcoming') {
-              if (flightDate < todayStart) continue;
-            } else if (statusFilter === 'past') {
-              if (flightDate >= todayStart) continue;
-            }
-          }
+          // NOTE: Status filtering (upcoming/past) is now handled client-side
+          // to avoid timezone mismatches between server and user.
+          // We only apply date range filters server-side.
           
           // Apply date range filter
           if (filterStartDate && filterEndDate && flightDate) {
