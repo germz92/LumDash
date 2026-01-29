@@ -112,8 +112,9 @@
       }
       
       // Build query params
+      // NOTE: We don't send status filter to backend anymore - it's handled client-side
+      // to avoid timezone issues between server and user
       const params = new URLSearchParams();
-      params.append('status', statusFilter);
       params.append('dateFilter', dateFilter);
       if (myCallsFilter === 'mine') {
         params.append('myCalls', 'true');
@@ -168,10 +169,37 @@
   
   // Apply filters and render
   function applyFilters() {
+    // Start with all call times
+    filteredCallTimes = [...allCallTimes];
+    
+    // Apply status filter client-side (using user's timezone)
+    if (statusFilter !== 'all') {
+      const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      const todayEnd = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      
+      filteredCallTimes = filteredCallTimes.filter(call => {
+        const callDate = parseLocalDate(call.date);
+        if (!callDate) return true; // Include calls without dates
+        
+        if (statusFilter === 'live') {
+          // Live = call date is today (in user's timezone)
+          return callDate >= todayStart && callDate <= todayEnd;
+        } else if (statusFilter === 'upcoming') {
+          // Upcoming = call date is today or in the future (in user's timezone)
+          return callDate >= todayStart;
+        } else if (statusFilter === 'past') {
+          // Past = call date is before today (in user's timezone)
+          return callDate < todayStart;
+        }
+        return true;
+      });
+    }
+    
     // Apply search filter client-side
     if (searchQuery) {
       const query = searchQuery.toLowerCase();
-      filteredCallTimes = allCallTimes.filter(call => {
+      filteredCallTimes = filteredCallTimes.filter(call => {
         return (
           (call.name && call.name.toLowerCase().includes(query)) ||
           (call.role && call.role.toLowerCase().includes(query)) ||
@@ -180,8 +208,6 @@
           (call.date && call.date.includes(query))
         );
       });
-    } else {
-      filteredCallTimes = [...allCallTimes];
     }
     
     // Reset to page 1 when filters change
