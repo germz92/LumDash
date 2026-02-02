@@ -30,6 +30,7 @@ const programSchema = new mongoose.Schema({
   endTime: String,
   location: String,
   photographer: String,
+  folder: String,
   notes: String,
   done: { type: Boolean, default: false }
 }, { _id: true });
@@ -216,8 +217,8 @@ const tableSchema = new mongoose.Schema({
   adminNotes: [
     {
       _id: { type: mongoose.Schema.Types.ObjectId, auto: true },
-      title: { type: String, required: true },
-      date: { type: String, required: true }, // ISO date string
+      title: { type: String, default: '' },
+      date: { type: String, default: '' }, // ISO date string
       content: { type: String, default: '' }
     }
   ],
