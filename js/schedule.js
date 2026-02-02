@@ -107,6 +107,181 @@ function checkEventIdStability() {
   return true;
 }
 
+// Photographer autocomplete functionality
+let cachedUserFirstNames = [];
+let autocompleteContainer = null;
+
+// Fetch and cache user first names
+async function loadUserFirstNames() {
+  try {
+    const token = localStorage.getItem('token');
+    if (!token) return;
+    
+    const res = await fetch(`${API_BASE}/api/users`, {
+      headers: { Authorization: token }
+    });
+    const users = await res.json();
+    
+    // Extract first names from fullName
+    cachedUserFirstNames = users.map(u => {
+      const fullName = u.name || u.fullName || '';
+      const firstName = fullName.trim().split(/\s+/)[0]; // Get first word
+      return firstName;
+    }).filter(name => name); // Remove empty names
+    
+    // Remove duplicates and sort
+    cachedUserFirstNames = [...new Set(cachedUserFirstNames)].sort();
+    console.log('[AUTOCOMPLETE] Loaded user first names:', cachedUserFirstNames);
+  } catch (error) {
+    console.error('[AUTOCOMPLETE] Error loading user names:', error);
+  }
+}
+
+// Show autocomplete suggestions
+function showAutocomplete(textarea, suggestions, currentWord, cursorPos) {
+  // Remove existing autocomplete
+  hideAutocomplete();
+  
+  if (suggestions.length === 0) return;
+  
+  // Create autocomplete container
+  autocompleteContainer = document.createElement('div');
+  autocompleteContainer.className = 'photographer-autocomplete';
+  autocompleteContainer.style.cssText = `
+    position: absolute;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1000;
+    min-width: 150px;
+  `;
+  
+  // Position it below the textarea
+  const rect = textarea.getBoundingClientRect();
+  autocompleteContainer.style.top = `${rect.bottom + window.scrollY}px`;
+  autocompleteContainer.style.left = `${rect.left + window.scrollX}px`;
+  
+  // Add suggestions
+  suggestions.forEach((suggestion, index) => {
+    const item = document.createElement('div');
+    item.textContent = suggestion;
+    item.style.cssText = `
+      padding: 8px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+    `;
+    
+    // Hover effect
+    item.addEventListener('mouseenter', () => {
+      item.style.backgroundColor = '#f0f0f0';
+    });
+    item.addEventListener('mouseleave', () => {
+      item.style.backgroundColor = 'white';
+    });
+    
+    // Click to select
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // Prevent textarea blur
+      insertSuggestion(textarea, suggestion, currentWord, cursorPos);
+      hideAutocomplete();
+    });
+    
+    autocompleteContainer.appendChild(item);
+  });
+  
+  document.body.appendChild(autocompleteContainer);
+}
+
+// Hide autocomplete
+function hideAutocomplete() {
+  if (autocompleteContainer) {
+    autocompleteContainer.remove();
+    autocompleteContainer = null;
+  }
+}
+
+// Insert selected suggestion
+function insertSuggestion(textarea, suggestion, currentWord, cursorPos) {
+  const value = textarea.value;
+  const beforeCursor = value.substring(0, cursorPos);
+  const afterCursor = value.substring(cursorPos);
+  
+  // Find the start of the current word (after last comma or start of string)
+  const lastCommaIndex = beforeCursor.lastIndexOf(',');
+  const wordStart = lastCommaIndex >= 0 ? lastCommaIndex + 1 : 0;
+  
+  // Replace current word with suggestion
+  const before = value.substring(0, wordStart).trim();
+  const newValue = (before ? before + ', ' : '') + suggestion + afterCursor;
+  
+  textarea.value = newValue;
+  
+  // Set cursor after the inserted name
+  const newCursorPos = (before ? before.length + 2 : 0) + suggestion.length;
+  textarea.setSelectionRange(newCursorPos, newCursorPos);
+  
+  // Trigger input event to auto-resize
+  textarea.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+// Handle autocomplete on input
+function handlePhotographerInput(textarea) {
+  const cursorPos = textarea.selectionStart;
+  const value = textarea.value;
+  const beforeCursor = value.substring(0, cursorPos);
+  
+  // Get the current word being typed (after last comma)
+  const lastCommaIndex = beforeCursor.lastIndexOf(',');
+  const currentWord = beforeCursor.substring(lastCommaIndex + 1).trim();
+  
+  // If no word or word is empty, hide autocomplete
+  if (!currentWord || currentWord.length === 0) {
+    hideAutocomplete();
+    return;
+  }
+  
+  // Filter suggestions based on current word
+  const suggestions = cachedUserFirstNames.filter(name => 
+    name.toLowerCase().startsWith(currentWord.toLowerCase())
+  ).slice(0, 10); // Limit to 10 suggestions
+  
+  if (suggestions.length > 0) {
+    showAutocomplete(textarea, suggestions, currentWord, cursorPos);
+  } else {
+    hideAutocomplete();
+  }
+}
+
+// Setup autocomplete for photographer fields
+function setupPhotographerAutocomplete() {
+  // Add event delegation for photographer textareas
+  document.addEventListener('input', (e) => {
+    if (e.target.matches('textarea[data-field="photographer"]')) {
+      handlePhotographerInput(e.target);
+    }
+  });
+  
+  // Hide autocomplete when clicking outside
+  document.addEventListener('click', (e) => {
+    if (!e.target.matches('textarea[data-field="photographer"]') && 
+        !e.target.closest('.photographer-autocomplete')) {
+      hideAutocomplete();
+    }
+  });
+  
+  // Handle keyboard navigation (future enhancement: arrow keys)
+  document.addEventListener('keydown', (e) => {
+    if (e.target.matches('textarea[data-field="photographer"]')) {
+      if (e.key === 'Escape') {
+        hideAutocomplete();
+      }
+    }
+  });
+}
+
 // Add a global variable to track if scroll position should be restored
 let pendingScrollRestore = null;
 
@@ -409,6 +584,12 @@ window.initPage = async function(id) {
   console.log(`[INIT] Loading programs for event: ${tableId}...`);
   await loadPrograms(tableId);
   console.log(`[INIT] Programs loaded successfully`);
+
+  // Initialize photographer autocomplete
+  console.log(`[INIT] Loading user names for autocomplete...`);
+  await loadUserFirstNames();
+  setupPhotographerAutocomplete();
+  console.log(`[INIT] Photographer autocomplete initialized`);
 
   // Check for interference after loadPrograms
   if (!checkEventIdStability()) {
@@ -967,10 +1148,11 @@ function renderProgramSections(hasScheduleAccess) {
       }
 
       entry.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; gap: 4px;">
-          <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;">
+        <div style="display: flex; justify-content: space-between; align-items: center; gap: 4px;" class="time-row">
+          <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;" class="time-fields-container">
             <input type="time" placeholder="Start Time" 
               data-field="startTime"
+              class="time-input"
               style="width: 130px; min-width: 130px; text-align: left; font-size: 12px;"
               value="${program.startTime || ''}"
               ${!hasScheduleAccess ? 'readonly' : ''}
@@ -978,11 +1160,26 @@ function renderProgramSections(hasScheduleAccess) {
               onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'startTime')` : ''}">
             <input type="time" placeholder="End Time" 
               data-field="endTime"
+              class="time-input"
               style="width: 130px; min-width: 130px; text-align: left; font-size: 12px;"
               value="${program.endTime || ''}"
               ${!hasScheduleAccess ? 'readonly' : ''}
               onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
               onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'endTime')` : ''}">
+            <div style="display: ${program.folder ? 'flex' : 'none'}; align-items: center; gap: 2px;" class="folder-field-container" data-has-value="${program.folder ? 'true' : 'false'}">
+              <span class="material-symbols-outlined folder-icon" style="font-size: 14px; color: #2563eb;">folder</span>
+              <input type="text"
+                data-field="folder"
+                class="folder-input"
+                placeholder="Folder"
+                maxlength="7"
+                ${!hasScheduleAccess ? 'readonly' : ''}
+                style="width: 70px; min-width: 70px; padding: 4px 8px; font-size: 12px;"
+                value="${program.folder || ''}"
+                onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
+                oninput="toggleFolderVisibility(this)"
+                onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'folder')` : ''}">
+            </div>
           </div>
           <div class="right-actions" style="flex-shrink: 0; margin-left: auto;">
             <label style="display: flex; align-items: center; margin-bottom: 0;">
@@ -1138,6 +1335,15 @@ function applyScrollRestore() {
   }
 }
 
+function toggleFolderVisibility(input) {
+  const container = input.closest('.folder-field-container');
+  if (!container) return;
+  
+  const hasValue = input.value.trim().length > 0;
+  container.setAttribute('data-has-value', hasValue ? 'true' : 'false');
+  container.style.display = hasValue ? 'flex' : 'none';
+}
+
 function toggleDone(checkbox, index) {
   if (isNaN(index) || !tableData.programs[index]) {
     console.error(`[TOGGLE DONE] Invalid program index: ${index}`);
@@ -1233,6 +1439,7 @@ function matchesSearch(program) {
     (program.endTime || '').toLowerCase().includes(lower) ||
     (program.location || '').toLowerCase().includes(lower) ||
     (program.photographer || '').toLowerCase().includes(lower) ||
+    (program.folder || '').toLowerCase().includes(lower) ||
     (program.notes || '').toLowerCase().includes(lower)
   );
 }
@@ -1580,7 +1787,7 @@ const operationalTransform = {
   
   // Check if field contains text that can be merged
   isTextField(field) {
-    return ['name', 'location', 'photographer', 'notes'].includes(field);
+    return ['name', 'location', 'photographer', 'folder', 'notes'].includes(field);
   },
   
   // Transform text operations (advanced)
@@ -2046,6 +2253,7 @@ const userPresence = {
     if (field.className.includes('end-time')) return 'endTime';
     if (field.className.includes('location')) return 'location';
     if (field.className.includes('photographer')) return 'photographer';
+    if (field.className.includes('folder')) return 'folder';
     if (field.className.includes('notes')) return 'notes';
     
     return null;
@@ -2635,6 +2843,7 @@ const conflictResolution = {
       endTime: 'End Time',
       location: 'Location',
       photographer: 'Photographer',
+      folder: 'Folder',
       notes: 'Notes',
       done: 'Completion Status'
     };
@@ -2918,6 +3127,7 @@ function safeAddProgram(date) {
     endTime: '', 
     location: '', 
     photographer: '', 
+    folder: '',
     notes: '',
     done: false,
     // Add a temporary ID for UI consistency (will be replaced by MongoDB _id after save)
@@ -3018,6 +3228,7 @@ function addDateSection() {
     endTime: '', 
     location: '', 
     photographer: '', 
+    folder: '',
     notes: '',
     done: false,
     // Add automatic temporary ID for collaborative system compatibility
@@ -3073,6 +3284,7 @@ window.savePrograms = savePrograms;
 window.scheduleSave = scheduleSave;
 window.renderProgramSections = renderProgramSections;
 window.toggleDone = toggleDone;
+window.toggleFolderVisibility = toggleFolderVisibility;
 window.matchesSearch = matchesSearch;
 window.enableEdit = enableEdit;
 window.autoSave = autoSave;
@@ -3415,6 +3627,7 @@ async function exportScheduleToExcel() {
       'Program Name',
       'Location',
       'Photographer',
+      'Folder',
       'Notes',
       'Done'
     ]);
@@ -3433,6 +3646,7 @@ async function exportScheduleToExcel() {
         program.name || '',
         program.location || '',
         program.photographer || '',
+        program.folder || '',
         program.notes || '',
         program.done ? 'Yes' : 'No'
       ]);
@@ -3449,6 +3663,7 @@ async function exportScheduleToExcel() {
       { width: 30 },  // Program Name
       { width: 25 },  // Location
       { width: 20 },  // Photographer
+      { width: 10 },  // Folder
       { width: 40 },  // Notes
       { width: 8 }    // Done
     ];
@@ -3498,6 +3713,7 @@ function processImportedData(data) {
     endTime: headers.indexOf('endtime') !== -1 ? headers.indexOf('endtime') : headers.indexOf('end time'),
     location: headers.indexOf('location'),
     photographer: headers.indexOf('photographer'),
+    folder: headers.indexOf('folder'),
     notes: headers.indexOf('notes'),
     done: headers.indexOf('done') !== -1 ? headers.indexOf('done') : headers.indexOf('completed')
   };
@@ -3561,6 +3777,7 @@ function processImportedData(data) {
       endTime: endTime,
       location: columnMap.location !== -1 ? (row[columnMap.location] || '') : '',
       photographer: columnMap.photographer !== -1 ? (row[columnMap.photographer] || '') : '',
+      folder: columnMap.folder !== -1 ? (row[columnMap.folder] || '') : '',
       notes: columnMap.notes !== -1 ? (row[columnMap.notes] || '') : '',
       done: isDone,
       // Add automatic temporary ID for collaborative system compatibility
@@ -3812,13 +4029,13 @@ function downloadImportTemplate() {
     return;
   }
   
-  const headers = ['Date', 'Name', 'StartTime', 'EndTime', 'Location', 'Photographer', 'Notes', 'Done'];
+  const headers = ['Date', 'Name', 'StartTime', 'EndTime', 'Location', 'Photographer', 'Folder', 'Notes', 'Done'];
   const csvContent = headers.join(',') + '\n' +
-    '2023-06-01,Main Event,09:00,12:00,Grand Hall,John Smith,VIP guests expected,FALSE\n' +
-    '2023-06-01,Lunch Break,12:00,13:00,Dining Room,N/A,Catering by LocalFood,FALSE\n' +
-    '2023-06-01,Panel Discussion,13:30,15:00,Conference Room B,Jane Doe,Q&A session at the end,TRUE\n' +
-    '2023-06-02,Workshop,10:00,12:30,Training Room,Michael Johnson,Bring extra equipment,FALSE\n' +
-    '2023-06-02,Closing Event,16:00,18:00,Main Stage,Full Team,Group photo at 17:30,FALSE';
+    '2023-06-01,Main Event,09:00,12:00,Grand Hall,John Smith,CARD01,VIP guests expected,FALSE\n' +
+    '2023-06-01,Lunch Break,12:00,13:00,Dining Room,N/A,CARD02,Catering by LocalFood,FALSE\n' +
+    '2023-06-01,Panel Discussion,13:30,15:00,Conference Room B,Jane Doe,CARD03,Q&A session at the end,TRUE\n' +
+    '2023-06-02,Workshop,10:00,12:30,Training Room,Michael Johnson,CARD04,Bring extra equipment,FALSE\n' +
+    '2023-06-02,Closing Event,16:00,18:00,Main Stage,Full Team,CARD05,Group photo at 17:30,FALSE';
   
   // Create a Blob with the CSV content
   const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
@@ -4386,6 +4603,27 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
     }
   }
   
+  // Update folder input
+  const folderInput = entry.querySelector('input[data-field="folder"]');
+  if (folderInput && !isFieldCurrentlyFocused(folderInput, preservationData)) {
+    if (folderInput.value !== (program.folder || '')) {
+      console.log(`[UPDATE] Updating folder: '${folderInput.value}' -> '${program.folder || ''}'`);
+      
+      // CRITICAL: Mark as programmatic update to prevent feedback loops
+      folderInput.dataset.collaborativeUpdate = 'true';
+      
+      folderInput.value = program.folder || '';
+      
+      // Show/hide folder field based on whether there's data
+      const container = folderInput.closest('.folder-field-container');
+      if (container) {
+        const hasValue = (program.folder || '').trim().length > 0;
+        container.setAttribute('data-has-value', hasValue ? 'true' : 'false');
+        container.style.display = hasValue ? 'flex' : 'none';
+      }
+    }
+  }
+  
   // Update notes textarea
   const notesTextarea = entry.querySelector('.notes-field textarea');
   if (notesTextarea && !isFieldCurrentlyFocused(notesTextarea, preservationData)) {
@@ -4439,6 +4677,8 @@ function preserveProgramInputStates(entry) {
     // Determine which field is focused
     if (activeElement.classList.contains('program-name')) {
       preservationData.focusedField = 'name';
+    } else if (activeElement.dataset.field === 'folder') {
+      preservationData.focusedField = 'folder';
     } else if (activeElement.type === 'time') {
       if (activeElement === entry.querySelector('input[type="time"]:first-of-type')) {
         preservationData.focusedField = 'startTime';
@@ -4782,6 +5022,7 @@ function renderScheduleTable() {
         <th>Location</th>
         <th>Photographer</th>
         <th>Notes</th>
+        <th>Folder</th>
         <th>Done</th>
         ${isOwner ? '<th></th>' : ''}
       </tr>
@@ -4818,6 +5059,9 @@ function renderScheduleTable() {
         </td>
         <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-field="notes">
           <span class="cell-display">${program.notes || ''}</span>
+        </td>
+        <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-field="folder">
+          <span class="cell-display">${program.folder || ''}</span>
         </td>
         <td class="done-checkbox-cell">
           <input type="checkbox" class="done-checkbox"
@@ -4871,7 +5115,9 @@ function makeTableCellEditable(cell, program) {
   const displaySpan = cell.querySelector('.cell-display');
   if (!displaySpan) return;
   
-  const currentValue = program[field] || '';
+  // Get current value from the cell display, not from program object
+  // This ensures we're editing what's actually shown in the cell
+  const currentValue = displaySpan.textContent.trim();
   
   cell.classList.add('editing');
   
@@ -4884,6 +5130,11 @@ function makeTableCellEditable(cell, program) {
     inputElement = document.createElement('textarea');
     inputElement.value = currentValue;
     inputElement.rows = 2;
+  } else if (field === 'folder') {
+    inputElement = document.createElement('input');
+    inputElement.type = 'text';
+    inputElement.value = currentValue;
+    inputElement.maxLength = 7; // Set max length to 7 characters
   } else {
     inputElement = document.createElement('input');
     inputElement.type = 'text';

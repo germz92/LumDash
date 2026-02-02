@@ -177,9 +177,12 @@
     
     // Each page script should implement its own handler for this event
     // if this page is displaying the schedule
-    if (window.loadPrograms && currentEventId) {
+    // Only call loadPrograms if we're on the schedule page
+    if (window.loadPrograms && currentEventId && window.currentPage === 'schedule') {
       console.log('Reloading schedule for current event');
       window.loadPrograms(currentEventId);
+    } else if (window.loadPrograms && currentEventId) {
+      console.log('loadPrograms exists but not on schedule page, skipping reload');
     }
   });
   

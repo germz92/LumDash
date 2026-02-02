@@ -559,6 +559,33 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
         border-color: rgba(204, 0, 7, 0.2) !important;
     }
 
+    /* Folder input on mobile - compact size */
+    .schedule-page .program-entry .folder-input {
+        width: 55px !important;
+        min-width: 55px !important;
+        max-width: 55px !important;
+        font-size: 11px !important;
+        padding: 6px 2px !important;
+        border: 1px solid #4a90e2 !important;
+        border-radius: 4px !important;
+        background: #e8f4fd !important;
+        color: #2563eb !important;
+        text-align: center !important;
+        flex-shrink: 0 !important;
+        font-weight: 500 !important;
+    }
+
+    .schedule-page .program-entry .folder-input:focus {
+        border-color: #2563eb !important;
+        background-color: #dbeafe !important;
+        box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
+    }
+
+    /* Reduce gap between time inputs on mobile to save space */
+    .schedule-page .program-entry .time-fields-container {
+        gap: 4px !important;
+    }
+
     /* Make checkboxes smaller on mobile since they don't need much room */
     .schedule-page .done-checkbox {
         width: 18px !important;
@@ -756,6 +783,29 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
     background: transparent;
     transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s;
     font-size: 12px;
+}
+
+/* Base styles for folder input - blue theme */
+.schedule-page .program-entry .folder-input {
+    border: 1px solid #4a90e2 !important;
+    border-radius: 4px !important;
+    background: #e8f4fd !important;
+    color: #2563eb !important;
+    text-align: center !important;
+    font-weight: 500 !important;
+    transition: all 0.2s ease !important;
+}
+
+.schedule-page .program-entry .folder-input:hover {
+    background: #dbeafe !important;
+    border-color: #2563eb !important;
+}
+
+.schedule-page .program-entry .folder-input:focus {
+    border-color: #2563eb !important;
+    background-color: #dbeafe !important;
+    box-shadow: 0 0 0 2px rgba(37, 99, 235, 0.15) !important;
+    outline: none !important;
 }
 
 .schedule-page .program-entry input[type="time"]:focus {
@@ -1520,19 +1570,21 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
 /* Column widths - Desktop only */
 @media (min-width: 769px) {
   .schedule-table-section th:nth-child(1),
-  .schedule-table-section td:nth-child(1) { width: 10%; } /* Start Time */
+  .schedule-table-section td:nth-child(1) { width: 9%; } /* Start Time */
   .schedule-table-section th:nth-child(2),
-  .schedule-table-section td:nth-child(2) { width: 10%; } /* End Time */
+  .schedule-table-section td:nth-child(2) { width: 9%; } /* End Time */
   .schedule-table-section th:nth-child(3),
-  .schedule-table-section td:nth-child(3) { width: 20%; } /* Name */
+  .schedule-table-section td:nth-child(3) { width: 18%; } /* Name */
   .schedule-table-section th:nth-child(4),
-  .schedule-table-section td:nth-child(4) { width: 18%; } /* Location */
+  .schedule-table-section td:nth-child(4) { width: 16%; } /* Location */
   .schedule-table-section th:nth-child(5),
-  .schedule-table-section td:nth-child(5) { width: 15%; } /* Photographer */
+  .schedule-table-section td:nth-child(5) { width: 14%; } /* Photographer */
   .schedule-table-section th:nth-child(6),
-  .schedule-table-section td:nth-child(6) { width: 22%; } /* Notes */
+  .schedule-table-section td:nth-child(6) { width: 20%; } /* Notes */
   .schedule-table-section th:nth-child(7),
-  .schedule-table-section td:nth-child(7) { width: 5%; } /* Done */
+  .schedule-table-section td:nth-child(7) { width: 8%; } /* Folder */
+  .schedule-table-section th:nth-child(8),
+  .schedule-table-section td:nth-child(8) { width: 6%; } /* Done */
 }
 
 /* Inline editing styles for schedule table */
@@ -1661,8 +1713,94 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
   }
 }
 
+/* Extra small mobile screens - further optimize spacing */
+@media (max-width: 375px) {
+  /* Make time inputs slightly smaller on very small screens */
+  .schedule-page .program-entry input[type="time"] {
+    width: 100px !important;
+    min-width: 100px !important;
+    max-width: 100px !important;
+    font-size: 11px !important;
+    padding: 5px 2px !important;
+  }
+
+  /* Make folder input even more compact */
+  .schedule-page .program-entry .folder-input {
+    width: 48px !important;
+    min-width: 48px !important;
+    max-width: 48px !important;
+    font-size: 10px !important;
+    padding: 5px 1px !important;
+  }
+
+  /* Reduce gap even more */
+  .schedule-page .program-entry .time-fields-container {
+    gap: 3px !important;
+  }
+
+  /* Reduce checkbox size slightly */
+  .schedule-page .done-checkbox {
+    width: 16px !important;
+    height: 16px !important;
+    min-width: 16px !important;
+    min-height: 16px !important;
+  }
+
+  /* Reduce padding on program entries */
+  .schedule-page .program-entry {
+    padding: 10px !important;
+  }
+}
+
 /* Proper fix: Ensure delete buttons show for owners */
 .schedule-page .program-entry .entry-actions .delete-btn {
   display: inline-flex !important;
+}
+
+/* Photographer Autocomplete Styles */
+.photographer-autocomplete {
+  position: absolute;
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+  min-width: 150px;
+  font-family: 'Roboto', Arial, sans-serif;
+}
+
+.photographer-autocomplete > div {
+  padding: 8px 12px;
+  cursor: pointer;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.15s ease;
+}
+
+.photographer-autocomplete > div:last-child {
+  border-bottom: none;
+}
+
+.photographer-autocomplete > div:hover {
+  background-color: #f0f0f0;
+}
+
+.photographer-autocomplete::-webkit-scrollbar {
+  width: 8px;
+}
+
+.photographer-autocomplete::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.photographer-autocomplete::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+.photographer-autocomplete::-webkit-scrollbar-thumb:hover {
+  background: #555;
 }
   
