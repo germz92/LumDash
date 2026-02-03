@@ -887,8 +887,10 @@ window.initPage = async function(id) {
   navContainer.innerHTML = navContent;
 
   // Set up navigation using the centralized function from app.js
-  if (window.setupBottomNavigation) {
+  if (window.setupBottomNavigation && navContainer) {
     window.setupBottomNavigation(navContainer, tableId, 'card-log');
+  } else if (!navContainer) {
+    console.error('[CARD-LOG] Navigation container not found');
   }
 
     // Inject hrefs with ?id=...
@@ -1250,6 +1252,9 @@ function openCardEntryModal(date, existingEntry = null) {
     document.body.appendChild(modal);
   }
   
+  // Store date as data attribute on modal as a backup
+  modal.setAttribute('data-editing-date', date);
+  
   // Remove generic 'modal' class that conflicts with other CSS files
   if (modal) {
     modal.classList.remove('modal');
@@ -1346,14 +1351,18 @@ function closeCardEntryModal() {
 }
 
 async function saveCardEntry() {
+  // Try to get date from currentEditingDate first, then fall back to modal data attribute
+  const modal = document.getElementById('card-entry-modal');
+  let dateToUse = currentEditingDate || modal?.getAttribute('data-editing-date');
+  
   // Validate that we have a valid date before saving
-  if (!currentEditingDate || currentEditingDate === 'null' || currentEditingDate === 'undefined') {
-    console.error('[CARD-LOG] Cannot save entry - invalid currentEditingDate:', currentEditingDate);
+  if (!dateToUse || dateToUse === 'null' || dateToUse === 'undefined') {
+    console.error('[CARD-LOG] Cannot save entry - invalid date. currentEditingDate:', currentEditingDate, 'modal data-editing-date:', modal?.getAttribute('data-editing-date'));
     alert('Error: No date selected. Please close the modal and try again.');
     return;
   }
   
-  console.log('[CARD-LOG] Saving card entry for date:', currentEditingDate);
+  console.log('[CARD-LOG] Saving card entry for date:', dateToUse);
   
   const cameraSelect = document.getElementById('card-camera-select');
   const card1Input = document.getElementById('card-card1-input');
@@ -1445,7 +1454,7 @@ async function saveCardEntry() {
   
   try {
     // Update the data structure and save
-    await addOrUpdateCardEntry(currentEditingDate, entryData);
+    await addOrUpdateCardEntry(dateToUse, entryData);
     
     // Close modal
     closeCardEntryModal();
