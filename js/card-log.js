@@ -10,7 +10,7 @@ window.__cardLogJsLoaded = true;
 
 // 🔥 Global variables
 let users = [];
-let cameras = ["A7IV-A", "A7IV-B", "A7IV-C", "A7IV-D", "A7IV-E", "A7IV-F", "A7IV-G", "A7IV-H", "A7RV-A", "A7RV-B", "FX3-A", "A7IV", "A7RV", "A7III"];
+let cameras = ["A7IV-A", "A7IV-B", "A7IV-C", "A7IV-D", "A7IV-E", "A7IV-F", "A7IV-G", "A7IV-H", "A7RV-A", "A7RV-B", "A7SIII", "FX3-A", "A7IV", "A7RV", "A7III"];
 let customCameras = []; // Track custom cameras separately
 let isOwner = false;
 let saveTimeout;
