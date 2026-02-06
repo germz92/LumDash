@@ -1093,6 +1093,19 @@ function renderProgramSections(hasScheduleAccess) {
 
   const dates = [...new Set(tableData.programs.map(p => p.date))].sort((a, b) => a.localeCompare(b));
 
+  // Helper function to calculate duration in minutes
+  function calculateDuration(startTime, endTime) {
+    if (!startTime || !endTime) return Infinity; // Programs without end time go last
+    
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+    
+    const startMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+    
+    return endMinutes - startMinutes;
+  }
+
   dates.forEach(date => {
     const matchingPrograms = tableData.programs
       .map((p, i) => ({ ...p, __index: i }))
@@ -1103,9 +1116,18 @@ function renderProgramSections(hasScheduleAccess) {
         const aHasTime = a.startTime && a.startTime.trim() !== '';
         const bHasTime = b.startTime && b.startTime.trim() !== '';
         
-        // If both have times, sort by time
+        // If both have times, sort by time first, then by duration
         if (aHasTime && bHasTime) {
-          return a.startTime.localeCompare(b.startTime);
+          const timeComparison = a.startTime.localeCompare(b.startTime);
+          
+          // If start times are the same, sort by duration (shortest first)
+          if (timeComparison === 0) {
+            const aDuration = calculateDuration(a.startTime, a.endTime);
+            const bDuration = calculateDuration(b.startTime, b.endTime);
+            return aDuration - bDuration; // Shorter duration comes first
+          }
+          
+          return timeComparison;
         }
         
         // If only a has time, a comes first
@@ -4980,6 +5002,19 @@ function renderScheduleTable() {
   // Group by dates
   const dates = [...new Set(tableData.programs.map(p => p.date))].sort((a, b) => a.localeCompare(b));
   
+  // Helper function to calculate duration in minutes
+  function calculateDuration(startTime, endTime) {
+    if (!startTime || !endTime) return Infinity; // Programs without end time go last
+    
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+    
+    const startMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+    
+    return endMinutes - startMinutes;
+  }
+
   dates.forEach(date => {
     const matchingPrograms = tableData.programs
       .map((p, i) => ({ ...p, __index: i }))
@@ -4989,7 +5024,16 @@ function renderScheduleTable() {
         const bHasTime = b.startTime && b.startTime.trim() !== '';
         
         if (aHasTime && bHasTime) {
-          return a.startTime.localeCompare(b.startTime);
+          const timeComparison = a.startTime.localeCompare(b.startTime);
+          
+          // If start times are the same, sort by duration (shortest first)
+          if (timeComparison === 0) {
+            const aDuration = calculateDuration(a.startTime, a.endTime);
+            const bDuration = calculateDuration(b.startTime, b.endTime);
+            return aDuration - bDuration; // Shorter duration comes first
+          }
+          
+          return timeComparison;
         }
         if (aHasTime && !bHasTime) return -1;
         if (!aHasTime && bHasTime) return 1;
