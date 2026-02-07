@@ -27,11 +27,18 @@
         </button>
       </div>
       <div class="events-header-row2">
-        <button class="btn-create">Create Event</button>
+        <div class="create-filter-group">
+          <select id="timeFilterDropdown" style="padding: 8px; font-size: 16px;">
+            <option value="all">All Events</option>
+            <option value="upcoming" selected>Upcoming</option>
+            <option value="past">Past</option>
+          </select>
+          <button class="btn-create">Create Event</button>
+        </div>
         <div class="sort-search-group">
           <select id="sortDropdown" style="padding: 8px; font-size: 16px;">
-            <option value="newest">Newest First</option>
-            <option value="oldest">Oldest First</option>
+            <option value="oldest" selected>Soonest First</option>
+            <option value="newest">Latest First</option>
             <option value="title">Title A–Z</option>
           </select>
           <input id="searchEventsInput" type="text" placeholder="Search events..." style="padding: 8px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; min-width: 180px;" />
