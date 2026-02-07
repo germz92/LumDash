@@ -191,6 +191,14 @@
     width: 100%;
 }
 
+.events-header-row2 .create-filter-group {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+    align-items: center;
+    justify-content: center;
+}
+
 .events-header-row2 .sort-search-group {
     display: flex;
     flex-direction: row;
@@ -957,6 +965,20 @@
     flex-direction: column;
     align-items: stretch;
     gap: 8px;
+  }
+  .events-header-row2 .create-filter-group {
+    flex-direction: row;
+    gap: 8px;
+    width: 100%;
+    order: -1; /* Put this group first on mobile */
+  }
+  .events-header-row2 .create-filter-group #timeFilterDropdown {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+  .events-header-row2 .create-filter-group .btn-create {
+    flex: 1 1 0;
+    min-width: 0;
   }
   .events-header-row2 .sort-search-group {
     flex-direction: row;
