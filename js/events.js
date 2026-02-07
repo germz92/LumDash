@@ -8,6 +8,7 @@ if (!token && !window.location.pathname.endsWith('index.html')) {
 let currentTableId = null;
 let showArchived = false;
 let searchEventsValue = '';
+let timeFilter = 'upcoming'; // 'all', 'upcoming', or 'past' - default to upcoming
 let allUsers = [];
 let selectedUsers = [];
 
@@ -101,6 +102,38 @@ async function loadTables() {
 
   // Filter tables based on user-specific archived status
   let filteredTables = tables.filter(table => !!table.userArchived === showArchived);
+
+  // Apply time filter (All, Upcoming, Past)
+  if (timeFilter !== 'all') {
+    // Get today's date in local timezone (without time component)
+    const today = new Date();
+    const year = today.getFullYear();
+    const month = String(today.getMonth() + 1).padStart(2, '0');
+    const day = String(today.getDate()).padStart(2, '0');
+    const todayStr = `${year}-${month}-${day}`;
+    
+    filteredTables = filteredTables.filter(table => {
+      const general = table.general || {};
+      
+      // Handle events without dates
+      if (!general.start && !general.end) return timeFilter === 'upcoming';
+      if (!general.end) return timeFilter === 'upcoming';
+      
+      // Extract date strings (YYYY-MM-DD) to avoid timezone issues
+      const startDateStr = general.start ? general.start.split('T')[0] : null;
+      const endDateStr = general.end.split('T')[0];
+      
+      if (timeFilter === 'upcoming') {
+        // Upcoming: includes active events (start <= today <= end) OR future events (start > today)
+        // This means: end date must be >= today (event is still ongoing or in the future)
+        return endDateStr >= todayStr;
+      } else if (timeFilter === 'past') {
+        // Past: end date is before today
+        return endDateStr < todayStr;
+      }
+      return true;
+    });
+  }
 
   // Filter by search box
   if (searchEventsValue) {
@@ -1420,6 +1453,17 @@ window.initPage = function(id) {
   // Set up event listeners
   const sortDropdown = document.getElementById('sortDropdown');
   if (sortDropdown) sortDropdown.addEventListener('change', loadTables);
+
+  // Set up time filter dropdown
+  const timeFilterDropdown = document.getElementById('timeFilterDropdown');
+  if (timeFilterDropdown) {
+    // Set to current value (default is 'upcoming')
+    timeFilterDropdown.value = timeFilter;
+    timeFilterDropdown.addEventListener('change', () => {
+      timeFilter = timeFilterDropdown.value;
+      loadTables();
+    });
+  }
 
   // Set up logout button
   const logoutBtn = document.getElementById('logoutBtn');
