@@ -309,6 +309,37 @@ td.col-name {
   color: white;
 }
 
+/* Flight Type Badges (Outbound/Return) */
+.fromto-cell-content {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.flight-type-badge {
+  display: inline-block;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  white-space: nowrap;
+}
+
+.flight-type-badge.outbound {
+  background: #e3f2fd;
+  color: #1565c0;
+  border: 1px solid #90caf9;
+}
+
+.flight-type-badge.return {
+  background: #fff3e0;
+  color: #e65100;
+  border: 1px solid #ffcc80;
+}
+
 .event-link {
   color: #CC0007;
   text-decoration: none;
@@ -643,6 +674,11 @@ td.col-name {
   .date-badge {
     font-size: 10px;
     padding: 2px 6px;
+  }
+  
+  .flight-type-badge {
+    font-size: 9px;
+    padding: 1px 4px;
   }
   
   .pagination-btn {
