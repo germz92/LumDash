@@ -33,6 +33,14 @@ const flightRequestSchema = new mongoose.Schema({
     bookedAt: Date,
     bookedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   },
+  returnBookedDetails: {
+    airline: String,
+    flightNumber: String,
+    confirmationCode: String,
+    departTime: String,
+    arriveTime: String,
+    duration: String
+  },
   tripType: String,
   eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Table' },
   eventName: String,
