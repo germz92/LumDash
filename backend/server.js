@@ -709,6 +709,8 @@ const PackageTemplate = require('./models/PackageTemplate');
 const Cart = require('./models/Cart');
 const FolderLog = require('./models/FolderLog');
 const ManualReservation = require('./models/ManualReservation');
+const FlightRequest = require('./models/FlightRequest');
+const Passenger = require('./models/Passenger');
 
 
 
@@ -2181,14 +2183,157 @@ app.get('/api/tables/:id/travel', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === "null") {
     return res.status(400).json({ error: "Invalid table ID" });
   }
-  const table = await Table.findById(req.params.id);
-  if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
-    return res.status(403).json({ error: 'Not authorized or not found' });
+  try {
+    const table = await Table.findById(req.params.id);
+    const userId = req.user.id;
+    const isAdmin = req.user.role === 'admin';
+    
+    if (!table) {
+      return res.status(404).json({ error: 'Not found' });
+    }
+    
+    // Check authorization: admins, owners, leads, or shared users
+    const isOwner = table.owners && table.owners.map(String).includes(String(userId));
+    const isLead = table.leads && table.leads.map(String).includes(String(userId));
+    const isShared = table.sharedWith && table.sharedWith.map(String).includes(String(userId));
+    
+    if (!isAdmin && !isOwner && !isLead && !isShared) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+    
+    // Start with manual travel entries
+    const manualTravel = (table.travel || []).map(t => ({
+      date: t.date || '',
+      depart: t.depart || t.time || '',
+      arrive: t.arrive || '',
+      name: t.name || '',
+      airline: t.airline || '',
+      fromTo: t.fromTo || '',
+      ref: t.ref || '',
+      source: 'manual'
+    }));
+    
+    // Fetch booked flights from FlightRequest collection tied to this event
+    // Match by eventId OR by eventName (for requests where eventId wasn't set)
+    let bookedFlights = [];
+    try {
+      const eventTitle = table.title || '';
+      const flightRequests = await FlightRequest.find({
+        status: 'booked',
+        $or: [
+          { eventId: req.params.id },
+          ...(eventTitle ? [{ eventId: null, eventName: eventTitle }] : [])
+        ]
+      });
+      
+      for (const request of flightRequests) {
+        if (!request.passengers || request.passengers.length === 0) continue;
+        
+        for (const passenger of request.passengers) {
+          // Resolve passenger display name
+          let passengerDisplayName = passenger.name || '';
+          
+          if (passenger.passengerId) {
+            try {
+              const passengerRecord = await Passenger.findById(passenger.passengerId).populate('userId', 'fullName');
+              if (passengerRecord && passengerRecord.userId) {
+                passengerDisplayName = passengerRecord.userId.fullName || passengerRecord.name || passenger.name || '';
+              } else if (passengerRecord) {
+                passengerDisplayName = passengerRecord.name || passenger.name || '';
+              }
+            } catch (lookupErr) {
+              console.warn('Passenger lookup failed:', lookupErr.message);
+            }
+          }
+          
+          if (!passengerDisplayName) continue;
+          
+          // Build from/to strings
+          let outboundFromTo = '';
+          let returnFromTo = '';
+          if (request.from && request.to) {
+            const fromStr = request.from.city || request.from.code || '';
+            const toStr = request.to.city || request.to.code || '';
+            if (fromStr && toStr) {
+              outboundFromTo = `${fromStr} → ${toStr}`;
+              returnFromTo = `${toStr} → ${fromStr}`;
+            }
+          }
+          
+          // Outbound booked details
+          const outboundAirline = request.bookedDetails?.airline || '';
+          const outboundConfCode = (request.bookedDetails?.confirmationCode || '').trim();
+          const outboundRef = outboundConfCode || request.bookedDetails?.flightNumber || '';
+          const outboundDepartTime = request.bookedDetails?.departTime || '';
+          const outboundArriveTime = request.bookedDetails?.arriveTime || '';
+          
+          // Return booked details — prefer confirmation code, fall back to outbound confirmation code (same booking)
+          const returnAirline = request.returnBookedDetails?.airline || outboundAirline;
+          const returnConfCode = (request.returnBookedDetails?.confirmationCode || '').trim();
+          const returnRef = returnConfCode || outboundConfCode || request.returnBookedDetails?.flightNumber || '';
+          const returnDepartTime = request.returnBookedDetails?.departTime || '';
+          const returnArriveTime = request.returnBookedDetails?.arriveTime || '';
+          
+          // Format dates as YYYY-MM-DD strings
+          const formatDateStr = (d) => {
+            if (!d) return '';
+            const dt = new Date(d);
+            if (isNaN(dt.getTime())) return '';
+            return dt.toISOString().split('T')[0];
+          };
+          
+          // Outbound flight
+          if (request.departDate) {
+            bookedFlights.push({
+              date: formatDateStr(request.departDate),
+              depart: outboundDepartTime,
+              arrive: outboundArriveTime,
+              name: passengerDisplayName,
+              airline: outboundAirline,
+              fromTo: outboundFromTo,
+              ref: outboundRef,
+              source: 'booked',
+              flightType: request.returnDate ? 'outbound' : 'one-way'
+            });
+          }
+          
+          // Return flight
+          if (request.returnDate) {
+            bookedFlights.push({
+              date: formatDateStr(request.returnDate),
+              depart: returnDepartTime,
+              arrive: returnArriveTime,
+              name: passengerDisplayName,
+              airline: returnAirline,
+              fromTo: returnFromTo,
+              ref: returnRef,
+              source: 'booked',
+              flightType: 'return'
+            });
+          }
+        }
+      }
+    } catch (flightReqErr) {
+      console.error('Error fetching booked flights for event:', flightReqErr);
+      // Continue even if flight requests fail
+    }
+    
+    // Combine manual + booked flights and sort by date
+    const allTravel = [...manualTravel, ...bookedFlights].sort((a, b) => {
+      if (!a.date && !b.date) return 0;
+      if (!a.date) return 1;
+      if (!b.date) return -1;
+      return a.date.localeCompare(b.date);
+    });
+    
+    res.json({
+      travel: allTravel,
+      accommodation: table.accommodation || []
+    });
+  } catch (err) {
+    console.error('Error fetching travel data:', err);
+    res.status(500).json({ error: 'Server error' });
   }
-  res.json({
-    travel: table.travel || [],
-    accommodation: table.accommodation || []
-  });
 });
 
 app.put('/api/tables/:id/travel', authenticate, async (req, res) => {
@@ -2196,10 +2341,19 @@ app.put('/api/tables/:id/travel', authenticate, async (req, res) => {
     return res.status(400).json({ error: "Invalid table ID" });
   }
   const table = await Table.findById(req.params.id);
-  if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
-    return res.status(403).json({ error: 'Not authorized or not found' });
+  if (!table) {
+    return res.status(404).json({ error: 'Not found' });
   }
-  table.travel = req.body.travel || [];
+  const userId = req.user.id;
+  const isAdmin = req.user.role === 'admin';
+  const isOwner = table.owners && table.owners.map(String).includes(String(userId));
+  const isLead = table.leads && table.leads.map(String).includes(String(userId));
+  if (!isAdmin && !isOwner && !isLead) {
+    return res.status(403).json({ error: 'Not authorized' });
+  }
+  // Only save manual entries (filter out booked entries that came from FlightRequest)
+  const manualTravel = (req.body.travel || []).filter(t => t.source !== 'booked');
+  table.travel = manualTravel;
   table.accommodation = req.body.accommodation || [];
   await table.save();
   
@@ -6361,8 +6515,6 @@ app.get('/api/crew-calendar', authenticate, async (req, res) => {
 // ===========================================
 // FLIGHTS - Get all flight data across all events
 // ===========================================
-const FlightRequest = require('./models/FlightRequest');
-const Passenger = require('./models/Passenger');
 
 app.get('/api/flights/all', authenticate, async (req, res) => {
   try {
@@ -6523,12 +6675,24 @@ app.get('/api/flights/all', authenticate, async (req, res) => {
         tables.filter(t => t.owners && t.owners.some(owner => owner._id.toString() === userId)).map(t => t._id.toString())
       );
       
+      // Build a map of event titles to event IDs for resolving null eventIds
+      const eventTitleToId = {};
+      tables.forEach(t => {
+        if (t.title) eventTitleToId[t.title] = t._id.toString();
+      });
+      
       for (const request of flightRequests) {
         if (!request.passengers || request.passengers.length === 0) continue;
         
+        // Resolve eventId if null but eventName matches a known event
+        let resolvedEventId = request.eventId ? request.eventId.toString() : null;
+        if (!resolvedEventId && request.eventName && eventTitleToId[request.eventName]) {
+          resolvedEventId = eventTitleToId[request.eventName];
+        }
+        
         // Check if user is an owner or lead for this flight request's event
-        const isOwnerForThisEvent = request.eventId && ownerEventIds.has(request.eventId.toString());
-        const isLeadForThisEvent = request.eventId && leadEventIds.has(request.eventId.toString());
+        const isOwnerForThisEvent = resolvedEventId && ownerEventIds.has(resolvedEventId);
+        const isLeadForThisEvent = resolvedEventId && leadEventIds.has(resolvedEventId);
         
         // Build from/to strings (used for both outbound and return)
         let outboundFromTo = '';
@@ -6546,13 +6710,15 @@ app.get('/api/flights/all', authenticate, async (req, res) => {
         const outboundDepartTime = request.bookedDetails?.departTime || '';
         const outboundArriveTime = request.bookedDetails?.arriveTime || '';
         const outboundAirline = request.bookedDetails?.airline || '';
-        const outboundRef = request.bookedDetails?.confirmationCode || request.bookedDetails?.flightNumber || '';
+        const outboundConfCode = (request.bookedDetails?.confirmationCode || '').trim();
+        const outboundRef = outboundConfCode || request.bookedDetails?.flightNumber || '';
         
-        // Get return booked details (use returnBookedDetails if available, fall back to outbound airline/ref)
+        // Get return booked details — prefer confirmation code, fall back to outbound confirmation code (same booking)
         const returnDepartTime = request.returnBookedDetails?.departTime || '';
         const returnArriveTime = request.returnBookedDetails?.arriveTime || '';
         const returnAirline = request.returnBookedDetails?.airline || outboundAirline;
-        const returnRef = request.returnBookedDetails?.confirmationCode || request.returnBookedDetails?.flightNumber || outboundRef;
+        const returnConfCode = (request.returnBookedDetails?.confirmationCode || '').trim();
+        const returnRef = returnConfCode || outboundConfCode || request.returnBookedDetails?.flightNumber || '';
         
         // Check permissions for each passenger
         for (const passenger of request.passengers) {
@@ -6629,7 +6795,7 @@ app.get('/api/flights/all', authenticate, async (req, res) => {
                 ref: outboundRef,
                 flightType: request.returnDate ? 'outbound' : 'one-way',
                 event: {
-                  _id: request.eventId ? request.eventId.toString() : '',
+                  _id: resolvedEventId || '',
                   title: request.eventName || 'Flight Request',
                   city: '',
                   state: ''
@@ -6661,7 +6827,7 @@ app.get('/api/flights/all', authenticate, async (req, res) => {
                 ref: returnRef,
                 flightType: 'return',
                 event: {
-                  _id: request.eventId ? request.eventId.toString() : '',
+                  _id: resolvedEventId || '',
                   title: request.eventName || 'Flight Request',
                   city: '',
                   state: ''
