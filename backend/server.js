@@ -6437,6 +6437,21 @@ app.get('/api/flights/all', authenticate, async (req, res) => {
       return table.leads && table.leads.some(lead => lead.toString() === userId);
     }
     
+    // Pre-fetch all Passenger records linked to this user's account
+    // This gives us the passenger names (which may differ from the user's fullName)
+    // used on flight bookings, so we can match table.travel entries properly
+    let userLinkedPassengerNames = [];
+    if (!isAdmin) {
+      try {
+        const linkedPassengers = await Passenger.find({ userId: userId }).select('name');
+        userLinkedPassengerNames = linkedPassengers
+          .map(p => p.name ? p.name.toLowerCase().trim() : null)
+          .filter(Boolean);
+      } catch (err) {
+        console.warn('Failed to fetch linked passenger records for user:', userId, err.message);
+      }
+    }
+    
     // Flatten flights from all tables
     let allFlights = [];
     
@@ -6452,10 +6467,17 @@ app.get('/api/flights/all', authenticate, async (req, res) => {
         
         // Permission logic:
         // - Admins see all flights
+        // - Owners see all flights for their events
         // - Leads/planners see all flights for their events
-        // - Regular users only see their own flights
-        if (!isAdmin && !isLead && flight.name.toLowerCase() !== userFullName.toLowerCase()) {
-          continue;
+        // - Regular users see flights where the name matches their account name
+        //   OR matches a Passenger record linked to their user account
+        if (!isAdmin && !isOwner && !isLead) {
+          const flightNameLower = flight.name.toLowerCase().trim();
+          const fullNameMatch = flightNameLower === userFullName.toLowerCase().trim();
+          const linkedPassengerMatch = userLinkedPassengerNames.includes(flightNameLower);
+          if (!fullNameMatch && !linkedPassengerMatch) {
+            continue;
+          }
         }
         
         // Parse the flight date
@@ -6493,69 +6515,160 @@ app.get('/api/flights/all', authenticate, async (req, res) => {
     try {
       const flightRequests = await FlightRequest.find({ status: 'booked' });
       
+      // Build sets of event IDs where user is an owner or lead (for permission checks)
+      const leadEventIds = new Set(
+        tables.filter(t => isUserLeadForEvent(t)).map(t => t._id.toString())
+      );
+      const ownerEventIds = new Set(
+        tables.filter(t => t.owners && t.owners.some(owner => owner._id.toString() === userId)).map(t => t._id.toString())
+      );
+      
       for (const request of flightRequests) {
         if (!request.passengers || request.passengers.length === 0) continue;
         
+        // Check if user is an owner or lead for this flight request's event
+        const isOwnerForThisEvent = request.eventId && ownerEventIds.has(request.eventId.toString());
+        const isLeadForThisEvent = request.eventId && leadEventIds.has(request.eventId.toString());
+        
+        // Build from/to strings (used for both outbound and return)
+        let outboundFromTo = '';
+        let returnFromTo = '';
+        if (request.from && request.to) {
+          const fromStr = request.from.city || request.from.code || '';
+          const toStr = request.to.city || request.to.code || '';
+          if (fromStr && toStr) {
+            outboundFromTo = `${fromStr} → ${toStr}`;
+            returnFromTo = `${toStr} → ${fromStr}`;
+          }
+        }
+        
+        // Get outbound booked details
+        const outboundDepartTime = request.bookedDetails?.departTime || '';
+        const outboundArriveTime = request.bookedDetails?.arriveTime || '';
+        const outboundAirline = request.bookedDetails?.airline || '';
+        const outboundRef = request.bookedDetails?.confirmationCode || request.bookedDetails?.flightNumber || '';
+        
+        // Get return booked details (use returnBookedDetails if available, fall back to outbound airline/ref)
+        const returnDepartTime = request.returnBookedDetails?.departTime || '';
+        const returnArriveTime = request.returnBookedDetails?.arriveTime || '';
+        const returnAirline = request.returnBookedDetails?.airline || outboundAirline;
+        const returnRef = request.returnBookedDetails?.confirmationCode || request.returnBookedDetails?.flightNumber || outboundRef;
+        
         // Check permissions for each passenger
         for (const passenger of request.passengers) {
-          if (!passenger.passengerId) continue;
+          let passengerDisplayName = passenger.name || '';
+          let passengerLinkedUserId = null;
+          let hasLinkedAccount = false;
           
-          // Look up the actual passenger record to get the linked user
-          const passengerRecord = await Passenger.findById(passenger.passengerId).populate('userId', 'fullName');
-          if (!passengerRecord || !passengerRecord.userId) continue;
-          
-          const passengerUserId = passengerRecord.userId._id.toString();
-          const passengerUserName = passengerRecord.userId.fullName;
-          
-          // Permission logic: Check if this passenger belongs to the logged-in user
-          if (!isAdmin && passengerUserId !== userId) {
-            continue;
-          }
-          
-          // Parse the flight date (use departDate from root)
-          const flightDate = parseLocalDate(request.departDate);
-          
-          // NOTE: Status filtering (upcoming/past) is now handled client-side
-          // to avoid timezone mismatches between server and user.
-          // We only apply date range filters server-side.
-          
-          // Apply date range filter
-          if (filterStartDate && filterEndDate && flightDate) {
-            if (flightDate < filterStartDate || flightDate > filterEndDate) continue;
-          }
-          
-          // Build from/to string using from/to objects
-          let fromTo = '';
-          if (request.from && request.to) {
-            const fromStr = request.from.city || request.from.code || '';
-            const toStr = request.to.city || request.to.code || '';
-            if (fromStr && toStr) {
-              fromTo = `${fromStr} → ${toStr}`;
+          // Try to look up the passenger's linked user account
+          if (passenger.passengerId) {
+            try {
+              const passengerRecord = await Passenger.findById(passenger.passengerId).populate('userId', 'fullName');
+              if (passengerRecord && passengerRecord.userId) {
+                passengerLinkedUserId = passengerRecord.userId._id.toString();
+                passengerDisplayName = passengerRecord.userId.fullName || passengerRecord.name || passenger.name || '';
+                hasLinkedAccount = true;
+              } else if (passengerRecord) {
+                // Passenger record exists but no linked user account
+                passengerDisplayName = passengerRecord.name || passenger.name || '';
+              }
+            } catch (lookupErr) {
+              // If lookup fails, use the name from the flight request passenger entry
+              console.warn('Passenger lookup failed for:', passenger.passengerId, lookupErr.message);
             }
           }
           
-          // Get depart and arrive times from bookedDetails if available
-          const departTime = request.bookedDetails?.departTime || '';
-          const arriveTime = request.bookedDetails?.arriveTime || '';
-          const airline = request.bookedDetails?.airline || '';
-          const confirmationRef = request.bookedDetails?.confirmationCode || request.bookedDetails?.flightNumber || '';
+          // If still no name, skip this passenger
+          if (!passengerDisplayName) continue;
           
-          allFlights.push({
-            _id: request._id.toString() + '-' + passengerUserId,
-            date: request.departDate || '',
-            depart: departTime,
-            arrive: arriveTime,
-            name: passengerUserName || '',  // Use the actual user account name
-            airline: airline,
-            fromTo: fromTo,
-            ref: confirmationRef,
-            event: {
-              _id: request.eventId ? request.eventId.toString() : '',
-              title: request.eventName || 'Flight Request',
-              city: '',
-              state: ''
+          // Permission logic:
+          // - Admins see ALL flights (including unlinked passengers)
+          // - Owners see all flights for their events
+          // - Leads see all flights for their events
+          // - Regular users: use Passenger model's userId link (preferred),
+          //   OR match against linked passenger names from Passenger records
+          if (!isAdmin && !isOwnerForThisEvent && !isLeadForThisEvent) {
+            if (hasLinkedAccount) {
+              // Passenger has a linked user account — match by userId (definitive)
+              if (passengerLinkedUserId !== userId) {
+                continue;
+              }
+            } else {
+              // No linked account — check if passenger name matches the user's fullName
+              // or any of the user's linked Passenger record names
+              const passengerNameLower = passengerDisplayName.toLowerCase().trim();
+              const fullNameMatch = passengerNameLower === userFullName.toLowerCase().trim();
+              const linkedPassengerMatch = userLinkedPassengerNames.includes(passengerNameLower);
+              if (!fullNameMatch && !linkedPassengerMatch) {
+                continue;
+              }
             }
-          });
+          }
+          
+          const passengerId = passengerLinkedUserId || (passenger.passengerId ? passenger.passengerId.toString() : passenger.name);
+          
+          // --- OUTBOUND FLIGHT ---
+          if (request.departDate) {
+            const outboundDate = parseLocalDate(request.departDate);
+            
+            // Apply date range filter
+            let includeOutbound = true;
+            if (filterStartDate && filterEndDate && outboundDate) {
+              if (outboundDate < filterStartDate || outboundDate > filterEndDate) includeOutbound = false;
+            }
+            
+            if (includeOutbound) {
+              allFlights.push({
+                _id: request._id.toString() + '-out-' + passengerId,
+                date: request.departDate || '',
+                depart: outboundDepartTime,
+                arrive: outboundArriveTime,
+                name: passengerDisplayName,
+                airline: outboundAirline,
+                fromTo: outboundFromTo,
+                ref: outboundRef,
+                flightType: request.returnDate ? 'outbound' : 'one-way',
+                event: {
+                  _id: request.eventId ? request.eventId.toString() : '',
+                  title: request.eventName || 'Flight Request',
+                  city: '',
+                  state: ''
+                }
+              });
+            }
+          }
+          
+          // --- RETURN FLIGHT ---
+          // Add return flight if returnDate exists (round-trip or has a return date)
+          if (request.returnDate) {
+            const returnDate = parseLocalDate(request.returnDate);
+            
+            // Apply date range filter
+            let includeReturn = true;
+            if (filterStartDate && filterEndDate && returnDate) {
+              if (returnDate < filterStartDate || returnDate > filterEndDate) includeReturn = false;
+            }
+            
+            if (includeReturn) {
+              allFlights.push({
+                _id: request._id.toString() + '-ret-' + passengerId,
+                date: request.returnDate || '',
+                depart: returnDepartTime,
+                arrive: returnArriveTime,
+                name: passengerDisplayName,
+                airline: returnAirline,
+                fromTo: returnFromTo,  // Swapped from/to for return
+                ref: returnRef,
+                flightType: 'return',
+                event: {
+                  _id: request.eventId ? request.eventId.toString() : '',
+                  title: request.eventName || 'Flight Request',
+                  city: '',
+                  state: ''
+                }
+              });
+            }
+          }
         }
       }
     } catch (flightReqErr) {
