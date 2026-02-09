@@ -184,6 +184,25 @@ window.initPage = undefined;
       }
     }
 
+    // Helper to get flight type badge HTML
+    function getFlightTypeBadge(item) {
+      if (!item.flightType || item.source !== 'booked') return '';
+      if (item.flightType === 'outbound') {
+        return '<span class="flight-type-badge outbound">OUT</span>';
+      } else if (item.flightType === 'return') {
+        return '<span class="flight-type-badge return">RET</span>';
+      }
+      return '';
+    }
+
+    // Helper to get source badge HTML
+    function getSourceBadge(item) {
+      if (item.source === 'booked') {
+        return '<span class="source-badge booked">Booked</span>';
+      }
+      return '';
+    }
+
     function populateTable(tableId, rows) {
       console.log('populateTable called with editMode:', editMode);
       const table = document.getElementById(tableId)?.querySelector("tbody");
@@ -208,18 +227,20 @@ window.initPage = undefined;
 
       rows.forEach(item => {
         const row = document.createElement("tr");
+        const isBooked = item.source === 'booked';
 
         if (!editMode) {
-          console.log('Not in edit mode, showing readonly view without action column');
           if (tableId === 'travelTable') {
+            const flightBadge = getFlightTypeBadge(item);
+            const sourceBadge = getSourceBadge(item);
             row.innerHTML = `
               <td class="date"><span class="readonly-span">${formatDateReadable(item.date)}</span></td>
               <td class="time"><span class="readonly-span">${formatTo12Hour(item.depart)}</span></td>
               <td class="time"><span class="readonly-span">${formatTo12Hour(item.arrive)}</span></td>
               <td class="text"><span class="readonly-span">${item.name || ''}</span></td>
               <td class="text"><span class="readonly-span">${item.airline || ''}</span></td>
-              <td class="text"><span class="readonly-span">${item.fromTo || ''}</span></td>
-              <td class="text"><span class="readonly-span">${item.ref || ''}</span></td>
+              <td class="text"><span class="readonly-span">${item.fromTo || ''}${flightBadge ? ' ' + flightBadge : ''}</span></td>
+              <td class="text"><span class="readonly-span">${item.ref || ''}${sourceBadge ? ' ' + sourceBadge : ''}</span></td>
             `;
           } else {
             row.innerHTML = `
@@ -231,24 +252,40 @@ window.initPage = undefined;
             `;
           }
         } else {
-          console.log('In edit mode, showing editable view with delete button');
+          // In edit mode: booked flights are read-only, manual flights are editable
           if (tableId === 'travelTable') {
-            row.innerHTML = `
-              <td class="date"><input type="date" value="${item.date || ''}"></td>
-              <td class="time"><input type="time" value="${item.depart || ''}"></td>
-              <td class="time"><input type="time" value="${item.arrive || ''}"></td>
-              <td class="text">
-                <select class="name-select">
-                  <option value="">-- Select Name --</option>
-                  ${cachedUsers.map(u => `<option value="${u.name}" ${u.name === item.name ? 'selected' : ''}>${u.name}</option>`).join('')}
-                  <option value="__add_new__">➕ Add new name</option>
-                </select>
-              </td>
-              <td class="text"><textarea>${item.airline || ''}</textarea></td>
-              <td class="text"><textarea>${item.fromTo || ''}</textarea></td>
-              <td class="text"><textarea>${item.ref || ''}</textarea></td>
-              <td class="action"><button type="button" class="delete-btn"><span class="material-symbols-outlined">delete</span></button></td>
-            `;
+            if (isBooked) {
+              // Booked flights: read-only even in edit mode (can't edit booking system entries)
+              const flightBadge = getFlightTypeBadge(item);
+              row.classList.add('booked-row');
+              row.innerHTML = `
+                <td class="date"><span class="readonly-span">${formatDateReadable(item.date)}</span></td>
+                <td class="time"><span class="readonly-span">${formatTo12Hour(item.depart)}</span></td>
+                <td class="time"><span class="readonly-span">${formatTo12Hour(item.arrive)}</span></td>
+                <td class="text"><span class="readonly-span">${item.name || ''}</span></td>
+                <td class="text"><span class="readonly-span">${item.airline || ''}</span></td>
+                <td class="text"><span class="readonly-span">${item.fromTo || ''}${flightBadge ? ' ' + flightBadge : ''}</span></td>
+                <td class="text"><span class="readonly-span">${item.ref || ''} <span class="source-badge booked">Booked</span></span></td>
+                <td class="action"></td>
+              `;
+            } else {
+              row.innerHTML = `
+                <td class="date"><input type="date" value="${item.date || ''}"></td>
+                <td class="time"><input type="time" value="${item.depart || ''}"></td>
+                <td class="time"><input type="time" value="${item.arrive || ''}"></td>
+                <td class="text">
+                  <select class="name-select">
+                    <option value="">-- Select Name --</option>
+                    ${cachedUsers.map(u => `<option value="${u.name}" ${u.name === item.name ? 'selected' : ''}>${u.name}</option>`).join('')}
+                    <option value="__add_new__">➕ Add new name</option>
+                  </select>
+                </td>
+                <td class="text"><textarea>${item.airline || ''}</textarea></td>
+                <td class="text"><textarea>${item.fromTo || ''}</textarea></td>
+                <td class="text"><textarea>${item.ref || ''}</textarea></td>
+                <td class="action"><button type="button" class="delete-btn"><span class="material-symbols-outlined">delete</span></button></td>
+              `;
+            }
           } else {
             row.innerHTML = `
               <td class="date"><input type="date" value="${item.checkin || ''}"></td>
@@ -303,24 +340,26 @@ window.initPage = undefined;
     function collectTableData(tableId) {
       const table = document.getElementById(tableId)?.querySelectorAll("tbody tr");
       if (!table) return [];
-      return Array.from(table).map(row => {
-        const inputs = row.querySelectorAll('input, textarea, select');
-        return tableId === 'travelTable' ? {
-          date: inputs[0]?.value || '',
-          depart: inputs[1]?.value || '',
-          arrive: inputs[2]?.value || '',
-          name: inputs[3]?.value || '',
-          airline: inputs[4]?.value || '',
-          fromTo: inputs[5]?.value || '',
-          ref: inputs[6]?.value || ''
-        } : {
-          checkin: inputs[0]?.value || '',
-          checkout: inputs[1]?.value || '',
-          name: inputs[2]?.value || '',
-          hotel: inputs[3]?.value || '',
-          ref: inputs[4]?.value || ''
-        };
-      });
+      return Array.from(table)
+        .filter(row => !row.classList.contains('booked-row'))  // Skip booked rows (read-only)
+        .map(row => {
+          const inputs = row.querySelectorAll('input, textarea, select');
+          return tableId === 'travelTable' ? {
+            date: inputs[0]?.value || '',
+            depart: inputs[1]?.value || '',
+            arrive: inputs[2]?.value || '',
+            name: inputs[3]?.value || '',
+            airline: inputs[4]?.value || '',
+            fromTo: inputs[5]?.value || '',
+            ref: inputs[6]?.value || ''
+          } : {
+            checkin: inputs[0]?.value || '',
+            checkout: inputs[1]?.value || '',
+            name: inputs[2]?.value || '',
+            hotel: inputs[3]?.value || '',
+            ref: inputs[4]?.value || ''
+          };
+        });
     }
 
     function addRow(tableId) {
