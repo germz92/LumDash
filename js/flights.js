@@ -181,7 +181,8 @@
           (flight.fromTo && flight.fromTo.toLowerCase().includes(query)) ||
           (flight.ref && flight.ref.toLowerCase().includes(query)) ||
           (flight.event && flight.event.title && flight.event.title.toLowerCase().includes(query)) ||
-          (flight.date && flight.date.includes(query))
+          (flight.date && flight.date.includes(query)) ||
+          (flight.flightType && flight.flightType.toLowerCase().includes(query))
         );
       });
     }
@@ -238,6 +239,14 @@
     tableBody.innerHTML = pageFlights.map(flight => {
       const dateStatus = getDateStatus(flight.date);
       
+      // Flight type badge (outbound/return/one-way)
+      let flightTypeBadge = '';
+      if (flight.flightType === 'outbound') {
+        flightTypeBadge = '<span class="flight-type-badge outbound">OUT</span>';
+      } else if (flight.flightType === 'return') {
+        flightTypeBadge = '<span class="flight-type-badge return">RET</span>';
+      }
+      
       return `
         <tr class="flight-row">
           <td class="col-date">
@@ -252,7 +261,12 @@
             <span class="crew-name">${escapeHtml(flight.name || '—')}</span>
           </td>
           <td class="col-airline">${escapeHtml(flight.airline || '—')}</td>
-          <td class="col-fromto">${escapeHtml(flight.fromTo || '—')}</td>
+          <td class="col-fromto">
+            <div class="fromto-cell-content">
+              ${escapeHtml(flight.fromTo || '—')}
+              ${flightTypeBadge}
+            </div>
+          </td>
           <td class="col-ref">${escapeHtml(flight.ref || '—')}</td>
           <td class="col-event">
             <a href="#" class="event-link" onclick="window.navigate('travel-accommodation', '${flight.event._id}'); return false;">
