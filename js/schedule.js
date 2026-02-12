@@ -1175,7 +1175,7 @@ function renderProgramSections(hasScheduleAccess) {
             <input type="time" placeholder="Start Time" 
               data-field="startTime"
               class="time-input"
-              style="width: 130px; min-width: 130px; text-align: left; font-size: 12px;"
+              style="width: 110px; min-width: 90px; text-align: left; font-size: 12px;"
               value="${program.startTime || ''}"
               ${!hasScheduleAccess ? 'readonly' : ''}
               onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
@@ -1183,7 +1183,7 @@ function renderProgramSections(hasScheduleAccess) {
             <input type="time" placeholder="End Time" 
               data-field="endTime"
               class="time-input"
-              style="width: 130px; min-width: 130px; text-align: left; font-size: 12px;"
+              style="width: 110px; min-width: 90px; text-align: left; font-size: 12px;"
               value="${program.endTime || ''}"
               ${!hasScheduleAccess ? 'readonly' : ''}
               onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
@@ -1196,7 +1196,7 @@ function renderProgramSections(hasScheduleAccess) {
                 placeholder="Folder"
                 maxlength="7"
                 ${!hasScheduleAccess ? 'readonly' : ''}
-                style="width: 70px; min-width: 70px; padding: 4px 8px; font-size: 12px;"
+                style="width: 70px; min-width: 50px; padding: 4px 8px; font-size: 12px;"
                 value="${program.folder || ''}"
                 onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
                 oninput="toggleFolderVisibility(this)"
