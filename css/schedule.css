@@ -533,13 +533,13 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
         width: 100% !important;
     }
 
-    /* Time inputs on mobile - give them more space to prevent cutoff */
+    /* Time inputs on mobile - compact to save space */
     .schedule-page .program-entry input[type="time"] {
-        width: 120px !important;
-        min-width: 120px !important;
-        max-width: 120px !important;
+        width: 90px !important;
+        min-width: 90px !important;
+        max-width: 90px !important;
         font-size: 12px !important;
-        padding: 6px 4px !important;
+        padding: 4px 2px !important;
         border: 1px solid transparent !important;
         border-radius: 4px !important;
         background: transparent !important;
@@ -559,20 +559,22 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
         border-color: rgba(204, 0, 7, 0.2) !important;
     }
 
-    /* Folder input on mobile - compact size */
+    /* Folder input on mobile - use remaining space flexibly */
     .schedule-page .program-entry .folder-input {
-        width: 55px !important;
-        min-width: 55px !important;
-        max-width: 55px !important;
+        width: auto !important;
+        min-width: 40px !important;
+        max-width: 70px !important;
         font-size: 11px !important;
-        padding: 6px 2px !important;
+        padding: 4px 4px !important;
         border: 1px solid #4a90e2 !important;
         border-radius: 4px !important;
         background: #e8f4fd !important;
         color: #2563eb !important;
         text-align: center !important;
-        flex-shrink: 0 !important;
+        flex-shrink: 1 !important;
         font-weight: 500 !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
     }
 
     .schedule-page .program-entry .folder-input:focus {
@@ -584,6 +586,14 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
     /* Reduce gap between time inputs on mobile to save space */
     .schedule-page .program-entry .time-fields-container {
         gap: 4px !important;
+        overflow: hidden !important;
+    }
+
+    /* Folder container should shrink if needed to prevent overlap */
+    .schedule-page .program-entry .folder-field-container {
+        flex-shrink: 1 !important;
+        min-width: 0 !important;
+        overflow: hidden !important;
     }
 
     /* Make checkboxes smaller on mobile since they don't need much room */
