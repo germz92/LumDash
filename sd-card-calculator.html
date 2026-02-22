@@ -393,7 +393,7 @@
 
       let prevCameras = 0;
       let prevExtraCards = 0;
-      let totalCardsNeeded = 0;
+      let totalNewCards = 0;
       let numDays = 0;
       let reuseAvailable = 0;
       for (let [key, value] of formData.entries()) {
@@ -401,7 +401,6 @@
         const day = key.replace('day', '');
         const cameras = parseInt(value);
         const cardsNeeded = cameras * 2;
-        totalCardsNeeded += cardsNeeded;
         // For the first day, reuseAvailable is 0. For subsequent days, it's prevCameras + prevExtraCards
         if (numDays === 1) {
           reuseAvailable = 0;
@@ -410,6 +409,7 @@
         }
         const newCards = Math.max(0, cardsNeeded - reuseAvailable);
         const extraCards = reuseAvailable + newCards - cardsNeeded;
+        totalNewCards += newCards;
 
         results += `<tr><td>${day}</td><td>${cameras}</td><td>${cardsNeeded}</td><td>${reuseAvailable}</td><td>${newCards}</td><td>${extraCards}</td></tr>`;
 
@@ -418,11 +418,11 @@
       }
 
       const backupsNeeded = numDays * 2; // two backup cards per day
-      const totalWithBackups = totalCardsNeeded + backupsNeeded;
+      const totalWithBackups = totalNewCards + backupsNeeded;
 
       results += '</table></div>';
       results += `<div class="summary">
-        📦 Total Cards Needed: ${totalCardsNeeded} <br>
+        📦 Cards Needed: ${totalNewCards} <br>
         🔄 Backups Needed (2/day): ${backupsNeeded} <br>
         <span class="cards-total">🎯 Cards Total: ${totalWithBackups}</span>
       </div>`;
