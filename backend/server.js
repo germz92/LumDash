@@ -2739,6 +2739,94 @@ app.put('/api/tables/:id/folder-logs', authenticate, async (req, res) => {
   }
 });
 
+// ========================================
+// SCHEDULE SHARING (Public Read-Only Link)
+// ========================================
+
+// Generate or retrieve share token for a schedule
+app.post('/api/tables/:id/share-schedule', authenticate, async (req, res) => {
+  try {
+    if (!req.params.id || req.params.id === 'null') {
+      return res.status(400).json({ error: 'Invalid table ID' });
+    }
+
+    const table = await Table.findById(req.params.id);
+    if (!table) {
+      return res.status(404).json({ error: 'Table not found' });
+    }
+
+    // Only owners and leads can generate share links
+    const isOwner = table.owners.includes(req.user.id);
+    const isLead = table.leads && table.leads.includes(req.user.id);
+    if (!isOwner && !isLead) {
+      return res.status(403).json({ error: 'Only owners and leads can share the schedule' });
+    }
+
+    // Generate a token if one doesn't exist
+    if (!table.shareToken) {
+      const crypto = require('crypto');
+      table.shareToken = crypto.randomBytes(24).toString('hex');
+      await table.save();
+    }
+
+    res.json({ shareToken: table.shareToken });
+  } catch (err) {
+    console.error('Error generating share token:', err);
+    res.status(500).json({ error: 'Failed to generate share link' });
+  }
+});
+
+// Revoke (disable) share token for a schedule
+app.delete('/api/tables/:id/share-schedule', authenticate, async (req, res) => {
+  try {
+    if (!req.params.id || req.params.id === 'null') {
+      return res.status(400).json({ error: 'Invalid table ID' });
+    }
+
+    const table = await Table.findById(req.params.id);
+    if (!table) {
+      return res.status(404).json({ error: 'Table not found' });
+    }
+
+    // Only owners can revoke share links
+    if (!table.owners.includes(req.user.id)) {
+      return res.status(403).json({ error: 'Only owners can revoke share links' });
+    }
+
+    table.shareToken = null;
+    await table.save();
+
+    res.json({ message: 'Share link revoked' });
+  } catch (err) {
+    console.error('Error revoking share token:', err);
+    res.status(500).json({ error: 'Failed to revoke share link' });
+  }
+});
+
+// Public endpoint: Get shared schedule data (NO authentication required)
+app.get('/api/shared-schedule/:shareToken', async (req, res) => {
+  try {
+    const { shareToken } = req.params;
+    if (!shareToken) {
+      return res.status(400).json({ error: 'Share token is required' });
+    }
+
+    const table = await Table.findOne({ shareToken });
+    if (!table) {
+      return res.status(404).json({ error: 'Schedule not found or link has expired' });
+    }
+
+    // Return only the schedule data needed for display (no sensitive info)
+    res.json({
+      title: table.title || 'Program Schedule',
+      programSchedule: table.programSchedule || []
+    });
+  } catch (err) {
+    console.error('Error fetching shared schedule:', err);
+    res.status(500).json({ error: 'Failed to load schedule' });
+  }
+});
+
 // Serve SPA shell and root
 app.use(express.static(path.join(__dirname, '../frontend')));
 
