@@ -2807,12 +2807,17 @@ app.delete('/api/tables/:id/share-schedule', authenticate, async (req, res) => {
 app.get('/api/shared-schedule/:shareToken', async (req, res) => {
   try {
     const { shareToken } = req.params;
+    console.log('[SharedSchedule] GET request for token:', shareToken);
     if (!shareToken) {
       return res.status(400).json({ error: 'Share token is required' });
     }
 
     const table = await Table.findOne({ shareToken });
+    console.log('[SharedSchedule] Table lookup result:', table ? `Found (id: ${table._id})` : 'NOT FOUND');
     if (!table) {
+      // Debug: check if any tables have shareTokens at all
+      const anyShared = await Table.countDocuments({ shareToken: { $ne: null } });
+      console.log('[SharedSchedule] Total tables with shareTokens:', anyShared);
       return res.status(404).json({ error: 'Schedule not found or link has expired' });
     }
 
@@ -2822,7 +2827,7 @@ app.get('/api/shared-schedule/:shareToken', async (req, res) => {
       programSchedule: table.programSchedule || []
     });
   } catch (err) {
-    console.error('Error fetching shared schedule:', err);
+    console.error('[SharedSchedule] Error fetching shared schedule:', err);
     res.status(500).json({ error: 'Failed to load schedule' });
   }
 });
