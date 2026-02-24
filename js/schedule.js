@@ -5305,4 +5305,126 @@ window.addEventListener('resize', () => {
 
 console.log('✅ [TABLE VIEW] Table view functionality loaded');
 
+// =====================================================
+// SHARE SCHEDULE WITH CLIENT
+// =====================================================
+
+window.openShareScheduleModal = function() {
+  const modal = document.getElementById('shareScheduleModal');
+  if (!modal) return;
+
+  modal.style.display = 'flex';
+  document.getElementById('shareModalLoading').style.display = 'block';
+  document.getElementById('shareModalResult').style.display = 'none';
+  document.getElementById('shareCopyFeedback').style.display = 'none';
+
+  // Generate or retrieve the share token
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) {
+    alert('No event selected.');
+    modal.style.display = 'none';
+    return;
+  }
+
+  fetch(`${API_BASE}/api/tables/${tableId}/share-schedule`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: localStorage.getItem('token')
+    }
+  })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to generate share link');
+      return res.json();
+    })
+    .then(data => {
+      const shareUrl = `${window.location.origin}/shared-schedule.html?token=${data.shareToken}`;
+      document.getElementById('shareLinkInput').value = shareUrl;
+      document.getElementById('shareModalLoading').style.display = 'none';
+      document.getElementById('shareModalResult').style.display = 'block';
+    })
+    .catch(err => {
+      console.error('Error generating share link:', err);
+      document.getElementById('shareModalLoading').innerHTML =
+        '<div style="color:#dc3545;"><span class="material-symbols-outlined" style="vertical-align:middle;">error</span> Failed to generate share link. Please try again.</div>';
+    });
+};
+
+window.closeShareScheduleModal = function() {
+  const modal = document.getElementById('shareScheduleModal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.copyShareLink = function() {
+  const input = document.getElementById('shareLinkInput');
+  if (!input) return;
+
+  navigator.clipboard.writeText(input.value)
+    .then(() => {
+      const feedback = document.getElementById('shareCopyFeedback');
+      if (feedback) {
+        feedback.style.display = 'block';
+        setTimeout(() => { feedback.style.display = 'none'; }, 3000);
+      }
+    })
+    .catch(() => {
+      // Fallback for older browsers
+      input.select();
+      document.execCommand('copy');
+      const feedback = document.getElementById('shareCopyFeedback');
+      if (feedback) {
+        feedback.style.display = 'block';
+        setTimeout(() => { feedback.style.display = 'none'; }, 3000);
+      }
+    });
+};
+
+window.revokeShareLink = function() {
+  if (!confirm('Are you sure you want to revoke the share link? The current link will stop working.')) return;
+
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) return;
+
+  fetch(`${API_BASE}/api/tables/${tableId}/share-schedule`, {
+    method: 'DELETE',
+    headers: {
+      Authorization: localStorage.getItem('token')
+    }
+  })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to revoke share link');
+      return res.json();
+    })
+    .then(() => {
+      document.getElementById('shareLinkInput').value = '';
+      document.getElementById('shareModalResult').style.display = 'none';
+      document.getElementById('shareModalLoading').style.display = 'block';
+      document.getElementById('shareModalLoading').innerHTML =
+        '<div style="color:#28a745;"><span class="material-symbols-outlined" style="vertical-align:middle;">check_circle</span> Share link has been revoked.</div>';
+    })
+    .catch(err => {
+      console.error('Error revoking share link:', err);
+      alert('Failed to revoke share link. Please try again.');
+    });
+};
+
+// Close modal on overlay click
+document.addEventListener('click', function(e) {
+  if (e.target && e.target.id === 'shareScheduleModal') {
+    closeShareScheduleModal();
+  }
+});
+
+// Close modal on Escape key
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('shareScheduleModal');
+    if (modal && modal.style.display === 'flex') {
+      closeShareScheduleModal();
+    }
+  }
+});
+
+console.log('✅ [SHARE] Schedule sharing functionality loaded');
+
 })();
