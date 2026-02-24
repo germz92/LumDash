@@ -213,6 +213,8 @@ const tableSchema = new mongoose.Schema({
     }
   ],
   archived: { type: Boolean, default: false },
+  // Share token for public read-only schedule sharing with clients
+  shareToken: { type: String, default: null, index: true },
   // Admin-only notes for this event/table
   adminNotes: [
     {
