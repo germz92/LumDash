@@ -31,6 +31,7 @@ const programSchema = new mongoose.Schema({
   location: String,
   photographer: String,
   notes: String,
+  folder: String,
   done: { type: Boolean, default: false }
 }, { _id: true });
 
@@ -187,6 +188,8 @@ const tableSchema = new mongoose.Schema({
     }
   ],
   archived: { type: Boolean, default: false },
+  // Share token for public read-only schedule sharing with clients
+  shareToken: { type: String, default: null, index: true },
   // Admin-only notes for this event/table
   adminNotes: [
     {
