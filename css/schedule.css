@@ -447,6 +447,59 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
         flex-shrink: 0;
     }
 
+    /* Make Share and Requests buttons icon-only on mobile */
+    .schedule-page .top-controls #shareScheduleBtn,
+    .schedule-page .top-controls #changeRequestsBtn {
+        padding: 6px 8px !important;
+        margin-left: 4px !important;
+        min-width: 0 !important;
+        max-width: 36px !important;
+        flex-shrink: 0 !important;
+        font-size: 0 !important;
+        line-height: 0 !important;
+        overflow: hidden !important;
+    }
+    .schedule-page .top-controls #shareScheduleBtn {
+        background-color: #1565c0 !important;
+    }
+    .schedule-page .top-controls #changeRequestsBtn {
+        background: #5c6bc0 !important;
+        position: relative !important;
+    }
+    .schedule-page .top-controls #shareScheduleBtn .material-symbols-outlined,
+    .schedule-page .top-controls #changeRequestsBtn .material-symbols-outlined {
+        font-size: 18px !important;
+        margin-right: 0 !important;
+        line-height: 1 !important;
+    }
+    .schedule-page .top-controls #shareScheduleBtn .btn-label,
+    .schedule-page .top-controls #changeRequestsBtn .btn-label {
+        display: none !important;
+    }
+    .schedule-page .top-controls #changeRequestsBtn .cr-badge {
+        position: absolute !important;
+        top: -5px !important;
+        right: -5px !important;
+        margin-left: 0 !important;
+        font-size: 10px !important;
+        min-width: 16px !important;
+        height: 16px !important;
+        border-radius: 8px !important;
+        padding: 0 4px !important;
+        line-height: 16px !important;
+    }
+
+    /* Also hide Show All Notes toggle text on mobile to save space */
+    .schedule-page .top-controls #toggleAllNotesBtn {
+        font-size: 0 !important;
+        padding: 4px 6px !important;
+        margin-left: 4px !important;
+    }
+    .schedule-page .top-controls #toggleAllNotesBtn::before {
+        content: 'Notes';
+        font-size: 13px;
+    }
+
     .schedule-page .program-entry {
         padding: 12px !important;
         gap: 2px !important;
@@ -2197,5 +2250,6 @@ body.no-owner-controls .schedule-page #changeRequestsBtn {
   .cr-card-actions {
     flex-wrap: wrap;
   }
+
 }
   
