@@ -44,8 +44,7 @@
       (program.name || '').toLowerCase().includes(q) ||
       (program.location || '').toLowerCase().includes(q) ||
       (program.photographer || '').toLowerCase().includes(q) ||
-      (program.notes || '').toLowerCase().includes(q) ||
-      (program.folder || '').toLowerCase().includes(q)
+      (program.notes || '').toLowerCase().includes(q)
     );
   }
 
@@ -243,14 +242,6 @@
                 style="width: 110px; min-width: 90px; text-align: left; font-size: 12px;"
                 value="${program.endTime || ''}"
                 readonly>
-              <div style="display: ${program.folder ? 'flex' : 'none'}; align-items: center; gap: 2px;" class="folder-field-container">
-                <span class="material-symbols-outlined folder-icon" style="font-size: 14px; color: #2563eb;">folder</span>
-                <input type="text"
-                  class="folder-input"
-                  style="width: 70px; min-width: 50px; padding: 4px 8px; font-size: 12px;"
-                  value="${program.folder || ''}"
-                  readonly>
-              </div>
             </div>
             <div class="right-actions" style="flex-shrink: 0; margin-left: auto;">
               ${program.done ? '<span class="material-symbols-outlined" style="color: #28a745; font-size: 20px;">check_circle</span>' : ''}
@@ -330,7 +321,6 @@
           <th>Location</th>
           <th>Photographer</th>
           <th>Notes</th>
-          <th>Folder</th>
           <th>Done</th>
         </tr>
       `;
@@ -348,7 +338,6 @@
           <td><span class="cell-display">${program.location || ''}</span></td>
           <td><span class="cell-display">${program.photographer || ''}</span></td>
           <td><span class="cell-display">${program.notes || ''}</span></td>
-          <td><span class="cell-display">${program.folder || ''}</span></td>
           <td class="done-checkbox-cell">
             ${program.done
               ? '<span class="material-symbols-outlined" style="color: #28a745; font-size: 20px;">check_circle</span>'
