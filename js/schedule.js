@@ -528,8 +528,6 @@ window.initPage = async function(id) {
   // Setup event listeners for schedule page controls
   console.log(`[INIT] Setting up event listeners...`);
   const newDateInput = document.getElementById('newDate');
-  const addDateBtn = document.querySelector('button.add-btn');
-  if (addDateBtn) addDateBtn.onclick = () => addDateSection();
 
   // Add event listener for date filter
   const filterDropdown = document.getElementById('filterDateDropdown');
@@ -3238,6 +3236,34 @@ function safeDeleteDate(date) {
   coordinatedSave('date_delete', () => scheduleSave());
 }
 
+// Add Date Modal functions
+window.openAddDateModal = function () {
+  const modal = document.getElementById('addDateModal');
+  if (!modal) return;
+  const input = document.getElementById('addDateModalInput');
+  if (input) input.value = '';
+  modal.style.display = 'flex';
+  // Focus the date input after modal opens
+  setTimeout(() => { if (input) input.focus(); }, 100);
+};
+
+window.closeAddDateModal = function () {
+  const modal = document.getElementById('addDateModal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.confirmAddDate = function () {
+  const input = document.getElementById('addDateModalInput');
+  if (!input || !input.value) {
+    alert('Please select a date');
+    return;
+  }
+  // Set the hidden newDate input and call the existing logic
+  document.getElementById('newDate').value = input.value;
+  addDateSection();
+  closeAddDateModal();
+};
+
 function addDateSection() {
   const date = document.getElementById('newDate').value;
   if (!date) return alert('Please select a date');
@@ -5408,19 +5434,26 @@ window.revokeShareLink = function() {
     });
 };
 
-// Close modal on overlay click
+// Close modals on overlay click
 document.addEventListener('click', function(e) {
   if (e.target && e.target.id === 'shareScheduleModal') {
     closeShareScheduleModal();
   }
+  if (e.target && e.target.id === 'addDateModal') {
+    closeAddDateModal();
+  }
 });
 
-// Close modal on Escape key
+// Close modals on Escape key
 document.addEventListener('keydown', function(e) {
   if (e.key === 'Escape') {
-    const modal = document.getElementById('shareScheduleModal');
-    if (modal && modal.style.display === 'flex') {
+    const shareModal = document.getElementById('shareScheduleModal');
+    if (shareModal && shareModal.style.display === 'flex') {
       closeShareScheduleModal();
+    }
+    const dateModal = document.getElementById('addDateModal');
+    if (dateModal && dateModal.style.display === 'flex') {
+      closeAddDateModal();
     }
   }
 });

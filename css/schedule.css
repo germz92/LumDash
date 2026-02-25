@@ -420,10 +420,11 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
     .schedule-page .top-controls {
         flex-wrap: nowrap;
         overflow-x: hidden;
-        justify-content: center;
+        overflow-y: visible;
+        justify-content: space-evenly;
         width: 100%;
-        gap: 2px;
-        padding: 4px 0;
+        gap: 0;
+        padding: 6px 4px;
     }
 
     .schedule-page .top-controls input,
@@ -433,31 +434,41 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
         max-width: none;
     }
 
-    .schedule-page .top-controls button,
-    .schedule-page .add-btn {
-        font-size: 16px;
-        padding: 6px 10px;
+    /* Equally space Add Date, Notes, and Requests on mobile */
+    .schedule-page .top-controls .add-btn {
+        flex: 1 1 0 !important;
+        font-size: 13px !important;
+        padding: 8px 4px !important;
         white-space: nowrap;
-        flex-shrink: 0;
+        margin: 0 !important;
+        text-align: center;
     }
 
     .schedule-page .show-notes-btn {
-        font-size: 16px;
+        flex: 1 1 0 !important;
+        font-size: 13px !important;
+        padding: 8px 4px !important;
         white-space: nowrap;
-        flex-shrink: 0;
+        margin: 0 !important;
+        text-align: center;
     }
 
     /* Make Share and Requests buttons icon-only on mobile */
     .schedule-page .top-controls #shareScheduleBtn,
     .schedule-page .top-controls #changeRequestsBtn {
-        padding: 6px 8px !important;
-        margin-left: 4px !important;
+        padding: 8px !important;
+        margin: 0 !important;
         min-width: 0 !important;
         max-width: 36px !important;
         flex-shrink: 0 !important;
         font-size: 0 !important;
         line-height: 0 !important;
+    }
+    .schedule-page .top-controls #shareScheduleBtn {
         overflow: hidden !important;
+    }
+    .schedule-page .top-controls #changeRequestsBtn {
+        overflow: visible !important;
     }
     .schedule-page .top-controls #shareScheduleBtn {
         background-color: #1565c0 !important;
@@ -478,26 +489,22 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
     }
     .schedule-page .top-controls #changeRequestsBtn .cr-badge {
         position: absolute !important;
-        top: -5px !important;
-        right: -5px !important;
+        top: -3px !important;
+        right: -3px !important;
         margin-left: 0 !important;
-        font-size: 10px !important;
-        min-width: 16px !important;
-        height: 16px !important;
-        border-radius: 8px !important;
-        padding: 0 4px !important;
-        line-height: 16px !important;
+        font-size: 9px !important;
+        min-width: 14px !important;
+        height: 14px !important;
+        border-radius: 7px !important;
+        padding: 0 3px !important;
+        line-height: 14px !important;
+        box-shadow: 0 0 0 2px white !important;
     }
 
-    /* Also hide Show All Notes toggle text on mobile to save space */
     .schedule-page .top-controls #toggleAllNotesBtn {
-        font-size: 0 !important;
-        padding: 4px 6px !important;
-        margin-left: 4px !important;
-    }
-    .schedule-page .top-controls #toggleAllNotesBtn::before {
-        content: 'Notes';
-        font-size: 13px;
+        font-size: 13px !important;
+        padding: 8px 4px !important;
+        margin: 0 !important;
     }
 
     .schedule-page .program-entry {
@@ -1825,6 +1832,11 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
    ============================================ */
 
 /* Share button */
+/* Desktop spacing for top-controls buttons */
+.schedule-page .top-controls #toggleAllNotesBtn {
+  margin-left: 16px;
+}
+
 .schedule-page .share-schedule-btn {
   display: inline-flex;
   align-items: center;
@@ -1835,6 +1847,7 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
   border-radius: 8px;
   cursor: pointer;
   font-weight: 600;
+  margin-left: 16px;
   box-shadow: 0 2px 8px rgba(21, 101, 192, 0.15);
   transition: background 0.2s, box-shadow 0.2s;
 }
@@ -1996,6 +2009,7 @@ body.no-owner-controls .schedule-page .program-entry .entry-actions {
   cursor: pointer;
   font-weight: bold;
   background: #5c6bc0;
+  margin-left: 8px;
   box-shadow: 0 2px 8px rgba(92, 107, 192, 0.15);
   transition: background 0.2s, box-shadow 0.2s;
   position: relative;
