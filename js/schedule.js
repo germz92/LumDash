@@ -5465,7 +5465,44 @@ window.openChangeRequestsPanel = async function () {
   crCurrentFilter = 'pending';
   const filterEl = document.getElementById('crStatusFilter');
   if (filterEl) filterEl.value = 'pending';
+
+  // Populate the share link at the top
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  const linkBar = document.getElementById('crShareLinkBar');
+  const linkInput = document.getElementById('crShareLinkInput');
+  if (linkBar && linkInput && tableId) {
+    try {
+      const res = await fetch(`${API_BASE}/api/tables/${tableId}/share-schedule`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: localStorage.getItem('token')
+        }
+      });
+      if (res.ok) {
+        const data = await res.json();
+        linkInput.value = `${window.location.origin}/shared-schedule.html?token=${data.shareToken}`;
+        linkBar.style.display = 'block';
+      }
+    } catch (e) {
+      // If share token doesn't exist yet, hide the bar
+      linkBar.style.display = 'none';
+    }
+  }
+
   await loadChangeRequests('pending');
+};
+
+window.copyCrShareLink = function () {
+  const input = document.getElementById('crShareLinkInput');
+  if (!input || !input.value) return;
+  navigator.clipboard.writeText(input.value).then(() => {
+    const feedback = document.getElementById('crShareCopyFeedback');
+    if (feedback) {
+      feedback.style.display = 'block';
+      setTimeout(() => { feedback.style.display = 'none'; }, 2500);
+    }
+  });
 };
 
 window.closeChangeRequestsPanel = function () {
