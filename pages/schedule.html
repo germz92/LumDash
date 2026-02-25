@@ -89,6 +89,18 @@
           <button class="share-modal-close" onclick="closeChangeRequestsPanel()">&times;</button>
         </div>
       </div>
+      <div id="crShareLinkBar" style="display:none; padding: 12px 20px; border-bottom: 1px solid #eee; background: #f8f9fa;">
+        <label style="font-size: 12px; font-weight: 500; color: #666; display: block; margin-bottom: 4px;">Shared Schedule Link</label>
+        <div style="display: flex; gap: 6px; align-items: center;">
+          <input type="text" id="crShareLinkInput" readonly style="flex:1; padding:7px 10px; border:1.5px solid #ddd; border-radius:6px; font-size:13px; background:white; color:#333;">
+          <button onclick="copyCrShareLink()" style="padding:7px 14px; background:#1565c0; color:white; border:none; border-radius:6px; cursor:pointer; font-weight:600; font-size:13px; white-space:nowrap;">
+            <span class="material-symbols-outlined" style="font-size:15px; vertical-align:middle; margin-right:3px;">content_copy</span>Copy
+          </button>
+        </div>
+        <div id="crShareCopyFeedback" style="display:none; color:#28a745; font-size:12px; margin-top:4px; font-weight:500;">
+          <span class="material-symbols-outlined" style="font-size:14px; vertical-align:middle;">check_circle</span> Copied!
+        </div>
+      </div>
       <div id="crReviewBody" class="cr-review-body">
         <div style="text-align:center; padding:40px; color:#888;">Loading...</div>
       </div>
