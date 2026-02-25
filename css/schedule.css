@@ -15,10 +15,11 @@ body:has(.schedule-page) #page-container {
     padding-right: 0 !important;
 }
 
-/* Hide export and import buttons for non-owners/non-leads */
+/* Hide export, import, and add-date buttons for non-owners/non-leads */
 body.no-owner-controls .schedule-page #importBtn,
 body.no-owner-controls .schedule-page #exportBtn,
-body.no-owner-controls .schedule-page #downloadTemplateBtn {
+body.no-owner-controls .schedule-page #downloadTemplateBtn,
+body.no-owner-controls .schedule-page .top-controls .add-btn {
     display: none !important;
 }
 
@@ -444,7 +445,7 @@ body.no-owner-controls .schedule-page #downloadTemplateBtn {
         text-align: center;
     }
 
-    .schedule-page .show-notes-btn {
+    .schedule-page .top-controls .show-notes-btn {
         flex: 1 1 0 !important;
         font-size: 13px !important;
         padding: 8px 4px !important;
