@@ -707,6 +707,7 @@ const GearPackage = require('./models/GearPackage');
 const ReservedGearItem = require('./models/ReservedGearItem');
 const PackageTemplate = require('./models/PackageTemplate');
 const Cart = require('./models/Cart');
+const ChangeRequest = require('./models/ChangeRequest');
 const FolderLog = require('./models/FolderLog');
 const ManualReservation = require('./models/ManualReservation');
 const FlightRequest = require('./models/FlightRequest');
@@ -2829,6 +2830,231 @@ app.get('/api/shared-schedule/:shareToken', async (req, res) => {
   } catch (err) {
     console.error('[SharedSchedule] Error fetching shared schedule:', err);
     res.status(500).json({ error: 'Failed to load schedule' });
+  }
+});
+
+// ===============================================
+// CLIENT CHANGE REQUEST ROUTES
+// ===============================================
+
+// PUBLIC: Client submits a change request via shared link
+app.post('/api/shared-schedule/:shareToken/change-requests', async (req, res) => {
+  try {
+    const { shareToken } = req.params;
+    const { type, programId, programDate, proposedData, originalData, clientName, clientMessage } = req.body;
+
+    if (!shareToken) {
+      return res.status(400).json({ error: 'Share token is required' });
+    }
+    if (!type || !['edit', 'add'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid request type' });
+    }
+
+    // Verify share token is valid
+    const table = await Table.findOne({ shareToken });
+    if (!table) {
+      return res.status(404).json({ error: 'Schedule not found or link has expired' });
+    }
+
+    const changeRequest = new ChangeRequest({
+      tableId: table._id,
+      shareToken,
+      type,
+      programId: programId || null,
+      programDate: programDate || (proposedData && proposedData.date) || null,
+      proposedData: proposedData || {},
+      originalData: originalData || {},
+      clientName: clientName || 'Client',
+      clientMessage: clientMessage || ''
+    });
+
+    await changeRequest.save();
+    console.log(`[ChangeRequest] New ${type} request for table ${table._id} from "${clientName || 'Client'}"`);
+
+    res.status(201).json({ message: 'Change request submitted', id: changeRequest._id });
+  } catch (err) {
+    console.error('[ChangeRequest] Error submitting change request:', err);
+    res.status(500).json({ error: 'Failed to submit change request' });
+  }
+});
+
+// PUBLIC: Get count of pending change requests (for badge on shared page)
+app.get('/api/shared-schedule/:shareToken/change-requests/mine', async (req, res) => {
+  try {
+    const { shareToken } = req.params;
+    const table = await Table.findOne({ shareToken });
+    if (!table) {
+      return res.status(404).json({ error: 'Schedule not found' });
+    }
+    const requests = await ChangeRequest.find({ tableId: table._id, shareToken })
+      .sort({ createdAt: -1 });
+    res.json(requests);
+  } catch (err) {
+    console.error('[ChangeRequest] Error fetching client requests:', err);
+    res.status(500).json({ error: 'Failed to fetch requests' });
+  }
+});
+
+// AUTHENTICATED: Get all change requests for a table (owner/lead)
+app.get('/api/tables/:id/change-requests', authenticate, async (req, res) => {
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) {
+      return res.status(404).json({ error: 'Table not found' });
+    }
+    const isOwner = table.owners.includes(req.user.id);
+    const isLead = table.leads && table.leads.includes(req.user.id);
+    if (!isOwner && !isLead) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const status = req.query.status || 'pending';
+    const query = { tableId: table._id };
+    if (status !== 'all') {
+      query.status = status;
+    }
+
+    const requests = await ChangeRequest.find(query).sort({ createdAt: -1 });
+    res.json(requests);
+  } catch (err) {
+    console.error('[ChangeRequest] Error fetching change requests:', err);
+    res.status(500).json({ error: 'Failed to fetch change requests' });
+  }
+});
+
+// AUTHENTICATED: Get pending count for badge
+app.get('/api/tables/:id/change-requests/count', authenticate, async (req, res) => {
+  try {
+    const count = await ChangeRequest.countDocuments({ tableId: req.params.id, status: 'pending' });
+    res.json({ count });
+  } catch (err) {
+    console.error('[ChangeRequest] Error counting change requests:', err);
+    res.status(500).json({ error: 'Failed to count change requests' });
+  }
+});
+
+// AUTHENTICATED: Accept a change request (apply changes to schedule)
+app.put('/api/tables/:id/change-requests/:reqId/accept', authenticate, async (req, res) => {
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) {
+      return res.status(404).json({ error: 'Table not found' });
+    }
+    const isOwner = table.owners.includes(req.user.id);
+    const isLead = table.leads && table.leads.includes(req.user.id);
+    if (!isOwner && !isLead) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const changeReq = await ChangeRequest.findById(req.params.reqId);
+    if (!changeReq || changeReq.tableId.toString() !== table._id.toString()) {
+      return res.status(404).json({ error: 'Change request not found' });
+    }
+    if (changeReq.status !== 'pending') {
+      return res.status(400).json({ error: 'Change request already reviewed' });
+    }
+
+    // Apply the change
+    if (changeReq.type === 'edit' && changeReq.programId) {
+      // Find and update the existing program entry
+      const program = table.programSchedule.id(changeReq.programId);
+      if (program) {
+        const proposed = changeReq.proposedData;
+        if (proposed.name !== undefined) program.name = proposed.name;
+        if (proposed.startTime !== undefined) program.startTime = proposed.startTime;
+        if (proposed.endTime !== undefined) program.endTime = proposed.endTime;
+        if (proposed.location !== undefined) program.location = proposed.location;
+        if (proposed.photographer !== undefined) program.photographer = proposed.photographer;
+        if (proposed.notes !== undefined) program.notes = proposed.notes;
+        await table.save();
+      }
+    } else if (changeReq.type === 'add') {
+      // Add a new program entry
+      const proposed = changeReq.proposedData;
+      table.programSchedule.push({
+        date: proposed.date || changeReq.programDate,
+        name: proposed.name || '',
+        startTime: proposed.startTime || '',
+        endTime: proposed.endTime || '',
+        location: proposed.location || '',
+        photographer: proposed.photographer || '',
+        notes: proposed.notes || '',
+        done: false
+      });
+      await table.save();
+    }
+
+    // Mark request as accepted
+    changeReq.status = 'accepted';
+    changeReq.reviewedBy = req.user.id;
+    changeReq.reviewedAt = new Date();
+    await changeReq.save();
+
+    console.log(`[ChangeRequest] Accepted request ${changeReq._id} for table ${table._id}`);
+    res.json({ message: 'Change request accepted and applied' });
+  } catch (err) {
+    console.error('[ChangeRequest] Error accepting change request:', err);
+    res.status(500).json({ error: 'Failed to accept change request' });
+  }
+});
+
+// AUTHENTICATED: Reject a change request
+app.put('/api/tables/:id/change-requests/:reqId/reject', authenticate, async (req, res) => {
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) {
+      return res.status(404).json({ error: 'Table not found' });
+    }
+    const isOwner = table.owners.includes(req.user.id);
+    const isLead = table.leads && table.leads.includes(req.user.id);
+    if (!isOwner && !isLead) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const changeReq = await ChangeRequest.findById(req.params.reqId);
+    if (!changeReq || changeReq.tableId.toString() !== table._id.toString()) {
+      return res.status(404).json({ error: 'Change request not found' });
+    }
+    if (changeReq.status !== 'pending') {
+      return res.status(400).json({ error: 'Change request already reviewed' });
+    }
+
+    changeReq.status = 'rejected';
+    changeReq.reviewedBy = req.user.id;
+    changeReq.reviewedAt = new Date();
+    await changeReq.save();
+
+    console.log(`[ChangeRequest] Rejected request ${changeReq._id} for table ${table._id}`);
+    res.json({ message: 'Change request rejected' });
+  } catch (err) {
+    console.error('[ChangeRequest] Error rejecting change request:', err);
+    res.status(500).json({ error: 'Failed to reject change request' });
+  }
+});
+
+// AUTHENTICATED: Delete a change request
+app.delete('/api/tables/:id/change-requests/:reqId', authenticate, async (req, res) => {
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) {
+      return res.status(404).json({ error: 'Table not found' });
+    }
+    const isOwner = table.owners.includes(req.user.id);
+    const isLead = table.leads && table.leads.includes(req.user.id);
+    if (!isOwner && !isLead) {
+      return res.status(403).json({ error: 'Not authorized' });
+    }
+
+    const changeReq = await ChangeRequest.findById(req.params.reqId);
+    if (!changeReq || changeReq.tableId.toString() !== table._id.toString()) {
+      return res.status(404).json({ error: 'Change request not found' });
+    }
+
+    await ChangeRequest.findByIdAndDelete(req.params.reqId);
+    res.json({ message: 'Change request deleted' });
+  } catch (err) {
+    console.error('[ChangeRequest] Error deleting change request:', err);
+    res.status(500).json({ error: 'Failed to delete change request' });
   }
 });
 
