@@ -5427,4 +5427,306 @@ document.addEventListener('keydown', function(e) {
 
 console.log('✅ [SHARE] Schedule sharing functionality loaded');
 
+// =============================================================
+// CHANGE REQUESTS - Owner Review System
+// =============================================================
+
+let crCurrentFilter = 'pending';
+
+// Load pending count and show badge
+async function loadChangeRequestCount() {
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/tables/${tableId}/change-requests/count`, {
+      headers: { Authorization: localStorage.getItem('token') }
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const badge = document.getElementById('crBadge');
+    if (badge) {
+      if (data.count > 0) {
+        badge.textContent = data.count;
+        badge.style.display = 'inline-flex';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+  } catch (err) {
+    console.error('[ChangeRequests] Error loading count:', err);
+  }
+}
+
+// Open the review panel
+window.openChangeRequestsPanel = async function () {
+  const modal = document.getElementById('crReviewModal');
+  if (!modal) return;
+  modal.style.display = 'flex';
+  crCurrentFilter = 'pending';
+  const filterEl = document.getElementById('crStatusFilter');
+  if (filterEl) filterEl.value = 'pending';
+  await loadChangeRequests('pending');
+};
+
+window.closeChangeRequestsPanel = function () {
+  const modal = document.getElementById('crReviewModal');
+  if (modal) modal.style.display = 'none';
+};
+
+window.filterChangeRequests = async function (status) {
+  crCurrentFilter = status;
+  await loadChangeRequests(status);
+};
+
+async function loadChangeRequests(status) {
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) return;
+  const body = document.getElementById('crReviewBody');
+  if (!body) return;
+  body.innerHTML = '<div style="text-align:center; padding:40px; color:#888;">Loading...</div>';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/tables/${tableId}/change-requests?status=${status}`, {
+      headers: { Authorization: localStorage.getItem('token') }
+    });
+    if (!res.ok) throw new Error('Failed to fetch');
+    const requests = await res.json();
+
+    if (requests.length === 0) {
+      body.innerHTML = `<div style="text-align:center; padding:40px; color:#888;">
+        <span class="material-symbols-outlined" style="font-size:48px; color:#ccc; display:block; margin-bottom:8px;">inbox</span>
+        No ${status === 'all' ? '' : status} change requests.
+      </div>`;
+      return;
+    }
+
+    body.innerHTML = '';
+    requests.forEach(req => {
+      body.appendChild(renderChangeRequestCard(req));
+    });
+  } catch (err) {
+    console.error('[ChangeRequests] Error loading requests:', err);
+    body.innerHTML = '<div style="text-align:center; padding:40px; color:#dc3545;">Failed to load requests.</div>';
+  }
+}
+
+function formatCrDate(dateStr) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+}
+
+function formatCrScheduleDate(dateStr) {
+  if (!dateStr) return '';
+  const [year, month, day] = dateStr.split('-');
+  const d = new Date(year, month - 1, day);
+  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function formatTo12HourCr(time) {
+  if (!time) return '—';
+  const [hour, minute] = time.split(':').map(Number);
+  const h = hour % 12 || 12;
+  const ampm = hour >= 12 ? 'PM' : 'AM';
+  return `${h}:${minute.toString().padStart(2, '0')} ${ampm}`;
+}
+
+function renderChangeRequestCard(req) {
+  const card = document.createElement('div');
+  card.className = 'cr-card';
+  card.id = `cr-card-${req._id}`;
+
+  const isEdit = req.type === 'edit';
+  const isPending = req.status === 'pending';
+
+  // Header
+  const header = document.createElement('div');
+  header.className = 'cr-card-header';
+  header.innerHTML = `
+    <div>
+      <span class="cr-card-type ${req.type}">${isEdit
+        ? '<span class="material-symbols-outlined" style="font-size:14px;">edit</span> Edit'
+        : '<span class="material-symbols-outlined" style="font-size:14px;">add</span> New Entry'}</span>
+      <span style="font-size:13px; color:#555; margin-left:8px; font-weight:500;">${req.clientName || 'Client'}</span>
+    </div>
+    <div class="cr-card-meta">
+      ${formatCrDate(req.createdAt)}
+      ${!isPending ? `<span class="cr-status-badge ${req.status}" style="margin-left:8px;">${req.status}</span>` : ''}
+    </div>
+  `;
+  card.appendChild(header);
+
+  // Date context
+  const dateContext = req.programDate || (req.proposedData && req.proposedData.date) || '';
+  if (dateContext) {
+    const dateEl = document.createElement('div');
+    dateEl.style.cssText = 'font-size:12px; color:#888; margin-bottom:8px;';
+    dateEl.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px; vertical-align:middle;">calendar_today</span> ${formatCrScheduleDate(dateContext)}`;
+    card.appendChild(dateEl);
+  }
+
+  // Diff table
+  const diffTable = document.createElement('table');
+  diffTable.className = 'cr-diff-table';
+
+  const fields = [
+    { key: 'name', label: 'Name' },
+    { key: 'startTime', label: 'Start', format: formatTo12HourCr },
+    { key: 'endTime', label: 'End', format: formatTo12HourCr },
+    { key: 'location', label: 'Location' },
+    { key: 'photographer', label: 'Photographer' },
+    { key: 'notes', label: 'Notes' }
+  ];
+
+  if (isEdit) {
+    // Show diff: original vs proposed
+    let diffHtml = '<thead><tr><th>Field</th><th>Current</th><th>Proposed</th></tr></thead><tbody>';
+    fields.forEach(f => {
+      const orig = (req.originalData && req.originalData[f.key]) || '';
+      const proposed = (req.proposedData && req.proposedData[f.key]) || '';
+      const fmt = f.format || (v => v || '—');
+      const changed = orig !== proposed;
+      if (changed || proposed) {
+        diffHtml += `<tr>
+          <td class="cr-field-label">${f.label}</td>
+          <td class="${changed ? 'cr-old-value' : 'cr-unchanged'}">${fmt(orig)}</td>
+          <td class="${changed ? 'cr-new-value' : 'cr-unchanged'}">${fmt(proposed)}</td>
+        </tr>`;
+      }
+    });
+    diffHtml += '</tbody>';
+    diffTable.innerHTML = diffHtml;
+  } else {
+    // Show proposed data only (new entry)
+    let addHtml = '<thead><tr><th>Field</th><th>Proposed Value</th></tr></thead><tbody>';
+    fields.forEach(f => {
+      const val = (req.proposedData && req.proposedData[f.key]) || '';
+      if (val) {
+        const fmt = f.format || (v => v || '—');
+        addHtml += `<tr>
+          <td class="cr-field-label">${f.label}</td>
+          <td class="cr-new-value">${fmt(val)}</td>
+        </tr>`;
+      }
+    });
+    addHtml += '</tbody>';
+    diffTable.innerHTML = addHtml;
+  }
+  card.appendChild(diffTable);
+
+  // Client message
+  if (req.clientMessage) {
+    const msgEl = document.createElement('div');
+    msgEl.className = 'cr-client-message';
+    msgEl.innerHTML = `<strong>Client note:</strong> ${req.clientMessage}`;
+    card.appendChild(msgEl);
+  }
+
+  // Actions
+  if (isPending) {
+    const actions = document.createElement('div');
+    actions.className = 'cr-card-actions';
+    actions.innerHTML = `
+      <button class="cr-accept-btn" onclick="acceptChangeRequest('${req._id}')">
+        <span class="material-symbols-outlined" style="font-size:16px;">check</span> Accept
+      </button>
+      <button class="cr-reject-btn" onclick="rejectChangeRequest('${req._id}')">
+        <span class="material-symbols-outlined" style="font-size:16px;">close</span> Reject
+      </button>
+      <button class="cr-delete-btn" onclick="deleteChangeRequest('${req._id}')">
+        <span class="material-symbols-outlined" style="font-size:16px;">delete</span>
+      </button>
+    `;
+    card.appendChild(actions);
+  }
+
+  return card;
+}
+
+window.acceptChangeRequest = async function (reqId) {
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/tables/${tableId}/change-requests/${reqId}/accept`, {
+      method: 'PUT',
+      headers: { Authorization: localStorage.getItem('token') }
+    });
+    if (!res.ok) throw new Error('Failed to accept');
+
+    // Refresh the panel and badge
+    await loadChangeRequests(crCurrentFilter);
+    await loadChangeRequestCount();
+
+    // Reload the schedule to show the applied change
+    if (typeof loadPrograms === 'function') {
+      loadPrograms();
+    }
+  } catch (err) {
+    console.error('[ChangeRequests] Error accepting:', err);
+    alert('Failed to accept change request.');
+  }
+};
+
+window.rejectChangeRequest = async function (reqId) {
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/tables/${tableId}/change-requests/${reqId}/reject`, {
+      method: 'PUT',
+      headers: { Authorization: localStorage.getItem('token') }
+    });
+    if (!res.ok) throw new Error('Failed to reject');
+
+    await loadChangeRequests(crCurrentFilter);
+    await loadChangeRequestCount();
+  } catch (err) {
+    console.error('[ChangeRequests] Error rejecting:', err);
+    alert('Failed to reject change request.');
+  }
+};
+
+window.deleteChangeRequest = async function (reqId) {
+  if (!confirm('Delete this change request?')) return;
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) return;
+  try {
+    const res = await fetch(`${API_BASE}/api/tables/${tableId}/change-requests/${reqId}`, {
+      method: 'DELETE',
+      headers: { Authorization: localStorage.getItem('token') }
+    });
+    if (!res.ok) throw new Error('Failed to delete');
+
+    // Remove the card from DOM
+    const card = document.getElementById(`cr-card-${reqId}`);
+    if (card) card.remove();
+
+    await loadChangeRequestCount();
+  } catch (err) {
+    console.error('[ChangeRequests] Error deleting:', err);
+    alert('Failed to delete change request.');
+  }
+};
+
+// Close review panel on overlay click and Escape
+document.addEventListener('click', function(e) {
+  if (e.target && e.target.id === 'crReviewModal') {
+    closeChangeRequestsPanel();
+  }
+});
+document.addEventListener('keydown', function(e) {
+  if (e.key === 'Escape') {
+    const modal = document.getElementById('crReviewModal');
+    if (modal && modal.style.display === 'flex') {
+      closeChangeRequestsPanel();
+    }
+  }
+});
+
+// Load the badge count on schedule init
+setTimeout(() => {
+  loadChangeRequestCount();
+}, 1500);
+
+console.log('✅ [CHANGE-REQUESTS] Change request review system loaded');
+
 })();

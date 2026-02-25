@@ -81,6 +81,227 @@
       font-size: 16px;
     }
 
+    /* Suggest Change button on each card */
+    .suggest-edit-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 4px 10px;
+      font-size: 12px;
+      background: #e3f2fd;
+      color: #1565c0;
+      border: 1px solid #90caf9;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .suggest-edit-btn:hover {
+      background: #1565c0;
+      color: white;
+    }
+    .suggest-edit-btn .material-symbols-outlined {
+      font-size: 16px;
+    }
+
+    /* Suggest New Entry button - override date-header button reset */
+    .schedule-page .date-header .suggest-new-btn {
+      display: inline-flex !important;
+      align-items: center !important;
+      gap: 6px !important;
+      padding: 6px 14px !important;
+      font-size: 12px !important;
+      background: #1565c0 !important;
+      color: white !important;
+      border: none !important;
+      border-radius: 8px !important;
+      cursor: pointer !important;
+      font-weight: 600 !important;
+      transition: all 0.2s !important;
+      margin-left: 8px !important;
+      box-shadow: 0 1px 4px rgba(21,101,192,0.2) !important;
+    }
+    .schedule-page .date-header .suggest-new-btn:hover {
+      background: #0d47a1 !important;
+    }
+    .suggest-new-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      background: #1565c0;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      box-shadow: 0 1px 4px rgba(21,101,192,0.2);
+    }
+    .suggest-new-btn:hover {
+      background: #0d47a1;
+    }
+    .suggest-new-btn .material-symbols-outlined {
+      font-size: 16px;
+    }
+
+    /* Change request modal */
+    .cr-modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      justify-content: center;
+      align-items: center;
+      padding: 20px;
+    }
+    .cr-modal-overlay.active {
+      display: flex;
+    }
+    .cr-modal {
+      background: white;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 520px;
+      max-height: 90vh;
+      overflow-y: auto;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .cr-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .cr-modal-header h3 {
+      margin: 0;
+      font-size: 16px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cr-modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #999;
+      padding: 0;
+      line-height: 1;
+    }
+    .cr-modal-close:hover { color: #333; }
+    .cr-modal-body {
+      padding: 20px;
+    }
+    .cr-modal-body label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #555;
+      margin-bottom: 4px;
+      margin-top: 12px;
+    }
+    .cr-modal-body label:first-child {
+      margin-top: 0;
+    }
+    .cr-modal-body input[type="text"],
+    .cr-modal-body input[type="time"],
+    .cr-modal-body input[type="date"],
+    .cr-modal-body textarea {
+      width: 100%;
+      padding: 8px 12px;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 14px;
+      font-family: 'Roboto', Arial, sans-serif;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+    }
+    .cr-modal-body input:focus,
+    .cr-modal-body textarea:focus {
+      outline: none;
+      border-color: #1565c0;
+    }
+    .cr-modal-body textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+    .cr-modal-body .time-row {
+      display: flex;
+      gap: 12px;
+    }
+    .cr-modal-body .time-row > div {
+      flex: 1;
+    }
+    .cr-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 16px 20px;
+      border-top: 1px solid #eee;
+    }
+    .cr-btn-cancel {
+      padding: 8px 20px;
+      background: #f5f5f5;
+      color: #555;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .cr-btn-cancel:hover { background: #eee; }
+    .cr-btn-submit {
+      padding: 8px 20px;
+      background: #1565c0;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+    .cr-btn-submit:hover { background: #0d47a1; }
+    .cr-btn-submit:disabled {
+      background: #90caf9;
+      cursor: not-allowed;
+    }
+
+    /* Diff highlight for edit modal */
+    .cr-original-value {
+      font-size: 12px;
+      color: #888;
+      margin-top: 2px;
+      font-style: italic;
+    }
+
+    /* Toast notification */
+    .cr-toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #28a745;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 3000;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    .cr-toast.show {
+      display: flex;
+    }
+
     /* Loading and error states */
     .loading-container, .error-container {
       display: flex;
@@ -174,7 +395,7 @@
     <img src="assets/logo.png" alt="Lumetry" onerror="this.style.display='none'">
     <span class="shared-badge">
       <span class="material-symbols-outlined">visibility</span>
-      View Only
+      Client View
     </span>
   </div>
 
@@ -216,6 +437,100 @@
         <div id="scheduleTableView" class="schedule-table-view"></div>
       </div>
     </div>
+  </div>
+
+  <!-- Suggest Edit Modal -->
+  <div id="crEditModal" class="cr-modal-overlay">
+    <div class="cr-modal">
+      <div class="cr-modal-header">
+        <h3><span class="material-symbols-outlined">edit_note</span> Suggest Edit</h3>
+        <button class="cr-modal-close" onclick="closeCrModal('crEditModal')">&times;</button>
+      </div>
+      <div class="cr-modal-body">
+        <p style="font-size:13px; color:#666; margin:0 0 12px;">Suggest changes to this entry. The organizer will review your request.</p>
+        <input type="hidden" id="crEditProgramId">
+        <input type="hidden" id="crEditProgramDate">
+        <label>Your Name (optional)</label>
+        <input type="text" id="crEditClientName" placeholder="Your name">
+        <label>Program Name</label>
+        <input type="text" id="crEditName">
+        <div id="crEditNameOrig" class="cr-original-value"></div>
+        <div class="time-row">
+          <div>
+            <label>Start Time</label>
+            <input type="time" id="crEditStartTime">
+            <div id="crEditStartTimeOrig" class="cr-original-value"></div>
+          </div>
+          <div>
+            <label>End Time</label>
+            <input type="time" id="crEditEndTime">
+            <div id="crEditEndTimeOrig" class="cr-original-value"></div>
+          </div>
+        </div>
+        <label>Location</label>
+        <input type="text" id="crEditLocation">
+        <div id="crEditLocationOrig" class="cr-original-value"></div>
+        <label>Photographer</label>
+        <input type="text" id="crEditPhotographer">
+        <div id="crEditPhotographerOrig" class="cr-original-value"></div>
+        <label>Notes</label>
+        <textarea id="crEditNotes" rows="3"></textarea>
+        <div id="crEditNotesOrig" class="cr-original-value"></div>
+        <label>Message to Organizer (optional)</label>
+        <textarea id="crEditMessage" rows="2" placeholder="Reason for the change..."></textarea>
+      </div>
+      <div class="cr-modal-footer">
+        <button class="cr-btn-cancel" onclick="closeCrModal('crEditModal')">Cancel</button>
+        <button class="cr-btn-submit" id="crEditSubmitBtn" onclick="submitEditRequest()">Submit Suggestion</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suggest New Entry Modal -->
+  <div id="crAddModal" class="cr-modal-overlay">
+    <div class="cr-modal">
+      <div class="cr-modal-header">
+        <h3><span class="material-symbols-outlined">add_circle</span> Suggest New Entry</h3>
+        <button class="cr-modal-close" onclick="closeCrModal('crAddModal')">&times;</button>
+      </div>
+      <div class="cr-modal-body">
+        <p style="font-size:13px; color:#666; margin:0 0 12px;">Suggest a new schedule entry. The organizer will review your request.</p>
+        <label>Your Name (optional)</label>
+        <input type="text" id="crAddClientName" placeholder="Your name">
+        <label>Date</label>
+        <input type="date" id="crAddDate">
+        <label>Program Name</label>
+        <input type="text" id="crAddName" placeholder="Program name">
+        <div class="time-row">
+          <div>
+            <label>Start Time</label>
+            <input type="time" id="crAddStartTime">
+          </div>
+          <div>
+            <label>End Time</label>
+            <input type="time" id="crAddEndTime">
+          </div>
+        </div>
+        <label>Location</label>
+        <input type="text" id="crAddLocation" placeholder="Location">
+        <label>Photographer</label>
+        <input type="text" id="crAddPhotographer" placeholder="Photographer">
+        <label>Notes</label>
+        <textarea id="crAddNotes" rows="3" placeholder="Notes"></textarea>
+        <label>Message to Organizer (optional)</label>
+        <textarea id="crAddMessage" rows="2" placeholder="Additional context..."></textarea>
+      </div>
+      <div class="cr-modal-footer">
+        <button class="cr-btn-cancel" onclick="closeCrModal('crAddModal')">Cancel</button>
+        <button class="cr-btn-submit" id="crAddSubmitBtn" onclick="submitAddRequest()">Submit Suggestion</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div id="crToast" class="cr-toast">
+    <span class="material-symbols-outlined">check_circle</span>
+    <span id="crToastMsg">Suggestion submitted!</span>
   </div>
 
   <!-- Config: detect environment for API_BASE -->

@@ -222,12 +222,27 @@
 
       const headerWrapper = document.createElement('div');
       headerWrapper.className = 'date-header';
-      headerWrapper.innerHTML = `<div class="date-title">${formatDate(date)}</div>`;
+      headerWrapper.innerHTML = `
+        <div class="date-title">${formatDate(date)}</div>
+        <button class="suggest-new-btn" onclick="openAddModal('${date}')">
+          <span class="material-symbols-outlined">add_circle</span> Suggest Entry
+        </button>
+      `;
       section.appendChild(headerWrapper);
 
       sorted.forEach(program => {
         const entry = document.createElement('div');
         entry.className = 'program-entry' + (program.done ? ' done-entry' : '');
+        const escapedProgram = encodeURIComponent(JSON.stringify({
+          _id: program._id,
+          date: program.date,
+          name: program.name || '',
+          startTime: program.startTime || '',
+          endTime: program.endTime || '',
+          location: program.location || '',
+          photographer: program.photographer || '',
+          notes: program.notes || ''
+        }));
 
         entry.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; gap: 4px;" class="time-row">
@@ -243,8 +258,11 @@
                 value="${program.endTime || ''}"
                 readonly>
             </div>
-            <div class="right-actions" style="flex-shrink: 0; margin-left: auto;">
+            <div class="right-actions" style="flex-shrink: 0; margin-left: auto; display: flex; align-items: center; gap: 6px;">
               ${program.done ? '<span class="material-symbols-outlined" style="color: #28a745; font-size: 20px;">check_circle</span>' : ''}
+              <button class="suggest-edit-btn" onclick="openEditModal('${escapedProgram}')">
+                <span class="material-symbols-outlined">edit_note</span>
+              </button>
             </div>
           </div>
           <div style="display: flex; align-items: center; gap: 12px;">
@@ -322,6 +340,7 @@
           <th>Photographer</th>
           <th>Notes</th>
           <th>Done</th>
+          <th style="width: 50px;"></th>
         </tr>
       `;
       table.appendChild(thead);
@@ -330,6 +349,16 @@
       sorted.forEach(program => {
         const row = document.createElement('tr');
         row.className = program.done ? 'done-row' : '';
+        const escapedProgram = encodeURIComponent(JSON.stringify({
+          _id: program._id,
+          date: program.date,
+          name: program.name || '',
+          startTime: program.startTime || '',
+          endTime: program.endTime || '',
+          location: program.location || '',
+          photographer: program.photographer || '',
+          notes: program.notes || ''
+        }));
 
         row.innerHTML = `
           <td><span class="cell-display">${formatTo12Hour(program.startTime || '')}</span></td>
@@ -343,10 +372,26 @@
               ? '<span class="material-symbols-outlined" style="color: #28a745; font-size: 20px;">check_circle</span>'
               : '<span style="color: #ccc;">—</span>'}
           </td>
+          <td>
+            <button class="suggest-edit-btn" onclick="openEditModal('${escapedProgram}')" title="Suggest Edit">
+              <span class="material-symbols-outlined">edit_note</span>
+            </button>
+          </td>
         `;
 
         tbody.appendChild(row);
       });
+
+      // Add a "Suggest New Entry" row at the bottom
+      const addRow = document.createElement('tr');
+      addRow.innerHTML = `
+        <td colspan="8" style="text-align: center; padding: 8px;">
+          <button class="suggest-new-btn" onclick="openAddModal('${date}')" style="margin: 0;">
+            <span class="material-symbols-outlined">add_circle</span> Suggest New Entry
+          </button>
+        </td>
+      `;
+      tbody.appendChild(addRow);
 
       table.appendChild(tbody);
       section.appendChild(table);
@@ -387,6 +432,204 @@
       }
     });
   }
+
+  // ---- Change Request Modal Logic ----
+
+  function showToast(msg) {
+    const toast = document.getElementById('crToast');
+    const msgEl = document.getElementById('crToastMsg');
+    if (!toast || !msgEl) return;
+    msgEl.textContent = msg;
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3500);
+  }
+
+  window.closeCrModal = function (modalId) {
+    const modal = document.getElementById(modalId);
+    if (modal) modal.classList.remove('active');
+  };
+
+  window.openEditModal = function (encodedProgram) {
+    const program = JSON.parse(decodeURIComponent(encodedProgram));
+    const modal = document.getElementById('crEditModal');
+    if (!modal) return;
+
+    // Store original data
+    document.getElementById('crEditProgramId').value = program._id || '';
+    document.getElementById('crEditProgramDate').value = program.date || '';
+
+    // Pre-fill fields with current values
+    document.getElementById('crEditName').value = program.name || '';
+    document.getElementById('crEditStartTime').value = program.startTime || '';
+    document.getElementById('crEditEndTime').value = program.endTime || '';
+    document.getElementById('crEditLocation').value = program.location || '';
+    document.getElementById('crEditPhotographer').value = program.photographer || '';
+    document.getElementById('crEditNotes').value = program.notes || '';
+    document.getElementById('crEditMessage').value = '';
+
+    // Persist client name across modals
+    const savedName = sessionStorage.getItem('crClientName') || '';
+    document.getElementById('crEditClientName').value = savedName;
+
+    // Show original values below each field
+    document.getElementById('crEditNameOrig').textContent = program.name ? `Current: ${program.name}` : '';
+    document.getElementById('crEditStartTimeOrig').textContent = program.startTime ? `Current: ${formatTo12Hour(program.startTime)}` : '';
+    document.getElementById('crEditEndTimeOrig').textContent = program.endTime ? `Current: ${formatTo12Hour(program.endTime)}` : '';
+    document.getElementById('crEditLocationOrig').textContent = program.location ? `Current: ${program.location}` : '';
+    document.getElementById('crEditPhotographerOrig').textContent = program.photographer ? `Current: ${program.photographer}` : '';
+    document.getElementById('crEditNotesOrig').textContent = program.notes ? `Current: ${program.notes}` : '';
+
+    // Store original data on the modal for submission
+    modal.dataset.originalData = JSON.stringify(program);
+
+    modal.classList.add('active');
+  };
+
+  window.openAddModal = function (date) {
+    const modal = document.getElementById('crAddModal');
+    if (!modal) return;
+
+    // Clear fields
+    document.getElementById('crAddDate').value = date || '';
+    document.getElementById('crAddName').value = '';
+    document.getElementById('crAddStartTime').value = '';
+    document.getElementById('crAddEndTime').value = '';
+    document.getElementById('crAddLocation').value = '';
+    document.getElementById('crAddPhotographer').value = '';
+    document.getElementById('crAddNotes').value = '';
+    document.getElementById('crAddMessage').value = '';
+
+    // Persist client name
+    const savedName = sessionStorage.getItem('crClientName') || '';
+    document.getElementById('crAddClientName').value = savedName;
+
+    modal.classList.add('active');
+  };
+
+  window.submitEditRequest = async function () {
+    const btn = document.getElementById('crEditSubmitBtn');
+    if (btn.disabled) return;
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+
+    const shareToken = getShareToken();
+    const modal = document.getElementById('crEditModal');
+    const originalData = JSON.parse(modal.dataset.originalData || '{}');
+
+    const clientName = document.getElementById('crEditClientName').value.trim();
+    if (clientName) sessionStorage.setItem('crClientName', clientName);
+
+    const proposedData = {
+      name: document.getElementById('crEditName').value.trim(),
+      startTime: document.getElementById('crEditStartTime').value,
+      endTime: document.getElementById('crEditEndTime').value,
+      location: document.getElementById('crEditLocation').value.trim(),
+      photographer: document.getElementById('crEditPhotographer').value.trim(),
+      notes: document.getElementById('crEditNotes').value.trim()
+    };
+
+    try {
+      const res = await fetch(`${API_BASE}/api/shared-schedule/${shareToken}/change-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'edit',
+          programId: document.getElementById('crEditProgramId').value,
+          programDate: document.getElementById('crEditProgramDate').value,
+          proposedData,
+          originalData: {
+            name: originalData.name || '',
+            startTime: originalData.startTime || '',
+            endTime: originalData.endTime || '',
+            location: originalData.location || '',
+            photographer: originalData.photographer || '',
+            notes: originalData.notes || ''
+          },
+          clientName: clientName || 'Client',
+          clientMessage: document.getElementById('crEditMessage').value.trim()
+        })
+      });
+
+      if (!res.ok) throw new Error('Failed to submit');
+
+      closeCrModal('crEditModal');
+      showToast('Edit suggestion submitted for review!');
+    } catch (err) {
+      console.error('Error submitting edit request:', err);
+      alert('Failed to submit suggestion. Please try again.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Submit Suggestion';
+    }
+  };
+
+  window.submitAddRequest = async function () {
+    const btn = document.getElementById('crAddSubmitBtn');
+    if (btn.disabled) return;
+
+    const date = document.getElementById('crAddDate').value;
+    const name = document.getElementById('crAddName').value.trim();
+    if (!date) {
+      alert('Please select a date.');
+      return;
+    }
+    if (!name) {
+      alert('Please enter a program name.');
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Submitting...';
+
+    const shareToken = getShareToken();
+    const clientName = document.getElementById('crAddClientName').value.trim();
+    if (clientName) sessionStorage.setItem('crClientName', clientName);
+
+    try {
+      const res = await fetch(`${API_BASE}/api/shared-schedule/${shareToken}/change-requests`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'add',
+          programDate: date,
+          proposedData: {
+            date,
+            name,
+            startTime: document.getElementById('crAddStartTime').value,
+            endTime: document.getElementById('crAddEndTime').value,
+            location: document.getElementById('crAddLocation').value.trim(),
+            photographer: document.getElementById('crAddPhotographer').value.trim(),
+            notes: document.getElementById('crAddNotes').value.trim()
+          },
+          clientName: clientName || 'Client',
+          clientMessage: document.getElementById('crAddMessage').value.trim()
+        })
+      });
+
+      if (!res.ok) throw new Error('Failed to submit');
+
+      closeCrModal('crAddModal');
+      showToast('New entry suggestion submitted for review!');
+    } catch (err) {
+      console.error('Error submitting add request:', err);
+      alert('Failed to submit suggestion. Please try again.');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Submit Suggestion';
+    }
+  };
+
+  // Close modals on overlay click or Escape
+  document.addEventListener('click', function (e) {
+    if (e.target.classList.contains('cr-modal-overlay')) {
+      e.target.classList.remove('active');
+    }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      document.querySelectorAll('.cr-modal-overlay.active').forEach(m => m.classList.remove('active'));
+    }
+  });
 
   // ---- Init ----
 
