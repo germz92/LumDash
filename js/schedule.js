@@ -5498,6 +5498,8 @@ window.openChangeRequestsPanel = async function () {
   crCurrentFilter = 'pending';
   const filterEl = document.getElementById('crStatusFilter');
   if (filterEl) filterEl.value = 'pending';
+  const sectionEl = document.getElementById('crSectionFilter');
+  if (sectionEl) sectionEl.value = 'all';
 
   // Populate the share link at the top
   const tableId = currentEventId || localStorage.getItem('eventId');
@@ -5523,7 +5525,7 @@ window.openChangeRequestsPanel = async function () {
     }
   }
 
-  await loadChangeRequests('pending');
+  await loadChangeRequests('pending', 'all');
 };
 
 window.copyCrShareLink = function () {
@@ -5543,12 +5545,16 @@ window.closeChangeRequestsPanel = function () {
   if (modal) modal.style.display = 'none';
 };
 
-window.filterChangeRequests = async function (status) {
-  crCurrentFilter = status;
-  await loadChangeRequests(status);
+window.filterChangeRequests = async function () {
+  const statusEl = document.getElementById('crStatusFilter');
+  const sectionEl = document.getElementById('crSectionFilter');
+  crCurrentFilter = statusEl ? statusEl.value : 'pending';
+  const sectionFilter = sectionEl ? sectionEl.value : 'all';
+  await loadChangeRequests(crCurrentFilter, sectionFilter);
 };
 
-async function loadChangeRequests(status) {
+async function loadChangeRequests(status, sectionFilter) {
+  sectionFilter = sectionFilter || 'all';
   const tableId = currentEventId || localStorage.getItem('eventId');
   if (!tableId) return;
   const body = document.getElementById('crReviewBody');
@@ -5560,12 +5566,17 @@ async function loadChangeRequests(status) {
       headers: { Authorization: localStorage.getItem('token') }
     });
     if (!res.ok) throw new Error('Failed to fetch');
-    const requests = await res.json();
+    let requests = await res.json();
+
+    // Filter by section if needed
+    if (sectionFilter !== 'all') {
+      requests = requests.filter(r => (r.section || 'schedule') === sectionFilter);
+    }
 
     if (requests.length === 0) {
       body.innerHTML = `<div style="text-align:center; padding:40px; color:#888;">
         <span class="material-symbols-outlined" style="font-size:48px; color:#ccc; display:block; margin-bottom:8px;">inbox</span>
-        No ${status === 'all' ? '' : status} change requests.
+        No ${status === 'all' ? '' : status} change requests${sectionFilter !== 'all' ? ` for ${sectionFilter}` : ''}.
       </div>`;
       return;
     }
@@ -5608,15 +5619,27 @@ function renderChangeRequestCard(req) {
 
   const isEdit = req.type === 'edit';
   const isPending = req.status === 'pending';
+  const isShotlist = req.section === 'shotlist';
 
   // Header
   const header = document.createElement('div');
   header.className = 'cr-card-header';
+  
+  let typeLabel;
+  if (isShotlist) {
+    typeLabel = isEdit
+      ? '<span class="material-symbols-outlined" style="font-size:14px;">edit</span> Edit Item'
+      : '<span class="material-symbols-outlined" style="font-size:14px;">add</span> New Item';
+  } else {
+    typeLabel = isEdit
+      ? '<span class="material-symbols-outlined" style="font-size:14px;">edit</span> Edit'
+      : '<span class="material-symbols-outlined" style="font-size:14px;">add</span> New Entry';
+  }
+
   header.innerHTML = `
     <div>
-      <span class="cr-card-type ${req.type}">${isEdit
-        ? '<span class="material-symbols-outlined" style="font-size:14px;">edit</span> Edit'
-        : '<span class="material-symbols-outlined" style="font-size:14px;">add</span> New Entry'}</span>
+      ${isShotlist ? '<span style="font-size:11px; background:#e8f5e9; color:#2e7d32; padding:2px 8px; border-radius:4px; font-weight:600; margin-right:6px;">SHOTLIST</span>' : ''}
+      <span class="cr-card-type ${req.type}">${typeLabel}</span>
       <span style="font-size:13px; color:#555; margin-left:8px; font-weight:500;">${req.clientName || 'Client'}</span>
     </div>
     <div class="cr-card-meta">
@@ -5626,63 +5649,105 @@ function renderChangeRequestCard(req) {
   `;
   card.appendChild(header);
 
-  // Date context
-  const dateContext = req.programDate || (req.proposedData && req.proposedData.date) || '';
-  if (dateContext) {
-    const dateEl = document.createElement('div');
-    dateEl.style.cssText = 'font-size:12px; color:#888; margin-bottom:8px;';
-    dateEl.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px; vertical-align:middle;">calendar_today</span> ${formatCrScheduleDate(dateContext)}`;
-    card.appendChild(dateEl);
-  }
+  if (isShotlist) {
+    // Shotlist context
+    if (req.shotlistName) {
+      const listEl = document.createElement('div');
+      listEl.style.cssText = 'font-size:12px; color:#888; margin-bottom:8px;';
+      listEl.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px; vertical-align:middle;">checklist</span> List: <strong>${req.shotlistName}</strong>`;
+      card.appendChild(listEl);
+    }
 
-  // Diff table
-  const diffTable = document.createElement('table');
-  diffTable.className = 'cr-diff-table';
+    // Shotlist diff table
+    const diffTable = document.createElement('table');
+    diffTable.className = 'cr-diff-table';
 
-  const fields = [
-    { key: 'name', label: 'Name' },
-    { key: 'startTime', label: 'Start', format: formatTo12HourCr },
-    { key: 'endTime', label: 'End', format: formatTo12HourCr },
-    { key: 'location', label: 'Location' },
-    { key: 'photographer', label: 'Photographer' },
-    { key: 'notes', label: 'Notes' }
-  ];
-
-  if (isEdit) {
-    // Show diff: original vs proposed
-    let diffHtml = '<thead><tr><th>Field</th><th>Current</th><th>Proposed</th></tr></thead><tbody>';
-    fields.forEach(f => {
-      const orig = (req.originalData && req.originalData[f.key]) || '';
-      const proposed = (req.proposedData && req.proposedData[f.key]) || '';
-      const fmt = f.format || (v => v || '—');
-      const changed = orig !== proposed;
-      if (changed || proposed) {
-        diffHtml += `<tr>
-          <td class="cr-field-label">${f.label}</td>
-          <td class="${changed ? 'cr-old-value' : 'cr-unchanged'}">${fmt(orig)}</td>
-          <td class="${changed ? 'cr-new-value' : 'cr-unchanged'}">${fmt(proposed)}</td>
-        </tr>`;
-      }
-    });
-    diffHtml += '</tbody>';
-    diffTable.innerHTML = diffHtml;
+    if (isEdit) {
+      const origTitle = (req.originalItemData && req.originalItemData.title) || '';
+      const newTitle = (req.proposedItemData && req.proposedItemData.title) || '';
+      const changed = origTitle !== newTitle;
+      diffTable.innerHTML = `
+        <thead><tr><th>Field</th><th>Current</th><th>Proposed</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="cr-field-label">Title</td>
+            <td class="${changed ? 'cr-old-value' : 'cr-unchanged'}">${origTitle || '—'}</td>
+            <td class="${changed ? 'cr-new-value' : 'cr-unchanged'}">${newTitle || '—'}</td>
+          </tr>
+        </tbody>
+      `;
+    } else {
+      const newTitle = (req.proposedItemData && req.proposedItemData.title) || '';
+      diffTable.innerHTML = `
+        <thead><tr><th>Field</th><th>Proposed Value</th></tr></thead>
+        <tbody>
+          <tr>
+            <td class="cr-field-label">Title</td>
+            <td class="cr-new-value">${newTitle || '—'}</td>
+          </tr>
+        </tbody>
+      `;
+    }
+    card.appendChild(diffTable);
   } else {
-    // Show proposed data only (new entry)
-    let addHtml = '<thead><tr><th>Field</th><th>Proposed Value</th></tr></thead><tbody>';
-    fields.forEach(f => {
-      const val = (req.proposedData && req.proposedData[f.key]) || '';
-      if (val) {
+    // Date context
+    const dateContext = req.programDate || (req.proposedData && req.proposedData.date) || '';
+    if (dateContext) {
+      const dateEl = document.createElement('div');
+      dateEl.style.cssText = 'font-size:12px; color:#888; margin-bottom:8px;';
+      dateEl.innerHTML = `<span class="material-symbols-outlined" style="font-size:14px; vertical-align:middle;">calendar_today</span> ${formatCrScheduleDate(dateContext)}`;
+      card.appendChild(dateEl);
+    }
+
+    // Diff table
+    const diffTable = document.createElement('table');
+    diffTable.className = 'cr-diff-table';
+
+    const fields = [
+      { key: 'name', label: 'Name' },
+      { key: 'startTime', label: 'Start', format: formatTo12HourCr },
+      { key: 'endTime', label: 'End', format: formatTo12HourCr },
+      { key: 'location', label: 'Location' },
+      { key: 'photographer', label: 'Photographer' },
+      { key: 'notes', label: 'Notes' }
+    ];
+
+    if (isEdit) {
+      // Show diff: original vs proposed
+      let diffHtml = '<thead><tr><th>Field</th><th>Current</th><th>Proposed</th></tr></thead><tbody>';
+      fields.forEach(f => {
+        const orig = (req.originalData && req.originalData[f.key]) || '';
+        const proposed = (req.proposedData && req.proposedData[f.key]) || '';
         const fmt = f.format || (v => v || '—');
-        addHtml += `<tr>
-          <td class="cr-field-label">${f.label}</td>
-          <td class="cr-new-value">${fmt(val)}</td>
-        </tr>`;
-      }
-    });
-    addHtml += '</tbody>';
-    diffTable.innerHTML = addHtml;
+        const changed = orig !== proposed;
+        if (changed || proposed) {
+          diffHtml += `<tr>
+            <td class="cr-field-label">${f.label}</td>
+            <td class="${changed ? 'cr-old-value' : 'cr-unchanged'}">${fmt(orig)}</td>
+            <td class="${changed ? 'cr-new-value' : 'cr-unchanged'}">${fmt(proposed)}</td>
+          </tr>`;
+        }
+      });
+      diffHtml += '</tbody>';
+      diffTable.innerHTML = diffHtml;
+    } else {
+      // Show proposed data only (new entry)
+      let addHtml = '<thead><tr><th>Field</th><th>Proposed Value</th></tr></thead><tbody>';
+      fields.forEach(f => {
+        const val = (req.proposedData && req.proposedData[f.key]) || '';
+        if (val) {
+          const fmt = f.format || (v => v || '—');
+          addHtml += `<tr>
+            <td class="cr-field-label">${f.label}</td>
+            <td class="cr-new-value">${fmt(val)}</td>
+          </tr>`;
+        }
+      });
+      addHtml += '</tbody>';
+      diffTable.innerHTML = addHtml;
+    }
+    card.appendChild(diffTable);
   }
-  card.appendChild(diffTable);
 
   // Client message
   if (req.clientMessage) {
@@ -5713,6 +5778,11 @@ function renderChangeRequestCard(req) {
   return card;
 }
 
+function getCurrentSectionFilter() {
+  const el = document.getElementById('crSectionFilter');
+  return el ? el.value : 'all';
+}
+
 window.acceptChangeRequest = async function (reqId) {
   const tableId = currentEventId || localStorage.getItem('eventId');
   if (!tableId) return;
@@ -5724,7 +5794,7 @@ window.acceptChangeRequest = async function (reqId) {
     if (!res.ok) throw new Error('Failed to accept');
 
     // Refresh the panel and badge
-    await loadChangeRequests(crCurrentFilter);
+    await loadChangeRequests(crCurrentFilter, getCurrentSectionFilter());
     await loadChangeRequestCount();
 
     // Reload the schedule to show the applied change
@@ -5747,7 +5817,7 @@ window.rejectChangeRequest = async function (reqId) {
     });
     if (!res.ok) throw new Error('Failed to reject');
 
-    await loadChangeRequests(crCurrentFilter);
+    await loadChangeRequests(crCurrentFilter, getCurrentSectionFilter());
     await loadChangeRequestCount();
   } catch (err) {
     console.error('[ChangeRequests] Error rejecting:', err);

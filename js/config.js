@@ -89,6 +89,7 @@ console.log('✅ Config loaded - Version:', window.LUMDASH_VERSION);
     pathname.endsWith('/reset-password.html') || // ✅ Allow reset password page
     pathname.endsWith('/dashboard.html') || // ✅ Allow dashboard to load SPA
     pathname.endsWith('/shared-schedule.html') || // ✅ Allow public shared schedule page
+    pathname.endsWith('/shared-shotlist.html') || // ✅ Allow public shared shotlist page
     pathname === '/' ||
     pathname === '' ||
     window.location.href.toLowerCase().endsWith('/');

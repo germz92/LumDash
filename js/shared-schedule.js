@@ -75,6 +75,9 @@
 
   // ---- Data Loading ----
 
+  let autoRefreshInterval = null;
+  const AUTO_REFRESH_MS = 60000; // 60 seconds
+
   async function loadSharedSchedule() {
     const shareToken = getShareToken();
     if (!shareToken) {
@@ -102,10 +105,52 @@
       populateDateFilter();
       initializeView();
       render();
+
+      // Start auto-refresh after initial load
+      startAutoRefresh();
     } catch (err) {
       console.error('Error loading shared schedule:', err);
       showError();
     }
+  }
+
+  // Silent auto-refresh: re-fetches data and re-renders without resetting filters, search, or scroll
+  async function silentRefresh() {
+    const shareToken = getShareToken();
+    if (!shareToken) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/shared-schedule/${shareToken}`);
+      if (!res.ok) return; // Silently skip on error
+
+      const data = await res.json();
+      const newTitle = data.title || 'Program Schedule';
+      const newData = data.programSchedule || [];
+
+      // Only re-render if data actually changed
+      if (JSON.stringify(newData) !== JSON.stringify(scheduleData) || newTitle !== eventTitle) {
+        eventTitle = newTitle;
+        scheduleData = newData;
+
+        document.getElementById('eventTitle').textContent = eventTitle;
+        document.title = `${eventTitle} - Schedule`;
+
+        populateDateFilter();
+        render();
+        console.log('[AutoRefresh] Schedule data updated');
+      }
+
+      // Also refresh the badge count
+      updateMyReqBadge();
+    } catch (err) {
+      console.log('[AutoRefresh] Silent refresh failed, will retry next cycle');
+    }
+  }
+
+  function startAutoRefresh() {
+    if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+    autoRefreshInterval = setInterval(silentRefresh, AUTO_REFRESH_MS);
+    console.log(`[AutoRefresh] Started - refreshing every ${AUTO_REFRESH_MS / 1000}s`);
   }
 
   function showError() {
@@ -554,6 +599,7 @@
 
       closeCrModal('crEditModal');
       showToast('Edit suggestion submitted for review!');
+      updateMyReqBadge();
     } catch (err) {
       console.error('Error submitting edit request:', err);
       alert('Failed to submit suggestion. Please try again.');
@@ -610,6 +656,7 @@
 
       closeCrModal('crAddModal');
       showToast('New entry suggestion submitted for review!');
+      updateMyReqBadge();
     } catch (err) {
       console.error('Error submitting add request:', err);
       alert('Failed to submit suggestion. Please try again.');
@@ -619,22 +666,192 @@
     }
   };
 
+  // ---- My Requests Panel ----
+
+  let myRequestsData = [];
+  let myReqCurrentFilter = 'all';
+
+  window.openMyRequests = async function () {
+    const overlay = document.getElementById('myRequestsOverlay');
+    if (overlay) overlay.classList.add('active');
+    myReqCurrentFilter = 'all';
+    // Reset filter buttons
+    document.querySelectorAll('.my-req-filter button').forEach(b => b.classList.remove('active'));
+    const allBtn = document.querySelector('.my-req-filter button[data-filter="all"]');
+    if (allBtn) allBtn.classList.add('active');
+    await loadMyRequests();
+  };
+
+  window.closeMyRequests = function () {
+    const overlay = document.getElementById('myRequestsOverlay');
+    if (overlay) overlay.classList.remove('active');
+  };
+
+  window.filterMyRequests = function (filter, btn) {
+    myReqCurrentFilter = filter;
+    document.querySelectorAll('.my-req-filter button').forEach(b => b.classList.remove('active'));
+    if (btn) btn.classList.add('active');
+    renderMyRequests();
+  };
+
+  async function loadMyRequests() {
+    const body = document.getElementById('myRequestsBody');
+    if (!body) return;
+    body.innerHTML = '<div style="text-align:center; padding:40px; color:#888;">Loading...</div>';
+
+    const shareToken = getShareToken();
+    if (!shareToken) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/api/shared-schedule/${shareToken}/change-requests/mine`);
+      if (!res.ok) throw new Error('Failed to fetch');
+      myRequestsData = await res.json();
+      renderMyRequests();
+    } catch (err) {
+      console.error('Error loading my requests:', err);
+      body.innerHTML = '<div style="text-align:center; padding:40px; color:#999;">Failed to load requests.</div>';
+    }
+  }
+
+  function renderMyRequests() {
+    const body = document.getElementById('myRequestsBody');
+    if (!body) return;
+
+    let filtered = myRequestsData;
+    if (myReqCurrentFilter !== 'all') {
+      filtered = myRequestsData.filter(r => r.status === myReqCurrentFilter);
+    }
+
+    if (filtered.length === 0) {
+      body.innerHTML = `
+        <div class="my-req-empty">
+          <span class="material-symbols-outlined">inbox</span>
+          <p>${myReqCurrentFilter === 'all' ? 'No requests submitted yet.' : 'No ' + myReqCurrentFilter + ' requests.'}</p>
+        </div>
+      `;
+      return;
+    }
+
+    body.innerHTML = filtered.map(req => renderMyRequestCard(req)).join('');
+  }
+
+  function renderMyRequestCard(req) {
+    const statusIcon = req.status === 'pending' ? 'schedule' : req.status === 'accepted' ? 'check_circle' : 'cancel';
+    const statusLabel = req.status.charAt(0).toUpperCase() + req.status.slice(1);
+    const typeLabel = req.type === 'edit' ? 'Edit' : 'New Entry';
+    const sectionLabel = req.section === 'shotlist' ? 'Shotlist' : 'Schedule';
+
+    let details = '';
+    if (req.section === 'schedule') {
+      const d = req.type === 'edit' ? req.proposedData : req.proposedData;
+      if (d) {
+        if (d.name) details += `<div class="detail-row"><span class="detail-label">Name:</span><span>${escapeHtmlStr(d.name)}</span></div>`;
+        if (d.date) details += `<div class="detail-row"><span class="detail-label">Date:</span><span>${d.date}</span></div>`;
+        if (d.startTime) details += `<div class="detail-row"><span class="detail-label">Time:</span><span>${formatTo12Hour(d.startTime)}${d.endTime ? ' - ' + formatTo12Hour(d.endTime) : ''}</span></div>`;
+        if (d.location) details += `<div class="detail-row"><span class="detail-label">Location:</span><span>${escapeHtmlStr(d.location)}</span></div>`;
+      }
+    } else if (req.section === 'shotlist') {
+      if (req.shotlistName) details += `<div class="detail-row"><span class="detail-label">List:</span><span>${escapeHtmlStr(req.shotlistName)}</span></div>`;
+      const itemData = req.proposedItemData || {};
+      if (itemData.title) details += `<div class="detail-row"><span class="detail-label">Item:</span><span>${escapeHtmlStr(itemData.title)}</span></div>`;
+    }
+
+    const timeAgo = getTimeAgo(new Date(req.createdAt));
+    const message = req.clientMessage ? `<div class="my-req-message">"${escapeHtmlStr(req.clientMessage)}"</div>` : '';
+
+    return `
+      <div class="my-req-card">
+        <div class="my-req-card-header">
+          <div style="display:flex; gap:6px; align-items:center;">
+            <span class="my-req-type-badge ${req.type}">${typeLabel}</span>
+            <span class="my-req-section-badge">${sectionLabel}</span>
+          </div>
+          <span class="my-req-status ${req.status}">
+            <span class="material-symbols-outlined" style="font-size:14px;">${statusIcon}</span>
+            ${statusLabel}
+          </span>
+        </div>
+        <div class="my-req-details">${details || '<span style="color:#bbb;">No details</span>'}</div>
+        ${message}
+        <div class="my-req-time">${timeAgo}</div>
+      </div>
+    `;
+  }
+
+  function escapeHtmlStr(text) {
+    const div = document.createElement('div');
+    div.textContent = text || '';
+    return div.innerHTML;
+  }
+
+  function getTimeAgo(date) {
+    const now = new Date();
+    const diffMs = now - date;
+    const diffMins = Math.floor(diffMs / 60000);
+    if (diffMins < 1) return 'Just now';
+    if (diffMins < 60) return `${diffMins}m ago`;
+    const diffHours = Math.floor(diffMins / 60);
+    if (diffHours < 24) return `${diffHours}h ago`;
+    const diffDays = Math.floor(diffHours / 24);
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  }
+
+  async function updateMyReqBadge() {
+    const shareToken = getShareToken();
+    if (!shareToken) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/shared-schedule/${shareToken}/change-requests/mine`);
+      if (!res.ok) return;
+      const data = await res.json();
+      const pendingCount = data.filter(r => r.status === 'pending').length;
+      const badge = document.getElementById('myReqBadge');
+      if (badge) {
+        if (pendingCount > 0) {
+          badge.textContent = pendingCount;
+          badge.style.display = 'flex';
+        } else {
+          badge.style.display = 'none';
+        }
+      }
+    } catch (err) {
+      // Silently fail
+    }
+  }
+
   // Close modals on overlay click or Escape
   document.addEventListener('click', function (e) {
-    if (e.target.classList.contains('cr-modal-overlay')) {
+    if (e.target.classList.contains('cr-modal-overlay') || e.target.classList.contains('my-requests-overlay')) {
       e.target.classList.remove('active');
     }
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
-      document.querySelectorAll('.cr-modal-overlay.active').forEach(m => m.classList.remove('active'));
+      document.querySelectorAll('.cr-modal-overlay.active, .my-requests-overlay.active').forEach(m => m.classList.remove('active'));
     }
   });
+
+  // ---- Navigation ----
+
+  function setupNavigation() {
+    const token = getShareToken();
+    const navSchedule = document.getElementById('navSchedule');
+    const navShotlist = document.getElementById('navShotlist');
+
+    if (navSchedule) {
+      navSchedule.href = `shared-schedule.html?token=${token}`;
+    }
+    if (navShotlist) {
+      navShotlist.href = `shared-shotlist.html?token=${token}`;
+    }
+  }
 
   // ---- Init ----
 
   document.addEventListener('DOMContentLoaded', function () {
+    setupNavigation();
     setupEventListeners();
     loadSharedSchedule();
+    updateMyReqBadge();
   });
 })();
