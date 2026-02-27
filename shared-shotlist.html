@@ -393,6 +393,8 @@
       max-width: 460px;
       max-height: 90vh;
       overflow-y: auto;
+      overflow-x: hidden;
+      box-sizing: border-box;
       box-shadow: 0 8px 32px rgba(0,0,0,0.2);
     }
     .cr-modal-header {
@@ -422,6 +424,7 @@
     .cr-modal-close:hover { color: #333; }
     .cr-modal-body {
       padding: 20px;
+      overflow-x: hidden;
     }
     .cr-modal-body label {
       display: block;
@@ -460,6 +463,31 @@
       gap: 8px;
       padding: 16px 20px;
       border-top: 1px solid #eee;
+    }
+
+    /* Mobile modal fixes */
+    @media (max-width: 480px) {
+      .cr-modal-overlay {
+        padding: 10px;
+      }
+      .cr-modal {
+        max-height: 95vh;
+        border-radius: 10px;
+      }
+      .cr-modal-header {
+        padding: 12px 16px;
+      }
+      .cr-modal-body {
+        padding: 16px;
+      }
+      .cr-modal-footer {
+        padding: 12px 16px;
+      }
+      .cr-btn-cancel,
+      .cr-btn-submit {
+        padding: 10px 16px;
+        font-size: 13px;
+      }
     }
     .cr-btn-cancel {
       padding: 8px 20px;
