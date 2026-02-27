@@ -80,7 +80,12 @@
       <div class="cr-review-header">
         <h3><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">rate_review</span>Client Change Requests</h3>
         <div style="display: flex; align-items: center; gap: 8px;">
-          <select id="crStatusFilter" onchange="filterChangeRequests(this.value)" style="padding:6px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+          <select id="crSectionFilter" onchange="filterChangeRequests()" style="padding:6px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
+            <option value="all">All Sections</option>
+            <option value="schedule">Schedule</option>
+            <option value="shotlist">Shotlist</option>
+          </select>
+          <select id="crStatusFilter" onchange="filterChangeRequests()" style="padding:6px 10px; border:1px solid #ddd; border-radius:6px; font-size:13px;">
             <option value="pending">Pending</option>
             <option value="accepted">Accepted</option>
             <option value="rejected">Rejected</option>
