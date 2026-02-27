@@ -2833,6 +2833,74 @@ app.get('/api/shared-schedule/:shareToken', async (req, res) => {
   }
 });
 
+// Public endpoint: Get shared shotlist data (NO authentication required)
+app.get('/api/shared-shotlist/:shareToken', async (req, res) => {
+  try {
+    const { shareToken } = req.params;
+    console.log('[SharedShotlist] GET request for token:', shareToken);
+    if (!shareToken) {
+      return res.status(400).json({ error: 'Share token is required' });
+    }
+
+    const table = await Table.findOne({ shareToken });
+    if (!table) {
+      return res.status(404).json({ error: 'Shotlist not found or link has expired' });
+    }
+
+    // Return only the shotlist data needed for display (no sensitive info)
+    res.json({
+      title: table.title || 'Shotlists',
+      shotlists: table.shotlists || []
+    });
+  } catch (err) {
+    console.error('[SharedShotlist] Error fetching shared shotlist:', err);
+    res.status(500).json({ error: 'Failed to load shotlist' });
+  }
+});
+
+// PUBLIC: Client submits a shotlist change request via shared link
+app.post('/api/shared-shotlist/:shareToken/change-requests', async (req, res) => {
+  try {
+    const { shareToken } = req.params;
+    const { type, shotlistId, shotlistName, itemId, proposedItemData, originalItemData, clientName, clientMessage } = req.body;
+
+    if (!shareToken) {
+      return res.status(400).json({ error: 'Share token is required' });
+    }
+    if (!type || !['edit', 'add'].includes(type)) {
+      return res.status(400).json({ error: 'Invalid request type' });
+    }
+
+    // Verify share token is valid
+    const table = await Table.findOne({ shareToken });
+    if (!table) {
+      return res.status(404).json({ error: 'Shotlist not found or link has expired' });
+    }
+
+    const changeRequest = new ChangeRequest({
+      tableId: table._id,
+      shareToken,
+      section: 'shotlist',
+      type,
+      shotlistId: shotlistId || null,
+      shotlistName: shotlistName || '',
+      itemId: itemId || null,
+      proposedItemData: proposedItemData || {},
+      originalItemData: originalItemData || {},
+      clientName: clientName || 'Client',
+      clientMessage: clientMessage || ''
+    });
+
+    await changeRequest.save();
+    console.log(`[ChangeRequest] New shotlist ${type} request for table ${table._id} from "${clientName || 'Client'}"`);
+
+    res.status(201).json({ message: 'Change request submitted', id: changeRequest._id });
+  } catch (err) {
+    console.error('[ChangeRequest] Error submitting shotlist change request:', err);
+    res.status(500).json({ error: 'Failed to submit change request' });
+  }
+});
+
 // ===============================================
 // CLIENT CHANGE REQUEST ROUTES
 // ===============================================
@@ -2955,33 +3023,58 @@ app.put('/api/tables/:id/change-requests/:reqId/accept', authenticate, async (re
     }
 
     // Apply the change
-    if (changeReq.type === 'edit' && changeReq.programId) {
-      // Find and update the existing program entry
-      const program = table.programSchedule.id(changeReq.programId);
-      if (program) {
+    if (changeReq.section === 'shotlist') {
+      // Handle shotlist changes
+      if (changeReq.type === 'edit' && changeReq.shotlistId && changeReq.itemId) {
+        const shotlist = table.shotlists.id(changeReq.shotlistId);
+        if (shotlist) {
+          const item = shotlist.items.id(changeReq.itemId);
+          if (item && changeReq.proposedItemData.title) {
+            item.title = changeReq.proposedItemData.title;
+            await table.save();
+          }
+        }
+      } else if (changeReq.type === 'add' && changeReq.shotlistId) {
+        const shotlist = table.shotlists.id(changeReq.shotlistId);
+        if (shotlist && changeReq.proposedItemData.title) {
+          shotlist.items.push({
+            title: changeReq.proposedItemData.title,
+            completed: false,
+            createdAt: new Date()
+          });
+          await table.save();
+        }
+      }
+    } else {
+      // Handle schedule changes
+      if (changeReq.type === 'edit' && changeReq.programId) {
+        // Find and update the existing program entry
+        const program = table.programSchedule.id(changeReq.programId);
+        if (program) {
+          const proposed = changeReq.proposedData;
+          if (proposed.name !== undefined) program.name = proposed.name;
+          if (proposed.startTime !== undefined) program.startTime = proposed.startTime;
+          if (proposed.endTime !== undefined) program.endTime = proposed.endTime;
+          if (proposed.location !== undefined) program.location = proposed.location;
+          if (proposed.photographer !== undefined) program.photographer = proposed.photographer;
+          if (proposed.notes !== undefined) program.notes = proposed.notes;
+          await table.save();
+        }
+      } else if (changeReq.type === 'add') {
+        // Add a new program entry
         const proposed = changeReq.proposedData;
-        if (proposed.name !== undefined) program.name = proposed.name;
-        if (proposed.startTime !== undefined) program.startTime = proposed.startTime;
-        if (proposed.endTime !== undefined) program.endTime = proposed.endTime;
-        if (proposed.location !== undefined) program.location = proposed.location;
-        if (proposed.photographer !== undefined) program.photographer = proposed.photographer;
-        if (proposed.notes !== undefined) program.notes = proposed.notes;
+        table.programSchedule.push({
+          date: proposed.date || changeReq.programDate,
+          name: proposed.name || '',
+          startTime: proposed.startTime || '',
+          endTime: proposed.endTime || '',
+          location: proposed.location || '',
+          photographer: proposed.photographer || '',
+          notes: proposed.notes || '',
+          done: false
+        });
         await table.save();
       }
-    } else if (changeReq.type === 'add') {
-      // Add a new program entry
-      const proposed = changeReq.proposedData;
-      table.programSchedule.push({
-        date: proposed.date || changeReq.programDate,
-        name: proposed.name || '',
-        startTime: proposed.startTime || '',
-        endTime: proposed.endTime || '',
-        location: proposed.location || '',
-        photographer: proposed.photographer || '',
-        notes: proposed.notes || '',
-        done: false
-      });
-      await table.save();
     }
 
     // Mark request as accepted

@@ -3,11 +3,13 @@ const mongoose = require('mongoose');
 const changeRequestSchema = new mongoose.Schema({
   tableId: { type: mongoose.Schema.Types.ObjectId, ref: 'Table', required: true, index: true },
   shareToken: { type: String, required: true },
+  // 'schedule' (default) or 'shotlist' - which section this request belongs to
+  section: { type: String, enum: ['schedule', 'shotlist'], default: 'schedule' },
   type: { type: String, enum: ['edit', 'add'], required: true },
   // For edits - reference to existing program entry
   programId: { type: String, default: null },
   programDate: { type: String, default: null },
-  // Proposed data
+  // Proposed data (schedule fields)
   proposedData: {
     name: { type: String, default: '' },
     date: { type: String, default: '' },
@@ -26,6 +28,16 @@ const changeRequestSchema = new mongoose.Schema({
     location: { type: String, default: '' },
     photographer: { type: String, default: '' },
     notes: { type: String, default: '' }
+  },
+  // Shotlist-specific fields
+  shotlistId: { type: String, default: null }, // Which shotlist this belongs to
+  shotlistName: { type: String, default: '' }, // Display name of the shotlist
+  itemId: { type: String, default: null }, // For edit requests, the item being edited
+  proposedItemData: {
+    title: { type: String, default: '' }
+  },
+  originalItemData: {
+    title: { type: String, default: '' }
   },
   // Meta
   clientName: { type: String, default: 'Client' },
