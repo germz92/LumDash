@@ -489,9 +489,23 @@
     setTimeout(() => toast.classList.remove('show'), 3500);
   }
 
+  // Body scroll lock helpers
+  let scrollLockPos = 0;
+  function lockBodyScroll() {
+    scrollLockPos = window.pageYOffset || document.documentElement.scrollTop;
+    document.body.classList.add('modal-open');
+    document.body.style.top = `-${scrollLockPos}px`;
+  }
+  function unlockBodyScroll() {
+    document.body.classList.remove('modal-open');
+    document.body.style.top = '';
+    window.scrollTo(0, scrollLockPos);
+  }
+
   window.closeCrModal = function (modalId) {
     const modal = document.getElementById(modalId);
     if (modal) modal.classList.remove('active');
+    unlockBodyScroll();
   };
 
   window.openEditModal = function (encodedProgram) {
@@ -528,6 +542,7 @@
     modal.dataset.originalData = JSON.stringify(program);
 
     modal.classList.add('active');
+    lockBodyScroll();
   };
 
   window.openAddModal = function (date) {
@@ -549,6 +564,7 @@
     document.getElementById('crAddClientName').value = savedName;
 
     modal.classList.add('active');
+    lockBodyScroll();
   };
 
   window.submitEditRequest = async function () {
@@ -674,6 +690,7 @@
   window.openMyRequests = async function () {
     const overlay = document.getElementById('myRequestsOverlay');
     if (overlay) overlay.classList.add('active');
+    lockBodyScroll();
     myReqCurrentFilter = 'all';
     // Reset filter buttons
     document.querySelectorAll('.my-req-filter button').forEach(b => b.classList.remove('active'));
@@ -685,6 +702,7 @@
   window.closeMyRequests = function () {
     const overlay = document.getElementById('myRequestsOverlay');
     if (overlay) overlay.classList.remove('active');
+    unlockBodyScroll();
   };
 
   window.filterMyRequests = function (filter, btn) {
@@ -823,11 +841,16 @@
   document.addEventListener('click', function (e) {
     if (e.target.classList.contains('cr-modal-overlay') || e.target.classList.contains('my-requests-overlay')) {
       e.target.classList.remove('active');
+      unlockBodyScroll();
     }
   });
   document.addEventListener('keydown', function (e) {
     if (e.key === 'Escape') {
-      document.querySelectorAll('.cr-modal-overlay.active, .my-requests-overlay.active').forEach(m => m.classList.remove('active'));
+      const activeModals = document.querySelectorAll('.cr-modal-overlay.active, .my-requests-overlay.active');
+      if (activeModals.length > 0) {
+        activeModals.forEach(m => m.classList.remove('active'));
+        unlockBodyScroll();
+      }
     }
   });
 
