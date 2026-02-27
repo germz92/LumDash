@@ -3,12 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Shared Schedule</title>
+  <title>Shared Shotlist</title>
 
   <link rel="shortcut icon" type="image/x-icon" href="assets/favicon.png">
   <link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
   <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
-  <link rel="stylesheet" href="css/schedule.css">
+  <link rel="stylesheet" href="css/shotlist.css">
 
   <style>
     :root {
@@ -35,56 +35,7 @@
       flex-direction: column;
     }
 
-    /* Override schedule-page background for shared view */
-    .schedule-page {
-      background: #f4f4f4 !important;
-    }
-
-    /* Fixed controls below branding bar (~53px) + nav tabs (~47px) = 100px */
-    .schedule-page .top-controls-fixed {
-      position: fixed !important;
-      top: 100px !important;
-      left: 0 !important;
-      width: 100% !important;
-      z-index: 999 !important;
-      background: white !important;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08) !important;
-      padding: 12px 8px 10px 8px !important;
-      box-sizing: border-box !important;
-    }
-
-    /* Content padding: branding(53) + nav(47) + controls(~120) + gap = ~240px */
-    .schedule-page .program-container {
-      padding-top: 240px !important;
-      padding-bottom: 40px !important;
-    }
-
-    .schedule-table-view {
-      padding-top: 240px !important;
-    }
-
-    /* Fix entry-actions margin (replaces body.no-owner-controls rule from schedule.css) */
-    .schedule-page .program-entry .entry-actions {
-      margin-top: 4px !important;
-    }
-
-    @media (max-width: 768px) {
-      .shared-nav a {
-        padding: 10px 16px;
-        font-size: 13px;
-      }
-
-      /* Extra padding on mobile since controls wrap taller */
-      .schedule-page .program-container {
-        padding-top: 260px !important;
-      }
-
-      .schedule-table-view {
-        padding-top: 260px !important;
-      }
-    }
-
-    /* Shared schedule branding bar */
+    /* Shared branding bar */
     .shared-branding {
       display: flex;
       align-items: center;
@@ -95,12 +46,9 @@
       border-bottom: 1px solid #e0e0e0;
       font-size: 14px;
       color: #6c757d;
-      position: fixed;
+      position: sticky;
       top: 0;
-      left: 0;
-      width: 100%;
       z-index: 1001;
-      box-sizing: border-box;
     }
 
     .shared-branding img {
@@ -342,12 +290,9 @@
       gap: 0;
       background: white;
       border-bottom: 1px solid #e0e0e0;
-      position: fixed;
+      position: sticky;
       top: 53px;
-      left: 0;
-      width: 100%;
       z-index: 1000;
-      box-sizing: border-box;
     }
 
     .shared-nav a {
@@ -377,13 +322,13 @@
       font-size: 20px;
     }
 
-    /* Suggest Change button on each card */
-    .suggest-edit-btn {
+    /* Suggest buttons */
+    .suggest-edit-item-btn {
       display: inline-flex;
       align-items: center;
       gap: 4px;
-      padding: 4px 10px;
-      font-size: 12px;
+      padding: 3px 8px;
+      font-size: 11px;
       background: #e3f2fd;
       color: #1565c0;
       border: 1px solid #90caf9;
@@ -391,36 +336,21 @@
       cursor: pointer;
       font-weight: 500;
       transition: all 0.2s;
+      opacity: 0;
+      margin-left: 8px;
     }
-    .suggest-edit-btn:hover {
+    .suggest-edit-item-btn:hover {
       background: #1565c0;
       color: white;
     }
-    .suggest-edit-btn .material-symbols-outlined {
-      font-size: 16px;
+    .suggest-edit-item-btn .material-symbols-outlined {
+      font-size: 14px;
+    }
+    .shot-item:hover .suggest-edit-item-btn {
+      opacity: 1;
     }
 
-    /* Suggest New Entry button - override date-header button reset */
-    .schedule-page .date-header .suggest-new-btn {
-      display: inline-flex !important;
-      align-items: center !important;
-      gap: 6px !important;
-      padding: 6px 14px !important;
-      font-size: 12px !important;
-      background: #1565c0 !important;
-      color: white !important;
-      border: none !important;
-      border-radius: 8px !important;
-      cursor: pointer !important;
-      font-weight: 600 !important;
-      transition: all 0.2s !important;
-      margin-left: 8px !important;
-      box-shadow: 0 1px 4px rgba(21,101,192,0.2) !important;
-    }
-    .schedule-page .date-header .suggest-new-btn:hover {
-      background: #0d47a1 !important;
-    }
-    .suggest-new-btn {
+    .suggest-add-item-btn {
       display: inline-flex;
       align-items: center;
       gap: 6px;
@@ -435,10 +365,10 @@
       transition: all 0.2s;
       box-shadow: 0 1px 4px rgba(21,101,192,0.2);
     }
-    .suggest-new-btn:hover {
+    .suggest-add-item-btn:hover {
       background: #0d47a1;
     }
-    .suggest-new-btn .material-symbols-outlined {
+    .suggest-add-item-btn .material-symbols-outlined {
       font-size: 16px;
     }
 
@@ -460,7 +390,7 @@
       background: white;
       border-radius: 12px;
       width: 100%;
-      max-width: 520px;
+      max-width: 460px;
       max-height: 90vh;
       overflow-y: auto;
       box-shadow: 0 8px 32px rgba(0,0,0,0.2);
@@ -505,8 +435,6 @@
       margin-top: 0;
     }
     .cr-modal-body input[type="text"],
-    .cr-modal-body input[type="time"],
-    .cr-modal-body input[type="date"],
     .cr-modal-body textarea {
       width: 100%;
       padding: 8px 12px;
@@ -525,13 +453,6 @@
     .cr-modal-body textarea {
       resize: vertical;
       min-height: 60px;
-    }
-    .cr-modal-body .time-row {
-      display: flex;
-      gap: 12px;
-    }
-    .cr-modal-body .time-row > div {
-      flex: 1;
     }
     .cr-modal-footer {
       display: flex;
@@ -568,7 +489,6 @@
       cursor: not-allowed;
     }
 
-    /* Diff highlight for edit modal */
     .cr-original-value {
       font-size: 12px;
       color: #888;
@@ -606,7 +526,7 @@
       justify-content: center;
       min-height: 60vh;
       text-align: center;
-      padding: 120px 20px 40px; /* extra top padding to clear fixed branding + nav */
+      padding: 40px 20px;
     }
 
     .loading-spinner {
@@ -639,47 +559,14 @@
       max-width: 400px;
     }
 
-    /* No bottom nav needed - add extra padding at bottom */
-    .schedule-page .program-container {
-      padding-bottom: 40px;
-    }
-
-    .schedule-table-view {
-      padding-bottom: 40px;
-    }
-
-    /* View toggle button styling for shared page */
-    .view-toggle-btn {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      padding: 8px 16px;
-      font-size: 14px;
-      border: 2px solid #4a5568;
-      background: white;
-      color: #4a5568;
-      border-radius: 8px;
-      cursor: pointer;
-      font-weight: 500;
-      transition: all 0.2s ease;
-    }
-
-    .view-toggle-btn:hover {
-      background: #4a5568;
-      color: white;
-    }
-
-    .view-toggle-btn .material-symbols-outlined {
-      font-size: 20px;
-    }
-
+    /* Mobile adjustments */
     @media (max-width: 768px) {
-      .desktop-only {
-        display: none !important;
+      .suggest-edit-item-btn {
+        opacity: 1;
       }
-
-      .schedule-page .program-container {
-        padding-bottom: 20px;
+      .shared-nav a {
+        padding: 10px 16px;
+        font-size: 13px;
       }
     }
   </style>
@@ -702,140 +589,113 @@
 
   <!-- Navigation tabs -->
   <div class="shared-nav">
-    <a id="navSchedule" href="#" class="active">
+    <a id="navSchedule" href="#">
       <span class="material-symbols-outlined">calendar_month</span>
       Schedule
     </a>
-    <a id="navShotlist" href="#">
+    <a id="navShotlist" href="#" class="active">
       <span class="material-symbols-outlined">checklist</span>
       Shotlist
     </a>
   </div>
 
   <!-- Main content wrapper -->
-  <div id="shared-schedule-root">
+  <div id="shared-shotlist-root">
     <!-- Loading state -->
     <div id="loadingState" class="loading-container">
       <div class="loading-spinner"></div>
-      <p style="color: #666; font-size: 16px;">Loading schedule...</p>
+      <p style="color: #666; font-size: 16px;">Loading shotlists...</p>
     </div>
 
     <!-- Error state (hidden by default) -->
     <div id="errorState" class="error-container" style="display: none;">
       <span class="material-symbols-outlined">error_outline</span>
-      <h2>Schedule Not Found</h2>
-      <p>This schedule link may have expired or been revoked. Please contact the event organizer for an updated link.</p>
+      <h2>Shotlist Not Found</h2>
+      <p>This link may have expired or been revoked. Please contact the event organizer for an updated link.</p>
     </div>
 
-    <!-- Schedule content (hidden until loaded) -->
-    <div id="scheduleContent" style="display: none;">
-      <div class="schedule-page">
-        <!-- Sticky top section -->
-        <div class="top-controls-fixed">
-          <h2 id="eventTitle">Program Schedule</h2>
-
-          <div id="searchFilterContainer" class="top-controls">
-            <select id="filterDateDropdown">
-              <option value="all">All Dates</option>
-            </select>
-            <input id="searchInput" type="text" placeholder="Search...">
-            <button id="viewToggleBtn" class="view-toggle-btn desktop-only" onclick="toggleView()">
-              <span class="material-symbols-outlined">view_module</span>
-              <span id="viewToggleText">Card View</span>
-            </button>
-          </div>
+    <!-- Shotlist content (hidden until loaded) -->
+    <div id="shotlistContent" style="display: none;">
+      <div class="shotlist-page">
+        <div class="page-header">
+          <h1 id="eventTitle">Shotlists</h1>
         </div>
 
-        <div id="programSections" class="program-container"></div>
-        <div id="scheduleTableView" class="schedule-table-view"></div>
+        <div class="shotlist-container">
+          <!-- List selector dropdown -->
+          <div class="list-header-section">
+            <div id="list-selector-section" class="list-selector-section" style="display: none;">
+              <label for="list-selector" class="selector-label">Select List:</label>
+              <select id="list-selector" class="list-selector">
+                <option value="">Choose a list...</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Lists container -->
+          <div id="lists-container" class="lists-container">
+            <!-- Lists will be dynamically populated here -->
+          </div>
+
+          <!-- Empty state -->
+          <div id="empty-state" class="empty-state" style="display: none;">
+            <span class="material-symbols-outlined empty-icon">checklist</span>
+            <h3>No shot lists available</h3>
+            <p>The organizer hasn't created any lists yet.</p>
+          </div>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Suggest Edit Modal -->
-  <div id="crEditModal" class="cr-modal-overlay">
+  <!-- Suggest Edit Item Modal -->
+  <div id="crEditItemModal" class="cr-modal-overlay">
     <div class="cr-modal">
       <div class="cr-modal-header">
         <h3><span class="material-symbols-outlined">edit_note</span> Suggest Edit</h3>
-        <button class="cr-modal-close" onclick="closeCrModal('crEditModal')">&times;</button>
+        <button class="cr-modal-close" onclick="closeShotlistModal('crEditItemModal')">&times;</button>
       </div>
       <div class="cr-modal-body">
-        <p style="font-size:13px; color:#666; margin:0 0 12px;">Suggest changes to this entry. The organizer will review your request.</p>
-        <input type="hidden" id="crEditProgramId">
-        <input type="hidden" id="crEditProgramDate">
+        <p style="font-size:13px; color:#666; margin:0 0 12px;">Suggest a change to this item. The organizer will review your request.</p>
+        <input type="hidden" id="crEditShotlistId">
+        <input type="hidden" id="crEditShotlistName">
+        <input type="hidden" id="crEditItemId">
         <label>Your Name (optional)</label>
-        <input type="text" id="crEditClientName" placeholder="Your name">
-        <label>Program Name</label>
-        <input type="text" id="crEditName">
-        <div id="crEditNameOrig" class="cr-original-value"></div>
-        <div class="time-row">
-          <div>
-            <label>Start Time</label>
-            <input type="time" id="crEditStartTime">
-            <div id="crEditStartTimeOrig" class="cr-original-value"></div>
-          </div>
-          <div>
-            <label>End Time</label>
-            <input type="time" id="crEditEndTime">
-            <div id="crEditEndTimeOrig" class="cr-original-value"></div>
-          </div>
-        </div>
-        <label>Location</label>
-        <input type="text" id="crEditLocation">
-        <div id="crEditLocationOrig" class="cr-original-value"></div>
-        <label>Photographer</label>
-        <input type="text" id="crEditPhotographer">
-        <div id="crEditPhotographerOrig" class="cr-original-value"></div>
-        <label>Notes</label>
-        <textarea id="crEditNotes" rows="3"></textarea>
-        <div id="crEditNotesOrig" class="cr-original-value"></div>
+        <input type="text" id="crEditItemClientName" placeholder="Your name">
+        <label>Item Title</label>
+        <input type="text" id="crEditItemTitle">
+        <div id="crEditItemTitleOrig" class="cr-original-value"></div>
         <label>Message to Organizer (optional)</label>
-        <textarea id="crEditMessage" rows="2" placeholder="Reason for the change..."></textarea>
+        <textarea id="crEditItemMessage" rows="2" placeholder="Reason for the change..."></textarea>
       </div>
       <div class="cr-modal-footer">
-        <button class="cr-btn-cancel" onclick="closeCrModal('crEditModal')">Cancel</button>
-        <button class="cr-btn-submit" id="crEditSubmitBtn" onclick="submitEditRequest()">Submit Suggestion</button>
+        <button class="cr-btn-cancel" onclick="closeShotlistModal('crEditItemModal')">Cancel</button>
+        <button class="cr-btn-submit" id="crEditItemSubmitBtn" onclick="submitEditItemRequest()">Submit Suggestion</button>
       </div>
     </div>
   </div>
 
-  <!-- Suggest New Entry Modal -->
-  <div id="crAddModal" class="cr-modal-overlay">
+  <!-- Suggest New Item Modal -->
+  <div id="crAddItemModal" class="cr-modal-overlay">
     <div class="cr-modal">
       <div class="cr-modal-header">
-        <h3><span class="material-symbols-outlined">add_circle</span> Suggest New Entry</h3>
-        <button class="cr-modal-close" onclick="closeCrModal('crAddModal')">&times;</button>
+        <h3><span class="material-symbols-outlined">add_circle</span> Suggest New Item</h3>
+        <button class="cr-modal-close" onclick="closeShotlistModal('crAddItemModal')">&times;</button>
       </div>
       <div class="cr-modal-body">
-        <p style="font-size:13px; color:#666; margin:0 0 12px;">Suggest a new schedule entry. The organizer will review your request.</p>
+        <p style="font-size:13px; color:#666; margin:0 0 12px;">Suggest a new item for this list. The organizer will review your request.</p>
+        <input type="hidden" id="crAddItemShotlistId">
+        <input type="hidden" id="crAddItemShotlistName">
         <label>Your Name (optional)</label>
-        <input type="text" id="crAddClientName" placeholder="Your name">
-        <label>Date</label>
-        <input type="date" id="crAddDate">
-        <label>Program Name</label>
-        <input type="text" id="crAddName" placeholder="Program name">
-        <div class="time-row">
-          <div>
-            <label>Start Time</label>
-            <input type="time" id="crAddStartTime">
-          </div>
-          <div>
-            <label>End Time</label>
-            <input type="time" id="crAddEndTime">
-          </div>
-        </div>
-        <label>Location</label>
-        <input type="text" id="crAddLocation" placeholder="Location">
-        <label>Photographer</label>
-        <input type="text" id="crAddPhotographer" placeholder="Photographer">
-        <label>Notes</label>
-        <textarea id="crAddNotes" rows="3" placeholder="Notes"></textarea>
+        <input type="text" id="crAddItemClientName" placeholder="Your name">
+        <label>Item Title</label>
+        <input type="text" id="crAddItemTitle" placeholder="New item...">
         <label>Message to Organizer (optional)</label>
-        <textarea id="crAddMessage" rows="2" placeholder="Additional context..."></textarea>
+        <textarea id="crAddItemMessage" rows="2" placeholder="Additional context..."></textarea>
       </div>
       <div class="cr-modal-footer">
-        <button class="cr-btn-cancel" onclick="closeCrModal('crAddModal')">Cancel</button>
-        <button class="cr-btn-submit" id="crAddSubmitBtn" onclick="submitAddRequest()">Submit Suggestion</button>
+        <button class="cr-btn-cancel" onclick="closeShotlistModal('crAddItemModal')">Cancel</button>
+        <button class="cr-btn-submit" id="crAddItemSubmitBtn" onclick="submitAddItemRequest()">Submit Suggestion</button>
       </div>
     </div>
   </div>
@@ -877,6 +737,6 @@
       : 'http://localhost:3000';
   </script>
 
-  <script src="js/shared-schedule.js"></script>
+  <script src="js/shared-shotlist.js"></script>
 </body>
 </html>
