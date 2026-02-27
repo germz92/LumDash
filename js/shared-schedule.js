@@ -502,6 +502,21 @@
     window.scrollTo(0, scrollLockPos);
   }
 
+  // Prevent iOS rubber-band scroll on modal overlays
+  document.addEventListener('touchmove', function (e) {
+    if (!document.body.classList.contains('modal-open')) return;
+    // Allow scrolling inside .cr-modal-body and .my-requests-body
+    let target = e.target;
+    while (target && target !== document.body) {
+      if (target.classList && (target.classList.contains('cr-modal-body') || target.classList.contains('my-requests-body'))) {
+        // Allow if content is scrollable and not at boundary
+        if (target.scrollHeight > target.clientHeight) return;
+      }
+      target = target.parentElement;
+    }
+    e.preventDefault();
+  }, { passive: false });
+
   window.closeCrModal = function (modalId) {
     const modal = document.getElementById(modalId);
     if (modal) modal.classList.remove('active');
