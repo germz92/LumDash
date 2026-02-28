@@ -287,6 +287,8 @@ async function saveToMongoDB() {
           card1: row.querySelector('[data-field="card1"]').textContent || '',
           card2: row.querySelector('[data-field="card2"]').textContent || '',
           user: row.querySelector('[data-field="user"]').textContent || '',
+          category: row.getAttribute('data-category') || 'Photo',
+          notes: row.getAttribute('data-notes') || '',
           _id: row.getAttribute('data-id') || `temp-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
           createdBy: row.getAttribute('data-created-by') || null,
           createdAt: row.getAttribute('data-created-at') || new Date().toISOString(),
@@ -537,6 +539,8 @@ function setupEventListeners() {
             card1: row.querySelector('[data-field="card1"]').textContent,
             card2: row.querySelector('[data-field="card2"]').textContent,
             user: row.querySelector('[data-field="user"]').textContent,
+            category: row.getAttribute('data-category') || 'Photo',
+            notes: row.getAttribute('data-notes') || '',
             createdBy: entryCreatedBy,
             createdAt: row.getAttribute('data-created-at')
           };
@@ -1214,6 +1218,24 @@ function addRow(date, entry = {}) {
   row.setAttribute('data-user', entry.user || '');
   row.setAttribute('data-created-by', entryCreatedBy || '');
   row.setAttribute('data-created-at', entry.createdAt || '');
+  row.setAttribute('data-category', entry.category || 'Photo');
+  row.setAttribute('data-notes', entry.notes || '');
+
+  // Apply category color coding
+  const category = entry.category || 'Photo';
+  if (category === 'Video') {
+    row.classList.add('category-video');
+  } else if (category === 'Headshot') {
+    row.classList.add('category-headshot');
+  } else if (category === 'Other') {
+    row.classList.add('category-other');
+  }
+
+  // Add notes tooltip if notes exist
+  if (entry.notes && entry.notes.trim()) {
+    row.title = entry.notes;
+    row.classList.add('has-notes');
+  }
 
   // Create non-editable display cells
   row.innerHTML = `
@@ -1266,6 +1288,8 @@ function openCardEntryModal(date, existingEntry = null) {
   const card1Input = document.getElementById('card-card1-input');
   const card2Input = document.getElementById('card-card2-input');
   const userSelect = document.getElementById('card-user-select');
+  const categorySelect = document.getElementById('card-category-select');
+  const notesInput = document.getElementById('card-notes-input');
   const saveButton = document.getElementById('save-card-entry');
   
   // Update modal title
@@ -1316,6 +1340,8 @@ function openCardEntryModal(date, existingEntry = null) {
   if (existingEntry) {
     card1Input.value = existingEntry.card1 || '';
     card2Input.value = existingEntry.card2 || '';
+    categorySelect.value = existingEntry.category || 'Photo';
+    notesInput.value = existingEntry.notes || '';
   } else {
     // For new entries, always auto-select current user
     if (currentUser && users.includes(currentUser)) {
@@ -1323,6 +1349,8 @@ function openCardEntryModal(date, existingEntry = null) {
     }
     card1Input.value = '';
     card2Input.value = '';
+    categorySelect.value = 'Photo';
+    notesInput.value = '';
   }
   
   // User selection permissions:
@@ -1368,6 +1396,8 @@ async function saveCardEntry() {
   const card1Input = document.getElementById('card-card1-input');
   const card2Input = document.getElementById('card-card2-input');
   const userSelect = document.getElementById('card-user-select');
+  const categorySelect = document.getElementById('card-category-select');
+  const notesInput = document.getElementById('card-notes-input');
   
   // Handle "Add New Camera" selection
   if (cameraSelect.value === 'add-new-camera') {
@@ -1440,6 +1470,8 @@ async function saveCardEntry() {
     card1: card1Input.value.trim(),
     card2: card2Input.value.trim(),
     user: userSelect.value,
+    category: categorySelect.value || 'Photo',
+    notes: notesInput.value.trim(),
     createdBy: getUserIdFromToken(),
     createdAt: currentEditingEntry ? currentEditingEntry.createdAt : new Date().toISOString(),
     updatedAt: new Date().toISOString()
@@ -1485,6 +1517,8 @@ async function addOrUpdateCardEntry(date, entryData) {
       const card1 = row.querySelector('[data-field="card1"]').textContent;
       const card2 = row.querySelector('[data-field="card2"]').textContent;
       const user = row.querySelector('[data-field="user"]').textContent;
+      const category = row.getAttribute('data-category') || 'Photo';
+      const notes = row.getAttribute('data-notes') || '';
       const createdBy = row.getAttribute('data-created-by');
       const createdAt = row.getAttribute('data-created-at');
       
@@ -1494,6 +1528,8 @@ async function addOrUpdateCardEntry(date, entryData) {
         card1,
         card2,
         user,
+        category,
+        notes,
         createdBy,
         createdAt,
         updatedAt: new Date().toISOString()
@@ -1605,6 +1641,28 @@ function updateExistingRowInDOM(date, entryData) {
   row.setAttribute('data-user', entryData.user || '');
   row.setAttribute('data-created-by', entryData.createdBy || '');
   row.setAttribute('data-created-at', entryData.createdAt || '');
+  row.setAttribute('data-category', entryData.category || 'Photo');
+  row.setAttribute('data-notes', entryData.notes || '');
+  
+  // Update category color coding
+  row.classList.remove('category-video', 'category-headshot', 'category-other');
+  const category = entryData.category || 'Photo';
+  if (category === 'Video') {
+    row.classList.add('category-video');
+  } else if (category === 'Headshot') {
+    row.classList.add('category-headshot');
+  } else if (category === 'Other') {
+    row.classList.add('category-other');
+  }
+  
+  // Update notes tooltip
+  if (entryData.notes && entryData.notes.trim()) {
+    row.title = entryData.notes;
+    row.classList.add('has-notes');
+  } else {
+    row.title = '';
+    row.classList.remove('has-notes');
+  }
   
   console.log(`[CARD-LOG] Updated existing row in DOM for date ${date}`);
 }
@@ -2388,7 +2446,9 @@ function extractCardLogFromDOM() {
         camera: row.querySelector('[data-field="camera"]')?.value || '',
         card1: row.querySelector('[data-field="card1"]')?.value || '',
         card2: row.querySelector('[data-field="card2"]')?.value || '',
-        user: row.querySelector('[data-field="user"]')?.value || ''
+        user: row.querySelector('[data-field="user"]')?.value || '',
+        category: row.getAttribute('data-category') || 'Photo',
+        notes: row.getAttribute('data-notes') || ''
       };
       
       // Only add non-empty entries

@@ -369,4 +369,80 @@
 
 .card-log-page .readonly-table tbody tr:hover td {
   background-color: #e8f4fd !important;
+}
+
+/* Category color coding for rows */
+.card-log-page .category-video td {
+  background-color: #e0f0ff !important;
+}
+.card-log-page .category-video:nth-child(even) td {
+  background-color: #d6ebfc !important;
+}
+.card-log-page .category-video:hover td {
+  background-color: #c5e1f7 !important;
+}
+
+.card-log-page .category-headshot td {
+  background-color: #e0f5e0 !important;
+}
+.card-log-page .category-headshot:nth-child(even) td {
+  background-color: #d6f0d6 !important;
+}
+.card-log-page .category-headshot:hover td {
+  background-color: #c5e8c5 !important;
+}
+
+.card-log-page .category-other td {
+  background-color: #f5f5f5 !important;
+}
+.card-log-page .category-other:hover td {
+  background-color: #ebebeb !important;
+}
+
+/* Notes tooltip - show notes on hover */
+.card-log-page .has-notes {
+  position: relative;
+}
+
+.card-log-page .has-notes::after {
+  content: '';
+  position: absolute;
+  right: 4px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 6px;
+  height: 6px;
+  background: #cc0007;
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* Notes textarea styling in modal */
+#card-entry-modal textarea,
+.card-log-modal textarea {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  box-sizing: border-box;
+  font-size: 14px;
+  font-family: inherit;
+  resize: vertical;
+  min-height: 60px;
+}
+
+#card-entry-modal textarea:focus,
+.card-log-modal textarea:focus {
+  outline: none;
+  border-color: #cc0007;
+  box-shadow: 0 0 0 2px rgba(204, 0, 7, 0.1);
+}
+
+/* Category select color preview in modal */
+#card-category-select option[value="Video"] {
+  background-color: #e0f0ff;
+}
+#card-category-select option[value="Headshot"] {
+  background-color: #e0f5e0;
 } 
