@@ -162,6 +162,8 @@ const tableSchema = new mongoose.Schema({
           card1: String,
           card2: String,
           user: String,
+          category: { type: String, default: 'Photo' },
+          notes: { type: String, default: '' },
           createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
           createdAt: { type: Date, default: Date.now },
           updatedAt: { type: Date, default: Date.now }

@@ -10,7 +10,9 @@ const cardLogSchema = new mongoose.Schema({
           camera: String,
           card1: String,
           card2: String,
-          user: String
+          user: String,
+          category: { type: String, default: 'Photo' },
+          notes: { type: String, default: '' }
         }
       ]
     }
