@@ -110,6 +110,7 @@ function checkEventIdStability() {
 // Photographer autocomplete functionality
 let cachedUserFirstNames = [];
 let autocompleteContainer = null;
+let searchAutocompleteContainer = null;
 
 // Fetch and cache user first names
 async function loadUserFirstNames() {
@@ -213,8 +214,9 @@ function insertSuggestion(textarea, suggestion, currentWord, cursorPos) {
   const lastCommaIndex = beforeCursor.lastIndexOf(',');
   const wordStart = lastCommaIndex >= 0 ? lastCommaIndex + 1 : 0;
   
-  // Replace current word with suggestion
-  const before = value.substring(0, wordStart).trim();
+  // Replace current word with suggestion, stripping any trailing commas
+  // to avoid doubling up when the user manually typed a comma to trigger autocomplete
+  const before = value.substring(0, wordStart).replace(/,\s*$/, '').trim();
   const newValue = (before ? before + ', ' : '') + suggestion + afterCursor;
   
   textarea.value = newValue;
@@ -278,6 +280,122 @@ function setupPhotographerAutocomplete() {
       if (e.key === 'Escape') {
         hideAutocomplete();
       }
+    }
+  });
+}
+
+// --- Search bar autocomplete ---
+
+// Show search autocomplete suggestions
+function showSearchAutocomplete(input, suggestions) {
+  hideSearchAutocomplete();
+  if (suggestions.length === 0) return;
+
+  searchAutocompleteContainer = document.createElement('div');
+  searchAutocompleteContainer.className = 'search-autocomplete';
+  searchAutocompleteContainer.style.cssText = `
+    position: fixed;
+    background: white;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.18);
+    max-height: 200px;
+    overflow-y: auto;
+    z-index: 1100;
+    min-width: 150px;
+  `;
+
+  const rect = input.getBoundingClientRect();
+  searchAutocompleteContainer.style.top = `${rect.bottom + 2}px`;
+  searchAutocompleteContainer.style.left = `${rect.left}px`;
+  searchAutocompleteContainer.style.width = `${rect.width}px`;
+
+  suggestions.forEach(suggestion => {
+    const item = document.createElement('div');
+    item.textContent = suggestion;
+    item.style.cssText = `
+      padding: 8px 12px;
+      cursor: pointer;
+      border-bottom: 1px solid #f0f0f0;
+      font-size: 14px;
+    `;
+
+    item.addEventListener('mouseenter', () => {
+      item.style.backgroundColor = '#f0f0f0';
+    });
+    item.addEventListener('mouseleave', () => {
+      item.style.backgroundColor = 'white';
+    });
+
+    item.addEventListener('mousedown', (e) => {
+      e.preventDefault(); // Prevent input blur
+      input.value = suggestion;
+      searchQuery = suggestion.toLowerCase();
+      renderProgramSections(isOwner);
+      saveFilterSettings();
+      hideSearchAutocomplete();
+    });
+
+    searchAutocompleteContainer.appendChild(item);
+  });
+
+  document.body.appendChild(searchAutocompleteContainer);
+}
+
+// Hide search autocomplete
+function hideSearchAutocomplete() {
+  if (searchAutocompleteContainer) {
+    searchAutocompleteContainer.remove();
+    searchAutocompleteContainer = null;
+  }
+}
+
+// Handle search autocomplete logic
+function handleSearchAutocomplete(input) {
+  const query = input.value.trim();
+
+  if (!query || query.length === 0) {
+    hideSearchAutocomplete();
+    return;
+  }
+
+  const suggestions = cachedUserFirstNames.filter(name =>
+    name.toLowerCase().startsWith(query.toLowerCase())
+  ).slice(0, 8);
+
+  if (suggestions.length > 0) {
+    showSearchAutocomplete(input, suggestions);
+  } else {
+    hideSearchAutocomplete();
+  }
+}
+
+// Setup search bar autocomplete
+function setupSearchAutocomplete() {
+  const searchInput = document.getElementById('searchInput');
+  if (!searchInput) return;
+
+  // Show suggestions on input
+  searchInput.addEventListener('input', () => {
+    handleSearchAutocomplete(searchInput);
+  });
+
+  // Hide on blur (with small delay so clicks on suggestions register)
+  searchInput.addEventListener('blur', () => {
+    setTimeout(hideSearchAutocomplete, 150);
+  });
+
+  // Hide on Escape
+  searchInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      hideSearchAutocomplete();
+    }
+  });
+
+  // Hide when clicking outside
+  document.addEventListener('click', (e) => {
+    if (e.target !== searchInput && !e.target.closest('.search-autocomplete')) {
+      hideSearchAutocomplete();
     }
   });
 }
@@ -587,7 +705,8 @@ window.initPage = async function(id) {
   console.log(`[INIT] Loading user names for autocomplete...`);
   await loadUserFirstNames();
   setupPhotographerAutocomplete();
-  console.log(`[INIT] Photographer autocomplete initialized`);
+  setupSearchAutocomplete();
+  console.log(`[INIT] Photographer & search autocomplete initialized`);
 
   // Check for interference after loadPrograms
   if (!checkEventIdStability()) {
@@ -3492,6 +3611,10 @@ function cleanupEventListenersAndMemory() {
     input.removeEventListener('input', handleSearchInput);
     input.removeEventListener('change', handleSearchInput);
   });
+
+  // Clean up autocomplete dropdowns
+  hideAutocomplete();
+  hideSearchAutocomplete();
 
   // Remove scroll event listener
   if (window.scheduleScrollHandler) {
