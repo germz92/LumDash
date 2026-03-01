@@ -399,15 +399,15 @@
   background-color: #ebebeb !important;
 }
 
-/* Notes tooltip - show notes on hover */
-.card-log-page .has-notes {
+/* Notes indicator dot - placed on the first td for reliable positioning */
+.card-log-page .has-notes > td:first-child {
   position: relative;
 }
 
-.card-log-page .has-notes::after {
+.card-log-page .has-notes > td:first-child::before {
   content: '';
   position: absolute;
-  right: 4px;
+  left: 3px;
   top: 50%;
   transform: translateY(-50%);
   width: 6px;
