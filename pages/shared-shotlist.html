@@ -1,0 +1,789 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Shared Shotlist</title>
+
+  <link rel="shortcut icon" type="image/x-icon" href="assets/favicon.png">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+  <link rel="stylesheet" href="css/shotlist.css">
+
+  <style>
+    :root {
+      --md-sys-color-surface: #ffffff;
+      --md-sys-color-on-surface: #1c1b1f;
+      --md-sys-color-on-surface-variant: #49454f;
+      --md-sys-color-surface-variant: #e7e0ec;
+      --md-sys-color-outline: #79747e;
+      --brand-primary: #CC0007;
+      --brand-primary-rgb: 204, 0, 7;
+    }
+
+    html, body {
+      height: 100%;
+      margin: 0;
+      padding: 0;
+      overflow-x: hidden;
+      font-family: 'Roboto', Arial, sans-serif;
+      background: #f4f4f4;
+    }
+
+    body {
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Shared branding bar */
+    .shared-branding {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      padding: 12px 20px;
+      background: #f8f9fa;
+      border-bottom: 1px solid #e0e0e0;
+      font-size: 14px;
+      color: #6c757d;
+      position: sticky;
+      top: 0;
+      z-index: 1001;
+    }
+
+    .shared-branding img {
+      height: 28px;
+      width: auto;
+    }
+
+    .shared-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: #e3f2fd;
+      color: #1565c0;
+      padding: 4px 14px;
+      border-radius: 14px;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .shared-badge .material-symbols-outlined {
+      font-size: 16px;
+    }
+
+    /* My Requests button in branding bar */
+    .my-requests-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      background: white;
+      color: #555;
+      padding: 6px 16px;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 500;
+      border: 1px solid #ddd;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+    }
+    .my-requests-btn:hover {
+      background: #f0f0f0;
+      border-color: #bbb;
+    }
+    .my-requests-btn .material-symbols-outlined {
+      font-size: 16px;
+    }
+    .my-requests-btn .my-req-badge {
+      position: absolute;
+      top: -6px;
+      right: -6px;
+      background: #CC0007;
+      color: white;
+      font-size: 10px;
+      min-width: 16px;
+      height: 16px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      padding: 0 4px;
+      line-height: 1;
+      box-shadow: 0 0 0 2px #f8f9fa;
+    }
+
+    /* My Requests Panel */
+    .my-requests-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 60px 20px 20px;
+    }
+    .my-requests-overlay.active {
+      display: flex;
+    }
+    .my-requests-panel {
+      background: white;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 600px;
+      max-height: 80vh;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+    }
+    .my-requests-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .my-requests-header h3 {
+      margin: 0;
+      font-size: 16px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .my-requests-body {
+      padding: 12px 20px;
+      overflow-y: auto;
+      flex: 1;
+    }
+    .my-req-card {
+      border: 1px solid #e0e0e0;
+      border-radius: 10px;
+      padding: 14px;
+      margin-bottom: 10px;
+      background: #fafafa;
+    }
+    .my-req-card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .my-req-type-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 3px 8px;
+      border-radius: 6px;
+      text-transform: uppercase;
+    }
+    .my-req-type-badge.edit {
+      background: #fff3e0;
+      color: #e65100;
+    }
+    .my-req-type-badge.add {
+      background: #e3f2fd;
+      color: #1565c0;
+    }
+    .my-req-section-badge {
+      font-size: 11px;
+      font-weight: 500;
+      padding: 2px 8px;
+      border-radius: 6px;
+      background: #f3e5f5;
+      color: #7b1fa2;
+    }
+    .my-req-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      font-size: 12px;
+      font-weight: 600;
+      padding: 3px 10px;
+      border-radius: 6px;
+    }
+    .my-req-status.pending {
+      background: #fff8e1;
+      color: #f57f17;
+    }
+    .my-req-status.accepted {
+      background: #e8f5e9;
+      color: #2e7d32;
+    }
+    .my-req-status.rejected {
+      background: #ffebee;
+      color: #c62828;
+    }
+    .my-req-details {
+      font-size: 13px;
+      color: #555;
+      line-height: 1.5;
+    }
+    .my-req-details .detail-row {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 2px;
+    }
+    .my-req-details .detail-label {
+      color: #888;
+      font-weight: 500;
+      min-width: 60px;
+    }
+    .my-req-time {
+      font-size: 11px;
+      color: #999;
+      margin-top: 6px;
+    }
+    .my-req-message {
+      font-size: 12px;
+      color: #666;
+      margin-top: 6px;
+      padding: 6px 10px;
+      background: #f0f0f0;
+      border-radius: 6px;
+      font-style: italic;
+    }
+    .my-req-empty {
+      text-align: center;
+      padding: 40px 20px;
+      color: #999;
+    }
+    .my-req-empty .material-symbols-outlined {
+      font-size: 48px;
+      margin-bottom: 8px;
+      color: #ccc;
+    }
+    .my-req-filter {
+      display: flex;
+      gap: 6px;
+      padding: 12px 20px 0;
+    }
+    .my-req-filter button {
+      padding: 5px 12px;
+      border: 1px solid #ddd;
+      background: white;
+      border-radius: 6px;
+      font-size: 12px;
+      cursor: pointer;
+      font-weight: 500;
+      color: #666;
+      transition: all 0.2s;
+    }
+    .my-req-filter button:hover {
+      background: #f5f5f5;
+    }
+    .my-req-filter button.active {
+      background: #1565c0;
+      color: white;
+      border-color: #1565c0;
+    }
+
+    /* Navigation tabs */
+    .shared-nav {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      background: white;
+      border-bottom: 1px solid #e0e0e0;
+      position: sticky;
+      top: 53px;
+      z-index: 1000;
+    }
+
+    .shared-nav a {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 12px 24px;
+      font-size: 14px;
+      font-weight: 500;
+      color: #666;
+      text-decoration: none;
+      border-bottom: 3px solid transparent;
+      transition: all 0.2s;
+    }
+
+    .shared-nav a:hover {
+      color: #333;
+      background: #f5f5f5;
+    }
+
+    .shared-nav a.active {
+      color: var(--brand-primary);
+      border-bottom-color: var(--brand-primary);
+    }
+
+    .shared-nav a .material-symbols-outlined {
+      font-size: 20px;
+    }
+
+    /* Suggest buttons */
+    .suggest-edit-item-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      padding: 3px 8px;
+      font-size: 11px;
+      background: #e3f2fd;
+      color: #1565c0;
+      border: 1px solid #90caf9;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+      transition: all 0.2s;
+      opacity: 0;
+      margin-left: 8px;
+    }
+    .suggest-edit-item-btn:hover {
+      background: #1565c0;
+      color: white;
+    }
+    .suggest-edit-item-btn .material-symbols-outlined {
+      font-size: 14px;
+    }
+    .shot-item:hover .suggest-edit-item-btn {
+      opacity: 1;
+    }
+
+    .suggest-add-item-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 14px;
+      font-size: 12px;
+      background: #1565c0;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      transition: all 0.2s;
+      box-shadow: 0 1px 4px rgba(21,101,192,0.2);
+    }
+    .suggest-add-item-btn:hover {
+      background: #0d47a1;
+    }
+    .suggest-add-item-btn .material-symbols-outlined {
+      font-size: 16px;
+    }
+
+    /* Change request modal */
+    .cr-modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 2000;
+      justify-content: center;
+      align-items: flex-start;
+      padding: 20px;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .cr-modal-overlay.active {
+      display: flex;
+    }
+    /* Body scroll lock when modal is open */
+    body.modal-open {
+      overflow: hidden !important;
+      position: fixed !important;
+      width: 100% !important;
+      height: 100% !important;
+    }
+
+    .cr-modal {
+      background: white;
+      border-radius: 12px;
+      width: 100%;
+      max-width: 460px;
+      margin: auto 0;
+      overflow: hidden;
+      box-sizing: border-box;
+      box-shadow: 0 8px 32px rgba(0,0,0,0.2);
+      flex-shrink: 0;
+    }
+    .cr-modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 20px;
+      border-bottom: 1px solid #eee;
+    }
+    .cr-modal-header h3 {
+      margin: 0;
+      font-size: 16px;
+      color: #333;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .cr-modal-close {
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #999;
+      padding: 0;
+      line-height: 1;
+    }
+    .cr-modal-close:hover { color: #333; }
+    .cr-modal-body {
+      padding: 20px;
+      overflow-x: hidden;
+      max-height: 70vh;
+      overflow-y: auto;
+      -webkit-overflow-scrolling: touch;
+    }
+    .cr-modal-body label {
+      display: block;
+      font-size: 13px;
+      font-weight: 500;
+      color: #555;
+      margin-bottom: 4px;
+      margin-top: 12px;
+    }
+    .cr-modal-body label:first-child {
+      margin-top: 0;
+    }
+    .cr-modal-body input[type="text"],
+    .cr-modal-body textarea {
+      display: block;
+      width: 100%;
+      max-width: 100%;
+      padding: 8px 12px;
+      border: 1.5px solid #ddd;
+      border-radius: 8px;
+      font-size: 16px;
+      font-family: 'Roboto', Arial, sans-serif;
+      box-sizing: border-box;
+      transition: border-color 0.2s;
+      -webkit-appearance: none;
+      appearance: none;
+    }
+    .cr-modal-body input:focus,
+    .cr-modal-body textarea:focus {
+      outline: none;
+      border-color: #1565c0;
+    }
+    .cr-modal-body textarea {
+      resize: vertical;
+      min-height: 60px;
+    }
+    .cr-modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+      padding: 16px 20px;
+      border-top: 1px solid #eee;
+    }
+
+    /* Mobile modal fixes */
+    @media (max-width: 480px) {
+      .cr-modal-overlay {
+        padding: 8px;
+        align-items: flex-start;
+      }
+      .cr-modal {
+        border-radius: 10px;
+        margin: 10px 0;
+      }
+      .cr-modal-header {
+        padding: 12px 16px;
+      }
+      .cr-modal-body {
+        padding: 16px;
+        max-height: 65vh;
+      }
+      .cr-modal-footer {
+        padding: 12px 16px;
+      }
+      .cr-btn-cancel,
+      .cr-btn-submit {
+        padding: 10px 16px;
+        font-size: 13px;
+      }
+    }
+    .cr-btn-cancel {
+      padding: 8px 20px;
+      background: #f5f5f5;
+      color: #555;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 500;
+      font-size: 14px;
+    }
+    .cr-btn-cancel:hover { background: #eee; }
+    .cr-btn-submit {
+      padding: 8px 20px;
+      background: #1565c0;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-weight: 600;
+      font-size: 14px;
+      transition: background 0.2s;
+    }
+    .cr-btn-submit:hover { background: #0d47a1; }
+    .cr-btn-submit:disabled {
+      background: #90caf9;
+      cursor: not-allowed;
+    }
+
+    .cr-original-value {
+      font-size: 12px;
+      color: #888;
+      margin-top: 2px;
+      font-style: italic;
+    }
+
+    /* Toast notification */
+    .cr-toast {
+      position: fixed;
+      bottom: 30px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #28a745;
+      color: white;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 500;
+      z-index: 3000;
+      box-shadow: 0 4px 16px rgba(0,0,0,0.2);
+      display: none;
+      align-items: center;
+      gap: 8px;
+    }
+    .cr-toast.show {
+      display: flex;
+    }
+
+    /* Loading and error states */
+    .loading-container, .error-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 60vh;
+      text-align: center;
+      padding: 40px 20px;
+    }
+
+    .loading-spinner {
+      width: 48px;
+      height: 48px;
+      border: 4px solid #e0e0e0;
+      border-top: 4px solid #CC0007;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 20px;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .error-container .material-symbols-outlined {
+      font-size: 64px;
+      color: #dc3545;
+      margin-bottom: 16px;
+    }
+
+    .error-container h2 {
+      color: #333;
+      margin-bottom: 8px;
+    }
+
+    .error-container p {
+      color: #666;
+      max-width: 400px;
+    }
+
+    /* Mobile adjustments */
+    @media (max-width: 768px) {
+      .suggest-edit-item-btn {
+        opacity: 1;
+      }
+      .shared-nav a {
+        padding: 10px 16px;
+        font-size: 13px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <!-- Branding bar -->
+  <div class="shared-branding">
+    <img src="assets/logo.png" alt="Lumetry" onerror="this.style.display='none'">
+    <span class="shared-badge">
+      <span class="material-symbols-outlined">visibility</span>
+      Client View
+    </span>
+    <button class="my-requests-btn" onclick="openMyRequests()">
+      <span class="material-symbols-outlined">list_alt</span>
+      My Requests
+      <span id="myReqBadge" class="my-req-badge" style="display:none;">0</span>
+    </button>
+  </div>
+
+  <!-- Navigation tabs -->
+  <div class="shared-nav">
+    <a id="navSchedule" href="#">
+      <span class="material-symbols-outlined">calendar_month</span>
+      Schedule
+    </a>
+    <a id="navShotlist" href="#" class="active">
+      <span class="material-symbols-outlined">checklist</span>
+      Shotlist
+    </a>
+  </div>
+
+  <!-- Main content wrapper -->
+  <div id="shared-shotlist-root">
+    <!-- Loading state -->
+    <div id="loadingState" class="loading-container">
+      <div class="loading-spinner"></div>
+      <p style="color: #666; font-size: 16px;">Loading shotlists...</p>
+    </div>
+
+    <!-- Error state (hidden by default) -->
+    <div id="errorState" class="error-container" style="display: none;">
+      <span class="material-symbols-outlined">error_outline</span>
+      <h2>Shotlist Not Found</h2>
+      <p>This link may have expired or been revoked. Please contact the event organizer for an updated link.</p>
+    </div>
+
+    <!-- Shotlist content (hidden until loaded) -->
+    <div id="shotlistContent" style="display: none;">
+      <div class="shotlist-page">
+        <div class="page-header">
+          <h1 id="eventTitle">Shotlists</h1>
+        </div>
+
+        <div class="shotlist-container">
+          <!-- List selector dropdown -->
+          <div class="list-header-section">
+            <div id="list-selector-section" class="list-selector-section" style="display: none;">
+              <label for="list-selector" class="selector-label">Select List:</label>
+              <select id="list-selector" class="list-selector">
+                <option value="">Choose a list...</option>
+              </select>
+            </div>
+          </div>
+
+          <!-- Lists container -->
+          <div id="lists-container" class="lists-container">
+            <!-- Lists will be dynamically populated here -->
+          </div>
+
+          <!-- Empty state -->
+          <div id="empty-state" class="empty-state" style="display: none;">
+            <span class="material-symbols-outlined empty-icon">checklist</span>
+            <h3>No shot lists available</h3>
+            <p>The organizer hasn't created any lists yet.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suggest Edit Item Modal -->
+  <div id="crEditItemModal" class="cr-modal-overlay">
+    <div class="cr-modal">
+      <div class="cr-modal-header">
+        <h3><span class="material-symbols-outlined">edit_note</span> Suggest Edit</h3>
+        <button class="cr-modal-close" onclick="closeShotlistModal('crEditItemModal')">&times;</button>
+      </div>
+      <div class="cr-modal-body">
+        <p style="font-size:13px; color:#666; margin:0 0 12px;">Suggest a change to this item. The organizer will review your request.</p>
+        <input type="hidden" id="crEditShotlistId">
+        <input type="hidden" id="crEditShotlistName">
+        <input type="hidden" id="crEditItemId">
+        <label>Your Name (optional)</label>
+        <input type="text" id="crEditItemClientName" placeholder="Your name">
+        <label>Item Title</label>
+        <input type="text" id="crEditItemTitle">
+        <div id="crEditItemTitleOrig" class="cr-original-value"></div>
+        <label>Message to Organizer (optional)</label>
+        <textarea id="crEditItemMessage" rows="2" placeholder="Reason for the change..."></textarea>
+      </div>
+      <div class="cr-modal-footer">
+        <button class="cr-btn-cancel" onclick="closeShotlistModal('crEditItemModal')">Cancel</button>
+        <button class="cr-btn-submit" id="crEditItemSubmitBtn" onclick="submitEditItemRequest()">Submit Suggestion</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Suggest New Item Modal -->
+  <div id="crAddItemModal" class="cr-modal-overlay">
+    <div class="cr-modal">
+      <div class="cr-modal-header">
+        <h3><span class="material-symbols-outlined">add_circle</span> Suggest New Item</h3>
+        <button class="cr-modal-close" onclick="closeShotlistModal('crAddItemModal')">&times;</button>
+      </div>
+      <div class="cr-modal-body">
+        <p style="font-size:13px; color:#666; margin:0 0 12px;">Suggest a new item for this list. The organizer will review your request.</p>
+        <input type="hidden" id="crAddItemShotlistId">
+        <input type="hidden" id="crAddItemShotlistName">
+        <label>Your Name (optional)</label>
+        <input type="text" id="crAddItemClientName" placeholder="Your name">
+        <label>Item Title</label>
+        <input type="text" id="crAddItemTitle" placeholder="New item...">
+        <label>Message to Organizer (optional)</label>
+        <textarea id="crAddItemMessage" rows="2" placeholder="Additional context..."></textarea>
+      </div>
+      <div class="cr-modal-footer">
+        <button class="cr-btn-cancel" onclick="closeShotlistModal('crAddItemModal')">Cancel</button>
+        <button class="cr-btn-submit" id="crAddItemSubmitBtn" onclick="submitAddItemRequest()">Submit Suggestion</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- My Requests Panel -->
+  <div id="myRequestsOverlay" class="my-requests-overlay">
+    <div class="my-requests-panel">
+      <div class="my-requests-header">
+        <h3><span class="material-symbols-outlined">list_alt</span> My Requests</h3>
+        <button class="cr-modal-close" onclick="closeMyRequests()">&times;</button>
+      </div>
+      <div class="my-req-filter">
+        <button class="active" data-filter="all" onclick="filterMyRequests('all', this)">All</button>
+        <button data-filter="pending" onclick="filterMyRequests('pending', this)">Pending</button>
+        <button data-filter="accepted" onclick="filterMyRequests('accepted', this)">Accepted</button>
+        <button data-filter="rejected" onclick="filterMyRequests('rejected', this)">Rejected</button>
+      </div>
+      <div class="my-requests-body" id="myRequestsBody">
+        <div class="my-req-empty">
+          <span class="material-symbols-outlined">inbox</span>
+          <p>No requests yet</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notification -->
+  <div id="crToast" class="cr-toast">
+    <span class="material-symbols-outlined">check_circle</span>
+    <span id="crToastMsg">Suggestion submitted!</span>
+  </div>
+
+  <!-- Config: detect environment for API_BASE -->
+  <script>
+    const isProduction = window.location.hostname !== 'localhost' && 
+                         !window.location.hostname.includes('127.0.0.1');
+    const API_BASE = isProduction 
+      ? 'https://spa-lumdash-backend.onrender.com' 
+      : 'http://localhost:3000';
+  </script>
+
+  <script src="js/shared-shotlist.js"></script>
+</body>
+</html>

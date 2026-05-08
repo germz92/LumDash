@@ -1,0 +1,123 @@
+<!-- Google Fonts Roboto -->
+<link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
+<!-- Add Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+
+
+<div class="general-page">
+  <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+    <div id="adminNotesBtnContainer"></div>
+    <div style="display: flex; gap: 12px; align-items: center;">
+    <div id="clockIconContainer">
+      <button id="clockIconBtn" class="clock-icon-btn" title="Show current time" aria-label="Show current time">
+        <!-- Replace SVG with Material Symbol -->
+        <span class="material-symbols-outlined" style="display:block; width: 32px; height: 32px; font-size: 32px;">schedule</span>
+      </button>
+      </div>
+    </div>
+  </div>
+  <h2 id="eventTitle" style="text-align: center; margin-bottom: 20px;"></h2>
+  <form id="generalForm">
+    <div class="info-section">
+      <div class="info-card">
+        <label for="summary" style="cursor: pointer; user-select: none;" onclick="toggleEventSummary()">
+          <span class="material-symbols-outlined" id="summaryToggleIcon" style="transition: transform 0.3s ease;">expand_more</span>
+          <span class="material-symbols-outlined">description</span> 
+          Event Summary
+        </label>
+        <div id="summaryContent" style="transition: max-height 0.3s ease, opacity 0.3s ease;">
+          <div id="summary" class="read-only"></div>
+          <div id="summaryEditorContainer" style="display: none;">
+            <div id="summaryEditor" class="tinymce-editor">
+              <!-- TinyMCE will initialize here -->
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-card">
+          <label for="location"><span class="material-symbols-outlined">place</span> Location</label>
+          <div id="location" class="read-only"></div>
+        </div>
+        <div class="info-card">
+          <!-- Weather icon will be set by JS -->
+          <label for="weather">Weather</label> 
+          <div id="weather" class="read-only"></div>
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-card">
+          <label for="start"><span class="material-symbols-outlined">calendar_month</span> Start Date</label>
+          <input type="date" id="start" name="start" placeholder="Select Date">
+        </div>
+        <div class="info-card">
+          <label for="end"><span class="material-symbols-outlined">calendar_month</span> End Date</label>
+          <input type="date" id="end" name="end" placeholder="Select Date">
+        </div>
+      </div>
+      <div class="info-row">
+        <div class="info-card">
+          <label for="attendees"><span class="material-symbols-outlined">groups</span> Attendee Count</label>
+          <div id="attendees" class="read-only"></div>
+        </div>
+        <div class="info-card">
+          <label for="budget"><span class="material-symbols-outlined">payments</span> Budget</label>
+          <div id="budget" class="read-only"></div>
+        </div>
+      </div>
+    </div>      
+
+    <div class="contacts-container">
+      <h2 style="margin-top: 0;"><span class="material-symbols-outlined">contacts</span> Point of Contacts</h2>
+      <div class="contacts-scroll-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Phone</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="contactRows"></tbody>
+        </table>
+      </div>
+      <button type="button" class="add-row-btn" onclick="addContactRow()">Add Row</button>
+    </div>
+
+    <div class="contacts-container">
+      <h2 style="margin-top: 40px;"><span class="material-symbols-outlined">business</span> Locations</h2>
+      <div class="contacts-scroll-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Address</th>
+              <th>Event</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="locationsRows"></tbody>
+        </table>
+      </div>
+      <button type="button" class="add-row-btn" onclick="addLocationRow()">Add Row</button>
+    </div>      
+
+    <div class="save-button-container">
+      <button type="button" class="add-row-btn" onclick="saveGeneralInfo()">Save</button>
+      <button id="editBtn" type="button" class="add-row-btn" onclick="switchToEdit()" style="display: none;">Edit</button>
+    </div>
+  </form>
+</div>
+
+<!-- Lucide icon library for folder/task icons - REMOVE THIS SECTION -->
+<!-- 
+<script src="https://unpkg.com/lucide@latest" defer></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+  if (window.lucide) lucide.createIcons();
+});
+</script>
+-->
+

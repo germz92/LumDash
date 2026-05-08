@@ -1,0 +1,80 @@
+<!-- Google Fonts Roboto -->
+<link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
+<!-- Add Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+
+<div class="card-log-page">
+  <h1 id="eventTitle" style="text-align: center; margin-top: 20px;"></h1>
+
+  <h2 style="text-align: center;">SD Card Log</h2>
+
+  <div class="cardlog-controls" style="text-align: center;">
+    <button id="add-day-btn">Add New Day</button>
+    <a href="../sd-card-calculator.html" class="calc-button" style="margin-left: 10px; display: inline-flex; align-items: center; text-decoration: none; background: #ededed; color: #cc0007; padding: 8px 12px; border-radius: 6px;">
+      <span class="material-symbols-outlined">calculate</span>
+      <span style="margin-left: 5px;">SD Card Calculator</span>
+    </a>
+  </div>
+
+  <div id="table-container"></div>
+
+  <!-- Date Modal -->
+  <div id="date-modal" class="modal">
+    <div class="modal-content">
+      <h3>Select a Date</h3>
+      <input type="date" id="new-date-input" />
+      <div class="modal-buttons">
+        <button id="submit-date">Create Table</button>
+        <button id="cancel-modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card Entry Modal -->
+  <div id="card-entry-modal" class="modal">
+    <div class="modal-content">
+      <h3 id="card-modal-title">Add Card Entry</h3>
+      <div class="card-form">
+        <div class="form-group">
+          <label for="card-camera-select">Camera</label>
+          <select id="card-camera-select">
+            <option value="">Select Camera</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="card-card1-input">Card 1</label>
+          <input type="text" id="card-card1-input" placeholder="Enter card 1 details" />
+        </div>
+        <div class="form-group">
+          <label for="card-card2-input">Card 2</label>
+          <input type="text" id="card-card2-input" placeholder="Enter card 2 details" />
+        </div>
+        <div class="form-group">
+          <label for="card-user-select">User</label>
+          <select id="card-user-select">
+            <option value="">Select User</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="card-category-select">Category</label>
+          <select id="card-category-select">
+            <option value="Photo" selected>Photo</option>
+            <option value="Video">Video</option>
+            <option value="Headshot">Headshot</option>
+            <option value="Other">Other</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="card-notes-input">Notes</label>
+          <textarea id="card-notes-input" placeholder="Add notes (optional)" rows="3"></textarea>
+        </div>
+      </div>
+      <div class="modal-buttons">
+        <button id="save-card-entry">Save Entry</button>
+        <button id="cancel-card-modal">Cancel</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+

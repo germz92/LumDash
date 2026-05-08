@@ -1,0 +1,834 @@
+/* ===== REIMBURSEMENTS PAGE STYLES ===== */
+
+/* Reset the page container */
+body:has(.reimbursements-page) #page-container,
+body:has(.reimbursement-detail-page) #page-container {
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow-x: hidden !important;
+  overflow-y: auto !important;
+}
+
+body:has(.reimbursements-page) #bottomNav,
+body:has(.reimbursements-page) .bottom-nav-material,
+body:has(.reimbursement-detail-page) #bottomNav,
+body:has(.reimbursement-detail-page) .bottom-nav-material {
+  display: none !important;
+}
+
+/* ===== LIST PAGE ===== */
+.reimbursements-page {
+  min-height: auto;
+  background: linear-gradient(145deg, #fafbfc 0%, #f0f2f5 100%);
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.reimbursements-header {
+  background: #fff;
+  padding: 12px 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.reimbursements-header .header-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.reimbursements-header .header-top h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #CC0007;
+  flex: 1;
+}
+
+.btn-create-request {
+  background: linear-gradient(135deg, #CC0007 0%, #a30006 100%);
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(204, 0, 7, 0.25);
+  white-space: nowrap;
+}
+
+.btn-create-request:hover {
+  background: linear-gradient(135deg, #a30006 0%, #8a0005 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(204, 0, 7, 0.35);
+}
+
+/* Table */
+.reimbursements-table-container {
+  padding: 16px;
+  flex: 1;
+}
+
+.reimbursements-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.reimbursements-table thead th {
+  background: #f8f9fa;
+  padding: 12px 16px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: left;
+  border-bottom: 2px solid #eee;
+}
+
+.reimbursements-table tbody td {
+  padding: 14px 16px;
+  font-size: 14px;
+  color: #333;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.reimbursements-table .clickable-row {
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.reimbursements-table .clickable-row:hover {
+  background: #f8f0f0;
+}
+
+/* Status badges */
+.status-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-draft {
+  background: #f0f0f0;
+  color: #666;
+}
+
+.status-submitted {
+  background: #fff3cd;
+  color: #856404;
+}
+
+.status-approved {
+  background: #d4edda;
+  color: #155724;
+}
+
+.status-rejected {
+  background: #f8d7da;
+  color: #721c24;
+}
+
+/* Empty state */
+.reimbursements-page .empty-state,
+.reimbursement-detail-page .empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 60px 20px;
+  color: #999;
+  text-align: center;
+}
+
+.empty-state .empty-icon {
+  font-size: 56px;
+  color: #ccc;
+  margin-bottom: 16px;
+}
+
+.empty-state h3 {
+  margin: 0 0 8px;
+  font-size: 18px;
+  color: #666;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 14px;
+  color: #999;
+}
+
+/* Mobile cards for list */
+.reimbursements-page .mobile-cards-container {
+  display: none;
+}
+
+.reimburse-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  cursor: pointer;
+  transition: box-shadow 0.2s, transform 0.15s;
+}
+
+.reimburse-card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  transform: translateY(-1px);
+}
+
+.reimburse-card-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 0;
+}
+
+.reimburse-card-row:not(:last-child) {
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.reimburse-card-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.reimburse-card-value {
+  font-size: 14px;
+  color: #333;
+  font-weight: 500;
+}
+
+.reimburse-amount {
+  color: #CC0007;
+  font-weight: 700;
+}
+
+/* Modal — uses ID selectors so styles apply even after moving to document.body */
+#createRequestModal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: rgba(0, 0, 0, 0.5);
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+#createRequestModal .modal-content {
+  background: #fff;
+  border-radius: 16px;
+  width: 90%;
+  max-width: 480px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.15);
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 0;
+}
+
+.modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: #1f2937;
+}
+
+.close-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: #f0f0f0;
+  color: #666;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+}
+
+.close-btn:hover {
+  background: #e0e0e0;
+}
+
+.modal-body {
+  padding: 20px 24px;
+}
+
+.modal-body .form-group {
+  margin-bottom: 16px;
+}
+
+.modal-body .form-group label {
+  display: block;
+  font-size: 13px;
+  font-weight: 600;
+  color: #555;
+  margin-bottom: 6px;
+}
+
+.modal-body .form-group input,
+.modal-body .form-group textarea,
+.modal-body .form-group select {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: 'Roboto', sans-serif;
+  transition: border-color 0.2s;
+  box-sizing: border-box;
+}
+
+.modal-body .form-group input:focus,
+.modal-body .form-group textarea:focus,
+.modal-body .form-group select:focus {
+  outline: none;
+  border-color: #CC0007;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  padding: 0 24px 20px;
+}
+
+.btn-primary {
+  padding: 10px 24px;
+  background: #CC0007;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.btn-primary:hover {
+  background: #a30006;
+}
+
+.btn-outlined {
+  padding: 10px 24px;
+  background: transparent;
+  color: #666;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-outlined:hover {
+  border-color: #999;
+  color: #333;
+}
+
+/* ===== DETAIL PAGE ===== */
+.reimbursement-detail-page {
+  min-height: auto;
+  background: linear-gradient(145deg, #fafbfc 0%, #f0f2f5 100%);
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+}
+
+.reimbursement-detail-header {
+  background: #fff;
+  padding: 12px 16px 16px;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.reimbursement-detail-header .header-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.header-title-group {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.header-title-group h1 {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: #CC0007;
+}
+
+.request-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+}
+
+.meta-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.meta-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.meta-value {
+  font-size: 14px;
+  color: #333;
+}
+
+.total-display {
+  margin-left: auto;
+}
+
+.total-amount {
+  font-size: 1.3rem !important;
+  font-weight: 700 !important;
+  color: #CC0007 !important;
+}
+
+/* Items table */
+.reimbursement-items-container {
+  padding: 16px;
+  flex: 1;
+}
+
+.reimbursement-items-table {
+  width: 100%;
+  border-collapse: collapse;
+  background: #fff;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.reimbursement-items-table thead th {
+  background: #f8f9fa;
+  padding: 12px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  text-align: left;
+  border-bottom: 2px solid #eee;
+}
+
+.reimbursement-items-table tbody td {
+  padding: 8px 12px;
+  font-size: 14px;
+  color: #333;
+  border-bottom: 1px solid #f0f0f0;
+  vertical-align: middle;
+}
+
+.reimbursement-items-table .actions-col {
+  width: 48px;
+  text-align: center;
+}
+
+/* Inline form controls in items table */
+.reimbursement-items-table input[type="date"],
+.reimbursement-items-table input[type="number"],
+.reimbursement-items-table input[type="text"],
+.reimbursement-items-table select {
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  font-size: 13px;
+  font-family: 'Roboto', sans-serif;
+  background: #fff;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.reimbursement-items-table input:focus,
+.reimbursement-items-table select:focus {
+  outline: none;
+  border-color: #CC0007;
+}
+
+.reimbursement-items-table input[type="number"] {
+  max-width: 110px;
+}
+
+.reimbursement-items-table input[type="date"] {
+  max-width: 150px;
+}
+
+/* Receipt cell */
+.receipt-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.receipt-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #CC0007;
+  text-decoration: none;
+  font-size: 13px;
+  font-weight: 500;
+  transition: color 0.2s;
+}
+
+.receipt-link:hover {
+  color: #a30006;
+}
+
+.receipt-link .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.btn-upload-receipt {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: #f0f0f0;
+  color: #666;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.btn-upload-receipt:hover {
+  background: #e0e0e0;
+  color: #333;
+}
+
+.btn-upload-receipt .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.btn-remove-receipt {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: #f0f0f0;
+  color: #999;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.2s;
+}
+
+.btn-remove-receipt:hover {
+  background: #ffebee;
+  color: #CC0007;
+}
+
+.btn-remove-receipt .material-symbols-outlined {
+  font-size: 14px;
+}
+
+.btn-delete-item {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #ccc;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  transition: all 0.2s;
+}
+
+.btn-delete-item:hover {
+  background: #ffebee;
+  color: #CC0007;
+}
+
+.btn-delete-item .material-symbols-outlined {
+  font-size: 20px;
+}
+
+/* Footer actions */
+.reimbursement-detail-footer {
+  position: sticky;
+  bottom: 0;
+  background: #fff;
+  padding: 12px 16px;
+  box-shadow: 0 -2px 12px rgba(0, 0, 0, 0.06);
+  z-index: 100;
+}
+
+.reimbursement-detail-footer .action-group {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.btn-add-item {
+  background: linear-gradient(135deg, #17a2b8 0%, #138496 100%);
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(23, 162, 184, 0.25);
+}
+
+.btn-add-item:hover {
+  background: linear-gradient(135deg, #138496 0%, #117a8b 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(23, 162, 184, 0.35);
+}
+
+.btn-save {
+  background: linear-gradient(135deg, #28a745 0%, #20873a 100%);
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(40, 167, 69, 0.25);
+}
+
+.btn-save:hover {
+  background: linear-gradient(135deg, #20873a 0%, #1a6e30 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(40, 167, 69, 0.35);
+}
+
+.btn-submit-request {
+  background: linear-gradient(135deg, #CC0007 0%, #a30006 100%);
+  color: #fff;
+  box-shadow: 0 3px 12px rgba(204, 0, 7, 0.25);
+}
+
+.btn-submit-request:hover {
+  background: linear-gradient(135deg, #a30006 0%, #8a0005 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 16px rgba(204, 0, 7, 0.35);
+}
+
+.btn-delete-request {
+  background: transparent;
+  color: #999;
+  border: 1px solid #ddd;
+  box-shadow: none;
+}
+
+.btn-delete-request:hover {
+  color: #CC0007;
+  border-color: #CC0007;
+  background: #fff5f5;
+}
+
+/* Toast message */
+.toast-message {
+  position: fixed;
+  bottom: 80px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: #333;
+  color: #fff;
+  padding: 12px 24px;
+  border-radius: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  z-index: 10000;
+  opacity: 0;
+  transition: opacity 0.3s, transform 0.3s;
+  pointer-events: none;
+}
+
+.toast-message.show {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ===== MOBILE CARDS FOR DETAIL PAGE ===== */
+.reimbursement-detail-page .mobile-cards-container {
+  display: none;
+}
+
+.reimburse-item-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+}
+
+.reimburse-item-card.readonly {
+  background: #fafafa;
+}
+
+.item-card-field {
+  margin-bottom: 12px;
+}
+
+.item-card-field label {
+  display: block;
+  font-size: 11px;
+  font-weight: 600;
+  color: #888;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  margin-bottom: 4px;
+}
+
+.item-card-field input,
+.item-card-field select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  font-size: 14px;
+  font-family: 'Roboto', sans-serif;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+.item-card-field input:focus,
+.item-card-field select:focus {
+  outline: none;
+  border-color: #CC0007;
+}
+
+.item-card-field span {
+  font-size: 14px;
+  color: #333;
+}
+
+.receipt-field {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.receipt-field label:first-child {
+  width: 100%;
+}
+
+.item-card-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid #f0f0f0;
+}
+
+.item-card-actions .btn-delete-item {
+  width: auto;
+  height: auto;
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #999;
+}
+
+.item-card-actions .btn-delete-item:hover {
+  color: #CC0007;
+  background: #ffebee;
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  .reimbursements-header .header-top h1 {
+    font-size: 1.1rem;
+  }
+
+  .btn-create-request {
+    padding: 8px 14px;
+    font-size: 13px;
+  }
+
+  .btn-create-request .material-symbols-outlined {
+    font-size: 18px;
+  }
+
+  /* List: hide table, show cards */
+  .reimbursements-table {
+    display: none !important;
+  }
+
+  .reimbursements-page .mobile-cards-container {
+    display: block !important;
+  }
+
+  /* Detail: hide table, show cards */
+  .reimbursement-items-table {
+    display: none !important;
+  }
+
+  .reimbursement-detail-page .mobile-cards-container {
+    display: block !important;
+  }
+
+  .request-meta {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .total-display {
+    margin-left: 0;
+  }
+
+  .reimbursement-detail-footer .action-group {
+    flex-direction: column;
+  }
+
+  .reimbursement-detail-footer .btn-action {
+    justify-content: center;
+  }
+
+  .header-title-group {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .header-title-group h1 {
+    font-size: 1.1rem;
+  }
+}

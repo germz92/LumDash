@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Travel and Accommodation</title>
+  <link rel="shortcut icon" type="image/x-icon" href="assets/favicon.png">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+  <script src="js/api.js"></script>
+  <script src="js/config.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    textarea, input[type="text"], input[type="time"] {
+      width: 100%;
+      min-height: 34px;
+      resize: none;
+      overflow: hidden;
+      line-height: 1.4;
+      font-size: 14px;
+      padding: 6px;
+      box-sizing: border-box;
+      font-family: inherit;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+    td.text { max-width: 200px; }
+    .edit-btn, .save-btn {
+      margin: 20px;
+      padding: 10px 16px;
+      font-size: 16px;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+    }
+    .edit-btn { background-color: #CC0007; color: white; }
+    .save-btn { background-color: #a1a1a1; color: white; display: none; }
+  </style>
+</head>
+<body class="travel-page">
+  <h1 id="eventTitle" style="text-align: center;"></h1>
+  <div style="text-align:center; margin-bottom: 20px;">
+    <button class="edit-btn" id="editModeBtn" onclick="enterEditMode()">Edit</button>
+    <button class="save-btn" id="saveBtn" onclick="saveData()">Save</button>
+  </div>
+  
+  <div style="text-align:center; margin-bottom: 20px;">
+    <input 
+      type="text" 
+      id="searchInput" 
+      placeholder="Search travel and accommodation..." 
+      style="padding: 10px 16px; font-size: 16px; width: 90%; max-width: 500px; border-radius: 8px; border: 1px solid #ccc; box-sizing: border-box;"
+    />
+  </div>
+
+  <div class="section">
+    <h2>Travel</h2>
+    <div class="table-wrapper">
+      <table id="travelTable">
+        <thead>
+          <tr>
+            <th class="date">Date</th>
+            <th class="time">Depart</th>
+            <th class="time">Arrive</th>
+            <th class="text name-column">Name</th>
+            <th class="text">Airline</th>
+            <th class="text">From/To</th>
+            <th class="text">Ref Number</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <button class="add-btn" onclick="addRow('travelTable')">+ Row</button>
+  </div>
+
+  <div class="section">
+    <h2>Accommodation</h2>
+    <div class="table-wrapper">
+      <table id="accommodationTable">
+        <thead>
+          <tr>
+            <th class="date">Check-In</th>
+            <th class="date">Check-Out</th>
+            <th class="text name-column">Name</th>
+            <th class="text hotel-column">Hotel</th>
+            <th class="text">Ref Number</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+    <button class="add-btn" onclick="addRow('accommodationTable')">+ Row</button>
+  </div>
+
+  <div id="bottomNavPlaceholder"></div>
+
+  <script src="js/travel-accommodation.js"></script>
+  
+  <script>
+    // Ensure the correct setup when accessing the page directly
+    document.addEventListener('DOMContentLoaded', function() {
+      // Ensure body class is set
+      if (!document.body.classList.contains('travel-page')) {
+        document.body.classList.add('travel-page');
+      }
+      
+      // Load CSS if not already loaded
+      if (!document.querySelector('link[href*="travel-accommodation.css"]')) {
+        const cssLink = document.createElement('link');
+        cssLink.rel = 'stylesheet';
+        cssLink.href = 'css/travel-accommodation.css';
+        cssLink.setAttribute('data-direct-load', 'true');
+        document.head.appendChild(cssLink);
+        console.log('Loaded travel-accommodation CSS on direct access');
+      }
+    });
+  </script>
+</body>
+</html>

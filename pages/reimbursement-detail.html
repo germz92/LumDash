@@ -1,0 +1,78 @@
+<link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+
+<div class="reimbursement-detail-page">
+  <div class="reimbursement-detail-header">
+    <div class="header-top">
+      <button id="backBtn" class="btn-back" title="Back to Reimbursements">
+        <span class="material-symbols-outlined">arrow_back</span>
+      </button>
+      <div class="header-title-group">
+        <h1 id="requestTitle">Reimbursement Request</h1>
+        <span id="requestStatus" class="status-badge status-draft">Draft</span>
+      </div>
+    </div>
+    <div class="request-meta">
+      <div class="meta-item">
+        <span class="meta-label">Event:</span>
+        <span class="meta-value" id="requestEvent">—</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Description:</span>
+        <span class="meta-value" id="requestDescription">—</span>
+      </div>
+      <div class="meta-item total-display">
+        <span class="meta-label">Total:</span>
+        <span class="meta-value total-amount" id="totalAmount">$0.00</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="reimbursement-items-container">
+    <!-- Desktop Table -->
+    <table class="reimbursement-items-table" id="itemsTable">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Category</th>
+          <th>Amount</th>
+          <th>Notes</th>
+          <th>Receipt</th>
+          <th class="actions-col"></th>
+        </tr>
+      </thead>
+      <tbody id="itemsBody">
+      </tbody>
+    </table>
+
+    <!-- Mobile Cards -->
+    <div id="mobileItemsContainer" class="mobile-cards-container"></div>
+
+    <div id="emptyItemsState" class="empty-state" style="display: none;">
+      <span class="material-symbols-outlined empty-icon">receipt</span>
+      <h3>No Items Yet</h3>
+      <p>Click "Add Item" to add expenses to this request</p>
+    </div>
+  </div>
+
+  <div class="reimbursement-detail-footer">
+    <div class="action-group">
+      <button id="addItemBtn" class="btn-action btn-add-item">
+        <span class="material-symbols-outlined">add</span>
+        Add Item
+      </button>
+      <button id="saveBtn" class="btn-action btn-save">
+        <span class="material-symbols-outlined">save</span>
+        Save
+      </button>
+      <button id="submitBtn" class="btn-action btn-submit-request">
+        <span class="material-symbols-outlined">send</span>
+        Submit
+      </button>
+      <button id="deleteRequestBtn" class="btn-action btn-delete-request">
+        <span class="material-symbols-outlined">delete</span>
+        Delete
+      </button>
+    </div>
+  </div>
+</div>

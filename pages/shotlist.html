@@ -1,0 +1,45 @@
+<!-- Google Fonts Roboto -->
+<link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
+<!-- Add Material Symbols -->
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+
+<div class="shotlist-page">
+  <div class="page-header">
+    <h1 id="eventTitle">Shotlists</h1>
+  </div>
+
+  <div class="shotlist-container">
+    <!-- List selector and management controls -->
+    <div class="list-header-section">
+      <!-- List selector dropdown -->
+      <div id="list-selector-section" class="list-selector-section" style="display: none;">
+        <label for="list-selector" class="selector-label">Select List:</label>
+        <select id="list-selector" class="list-selector">
+          <option value="">Choose a list...</option>
+        </select>
+      </div>
+      
+      <!-- List management controls (only visible for owners/leads) -->
+      <div id="list-controls" class="list-controls" style="display: none;">
+        <div class="add-list-section">
+          <input type="text" id="new-list-input" placeholder="New list name..." class="list-input">
+          <button id="add-list-btn" class="btn-icon">
+            <span class="material-symbols-outlined">add</span>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lists container -->
+    <div id="lists-container" class="lists-container">
+      <!-- Lists will be dynamically populated here -->
+    </div>
+
+    <!-- Empty state -->
+    <div id="empty-state" class="empty-state" style="display: none;">
+      <span class="material-symbols-outlined empty-icon">checklist</span>
+      <h3>No shot lists created</h3>
+      <p>Owners and leads can create lists to get started.</p>
+    </div>
+  </div>
+</div> 
