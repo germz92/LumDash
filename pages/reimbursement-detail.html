@@ -28,6 +28,16 @@
     </div>
   </div>
 
+  <div id="rejectionBanner" class="rejection-banner" style="display:none;">
+    <div class="rejection-banner-inner">
+      <span class="material-symbols-outlined rejection-icon">error</span>
+      <div class="rejection-text">
+        <strong>Request Rejected</strong>
+        <p id="rejectionNotes"></p>
+      </div>
+    </div>
+  </div>
+
   <div class="reimbursement-items-container">
     <!-- Desktop Table -->
     <table class="reimbursement-items-table" id="itemsTable">
@@ -47,6 +57,8 @@
 
     <!-- Mobile Cards -->
     <div id="mobileItemsContainer" class="mobile-cards-container"></div>
+
+    <div id="mealWarnings" class="meal-warnings"></div>
 
     <div id="emptyItemsState" class="empty-state" style="display: none;">
       <span class="material-symbols-outlined empty-icon">receipt</span>

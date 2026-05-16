@@ -64,11 +64,21 @@
       requestStatus.textContent = capitalize(requestData.status);
       requestStatus.className = `status-badge status-${requestData.status}`;
 
-      const isEditable = requestData.status === 'draft';
+      // Show rejection banner if rejected
+      const rejectionBanner = document.getElementById('rejectionBanner');
+      const rejectionNotes = document.getElementById('rejectionNotes');
+      if (requestData.status === 'rejected' && rejectionBanner) {
+        rejectionBanner.style.display = '';
+        rejectionNotes.textContent = requestData.reviewNotes || 'No reason provided.';
+      } else if (rejectionBanner) {
+        rejectionBanner.style.display = 'none';
+      }
+
+      const isEditable = requestData.status === 'draft' || requestData.status === 'rejected';
       document.getElementById('addItemBtn').style.display = isEditable ? '' : 'none';
       document.getElementById('saveBtn').style.display = isEditable ? '' : 'none';
       submitBtn.style.display = isEditable ? '' : 'none';
-      deleteBtn.style.display = isEditable ? '' : 'none';
+      deleteBtn.style.display = (requestData.status === 'draft') ? '' : 'none';
 
       renderItems();
     } catch (err) {
@@ -87,7 +97,7 @@
     }
 
     emptyItemsState.style.display = 'none';
-    const isEditable = requestData && requestData.status === 'draft';
+    const isEditable = requestData && (requestData.status === 'draft' || requestData.status === 'rejected');
 
     // Desktop table
     itemsTable.style.display = '';
@@ -404,9 +414,43 @@
     }
   }
 
+  const DAILY_MEAL_LIMIT = 75;
+
   function updateTotal() {
     const total = items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
     totalAmountEl.textContent = `$${total.toFixed(2)}`;
+    checkMealLimits();
+  }
+
+  function checkMealLimits() {
+    const warningsContainer = document.getElementById('mealWarnings');
+    if (!warningsContainer) return;
+
+    // Group meal items by date
+    const mealsByDate = {};
+    items.forEach(item => {
+      if (item.category !== 'meals') return;
+      const dateKey = item.date ? item.date.split('T')[0] : 'no-date';
+      if (!mealsByDate[dateKey]) mealsByDate[dateKey] = 0;
+      mealsByDate[dateKey] += parseFloat(item.amount) || 0;
+    });
+
+    // Build warnings for dates over the limit
+    const warnings = [];
+    for (const [dateKey, total] of Object.entries(mealsByDate)) {
+      if (total > DAILY_MEAL_LIMIT) {
+        const dateLabel = dateKey === 'no-date' ? 'undated entries'
+          : new Date(dateKey + 'T12:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        warnings.push(
+          `<div class="meal-warning">
+            <span class="material-symbols-outlined">warning</span>
+            Meals on ${dateLabel} total <strong>$${total.toFixed(2)}</strong> — daily limit is $${DAILY_MEAL_LIMIT.toFixed(2)}
+          </div>`
+        );
+      }
+    }
+
+    warningsContainer.innerHTML = warnings.join('');
   }
 
   function showToast(message) {

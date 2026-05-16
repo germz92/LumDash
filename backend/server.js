@@ -7637,18 +7637,26 @@ app.put('/api/reimbursements/:id', authenticate, async (req, res) => {
     const request = await ReimbursementRequest.findOne({ _id: req.params.id, userId: req.user.id });
     if (!request) return res.status(404).json({ error: 'Request not found' });
 
-    if (request.status !== 'draft') {
-      return res.status(400).json({ error: 'This request has already been submitted and cannot be edited' });
+    if (request.status === 'submitted' || request.status === 'approved') {
+      return res.status(400).json({ error: 'This request cannot be edited in its current status' });
     }
 
     const { items, status } = req.body;
+
+    // If editing a rejected request, reset it back to draft
+    if (request.status === 'rejected' && items !== undefined) {
+      request.status = 'draft';
+      request.reviewedBy = null;
+      request.reviewedAt = null;
+      request.reviewNotes = '';
+    }
 
     if (items !== undefined) {
       request.items = items;
       request.totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
     }
 
-    if (status === 'submitted') {
+    if (status === 'submitted' && (request.status === 'draft')) {
       request.status = 'submitted';
       request.dateSubmitted = new Date();
     }
