@@ -162,8 +162,8 @@ function navigate(page, id) {
         'schedule': 'cleanupSchedulePage',
         'card-log': 'cleanupCardLogPage',
         'shotlist': 'cleanupShotlist',
-        'timesheet': 'cleanupTimesheet'
-        // Add more page cleanup functions here as needed
+        'timesheet': 'cleanupTimesheet',
+        'reimbursements': 'cleanupReimbursementsPage'
       };
       
       const cleanupFunctionName = cleanupFunctionMap[window.currentPage] || 

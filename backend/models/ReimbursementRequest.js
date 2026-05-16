@@ -16,6 +16,8 @@ const reimbursementItemSchema = new mongoose.Schema({
 
 const reimbursementRequestSchema = new mongoose.Schema({
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  userName: { type: String, default: '' },
+  userEmail: { type: String, default: '' },
   eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Table' },
   eventName: { type: String, default: '' },
   description: { type: String, default: '' },
@@ -26,7 +28,10 @@ const reimbursementRequestSchema = new mongoose.Schema({
   },
   dateSubmitted: Date,
   items: [reimbursementItemSchema],
-  totalAmount: { type: Number, default: 0 }
+  totalAmount: { type: Number, default: 0 },
+  reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+  reviewedAt: Date,
+  reviewNotes: { type: String, default: '' }
 }, { timestamps: true });
 
 module.exports = mongoose.model('ReimbursementRequest', reimbursementRequestSchema, 'reimbursementrequests');

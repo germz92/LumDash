@@ -7599,8 +7599,11 @@ app.get('/api/reimbursements', authenticate, async (req, res) => {
 app.post('/api/reimbursements', authenticate, async (req, res) => {
   try {
     const { eventId, eventName, description } = req.body;
+    const user = await User.findById(req.user.id).select('fullName email');
     const request = new ReimbursementRequest({
       userId: req.user.id,
+      userName: user ? user.fullName : '',
+      userEmail: user ? user.email : '',
       eventId: eventId || null,
       eventName: eventName || '',
       description: description || '',
@@ -7634,6 +7637,10 @@ app.put('/api/reimbursements/:id', authenticate, async (req, res) => {
     const request = await ReimbursementRequest.findOne({ _id: req.params.id, userId: req.user.id });
     if (!request) return res.status(404).json({ error: 'Request not found' });
 
+    if (request.status !== 'draft') {
+      return res.status(400).json({ error: 'This request has already been submitted and cannot be edited' });
+    }
+
     const { items, status } = req.body;
 
     if (items !== undefined) {
@@ -7641,7 +7648,7 @@ app.put('/api/reimbursements/:id', authenticate, async (req, res) => {
       request.totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
     }
 
-    if (status === 'submitted' && request.status === 'draft') {
+    if (status === 'submitted') {
       request.status = 'submitted';
       request.dateSubmitted = new Date();
     }

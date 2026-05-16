@@ -7,6 +7,12 @@
     return;
   }
 
+  // Clean up any stale modal left on document.body from a previous navigation
+  const existingModal = document.body.querySelector(':scope > #createRequestModal');
+  if (existingModal) existingModal.remove();
+
+  // Grab fresh references from the just-injected page HTML
+  const pageContainer = document.getElementById('page-container');
   const reimbursementsBody = document.getElementById('reimbursementsBody');
   const mobileCardsContainer = document.getElementById('mobileCardsContainer');
   const emptyState = document.getElementById('emptyState');
@@ -17,37 +23,63 @@
   const descriptionInput = document.getElementById('descriptionInput');
   const eventSuggestions = document.getElementById('eventSuggestions');
 
+  if (!createModal) {
+    console.error('[reimbursements.js] createRequestModal not found in DOM');
+    return;
+  }
+
   let events = [];
 
   // Move modal to document.body so it escapes #page-container stacking context
-  if (createModal) document.body.appendChild(createModal);
+  document.body.appendChild(createModal);
 
-  // Back button
-  document.getElementById('backBtn').addEventListener('click', () => {
-    if (window.navigate) window.navigate('timesheet');
-    else window.location.href = '/dashboard.html#timesheet';
-  });
+  // Cleanup function called by app.js when navigating away
+  window.cleanupReimbursementsPage = function () {
+    const modal = document.body.querySelector(':scope > #createRequestModal');
+    if (modal) modal.remove();
+    document.body.classList.remove('modal-open');
+  };
 
-  // Modal controls
-  document.getElementById('createRequestBtn').addEventListener('click', openCreateModal);
-  document.getElementById('closeCreateModal').addEventListener('click', closeCreateModal);
-  document.getElementById('cancelCreateBtn').addEventListener('click', closeCreateModal);
-  document.getElementById('submitCreateBtn').addEventListener('click', submitCreate);
+  // Use event delegation on pageContainer for the Create Request button
+  // so it works even if the button reference was tricky to grab
+  if (pageContainer) {
+    pageContainer.addEventListener('click', (e) => {
+      const btn = e.target.closest('#createRequestBtn');
+      if (btn) openCreateModal();
+    });
+  }
+
+  // Direct listeners on modal elements (these are now on document.body)
+  document.getElementById('closeCreateModal')?.addEventListener('click', closeCreateModal);
+  document.getElementById('cancelCreateBtn')?.addEventListener('click', closeCreateModal);
+  document.getElementById('submitCreateBtn')?.addEventListener('click', submitCreate);
 
   createModal.addEventListener('click', (e) => {
     if (e.target === createModal) closeCreateModal();
   });
 
-  // Match event name to ID when user selects from datalist
-  eventNameInput.addEventListener('input', () => {
-    const match = events.find(ev => ev.title === eventNameInput.value);
-    eventIdInput.value = match ? match._id : '';
-  });
+  // Back button - also use delegation
+  if (pageContainer) {
+    pageContainer.addEventListener('click', (e) => {
+      const btn = e.target.closest('#backBtn');
+      if (btn) {
+        if (window.navigate) window.navigate('timesheet');
+        else window.location.href = '/dashboard.html#timesheet';
+      }
+    });
+  }
+
+  if (eventNameInput) {
+    eventNameInput.addEventListener('input', () => {
+      const match = events.find(ev => ev.title === eventNameInput.value);
+      if (eventIdInput) eventIdInput.value = match ? match._id : '';
+    });
+  }
 
   function openCreateModal() {
-    eventNameInput.value = '';
-    eventIdInput.value = '';
-    descriptionInput.value = '';
+    if (eventNameInput) eventNameInput.value = '';
+    if (eventIdInput) eventIdInput.value = '';
+    if (descriptionInput) descriptionInput.value = '';
     createModal.style.display = 'flex';
     document.body.classList.add('modal-open');
     loadEvents();
@@ -65,9 +97,11 @@
       });
       if (res.ok) {
         events = await res.json();
-        eventSuggestions.innerHTML = events.map(ev =>
-          `<option value="${escapeHtml(ev.title)}">`
-        ).join('');
+        if (eventSuggestions) {
+          eventSuggestions.innerHTML = events.map(ev =>
+            `<option value="${escapeHtml(ev.title)}">`
+          ).join('');
+        }
       }
     } catch (err) {
       console.error('Failed to load events:', err);
@@ -75,9 +109,9 @@
   }
 
   async function submitCreate() {
-    const eventName = eventNameInput.value.trim();
-    const description = descriptionInput.value.trim();
-    const eventId = eventIdInput.value || null;
+    const eventName = (eventNameInput?.value || '').trim();
+    const description = (descriptionInput?.value || '').trim();
+    const eventId = eventIdInput?.value || null;
 
     if (!eventName) {
       alert('Please enter an event name.');
@@ -117,46 +151,48 @@
       const requests = await res.json();
 
       if (requests.length === 0) {
-        table.style.display = 'none';
-        mobileCardsContainer.style.display = 'none';
-        emptyState.style.display = 'flex';
+        if (table) table.style.display = 'none';
+        if (mobileCardsContainer) mobileCardsContainer.style.display = 'none';
+        if (emptyState) emptyState.style.display = 'flex';
         return;
       }
 
-      emptyState.style.display = 'none';
+      if (emptyState) emptyState.style.display = 'none';
 
-      // Desktop table
-      table.style.display = '';
-      reimbursementsBody.innerHTML = requests.map(req => `
-        <tr class="clickable-row" data-id="${req._id}">
-          <td>${formatDate(req.dateSubmitted || req.createdAt)}</td>
-          <td>$${(req.totalAmount || 0).toFixed(2)}</td>
-          <td>${escapeHtml(req.eventName || '—')}</td>
-          <td><span class="status-badge status-${req.status}">${capitalize(req.status)}</span></td>
-        </tr>
-      `).join('');
+      if (table) table.style.display = '';
+      if (reimbursementsBody) {
+        reimbursementsBody.innerHTML = requests.map(req => `
+          <tr class="clickable-row" data-id="${req._id}">
+            <td>${formatDate(req.dateSubmitted || req.createdAt)}</td>
+            <td>$${(req.totalAmount || 0).toFixed(2)}</td>
+            <td>${escapeHtml(req.eventName || '—')}</td>
+            <td><span class="status-badge status-${req.status}">${capitalize(req.status)}</span></td>
+          </tr>
+        `).join('');
+      }
 
-      // Mobile cards
-      mobileCardsContainer.innerHTML = requests.map(req => `
-        <div class="reimburse-card clickable-row" data-id="${req._id}">
-          <div class="reimburse-card-row">
-            <span class="reimburse-card-label">Event</span>
-            <span class="reimburse-card-value">${escapeHtml(req.eventName || '—')}</span>
+      if (mobileCardsContainer) {
+        mobileCardsContainer.innerHTML = requests.map(req => `
+          <div class="reimburse-card clickable-row" data-id="${req._id}">
+            <div class="reimburse-card-row">
+              <span class="reimburse-card-label">Event</span>
+              <span class="reimburse-card-value">${escapeHtml(req.eventName || '—')}</span>
+            </div>
+            <div class="reimburse-card-row">
+              <span class="reimburse-card-label">Date</span>
+              <span class="reimburse-card-value">${formatDate(req.dateSubmitted || req.createdAt)}</span>
+            </div>
+            <div class="reimburse-card-row">
+              <span class="reimburse-card-label">Amount</span>
+              <span class="reimburse-card-value reimburse-amount">$${(req.totalAmount || 0).toFixed(2)}</span>
+            </div>
+            <div class="reimburse-card-row">
+              <span class="reimburse-card-label">Status</span>
+              <span class="status-badge status-${req.status}">${capitalize(req.status)}</span>
+            </div>
           </div>
-          <div class="reimburse-card-row">
-            <span class="reimburse-card-label">Date</span>
-            <span class="reimburse-card-value">${formatDate(req.dateSubmitted || req.createdAt)}</span>
-          </div>
-          <div class="reimburse-card-row">
-            <span class="reimburse-card-label">Amount</span>
-            <span class="reimburse-card-value reimburse-amount">$${(req.totalAmount || 0).toFixed(2)}</span>
-          </div>
-          <div class="reimburse-card-row">
-            <span class="reimburse-card-label">Status</span>
-            <span class="status-badge status-${req.status}">${capitalize(req.status)}</span>
-          </div>
-        </div>
-      `).join('');
+        `).join('');
+      }
 
       // Click handlers for navigation to detail
       document.querySelectorAll('.clickable-row').forEach(row => {

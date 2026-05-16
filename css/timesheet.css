@@ -249,6 +249,8 @@ body:has(.timesheet-page) .bottom-nav-material {
   background: linear-gradient(135deg, #6f42c1 0%, #5a32a3 100%);
   color: #fff;
   box-shadow: 0 3px 12px rgba(111, 66, 193, 0.25);
+  grid-column: 1 / -1;
+  justify-content: center;
 }
 
 .btn-reimbursements:hover {
