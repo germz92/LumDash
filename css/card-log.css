@@ -182,6 +182,55 @@
   visibility: visible !important;
   transform: none !important;
 }
+
+/* Card entry modal: scrollable body + pinned action buttons (fixes mobile cutoff) */
+#card-entry-modal.card-log-modal {
+  align-items: center !important;
+  justify-content: center !important;
+  padding: max(12px, env(safe-area-inset-top, 12px)) 12px max(12px, env(safe-area-inset-bottom, 12px)) !important;
+  box-sizing: border-box !important;
+  overflow-y: auto !important;
+  -webkit-overflow-scrolling: touch;
+}
+
+#card-entry-modal .modal-content {
+  display: flex !important;
+  flex-direction: column !important;
+  max-height: calc(100vh - 24px) !important;
+  max-height: min(92dvh, calc(100vh - 24px)) !important;
+  overflow: hidden !important;
+  padding: 20px 20px 0 !important;
+  text-align: center !important;
+  margin: auto !important;
+}
+
+#card-entry-modal .modal-content h3 {
+  flex-shrink: 0;
+  margin-bottom: 12px !important;
+}
+
+#card-entry-modal .card-form {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  margin: 0 0 0 0 !important;
+  padding: 4px 2px 12px 0;
+  text-align: left;
+}
+
+#card-entry-modal .modal-buttons {
+  flex-shrink: 0;
+  margin-top: 0 !important;
+  padding: 14px 0 max(14px, env(safe-area-inset-bottom, 14px)) !important;
+  background: #fff !important;
+  border-top: 1px solid #e8e8e8;
+  position: sticky;
+  bottom: 0;
+  z-index: 1;
+}
+
 .card-log-page .modal-buttons,
 .card-log-modal .modal-buttons,
 #date-modal .modal-buttons,
@@ -190,6 +239,7 @@
   display: flex; 
   gap: 10px; 
   justify-content: center; 
+  flex-wrap: wrap;
 }
 
 .card-log-page .modal-buttons button,
@@ -200,7 +250,9 @@
   font-weight: bold; 
   border: none; 
   border-radius: 6px; 
-  cursor: pointer; 
+  cursor: pointer;
+  flex: 1 1 auto;
+  min-width: 120px;
 }
 
 .card-log-page .modal-buttons button:first-child,
@@ -288,6 +340,33 @@
     width: 95% !important;
     max-width: 95vw !important;
     z-index: 100000 !important;
+  }
+
+  #card-entry-modal.card-log-modal {
+    align-items: flex-start !important;
+    justify-content: flex-start !important;
+    padding-top: max(8px, env(safe-area-inset-top, 8px)) !important;
+    padding-bottom: max(8px, env(safe-area-inset-bottom, 8px)) !important;
+  }
+
+  #card-entry-modal .modal-content {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: calc(100vh - 16px) !important;
+    max-height: min(94dvh, calc(100vh - 16px)) !important;
+    padding: 16px 16px 0 !important;
+    margin: 0 auto !important;
+  }
+
+  #card-entry-modal .modal-buttons {
+    flex-direction: column;
+    gap: 8px !important;
+  }
+
+  #card-entry-modal .modal-buttons button {
+    width: 100%;
+    min-height: 44px;
+    margin: 0 !important;
   }
 }
 

@@ -139,6 +139,8 @@ const tableSchema = new mongoose.Schema({
           camera: String,
           card1: String,
           card2: String,
+          card1BackedUp: { type: Boolean, default: false },
+          card2BackedUp: { type: Boolean, default: false },
           user: String
         }
       ]
