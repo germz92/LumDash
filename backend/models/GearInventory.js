@@ -51,6 +51,14 @@ const gearInventorySchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now }
   }],
   
+  // Admin notes with timestamps, keyed by serial number
+  notes: [{
+    serial: { type: String, default: 'N/A' },
+    text: { type: String, required: true },
+    createdAt: { type: Date, default: Date.now },
+    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
+  }],
+
   // Historical data (only for completed/past reservations)
   history: [{
     eventId: { type: mongoose.Schema.Types.ObjectId, ref: 'Table' },

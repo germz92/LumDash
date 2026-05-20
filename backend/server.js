@@ -3173,7 +3173,7 @@ app.get('/api/verify-token', authenticate, (req, res) => {
 // List all gear
 app.get('/api/gear-inventory', authenticate, async (req, res) => {
   try {
-    const gear = await GearInventory.find();
+    const gear = await GearInventory.find().populate('notes.createdBy', 'fullName');
     res.json(gear);
   } catch (err) {
     res.status(500).json({ error: 'Failed to fetch gear inventory' });
@@ -3796,6 +3796,66 @@ app.delete('/api/gear-inventory/:id', authenticate, async (req, res) => {
   } catch (err) {
     console.error('Error deleting gear:', err);
     res.status(500).json({ error: 'Failed to delete gear' });
+  }
+});
+
+// Add a note to an inventory item (scoped to a specific serial number)
+app.post('/api/gear-inventory/:id/notes', authenticate, async (req, res) => {
+  try {
+    const gearId = req.params.id;
+    const { text, serial } = req.body;
+
+    if (!gearId) return res.status(400).json({ error: 'Missing gear ID' });
+    if (!text || typeof text !== 'string' || !text.trim()) {
+      return res.status(400).json({ error: 'Note text is required' });
+    }
+
+    const gear = await GearInventory.findById(gearId);
+    if (!gear) return res.status(404).json({ error: 'Gear not found' });
+
+    const serialValue = (serial && typeof serial === 'string' && serial.trim() !== '')
+      ? serial.trim()
+      : (gear.serial || 'N/A');
+
+    // Store note on the inventory document that owns this serial (same model/label)
+    let targetGear = gear;
+    if (serialValue !== gear.serial) {
+      const sibling = await GearInventory.findOne({
+        label: gear.label,
+        serial: serialValue
+      });
+      if (!sibling) {
+        return res.status(404).json({
+          error: `No inventory unit found with serial "${serialValue}" for ${gear.label}`
+        });
+      }
+      targetGear = sibling;
+    }
+
+    const note = {
+      serial: serialValue,
+      text: text.trim(),
+      createdAt: new Date(),
+      createdBy: req.user.id
+    };
+
+    targetGear.notes.push(note);
+    await targetGear.save();
+
+    const savedGear = await GearInventory.findById(targetGear._id).populate('notes.createdBy', 'fullName email');
+    const savedNote = savedGear.notes[savedGear.notes.length - 1];
+    const allWithLabel = await GearInventory.find({ label: gear.label }).populate('notes.createdBy', 'fullName');
+
+    res.json({
+      message: 'Note added',
+      note: savedNote,
+      gear: savedGear,
+      serial: serialValue,
+      relatedItems: allWithLabel
+    });
+  } catch (err) {
+    console.error('Error adding inventory note:', err);
+    res.status(500).json({ error: 'Failed to add note: ' + err.message });
   }
 });
 
