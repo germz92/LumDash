@@ -47,22 +47,46 @@
 
 .card-log-page .card-slot-cell {
   cursor: context-menu;
+  min-width: 4.5rem;
+  vertical-align: middle;
+  position: relative;
 }
 
 .card-log-page .card-slot-inner {
-  display: inline-flex;
+  display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 4px;
+  width: 100%;
+  min-width: 0;
+  padding: 4px 2px;
+  box-sizing: border-box;
+}
+
+.card-log-page .card-slot-cell .display-value {
+  display: block;
+  width: 100%;
   max-width: 100%;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.35;
+  text-align: center;
+  font-size: 13px;
 }
 
 .card-log-page .backup-check {
   color: #28a745;
-  font-size: 20px;
+  font-size: 18px;
   line-height: 1;
   display: none;
   flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #e8f5e9;
 }
 
 .card-log-page .card-slot-cell.backed-up .backup-check {
@@ -71,6 +95,7 @@
 
 .card-log-page .card-slot-cell.backed-up .display-value {
   font-weight: 600;
+  color: #1b5e20;
 }
 
 .card-log-context-menu {
@@ -287,12 +312,24 @@
   } 
   .card-log-page th, .card-log-page td { 
     font-size: 15px; 
-    padding: 4px 2px; 
+    padding: 6px 4px; 
     min-width: 0 !important; 
-    word-break: break-all !important; 
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
     white-space: normal !important; 
     height: auto; 
-  } 
+  }
+
+  .card-log-page .card-slot-cell {
+    min-width: 4.25rem !important;
+    padding: 8px 4px !important;
+  }
+
+  .card-log-page .card-slot-cell .display-value {
+    font-size: 14px !important;
+    word-break: normal !important;
+    overflow-wrap: break-word !important;
+  }
   .card-log-page th:last-child { 
     min-width: 40px !important; 
     max-width: 50px !important; 
@@ -308,9 +345,8 @@
     width: 50px !important; 
     padding: 4px !important;
     text-align: center !important;
-    display: flex !important;
-    align-items: center !important;
-    justify-content: center !important;
+    display: table-cell !important;
+    vertical-align: middle !important;
   } 
   .card-log-page input[type="text"], .card-log-page select { 
     width: 100% !important; 
@@ -511,32 +547,51 @@
   background-color: #e8f4fd !important;
 }
 
-/* Category color coding for rows */
-.card-log-page .category-video td {
+/* Category color coding for rows (all cells including delete column) */
+.card-log-page .category-video td,
+.card-log-page .category-video td:last-child {
   background-color: #e0f0ff !important;
 }
-.card-log-page .category-video:nth-child(even) td {
+.card-log-page .category-video:nth-child(even) td,
+.card-log-page .category-video:nth-child(even) td:last-child {
   background-color: #d6ebfc !important;
 }
-.card-log-page .category-video:hover td {
+.card-log-page .category-video:hover td,
+.card-log-page .category-video:hover td:last-child {
   background-color: #c5e1f7 !important;
 }
 
-.card-log-page .category-headshot td {
+.card-log-page .category-headshot td,
+.card-log-page .category-headshot td:last-child {
   background-color: #e0f5e0 !important;
 }
-.card-log-page .category-headshot:nth-child(even) td {
+.card-log-page .category-headshot:nth-child(even) td,
+.card-log-page .category-headshot:nth-child(even) td:last-child {
   background-color: #d6f0d6 !important;
 }
-.card-log-page .category-headshot:hover td {
+.card-log-page .category-headshot:hover td,
+.card-log-page .category-headshot:hover td:last-child {
   background-color: #c5e8c5 !important;
 }
 
-.card-log-page .category-other td {
+.card-log-page .category-other td,
+.card-log-page .category-other td:last-child {
   background-color: #f5f5f5 !important;
 }
-.card-log-page .category-other:hover td {
+.card-log-page .category-other:hover td,
+.card-log-page .category-other:hover td:last-child {
   background-color: #ebebeb !important;
+}
+
+/* Default zebra rows — keep action column in sync */
+.card-log-page tr:nth-child(even) td:last-child {
+  background: #fafbfc;
+}
+.card-log-page tr:nth-child(odd) td:last-child {
+  background: #fff;
+}
+.card-log-page tr:hover td:last-child {
+  background: #f0f4fa !important;
 }
 
 /* Notes indicator dot - placed on the first td for reliable positioning */

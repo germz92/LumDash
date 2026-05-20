@@ -1135,10 +1135,11 @@ function escapeCardLogText(str) {
 
 function buildCardSlotCellHtml(field, value, backedUp) {
   const backedUpClass = backedUp ? ' backed-up' : '';
+  const displayValue = escapeCardLogText(value) || '—';
   return `<td class="card-slot-cell${backedUpClass}" data-card-slot="${field}">
     <div class="card-slot-inner">
-      <span class="backup-check material-symbols-outlined" aria-hidden="true">check</span>
-      <span class="display-value" data-field="${field}">${escapeCardLogText(value)}</span>
+      <span class="backup-check material-symbols-outlined" aria-hidden="true" title="Backed up">check</span>
+      <span class="display-value" data-field="${field}">${displayValue}</span>
     </div>
   </td>`;
 }
@@ -1292,10 +1293,10 @@ function addDaySection(date, entries = []) {
     </div>
     <table>
       <colgroup>
-        <col style="width: 25%;">
-        <col style="width: 15%;">
-        <col style="width: 15%;">
-        <col style="width: 35%;">
+        <col style="width: 22%;">
+        <col class="col-card-slot" style="width: 19%;">
+        <col class="col-card-slot" style="width: 19%;">
+        <col style="width: 30%;">
         <col style="width: 10%;">
       </colgroup>
       <thead>
