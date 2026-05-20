@@ -1600,6 +1600,8 @@ function sanitizeCardLog(cardLog) {
           camera: entry.camera || '',
           card1: entry.card1 || '',
           card2: entry.card2 || '',
+          card1BackedUp: !!entry.card1BackedUp,
+          card2BackedUp: !!entry.card2BackedUp,
           user: entry.user || '',
           category: entry.category || 'Photo',
           notes: entry.notes || '',

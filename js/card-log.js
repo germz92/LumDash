@@ -23,6 +23,8 @@ let isActivelyEditing = false; // Track if user is actively editing
 let lastInputTime = 0; // Track when user last typed
 let deferredUpdate = null; // Store deferred updates
 let deferredUpdateTimeout = null; // Timeout for deferred updates
+let cardLogContextMenu = null; // Right-click menu for card backup marks
+let cardLogContextTarget = null; // { row, field } for context menu
 
 // Function to refresh owner status and update collaborative system
 function refreshOwnerStatus(newOwnerStatus) {
@@ -286,6 +288,8 @@ async function saveToMongoDB() {
           camera: row.querySelector('[data-field="camera"]').textContent || '',
           card1: row.querySelector('[data-field="card1"]').textContent || '',
           card2: row.querySelector('[data-field="card2"]').textContent || '',
+          card1BackedUp: row.getAttribute('data-card1-backed-up') === 'true',
+          card2BackedUp: row.getAttribute('data-card2-backed-up') === 'true',
           user: row.querySelector('[data-field="user"]').textContent || '',
           category: row.getAttribute('data-category') || 'Photo',
           notes: row.getAttribute('data-notes') || '',
@@ -495,6 +499,8 @@ function setupEventListeners() {
   // Card entry modal listeners
   if (cancelCardModalBtn) cancelCardModalBtn.addEventListener('click', closeCardEntryModal);
   if (saveCardEntryBtn) saveCardEntryBtn.addEventListener('click', saveCardEntry);
+
+  setupCardBackupContextMenu();
   
   if (tableContainer) {
     tableContainer.addEventListener('click', async (e) => {
@@ -512,8 +518,8 @@ function setupEventListeners() {
         openCardEntryModal(date);
       }
       
-      // Handle row clicks for editing
-      if (e.target.closest('.card-log-row') && !e.target.closest('button')) {
+      // Handle row clicks for editing (not card backup cells — those use right-click)
+      if (e.target.closest('.card-log-row') && !e.target.closest('button') && !e.target.closest('.card-slot-cell')) {
         const row = e.target.closest('.card-log-row');
         const dayTable = row.closest('.day-table');
         const date = dayTable ? dayTable.getAttribute('data-date') : null;
@@ -538,6 +544,8 @@ function setupEventListeners() {
             camera: row.querySelector('[data-field="camera"]').textContent,
             card1: row.querySelector('[data-field="card1"]').textContent,
             card2: row.querySelector('[data-field="card2"]').textContent,
+            card1BackedUp: row.getAttribute('data-card1-backed-up') === 'true',
+            card2BackedUp: row.getAttribute('data-card2-backed-up') === 'true',
             user: row.querySelector('[data-field="user"]').textContent,
             category: row.getAttribute('data-category') || 'Photo',
             notes: row.getAttribute('data-notes') || '',
@@ -1118,6 +1126,153 @@ function getCurrentUserName() {
   }
 }
 
+function escapeCardLogText(str) {
+  if (!str) return '';
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function buildCardSlotCellHtml(field, value, backedUp) {
+  const backedUpClass = backedUp ? ' backed-up' : '';
+  return `<td class="card-slot-cell${backedUpClass}" data-card-slot="${field}">
+    <div class="card-slot-inner">
+      <span class="backup-check material-symbols-outlined" aria-hidden="true">check</span>
+      <span class="display-value" data-field="${field}">${escapeCardLogText(value)}</span>
+    </div>
+  </td>`;
+}
+
+function applyCardBackedUpUI(row, entry = {}) {
+  ['card1', 'card2'].forEach(field => {
+    const backedUp = !!entry[`${field}BackedUp`] || row.getAttribute(`data-${field}-backed-up`) === 'true';
+    row.setAttribute(`data-${field}-backed-up`, backedUp ? 'true' : 'false');
+    const cell = row.querySelector(`[data-card-slot="${field}"]`);
+    if (cell) {
+      cell.classList.toggle('backed-up', backedUp);
+    }
+  });
+}
+
+function setupCardBackupContextMenu() {
+  if (cardLogContextMenu) return;
+
+  cardLogContextMenu = document.createElement('div');
+  cardLogContextMenu.id = 'card-log-context-menu';
+  cardLogContextMenu.className = 'card-log-context-menu';
+  cardLogContextMenu.innerHTML = `
+    <button type="button" id="card-log-mark-backed-up">
+      <span class="material-symbols-outlined" style="font-size:18px;">backup</span>
+      <span id="card-log-mark-backed-up-label">Mark as Backed Up</span>
+    </button>
+  `;
+  document.body.appendChild(cardLogContextMenu);
+  cardLogContextMenu.addEventListener('mousedown', (e) => e.stopPropagation());
+  cardLogContextMenu.addEventListener('click', (e) => e.stopPropagation());
+
+  document.getElementById('card-log-mark-backed-up').addEventListener('click', async () => {
+    if (!cardLogContextTarget) return;
+    const { row, field } = cardLogContextTarget;
+    hideCardBackupContextMenu();
+    await toggleCardBackedUp(row, field);
+  });
+
+  document.addEventListener('click', hideCardBackupContextMenu);
+  document.addEventListener('scroll', hideCardBackupContextMenu, true);
+  window.addEventListener('resize', hideCardBackupContextMenu);
+
+  const tableContainer = document.getElementById('table-container');
+  if (tableContainer) {
+    tableContainer.addEventListener('contextmenu', (e) => {
+      const cell = e.target.closest('.card-slot-cell');
+      if (!cell) return;
+
+      const row = cell.closest('.card-log-row');
+      const field = cell.getAttribute('data-card-slot');
+      if (!row || (field !== 'card1' && field !== 'card2')) return;
+
+      e.preventDefault();
+      showCardBackupContextMenu(e.clientX, e.clientY, row, field);
+    });
+  }
+}
+
+function showCardBackupContextMenu(x, y, row, field) {
+  if (!cardLogContextMenu) setupCardBackupContextMenu();
+
+  cardLogContextTarget = { row, field };
+  const isBackedUp = row.getAttribute(`data-${field}-backed-up`) === 'true';
+  const label = document.getElementById('card-log-mark-backed-up-label');
+  if (label) {
+    label.textContent = isBackedUp ? 'Remove Backup Mark' : 'Mark as Backed Up';
+  }
+
+  cardLogContextMenu.style.display = 'block';
+  cardLogContextMenu.style.left = `${x}px`;
+  cardLogContextMenu.style.top = `${y}px`;
+
+  const rect = cardLogContextMenu.getBoundingClientRect();
+  if (rect.right > window.innerWidth) {
+    cardLogContextMenu.style.left = `${Math.max(8, x - rect.width)}px`;
+  }
+  if (rect.bottom > window.innerHeight) {
+    cardLogContextMenu.style.top = `${Math.max(8, y - rect.height)}px`;
+  }
+}
+
+function hideCardBackupContextMenu() {
+  if (cardLogContextMenu) {
+    cardLogContextMenu.style.display = 'none';
+  }
+  cardLogContextTarget = null;
+}
+
+async function toggleCardBackedUp(row, field) {
+  if (!row || (field !== 'card1' && field !== 'card2')) return;
+
+  const isBackedUp = row.getAttribute(`data-${field}-backed-up`) === 'true';
+  row.setAttribute(`data-${field}-backed-up`, isBackedUp ? 'false' : 'true');
+
+  const cell = row.querySelector(`[data-card-slot="${field}"]`);
+  if (cell) {
+    cell.classList.toggle('backed-up', !isBackedUp);
+  }
+
+  try {
+    await saveToMongoDB();
+    showToastNotification(isBackedUp ? 'Backup mark removed' : 'Marked as backed up', 'success');
+  } catch (error) {
+    console.error('[CARD-LOG] Error saving backup mark:', error);
+    row.setAttribute(`data-${field}-backed-up`, isBackedUp ? 'true' : 'false');
+    if (cell) cell.classList.toggle('backed-up', isBackedUp);
+    showSaveError('Failed to save backup status');
+  }
+}
+
+function showToastNotification(message, type = 'success') {
+  const existing = document.getElementById('card-log-toast');
+  if (existing) existing.remove();
+
+  const toast = document.createElement('div');
+  toast.id = 'card-log-toast';
+  toast.textContent = message;
+  toast.style.cssText = `
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 12px 18px;
+    border-radius: 8px;
+    z-index: 100002;
+    font-size: 14px;
+    font-weight: 500;
+    color: white;
+    background: ${type === 'success' ? '#28a745' : '#dc3545'};
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+  `;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 2500);
+}
+
 function addDaySection(date, entries = []) {
   const container = document.getElementById('table-container');
   const dayDiv = document.createElement('div');
@@ -1220,6 +1375,8 @@ function addRow(date, entry = {}) {
   row.setAttribute('data-created-at', entry.createdAt || '');
   row.setAttribute('data-category', entry.category || 'Photo');
   row.setAttribute('data-notes', entry.notes || '');
+  row.setAttribute('data-card1-backed-up', entry.card1BackedUp ? 'true' : 'false');
+  row.setAttribute('data-card2-backed-up', entry.card2BackedUp ? 'true' : 'false');
 
   // Apply category color coding
   const category = entry.category || 'Photo';
@@ -1239,10 +1396,10 @@ function addRow(date, entry = {}) {
 
   // Create non-editable display cells
   row.innerHTML = `
-    <td><span class="display-value" data-field="camera">${entry.camera || ''}</span></td>
-    <td><span class="display-value" data-field="card1">${entry.card1 || ''}</span></td>
-    <td><span class="display-value" data-field="card2">${entry.card2 || ''}</span></td>
-    <td><span class="display-value" data-field="user">${entry.user || ''}</span></td>
+    <td><span class="display-value" data-field="camera">${escapeCardLogText(entry.camera || '')}</span></td>
+    ${buildCardSlotCellHtml('card1', entry.card1 || '', !!entry.card1BackedUp)}
+    ${buildCardSlotCellHtml('card2', entry.card2 || '', !!entry.card2BackedUp)}
+    <td><span class="display-value" data-field="user">${escapeCardLogText(entry.user || '')}</span></td>
     <td style="text-align:center;">
       ${canDelete ? '<button class="delete-row-btn" title="Delete Entry"><span class="material-symbols-outlined">delete</span></button>' : ''}
     </td>
@@ -1464,11 +1621,27 @@ async function saveCardEntry() {
     return;
   }
   
+  // Preserve backup marks from row when editing
+  let card1BackedUp = false;
+  let card2BackedUp = false;
+  if (currentEditingEntry && currentEditingEntry._id) {
+    const editRow = document.querySelector(`tr[data-id="${currentEditingEntry._id}"]`);
+    if (editRow) {
+      card1BackedUp = editRow.getAttribute('data-card1-backed-up') === 'true';
+      card2BackedUp = editRow.getAttribute('data-card2-backed-up') === 'true';
+    } else {
+      card1BackedUp = !!currentEditingEntry.card1BackedUp;
+      card2BackedUp = !!currentEditingEntry.card2BackedUp;
+    }
+  }
+
   // Create entry object
   const entryData = {
     camera: cameraSelect.value,
     card1: card1Input.value.trim(),
     card2: card2Input.value.trim(),
+    card1BackedUp,
+    card2BackedUp,
     user: userSelect.value,
     category: categorySelect.value || 'Photo',
     notes: notesInput.value.trim(),
@@ -1527,6 +1700,8 @@ async function addOrUpdateCardEntry(date, entryData) {
         camera,
         card1,
         card2,
+        card1BackedUp: row.getAttribute('data-card1-backed-up') === 'true',
+        card2BackedUp: row.getAttribute('data-card2-backed-up') === 'true',
         user,
         category,
         notes,
@@ -1643,6 +1818,7 @@ function updateExistingRowInDOM(date, entryData) {
   row.setAttribute('data-created-at', entryData.createdAt || '');
   row.setAttribute('data-category', entryData.category || 'Photo');
   row.setAttribute('data-notes', entryData.notes || '');
+  applyCardBackedUpUI(row, entryData);
   
   // Update category color coding
   row.classList.remove('category-video', 'category-headshot', 'category-other');
@@ -2042,25 +2218,37 @@ function updateRowData(row, targetEntry, preservationData) {
       }
     }
     
-    // Update card1 input (cell 1)
+    // Update card1 (cell 1)
+    const card1El = cells[1]?.querySelector('[data-field="card1"]');
     const card1Input = cells[1]?.querySelector('input');
-    if (card1Input && !isUserCurrentlyEditing(card1Input, preservationData)) {
+    if (card1El && !isUserCurrentlyEditing(card1El, preservationData)) {
+      const targetCard1 = targetEntry.card1 || '';
+      if (card1El.textContent !== targetCard1) {
+        card1El.textContent = targetCard1;
+      }
+    } else if (card1Input && !isUserCurrentlyEditing(card1Input, preservationData)) {
       const targetCard1 = targetEntry.card1 || '';
       if (card1Input.value !== targetCard1) {
-        console.log(`[CARD-LOG] Updating card1 for row ${rowIndex}: '${card1Input.value}' -> '${targetCard1}'`);
         card1Input.value = targetCard1;
       }
     }
     
-    // Update card2 input (cell 2)  
+    // Update card2 (cell 2)
+    const card2El = cells[2]?.querySelector('[data-field="card2"]');
     const card2Input = cells[2]?.querySelector('input');
-    if (card2Input && !isUserCurrentlyEditing(card2Input, preservationData)) {
+    if (card2El && !isUserCurrentlyEditing(card2El, preservationData)) {
+      const targetCard2 = targetEntry.card2 || '';
+      if (card2El.textContent !== targetCard2) {
+        card2El.textContent = targetCard2;
+      }
+    } else if (card2Input && !isUserCurrentlyEditing(card2Input, preservationData)) {
       const targetCard2 = targetEntry.card2 || '';
       if (card2Input.value !== targetCard2) {
-        console.log(`[CARD-LOG] Updating card2 for row ${rowIndex}: '${card2Input.value}' -> '${targetCard2}'`);
         card2Input.value = targetCard2;
       }
     }
+
+    applyCardBackedUpUI(row, targetEntry);
     
     // Update user select (cell 3)
     const userSelect = cells[3]?.querySelector('select');

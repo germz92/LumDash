@@ -692,6 +692,15 @@
             margin-bottom: 2px;
         }
 
+        #editItemModal .modal-content {
+            max-width: 720px;
+        }
+
+        #editItemModal .modal-footer {
+            justify-content: flex-end;
+            gap: 12px;
+        }
+
         @keyframes fadeIn {
             from { opacity: 0; }
             to { opacity: 1; }
@@ -941,26 +950,6 @@
                             <input type="number" id="quantity" name="quantity" required min="1" value="1">
                         </div>
                     </div>
-                    
-                    <div id="editNotesSection" class="edit-notes-section" style="display: none;">
-                        <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #333; display: flex; align-items: center; gap: 8px;">
-                            <span class="material-symbols-outlined">sticky_note_2</span>
-                            Item Notes
-                        </h3>
-                        <div class="form-group" id="noteSerialGroup" style="margin-bottom: 12px;">
-                            <label for="noteSerialSelect">Serial number for this note</label>
-                            <select id="noteSerialSelect"></select>
-                        </div>
-                        <label for="itemNoteInput" style="font-weight: 500; color: #333; font-size: 14px;">Add a note</label>
-                        <textarea id="itemNoteInput" placeholder="Enter a note for the selected serial (saved with timestamp when you click Add Note)..."></textarea>
-                        <div style="margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap;">
-                            <button type="button" class="btn btn-secondary" id="addNoteBtn" onclick="addInventoryNote()">
-                                <span class="material-symbols-outlined">note_add</span>
-                                Add Note
-                            </button>
-                        </div>
-                        <div id="editNotesHistory" class="edit-notes-history"></div>
-                    </div>
 
                     <button type="submit" class="btn btn-primary" id="addItemBtn">
                         <span class="material-symbols-outlined">add</span>
@@ -1071,6 +1060,85 @@
                     <div class="loading-spinner"></div>
                     <p>Loading inventory...</p>
                 </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Item Modal -->
+    <div id="editItemModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="editModalTitle">Edit Item</h2>
+                <button class="modal-close" onclick="closeEditModal()" type="button">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="editItemForm">
+                    <div class="form-grid">
+                        <div class="form-group">
+                            <label for="editBrand">Brand <span class="required">*</span></label>
+                            <input type="text" id="editBrand" name="brand" required placeholder="e.g., Canon, Sony, Nikon">
+                        </div>
+                        <div class="form-group">
+                            <label for="editModel">Model <span class="required">*</span></label>
+                            <input type="text" id="editModel" name="model" required placeholder="e.g., EOS R5, A7III">
+                        </div>
+                        <div class="form-group">
+                            <label for="editCategory">Category <span class="required">*</span></label>
+                            <select id="editCategory" name="category" required>
+                                <option value="">Select Category</option>
+                                <option value="Cameras">Cameras</option>
+                                <option value="Lenses">Lenses</option>
+                                <option value="Lighting">Lighting</option>
+                                <option value="Support">Support</option>
+                                <option value="Accessories">Accessories</option>
+                                <option value="Audio">Audio</option>
+                                <option value="Storage">Storage</option>
+                                <option value="Power">Power</option>
+                                <option value="Computers">Computers</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="editSerial">Serial Number</label>
+                            <input type="text" id="editSerial" name="serial" placeholder="Enter serial number (optional)">
+                        </div>
+                        <div class="form-group">
+                            <label for="editQuantity">Quantity <span class="required">*</span></label>
+                            <input type="number" id="editQuantity" name="quantity" required min="1" value="1">
+                        </div>
+                    </div>
+
+                    <div id="editNotesSection" class="edit-notes-section">
+                        <h3 style="margin: 0 0 12px 0; font-size: 16px; color: #333; display: flex; align-items: center; gap: 8px;">
+                            <span class="material-symbols-outlined">sticky_note_2</span>
+                            Item Notes
+                        </h3>
+                        <div class="form-group" id="noteSerialGroup" style="margin-bottom: 12px;">
+                            <label for="noteSerialSelect">Serial number for this note</label>
+                            <select id="noteSerialSelect"></select>
+                        </div>
+                        <label for="itemNoteInput" style="font-weight: 500; color: #333; font-size: 14px;">Add a note</label>
+                        <textarea id="itemNoteInput" placeholder="Enter a note for the selected serial (saved with timestamp when you click Add Note)..."></textarea>
+                        <div style="margin-top: 12px; display: flex; gap: 12px; flex-wrap: wrap;">
+                            <button type="button" class="btn btn-secondary" id="addNoteBtn" onclick="addInventoryNote()">
+                                <span class="material-symbols-outlined">note_add</span>
+                                Add Note
+                            </button>
+                        </div>
+                        <div id="editNotesHistory" class="edit-notes-history"></div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" onclick="closeEditModal()">
+                    <span class="material-symbols-outlined">cancel</span>
+                    Cancel
+                </button>
+                <button type="submit" form="editItemForm" class="btn btn-primary" id="editItemSubmitBtn">
+                    <span class="material-symbols-outlined">save</span>
+                    Update Item
+                </button>
             </div>
         </div>
     </div>
@@ -1192,11 +1260,9 @@
                 loadInventory();
                 loadManualReservations();
                 
-                // Setup form handler
+                // Setup form handlers
                 document.getElementById('addItemForm').addEventListener('submit', handleAddItem);
-                
-                // Initialize form in add mode
-                updateFormForEditMode();
+                document.getElementById('editItemForm').addEventListener('submit', handleEditItem);
                 
             } catch (error) {
                 console.error('Error checking access:', error);
@@ -1365,35 +1431,23 @@
                 return;
             }
 
-            // Check for duplicate serial (only when adding new item or changing serial, and only if serial is provided and not N/A)
+            // Check for duplicate serial
             if (itemData.serial && itemData.serial.trim() !== '' && itemData.serial.trim() !== 'N/A') {
                 const existingItem = currentInventory.find(item => item.serial === itemData.serial);
-                if (existingItem && (!editingItemId || existingItem._id !== editingItemId)) {
+                if (existingItem) {
                     showToast('Serial number already exists', 'error');
                     return;
                 }
             }
 
-            // Disable submit button
             const submitBtn = document.getElementById('addItemBtn');
             const originalText = submitBtn.innerHTML;
-            const isEditing = editingItemId !== null;
-            
             submitBtn.disabled = true;
-            submitBtn.innerHTML = `
-                <div class="loading-spinner" style="width: 16px; height: 16px; margin: 0;"></div>
-                ${isEditing ? 'Updating...' : 'Adding...'}
-            `;
+            submitBtn.innerHTML = `<div class="loading-spinner" style="width: 16px; height: 16px; margin: 0;"></div> Adding...`;
 
             try {
-                const url = isEditing 
-                    ? `${API_BASE}/api/gear-inventory/${editingItemId}`
-                    : `${API_BASE}/api/gear-inventory`;
-                
-                const method = isEditing ? 'PUT' : 'POST';
-                
-                const response = await fetch(url, {
-                    method: method,
+                const response = await fetch(`${API_BASE}/api/gear-inventory`, {
+                    method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
                         'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -1408,51 +1462,103 @@
 
                 if (response.ok) {
                     const result = await response.json();
-                    console.log('API Response:', result); // Debug log
+                    const newItem = result.gear;
                     
-                    // Extract the gear object from the response
-                    const itemData = result.gear;
-                    
-                    // Validate the returned item has required fields
-                    if (!itemData || !itemData.label) {
-                        console.error('API returned invalid item structure:', result);
+                    if (!newItem || !newItem.label) {
                         showToast('Item saved but may have missing data. Please refresh the page.', 'warning');
                         return;
                     }
                     
-                    if (isEditing) {
-                        // Update existing item in the arrays
-                        const index = currentInventory.findIndex(item => item._id === editingItemId);
-                        if (index !== -1) {
-                            currentInventory[index] = itemData;
-                        }
-                        filteredInventory = [...currentInventory];
-                        showToast('Item updated successfully!', 'success');
-                        
-                        // Reset edit mode without showing cancelled message
-                        editingItemId = null;
-                        updateFormForEditMode();
-                    } else {
-                        // Add new item
-                        currentInventory.push(itemData);
-                        filteredInventory = [...currentInventory];
-                        showToast('Item added successfully!', 'success');
-                    }
-                    
+                    currentInventory.push(newItem);
+                    filteredInventory = [...currentInventory];
+                    showToast('Item added successfully!', 'success');
                     renderInventory();
-                    
-                    // Reset form
                     event.target.reset();
-                    
                 } else {
                     const error = await response.json();
-                    showToast(error.error || `Failed to ${isEditing ? 'update' : 'add'} item`, 'error');
+                    showToast(error.error || 'Failed to add item', 'error');
                 }
             } catch (error) {
-                console.error(`Error ${isEditing ? 'updating' : 'adding'} item:`, error);
-                showToast(`Failed to ${isEditing ? 'update' : 'add'} item. Please try again.`, 'error');
+                console.error('Error adding item:', error);
+                showToast('Failed to add item. Please try again.', 'error');
             } finally {
-                // Restore submit button
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = originalText;
+            }
+        }
+
+        // Handle edit item form submission (modal)
+        async function handleEditItem(event) {
+            event.preventDefault();
+            if (!editingItemId) return;
+
+            const formData = new FormData(event.target);
+            const itemData = {
+                brand: formData.get('brand').trim(),
+                model: formData.get('model').trim(),
+                category: formData.get('category'),
+                serial: formData.get('serial').trim(),
+                quantity: parseInt(formData.get('quantity'))
+            };
+
+            if (!itemData.brand || !itemData.model || !itemData.category || !itemData.quantity) {
+                showToast('Please fill in all required fields', 'error');
+                return;
+            }
+
+            if (itemData.serial && itemData.serial.trim() !== '' && itemData.serial.trim() !== 'N/A') {
+                const existingItem = currentInventory.find(item => item.serial === itemData.serial);
+                if (existingItem && String(existingItem._id) !== String(editingItemId)) {
+                    showToast('Serial number already exists', 'error');
+                    return;
+                }
+            }
+
+            const submitBtn = document.getElementById('editItemSubmitBtn');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = `<div class="loading-spinner" style="width: 16px; height: 16px; margin: 0;"></div> Updating...`;
+
+            try {
+                const response = await fetch(`${API_BASE}/api/gear-inventory/${editingItemId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    },
+                    body: JSON.stringify({
+                        label: `${itemData.brand} ${itemData.model}`,
+                        category: itemData.category,
+                        serial: itemData.serial,
+                        quantity: itemData.quantity
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    const updatedItem = result.gear;
+
+                    if (!updatedItem || !updatedItem.label) {
+                        showToast('Item saved but may have missing data. Please refresh the page.', 'warning');
+                        return;
+                    }
+
+                    const index = currentInventory.findIndex(item => String(item._id) === String(editingItemId));
+                    if (index !== -1) {
+                        currentInventory[index] = updatedItem;
+                    }
+                    filteredInventory = [...currentInventory];
+                    showToast('Item updated successfully!', 'success');
+                    renderInventory();
+                    closeEditModal();
+                } else {
+                    const error = await response.json();
+                    showToast(error.error || 'Failed to update item', 'error');
+                }
+            } catch (error) {
+                console.error('Error updating item:', error);
+                showToast('Failed to update item. Please try again.', 'error');
+            } finally {
                 submitBtn.disabled = false;
                 submitBtn.innerHTML = originalText;
             }
@@ -1731,7 +1837,7 @@
                 return;
             }
 
-            const item = currentInventory.find(i => i._id === editingItemId);
+            const item = currentInventory.find(i => String(i._id) === String(editingItemId));
             if (!item) return;
 
             const noteInput = document.getElementById('itemNoteInput');
@@ -1806,103 +1912,40 @@
             `;
         }
 
-        // Edit item
+        // Open edit item modal
         function editItem(itemId) {
-            const item = currentInventory.find(i => i._id === itemId);
+            const item = currentInventory.find(i => String(i._id) === String(itemId));
             if (!item) return;
 
-            // Set edit mode
             editingItemId = itemId;
 
-            // Populate the form with existing data
             const labelParts = (item.label || '').split(' ');
             const brand = labelParts[0] || '';
             const model = labelParts.slice(1).join(' ') || '';
 
-            document.getElementById('brand').value = brand;
-            document.getElementById('model').value = model;
-            document.getElementById('category').value = item.category;
-            document.getElementById('serial').value = item.serial;
-            document.getElementById('quantity').value = item.quantity;
+            document.getElementById('editModalTitle').textContent = `Edit — ${brand} ${model}`;
+            document.getElementById('editBrand').value = brand;
+            document.getElementById('editModel').value = model;
+            document.getElementById('editCategory').value = item.category;
+            document.getElementById('editSerial').value = item.serial === 'N/A' ? '' : item.serial;
+            document.getElementById('editQuantity').value = item.quantity;
             document.getElementById('itemNoteInput').value = '';
             editingNoteSerial = normalizeSerial(item.serial);
 
-            // Update form UI for edit mode
-            updateFormForEditMode();
             updateNoteSerialSelect(item);
             renderEditNotesHistory(item);
 
-            // Scroll to form
-            document.querySelector('.add-item-section').scrollIntoView({ behavior: 'smooth' });
-            
-            showToast('Item loaded for editing', 'success');
+            document.getElementById('editItemModal').style.display = 'block';
         }
 
-        // Update form UI for edit mode
-        function updateFormForEditMode() {
-            const submitBtn = document.getElementById('addItemBtn');
-            const sectionTitle = document.querySelector('.add-item-section .section-title');
-            const notesSection = document.getElementById('editNotesSection');
-            
-            if (editingItemId) {
-                notesSection.style.display = 'block';
-                submitBtn.innerHTML = `
-                    <span class="material-symbols-outlined">save</span>
-                    Update Item
-                `;
-                sectionTitle.innerHTML = `
-                    <span class="material-symbols-outlined">edit</span>
-                    Edit Item
-                `;
-                
-                // Add cancel button if it doesn't exist
-                if (!document.getElementById('cancelEditBtn')) {
-                    const cancelBtn = document.createElement('button');
-                    cancelBtn.type = 'button';
-                    cancelBtn.id = 'cancelEditBtn';
-                    cancelBtn.className = 'btn btn-secondary';
-                    cancelBtn.innerHTML = `
-                        <span class="material-symbols-outlined">cancel</span>
-                        Cancel
-                    `;
-                    cancelBtn.onclick = cancelEdit;
-                    submitBtn.parentNode.insertBefore(cancelBtn, submitBtn.nextSibling);
-                }
-            } else {
-                notesSection.style.display = 'none';
-                editingNoteSerial = null;
-                document.getElementById('itemNoteInput').value = '';
-                document.getElementById('editNotesHistory').innerHTML = '';
-                document.getElementById('noteSerialSelect').innerHTML = '';
-
-                submitBtn.innerHTML = `
-                    <span class="material-symbols-outlined">add</span>
-                    Add Item
-                `;
-                sectionTitle.innerHTML = `
-                    <span class="material-symbols-outlined">add_circle</span>
-                    Add New Item
-                `;
-                
-                // Remove cancel button if it exists
-                const cancelBtn = document.getElementById('cancelEditBtn');
-                if (cancelBtn) {
-                    cancelBtn.remove();
-                }
-            }
-        }
-
-        // Cancel edit mode
-        function cancelEdit() {
+        function closeEditModal() {
+            document.getElementById('editItemModal').style.display = 'none';
             editingItemId = null;
-            
-            // Reset form
-            document.getElementById('addItemForm').reset();
-            
-            // Update UI back to add mode
-            updateFormForEditMode();
-            
-            showToast('Edit cancelled', 'success');
+            editingNoteSerial = null;
+            document.getElementById('editItemForm').reset();
+            document.getElementById('itemNoteInput').value = '';
+            document.getElementById('editNotesHistory').innerHTML = '';
+            document.getElementById('noteSerialSelect').innerHTML = '';
         }
 
         // Delete item
@@ -2898,11 +2941,15 @@
         window.onclick = function(event) {
             const reservationModal = document.getElementById('reservationModal');
             const notesModal = document.getElementById('notesModal');
+            const editItemModal = document.getElementById('editItemModal');
             if (event.target === reservationModal) {
                 closeReservationModal();
             }
             if (event.target === notesModal) {
                 closeNotesModal();
+            }
+            if (event.target === editItemModal) {
+                closeEditModal();
             }
         }
     </script>

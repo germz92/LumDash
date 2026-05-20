@@ -44,6 +44,67 @@
   background: #f0f4fa !important;
 }
 .card-log-page th, .card-log-page td { padding: 8px; text-align: center; vertical-align: middle; }
+
+.card-log-page .card-slot-cell {
+  cursor: context-menu;
+}
+
+.card-log-page .card-slot-inner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+}
+
+.card-log-page .backup-check {
+  color: #28a745;
+  font-size: 20px;
+  line-height: 1;
+  display: none;
+  flex-shrink: 0;
+}
+
+.card-log-page .card-slot-cell.backed-up .backup-check {
+  display: inline-flex;
+}
+
+.card-log-page .card-slot-cell.backed-up .display-value {
+  font-weight: 600;
+}
+
+.card-log-context-menu {
+  position: fixed;
+  z-index: 100001;
+  min-width: 180px;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  padding: 6px 0;
+  display: none;
+}
+
+.card-log-context-menu button {
+  width: 100%;
+  margin: 0;
+  padding: 10px 16px;
+  background: white !important;
+  color: #333 !important;
+  border: none !important;
+  border-radius: 0 !important;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-log-context-menu button:hover {
+  background: #f5f5f5 !important;
+  color: #cc0007 !important;
+}
 .card-log-page select, .card-log-page input[type="text"] { width: 100%; padding: 8px; border-radius: 4px; border: 1px solid #ccc; box-sizing: border-box; }
 .card-log-page button { margin: 6px 4px; padding: 6px 10px; font-size: 14px; background: #CC0007; color: white; border: none; border-radius: 4px; cursor: pointer; transition: background 0.2s ease; }
 .card-log-page button:hover { background: rgb(170, 3, 8); }
