@@ -1136,12 +1136,23 @@ function escapeCardLogText(str) {
 function buildCardSlotCellHtml(field, value, backedUp) {
   const backedUpClass = backedUp ? ' backed-up' : '';
   const displayValue = escapeCardLogText(value) || '—';
-  return `<td class="card-slot-cell${backedUpClass}" data-card-slot="${field}">
+  return `<td class="card-slot-cell${backedUpClass}" data-card-slot="${field}" title="Hold to mark backed up">
     <div class="card-slot-inner">
       <span class="backup-check material-symbols-outlined" aria-hidden="true" title="Backed up">check</span>
       <span class="display-value" data-field="${field}">${displayValue}</span>
     </div>
   </td>`;
+}
+
+function openCardBackupMenuForCell(cell, clientX, clientY) {
+  const row = cell.closest('.card-log-row');
+  const field = cell.getAttribute('data-card-slot');
+  if (!row || (field !== 'card1' && field !== 'card2')) return;
+
+  const rect = cell.getBoundingClientRect();
+  const x = clientX != null ? clientX : rect.left + rect.width / 2;
+  const y = clientY != null ? clientY : rect.bottom + 4;
+  showCardBackupContextMenu(x, y, row, field);
 }
 
 function applyCardBackedUpUI(row, entry = {}) {
@@ -1183,19 +1194,66 @@ function setupCardBackupContextMenu() {
   window.addEventListener('resize', hideCardBackupContextMenu);
 
   const tableContainer = document.getElementById('table-container');
-  if (tableContainer) {
-    tableContainer.addEventListener('contextmenu', (e) => {
-      const cell = e.target.closest('.card-slot-cell');
-      if (!cell) return;
+  if (!tableContainer || tableContainer.dataset.cardBackupMenuBound === 'true') return;
+  tableContainer.dataset.cardBackupMenuBound = 'true';
 
-      const row = cell.closest('.card-log-row');
-      const field = cell.getAttribute('data-card-slot');
-      if (!row || (field !== 'card1' && field !== 'card2')) return;
+  // Desktop: right-click card cell
+  tableContainer.addEventListener('contextmenu', (e) => {
+    const cell = e.target.closest('.card-slot-cell');
+    if (!cell) return;
 
-      e.preventDefault();
-      showCardBackupContextMenu(e.clientX, e.clientY, row, field);
-    });
+    e.preventDefault();
+    openCardBackupMenuForCell(cell, e.clientX, e.clientY);
+  });
+
+  // Mobile: long-press card cell (no extra icon; text selection disabled via CSS)
+  const LONG_PRESS_MS = 500;
+  let cardSlotLongPress = null;
+
+  function clearCardSlotLongPress() {
+    if (cardSlotLongPress?.timer) clearTimeout(cardSlotLongPress.timer);
+    if (cardSlotLongPress?.cell) {
+      cardSlotLongPress.cell.classList.remove('card-slot-pressing');
+    }
+    cardSlotLongPress = null;
   }
+
+  tableContainer.addEventListener('touchstart', (e) => {
+    const cell = e.target.closest('.card-slot-cell');
+    if (!cell) return;
+
+    clearCardSlotLongPress();
+    const touch = e.touches[0];
+    const pressX = touch.clientX;
+    const pressY = touch.clientY;
+
+    cardSlotLongPress = {
+      cell,
+      x: pressX,
+      y: pressY,
+      timer: setTimeout(() => {
+        if (!cardSlotLongPress || cardSlotLongPress.cell !== cell) return;
+        cell.classList.remove('card-slot-pressing');
+        if (navigator.vibrate) navigator.vibrate(40);
+        openCardBackupMenuForCell(cell, pressX, pressY);
+        cardSlotLongPress = null;
+      }, LONG_PRESS_MS)
+    };
+    cell.classList.add('card-slot-pressing');
+  }, { passive: true });
+
+  tableContainer.addEventListener('touchmove', (e) => {
+    if (!cardSlotLongPress) return;
+    const touch = e.touches[0];
+    const dx = touch.clientX - cardSlotLongPress.x;
+    const dy = touch.clientY - cardSlotLongPress.y;
+    if (Math.hypot(dx, dy) > 12) {
+      clearCardSlotLongPress();
+    }
+  }, { passive: true });
+
+  tableContainer.addEventListener('touchend', clearCardSlotLongPress, { passive: true });
+  tableContainer.addEventListener('touchcancel', clearCardSlotLongPress, { passive: true });
 }
 
 function showCardBackupContextMenu(x, y, row, field) {
