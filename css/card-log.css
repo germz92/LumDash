@@ -50,28 +50,6 @@
   min-width: 4.5rem;
   vertical-align: middle;
   position: relative;
-  -webkit-user-select: none;
-  user-select: none;
-  -webkit-touch-callout: none;
-  touch-action: manipulation;
-}
-
-.card-log-page .card-slot-cell .display-value,
-.card-log-page .card-slot-cell .backup-check {
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-/* Long-press feedback on touch devices */
-.card-log-page .card-slot-cell.card-slot-pressing {
-  outline: 2px solid rgba(204, 0, 7, 0.45);
-  outline-offset: -2px;
-}
-
-@media (hover: none) and (pointer: coarse) {
-  .card-log-page .card-slot-cell {
-    cursor: pointer;
-  }
 }
 
 .card-log-page .card-slot-inner {
@@ -118,6 +96,94 @@
 .card-log-page .card-slot-cell.backed-up .display-value {
   font-weight: 600;
   color: #1b5e20;
+}
+
+.card-backup-status-details {
+  width: 100%;
+  box-sizing: border-box;
+  margin-top: 4px;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  overflow: hidden;
+  text-align: left;
+  background: #fff;
+}
+
+.card-backup-status-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 14px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  list-style: none;
+  background: #f5f5f5;
+  color: #333;
+  user-select: none;
+}
+
+.card-backup-status-summary::-webkit-details-marker {
+  display: none;
+}
+
+.card-backup-status-summary::marker {
+  content: '';
+}
+
+.card-backup-status-details[open] .card-backup-status-summary {
+  border-bottom: 1px solid #e8e8e8;
+  background: #f0f0f0;
+}
+
+.card-backup-chevron {
+  font-size: 22px;
+  color: #666;
+  transition: transform 0.2s ease;
+  flex-shrink: 0;
+}
+
+.card-backup-status-details[open] .card-backup-chevron {
+  transform: rotate(180deg);
+}
+
+.card-backup-status-panel {
+  padding: 12px;
+  background: #fff;
+}
+
+.card-backup-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px 0;
+  padding: 10px 12px;
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  background: #fafafa;
+  cursor: pointer;
+  text-align: left;
+  font-size: 14px;
+  color: #333;
+}
+
+.card-backup-check:last-child {
+  margin-bottom: 0;
+}
+
+.card-backup-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: #28a745;
+  cursor: pointer;
+}
+
+.card-backup-check:has(input:checked) {
+  background: #e8f5e9;
+  border-color: #a5d6a7;
 }
 
 .card-log-context-menu {
@@ -230,25 +296,44 @@
   transform: none !important;
 }
 
+/* Lock page scroll while any card-log modal is open (dashboard SPA uses #page-container) */
+body.card-log-modal-open,
+body.card-log-modal-open #page-container {
+  overflow: hidden !important;
+  overscroll-behavior: none;
+}
+
 /* Card entry modal: scrollable body + pinned action buttons (fixes mobile cutoff) */
-#card-entry-modal.card-log-modal {
+#card-entry-modal.card-log-modal,
+#date-modal.card-log-modal {
   align-items: center !important;
   justify-content: center !important;
   padding: max(12px, env(safe-area-inset-top, 12px)) 12px max(12px, env(safe-area-inset-bottom, 12px)) !important;
   box-sizing: border-box !important;
-  overflow-y: auto !important;
-  -webkit-overflow-scrolling: touch;
+  overflow: hidden !important;
+  overscroll-behavior: none;
+  touch-action: none;
+}
+
+#card-entry-modal.card-log-modal .modal-content,
+#date-modal.card-log-modal .modal-content {
+  touch-action: auto;
 }
 
 #card-entry-modal .modal-content {
   display: flex !important;
   flex-direction: column !important;
+  align-items: stretch !important;
+  width: min(400px, 92vw) !important;
+  min-width: min(400px, 92vw) !important;
+  max-width: min(400px, 92vw) !important;
   max-height: calc(100vh - 24px) !important;
   max-height: min(92dvh, calc(100vh - 24px)) !important;
   overflow: hidden !important;
   padding: 20px 20px 0 !important;
   text-align: center !important;
   margin: auto !important;
+  box-sizing: border-box !important;
 }
 
 #card-entry-modal .modal-content h3 {
@@ -258,17 +343,32 @@
 
 #card-entry-modal .card-form {
   flex: 1 1 auto;
+  width: 100%;
+  min-width: 100%;
   min-height: 0;
+  align-self: stretch;
+  box-sizing: border-box;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  margin: 0 0 0 0 !important;
-  padding: 4px 2px 12px 0;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+  margin: 0 !important;
+  padding: 4px 0 12px 0;
   text-align: left;
+}
+
+#card-entry-modal .form-group,
+#card-entry-modal .card-backup-status-details {
+  width: 100%;
+  box-sizing: border-box;
 }
 
 #card-entry-modal .modal-buttons {
   flex-shrink: 0;
+  width: 100%;
+  align-self: stretch;
+  box-sizing: border-box;
   margin-top: 0 !important;
   padding: 14px 0 max(14px, env(safe-area-inset-bottom, 14px)) !important;
   background: #fff !important;
@@ -409,6 +509,7 @@
 
   #card-entry-modal .modal-content {
     width: 100% !important;
+    min-width: 100% !important;
     max-width: 100% !important;
     max-height: calc(100vh - 16px) !important;
     max-height: min(94dvh, calc(100vh - 16px)) !important;
@@ -495,6 +596,35 @@
   margin-bottom: 5px;
   font-weight: bold;
   color: #333;
+}
+
+#card-entry-modal .card-slots-row {
+  display: flex;
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+
+#card-entry-modal .card-slot-field {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 5px;
+}
+
+#card-entry-modal .card-slot-field label {
+  display: block;
+  margin-bottom: 0;
+  font-size: 14px;
+}
+
+#card-entry-modal .card-slot-field input {
+  width: 100%;
+  min-width: 0;
 }
 
 .card-log-page .form-group input,

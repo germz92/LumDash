@@ -25,6 +25,56 @@ let deferredUpdate = null; // Store deferred updates
 let deferredUpdateTimeout = null; // Timeout for deferred updates
 let cardLogContextMenu = null; // Right-click menu for card backup marks
 let cardLogContextTarget = null; // { row, field } for context menu
+let cardLogModalScrollLockCount = 0;
+
+function setCardLogModalScrollLock(lock) {
+  if (lock) {
+    cardLogModalScrollLockCount++;
+    if (cardLogModalScrollLockCount > 1) return;
+
+    const pageContainer = document.getElementById('page-container');
+    if (pageContainer) {
+      pageContainer.dataset.cardLogScrollTop = String(pageContainer.scrollTop);
+      pageContainer.classList.add('card-log-modal-open');
+    } else {
+      document.body.dataset.cardLogScrollTop = String(window.scrollY || 0);
+    }
+    document.body.classList.add('card-log-modal-open');
+    return;
+  }
+
+  cardLogModalScrollLockCount = Math.max(0, cardLogModalScrollLockCount - 1);
+  if (cardLogModalScrollLockCount > 0) return;
+
+  const pageContainer = document.getElementById('page-container');
+  const savedTop = pageContainer
+    ? parseInt(pageContainer.dataset.cardLogScrollTop || '0', 10)
+    : parseInt(document.body.dataset.cardLogScrollTop || '0', 10);
+
+  document.body.classList.remove('card-log-modal-open');
+  if (pageContainer) {
+    pageContainer.classList.remove('card-log-modal-open');
+    delete pageContainer.dataset.cardLogScrollTop;
+    pageContainer.scrollTop = savedTop;
+  } else {
+    delete document.body.dataset.cardLogScrollTop;
+    window.scrollTo(0, savedTop);
+  }
+}
+
+function isCardLogModalVisible(modalId) {
+  const modal = document.getElementById(modalId);
+  if (!modal) return false;
+  const style = window.getComputedStyle(modal);
+  return style.display !== 'none' && style.visibility !== 'hidden';
+}
+
+function releaseCardLogModalScrollLockIfNeeded() {
+  if (isCardLogModalVisible('card-entry-modal') || isCardLogModalVisible('date-modal')) return;
+  while (cardLogModalScrollLockCount > 0) {
+    setCardLogModalScrollLock(false);
+  }
+}
 
 // Function to refresh owner status and update collaborative system
 function refreshOwnerStatus(newOwnerStatus) {
@@ -458,11 +508,13 @@ function openDateModal() {
     modal.classList.remove('modal');
     modal.classList.add('card-log-modal');
     modal.style.display = 'flex';
+    setCardLogModalScrollLock(true);
   }
 }
 
 function closeDateModal() {
   document.getElementById('date-modal').style.display = 'none';
+  releaseCardLogModalScrollLockIfNeeded();
 }
 
 function createNewDay() {
@@ -518,8 +570,8 @@ function setupEventListeners() {
         openCardEntryModal(date);
       }
       
-      // Handle row clicks for editing (not card backup cells — those use right-click)
-      if (e.target.closest('.card-log-row') && !e.target.closest('button') && !e.target.closest('.card-slot-cell')) {
+      // Handle row clicks for editing (opens modal; backup marks on mobile via modal checkboxes)
+      if (e.target.closest('.card-log-row') && !e.target.closest('button')) {
         const row = e.target.closest('.card-log-row');
         const dayTable = row.closest('.day-table');
         const date = dayTable ? dayTable.getAttribute('data-date') : null;
@@ -539,11 +591,15 @@ function setupEventListeners() {
         const canEditEntry = isOwner || (entryCreatedBy && entryCreatedBy === currentUserId);
         
         if (canEditEntry) {
+          const cellText = (el) => {
+            const t = (el?.textContent || '').trim();
+            return t === '—' ? '' : t;
+          };
           const existingEntry = {
             _id: row.getAttribute('data-id'),
-            camera: row.querySelector('[data-field="camera"]').textContent,
-            card1: row.querySelector('[data-field="card1"]').textContent,
-            card2: row.querySelector('[data-field="card2"]').textContent,
+            camera: cellText(row.querySelector('[data-field="camera"]')),
+            card1: cellText(row.querySelector('[data-field="card1"]')),
+            card2: cellText(row.querySelector('[data-field="card2"]')),
             card1BackedUp: row.getAttribute('data-card1-backed-up') === 'true',
             card2BackedUp: row.getAttribute('data-card2-backed-up') === 'true',
             user: row.querySelector('[data-field="user"]').textContent,
@@ -1136,7 +1192,7 @@ function escapeCardLogText(str) {
 function buildCardSlotCellHtml(field, value, backedUp) {
   const backedUpClass = backedUp ? ' backed-up' : '';
   const displayValue = escapeCardLogText(value) || '—';
-  return `<td class="card-slot-cell${backedUpClass}" data-card-slot="${field}" title="Hold to mark backed up">
+  return `<td class="card-slot-cell${backedUpClass}" data-card-slot="${field}">
     <div class="card-slot-inner">
       <span class="backup-check material-symbols-outlined" aria-hidden="true" title="Backed up">check</span>
       <span class="display-value" data-field="${field}">${displayValue}</span>
@@ -1144,15 +1200,8 @@ function buildCardSlotCellHtml(field, value, backedUp) {
   </td>`;
 }
 
-function openCardBackupMenuForCell(cell, clientX, clientY) {
-  const row = cell.closest('.card-log-row');
-  const field = cell.getAttribute('data-card-slot');
-  if (!row || (field !== 'card1' && field !== 'card2')) return;
-
-  const rect = cell.getBoundingClientRect();
-  const x = clientX != null ? clientX : rect.left + rect.width / 2;
-  const y = clientY != null ? clientY : rect.bottom + 4;
-  showCardBackupContextMenu(x, y, row, field);
+function isCardLogCoarsePointerDevice() {
+  return window.matchMedia('(hover: none) and (pointer: coarse)').matches;
 }
 
 function applyCardBackedUpUI(row, entry = {}) {
@@ -1197,63 +1246,20 @@ function setupCardBackupContextMenu() {
   if (!tableContainer || tableContainer.dataset.cardBackupMenuBound === 'true') return;
   tableContainer.dataset.cardBackupMenuBound = 'true';
 
-  // Desktop: right-click card cell
+  // Desktop only: right-click card cell. Mobile uses edit modal checkboxes (no long-press).
   tableContainer.addEventListener('contextmenu', (e) => {
     const cell = e.target.closest('.card-slot-cell');
     if (!cell) return;
 
     e.preventDefault();
-    openCardBackupMenuForCell(cell, e.clientX, e.clientY);
+    if (isCardLogCoarsePointerDevice()) return;
+
+    const row = cell.closest('.card-log-row');
+    const field = cell.getAttribute('data-card-slot');
+    if (!row || (field !== 'card1' && field !== 'card2')) return;
+
+    showCardBackupContextMenu(e.clientX, e.clientY, row, field);
   });
-
-  // Mobile: long-press card cell (no extra icon; text selection disabled via CSS)
-  const LONG_PRESS_MS = 500;
-  let cardSlotLongPress = null;
-
-  function clearCardSlotLongPress() {
-    if (cardSlotLongPress?.timer) clearTimeout(cardSlotLongPress.timer);
-    if (cardSlotLongPress?.cell) {
-      cardSlotLongPress.cell.classList.remove('card-slot-pressing');
-    }
-    cardSlotLongPress = null;
-  }
-
-  tableContainer.addEventListener('touchstart', (e) => {
-    const cell = e.target.closest('.card-slot-cell');
-    if (!cell) return;
-
-    clearCardSlotLongPress();
-    const touch = e.touches[0];
-    const pressX = touch.clientX;
-    const pressY = touch.clientY;
-
-    cardSlotLongPress = {
-      cell,
-      x: pressX,
-      y: pressY,
-      timer: setTimeout(() => {
-        if (!cardSlotLongPress || cardSlotLongPress.cell !== cell) return;
-        cell.classList.remove('card-slot-pressing');
-        if (navigator.vibrate) navigator.vibrate(40);
-        openCardBackupMenuForCell(cell, pressX, pressY);
-        cardSlotLongPress = null;
-      }, LONG_PRESS_MS)
-    };
-    cell.classList.add('card-slot-pressing');
-  }, { passive: true });
-
-  tableContainer.addEventListener('touchmove', (e) => {
-    if (!cardSlotLongPress) return;
-    const touch = e.touches[0];
-    const dx = touch.clientX - cardSlotLongPress.x;
-    const dy = touch.clientY - cardSlotLongPress.y;
-    if (Math.hypot(dx, dy) > 12) {
-      clearCardSlotLongPress();
-    }
-  }, { passive: true });
-
-  tableContainer.addEventListener('touchend', clearCardSlotLongPress, { passive: true });
-  tableContainer.addEventListener('touchcancel', clearCardSlotLongPress, { passive: true });
 }
 
 function showCardBackupContextMenu(x, y, row, field) {
@@ -1506,7 +1512,14 @@ function openCardEntryModal(date, existingEntry = null) {
   const userSelect = document.getElementById('card-user-select');
   const categorySelect = document.getElementById('card-category-select');
   const notesInput = document.getElementById('card-notes-input');
+  const card1BackedUpInput = document.getElementById('card-card1-backed-up');
+  const card2BackedUpInput = document.getElementById('card-card2-backed-up');
+  const backupStatusDetails = document.getElementById('card-backup-status-details');
   const saveButton = document.getElementById('save-card-entry');
+
+  if (backupStatusDetails) {
+    backupStatusDetails.open = false;
+  }
   
   // Update modal title
   title.textContent = existingEntry ? 'Edit Card Entry' : 'Add Card Entry';
@@ -1558,6 +1571,8 @@ function openCardEntryModal(date, existingEntry = null) {
     card2Input.value = existingEntry.card2 || '';
     categorySelect.value = existingEntry.category || 'Photo';
     notesInput.value = existingEntry.notes || '';
+    if (card1BackedUpInput) card1BackedUpInput.checked = !!existingEntry.card1BackedUp;
+    if (card2BackedUpInput) card2BackedUpInput.checked = !!existingEntry.card2BackedUp;
   } else {
     // For new entries, always auto-select current user
     if (currentUser && users.includes(currentUser)) {
@@ -1567,6 +1582,8 @@ function openCardEntryModal(date, existingEntry = null) {
     card2Input.value = '';
     categorySelect.value = 'Photo';
     notesInput.value = '';
+    if (card1BackedUpInput) card1BackedUpInput.checked = false;
+    if (card2BackedUpInput) card2BackedUpInput.checked = false;
   }
   
   // User selection permissions:
@@ -1585,6 +1602,7 @@ function openCardEntryModal(date, existingEntry = null) {
   }
   
   modal.style.display = 'flex';
+  setCardLogModalScrollLock(true);
 }
 
 function closeCardEntryModal() {
@@ -1592,6 +1610,7 @@ function closeCardEntryModal() {
   modal.style.display = 'none';
   currentEditingEntry = null;
   currentEditingDate = null;
+  releaseCardLogModalScrollLockIfNeeded();
 }
 
 async function saveCardEntry() {
@@ -1680,19 +1699,10 @@ async function saveCardEntry() {
     return;
   }
   
-  // Preserve backup marks from row when editing
-  let card1BackedUp = false;
-  let card2BackedUp = false;
-  if (currentEditingEntry && currentEditingEntry._id) {
-    const editRow = document.querySelector(`tr[data-id="${currentEditingEntry._id}"]`);
-    if (editRow) {
-      card1BackedUp = editRow.getAttribute('data-card1-backed-up') === 'true';
-      card2BackedUp = editRow.getAttribute('data-card2-backed-up') === 'true';
-    } else {
-      card1BackedUp = !!currentEditingEntry.card1BackedUp;
-      card2BackedUp = !!currentEditingEntry.card2BackedUp;
-    }
-  }
+  const card1BackedUpInput = document.getElementById('card-card1-backed-up');
+  const card2BackedUpInput = document.getElementById('card-card2-backed-up');
+  const card1BackedUp = !!card1BackedUpInput?.checked;
+  const card2BackedUp = !!card2BackedUpInput?.checked;
 
   // Create entry object
   const entryData = {

@@ -41,13 +41,15 @@
             <option value="">Select Camera</option>
           </select>
         </div>
-        <div class="form-group">
-          <label for="card-card1-input">Card 1</label>
-          <input type="text" id="card-card1-input" placeholder="Enter card 1 details" />
-        </div>
-        <div class="form-group">
-          <label for="card-card2-input">Card 2</label>
-          <input type="text" id="card-card2-input" placeholder="Enter card 2 details" />
+        <div class="form-group card-slots-row">
+          <div class="card-slot-field">
+            <label for="card-card1-input">Card 1</label>
+            <input type="text" id="card-card1-input" placeholder="Card 1" />
+          </div>
+          <div class="card-slot-field">
+            <label for="card-card2-input">Card 2</label>
+            <input type="text" id="card-card2-input" placeholder="Card 2" />
+          </div>
         </div>
         <div class="form-group">
           <label for="card-user-select">User</label>
@@ -68,6 +70,22 @@
           <label for="card-notes-input">Notes</label>
           <textarea id="card-notes-input" placeholder="Add notes (optional)" rows="3"></textarea>
         </div>
+        <details class="card-backup-status-details" id="card-backup-status-details">
+          <summary class="card-backup-status-summary">
+            <span class="card-backup-status-title">Backup Status (DIT use only)</span>
+            <span class="material-symbols-outlined card-backup-chevron" aria-hidden="true">expand_more</span>
+          </summary>
+          <div class="card-backup-status-panel">
+            <label class="card-backup-check" for="card-card1-backed-up">
+              <input type="checkbox" id="card-card1-backed-up" />
+              <span>Mark Card 1 as backed up</span>
+            </label>
+            <label class="card-backup-check" for="card-card2-backed-up">
+              <input type="checkbox" id="card-card2-backed-up" />
+              <span>Mark Card 2 as backed up</span>
+            </label>
+          </div>
+        </details>
       </div>
       <div class="modal-buttons">
         <button id="save-card-entry">Save Entry</button>
