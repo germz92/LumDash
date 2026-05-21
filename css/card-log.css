@@ -196,6 +196,7 @@
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
   padding: 6px 0;
   display: none;
+  pointer-events: auto;
 }
 
 .card-log-context-menu button {
@@ -212,6 +213,8 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  cursor: pointer;
+  pointer-events: auto;
 }
 
 .card-log-context-menu button:hover {

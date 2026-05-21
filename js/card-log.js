@@ -1215,8 +1215,8 @@ function applyCardBackedUpUI(row, entry = {}) {
   });
 }
 
-function setupCardBackupContextMenu() {
-  if (cardLogContextMenu) return;
+function ensureCardBackupContextMenu() {
+  if (cardLogContextMenu) return cardLogContextMenu;
 
   cardLogContextMenu = document.createElement('div');
   cardLogContextMenu.id = 'card-log-context-menu';
@@ -1228,20 +1228,38 @@ function setupCardBackupContextMenu() {
     </button>
   `;
   document.body.appendChild(cardLogContextMenu);
-  cardLogContextMenu.addEventListener('mousedown', (e) => e.stopPropagation());
-  cardLogContextMenu.addEventListener('click', (e) => e.stopPropagation());
 
-  document.getElementById('card-log-mark-backed-up').addEventListener('click', async () => {
-    if (!cardLogContextTarget) return;
-    const { row, field } = cardLogContextTarget;
-    hideCardBackupContextMenu();
-    await toggleCardBackedUp(row, field);
+  cardLogContextMenu.addEventListener('mousedown', (e) => {
+    e.stopPropagation();
   });
 
-  document.addEventListener('click', hideCardBackupContextMenu);
-  document.addEventListener('scroll', hideCardBackupContextMenu, true);
-  window.addEventListener('resize', hideCardBackupContextMenu);
+  cardLogContextMenu.addEventListener('click', async (e) => {
+    const markBtn = e.target.closest('#card-log-mark-backed-up');
+    if (!markBtn) return;
 
+    e.preventDefault();
+    e.stopPropagation();
+
+    if (!cardLogContextTarget) return;
+    const { row, field } = cardLogContextTarget;
+    await toggleCardBackedUp(row, field);
+    hideCardBackupContextMenu();
+  });
+
+  if (!window.__cardLogBackupDismissBound) {
+    window.__cardLogBackupDismissBound = true;
+    document.addEventListener('click', (e) => {
+      if (cardLogContextMenu?.contains(e.target)) return;
+      hideCardBackupContextMenu();
+    });
+    document.addEventListener('scroll', hideCardBackupContextMenu, true);
+    window.addEventListener('resize', hideCardBackupContextMenu);
+  }
+
+  return cardLogContextMenu;
+}
+
+function bindCardBackupTableContextMenu() {
   const tableContainer = document.getElementById('table-container');
   if (!tableContainer || tableContainer.dataset.cardBackupMenuBound === 'true') return;
   tableContainer.dataset.cardBackupMenuBound = 'true';
@@ -1262,8 +1280,13 @@ function setupCardBackupContextMenu() {
   });
 }
 
+function setupCardBackupContextMenu() {
+  ensureCardBackupContextMenu();
+  bindCardBackupTableContextMenu();
+}
+
 function showCardBackupContextMenu(x, y, row, field) {
-  if (!cardLogContextMenu) setupCardBackupContextMenu();
+  ensureCardBackupContextMenu();
 
   cardLogContextTarget = { row, field };
   const isBackedUp = row.getAttribute(`data-${field}-backed-up`) === 'true';
@@ -1304,7 +1327,13 @@ async function toggleCardBackedUp(row, field) {
   }
 
   try {
-    await saveToMongoDB();
+    const saved = await saveToMongoDB();
+    if (!saved) {
+      row.setAttribute(`data-${field}-backed-up`, isBackedUp ? 'true' : 'false');
+      if (cell) cell.classList.toggle('backed-up', isBackedUp);
+      showSaveError('Failed to save backup status');
+      return;
+    }
     showToastNotification(isBackedUp ? 'Backup mark removed' : 'Marked as backed up', 'success');
   } catch (error) {
     console.error('[CARD-LOG] Error saving backup mark:', error);
