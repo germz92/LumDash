@@ -7646,6 +7646,56 @@ app.post('/api/timesheet/pair', authenticate, async (req, res) => {
 
 // ==================== REIMBURSEMENT REQUESTS ====================
 
+async function notifyLumDashReimbursementSubmitted(requestId) {
+  const baseUrl = process.env.LUMDASH_API_URL;
+  if (!baseUrl) {
+    console.warn('LUMDASH_API_URL not set; skipping reimbursement submitted hook');
+    return null;
+  }
+
+  const secret = process.env.LUMDASH_REIMBURSEMENT_HOOK_SECRET;
+  const url = `${baseUrl.replace(/\/$/, '')}/api/reimbursements/submitted-hook`;
+  const headers = { 'Content-Type': 'application/json' };
+  if (secret) {
+    headers['x-reimbursement-hook-secret'] = secret;
+  }
+
+  const retryDelaysMs = [1000, 5000, 15000];
+  let lastError;
+
+  for (let attempt = 0; attempt <= retryDelaysMs.length; attempt++) {
+    try {
+      const res = await fetch(url, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ requestId: String(requestId) })
+      });
+
+      if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        console.log('Reimbursement submitted hook OK:', requestId, data.message || '');
+        return data;
+      }
+
+      const errBody = await res.json().catch(() => ({}));
+      const message = errBody.error || res.statusText;
+      lastError = new Error(`LumDash hook failed ${res.status}: ${message}`);
+
+      if (res.status === 400 || res.status === 401 || res.status === 404) {
+        throw lastError;
+      }
+    } catch (err) {
+      lastError = err;
+    }
+
+    if (attempt < retryDelaysMs.length) {
+      await new Promise((resolve) => setTimeout(resolve, retryDelaysMs[attempt]));
+    }
+  }
+
+  throw lastError || new Error('LumDash hook failed after retries');
+}
+
 // List all reimbursement requests for current user
 app.get('/api/reimbursements', authenticate, async (req, res) => {
   try {
@@ -7718,12 +7768,21 @@ app.put('/api/reimbursements/:id', authenticate, async (req, res) => {
       request.totalAmount = items.reduce((sum, item) => sum + (parseFloat(item.amount) || 0), 0);
     }
 
-    if (status === 'submitted' && (request.status === 'draft')) {
+    let justSubmitted = false;
+    if (status === 'submitted' && request.status === 'draft') {
       request.status = 'submitted';
       request.dateSubmitted = new Date();
+      justSubmitted = true;
     }
 
     await request.save();
+
+    if (justSubmitted) {
+      notifyLumDashReimbursementSubmitted(request._id).catch((hookErr) => {
+        console.error('Reimbursement submitted hook failed:', hookErr.message || hookErr);
+      });
+    }
+
     res.json(request);
   } catch (err) {
     console.error('Error updating reimbursement:', err);
