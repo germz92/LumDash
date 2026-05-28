@@ -16,6 +16,8 @@ sgMail.setApiKey(process.env.SENDGRID_API_KEY);
 console.log('SENDGRID_API_KEY loaded:', !!process.env.SENDGRID_API_KEY);
 console.log('SENDGRID_FROM_EMAIL:', process.env.SENDGRID_FROM_EMAIL);
 console.log('APP_URL:', process.env.APP_URL);
+console.log('LUMDASH_API_URL:', process.env.LUMDASH_API_URL || '(not set)');
+console.log('LUMDASH_REIMBURSEMENT_HOOK_SECRET loaded:', !!process.env.LUMDASH_REIMBURSEMENT_HOOK_SECRET);
 
 // Configure Cloudinary
 cloudinary.config({
@@ -7653,11 +7655,13 @@ async function notifyLumDashReimbursementSubmitted(requestId) {
     return null;
   }
 
-  const secret = process.env.LUMDASH_REIMBURSEMENT_HOOK_SECRET;
+  const secret = process.env.LUMDASH_REIMBURSEMENT_HOOK_SECRET?.trim();
   const url = `${baseUrl.replace(/\/$/, '')}/api/reimbursements/submitted-hook`;
   const headers = { 'Content-Type': 'application/json' };
   if (secret) {
     headers['x-reimbursement-hook-secret'] = secret;
+  } else {
+    console.warn('LUMDASH_REIMBURSEMENT_HOOK_SECRET not set; hook may return 401 on production LumDash');
   }
 
   const retryDelaysMs = [1000, 5000, 15000];
