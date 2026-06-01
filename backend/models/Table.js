@@ -97,6 +97,10 @@ const tableSchema = new mongoose.Schema({
         required: true,
         default: 'Main List'
       },
+      displayName: {
+        type: String,
+        default: ''
+      },
       createdAt: {
         type: Date,
         default: Date.now

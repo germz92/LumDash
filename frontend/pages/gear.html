@@ -1351,7 +1351,7 @@
                     const gearHeader = document.querySelector('.header h1');
                     if (gearHeader) {
                         const eventName = currentEvent?.title || 'Event';
-                        gearHeader.textContent = `${eventName} - ${currentListName}`;
+                        gearHeader.textContent = `${eventName} - ${getListLabelByName(currentListName)}`;
                     }
                 }
             } catch (error) {
@@ -1457,7 +1457,7 @@
             const gearHeader = document.querySelector('.header h1');
             if (gearHeader) {
                 const eventName = currentEvent?.title || 'Event';
-                gearHeader.textContent = `${eventName} - ${currentListName}`;
+                gearHeader.textContent = `${eventName} - ${getListLabelByName(currentListName)}`;
             }
             
             if (currentGear.length === 0) {
@@ -1468,7 +1468,7 @@
                 container.innerHTML = `
                     <div style="text-align: center; padding: 60px 20px; color: #666;">
                         <div style="font-size: 64px; color: #ccc; margin-bottom: 16px;">📦</div>
-                        <h3>No gear in "${currentListName}" yet</h3>
+                        <h3>No gear in "${getListLabelByName(currentListName)}" yet</h3>
                         <p>${emptyMessage}</p>
                     </div>
                 `;
@@ -1981,6 +1981,17 @@
         }
 
         // List management functions
+        function getGearListLabel(list) {
+            if (!list) return '';
+            const display = (list.displayName || '').trim();
+            return display || list.name || '';
+        }
+
+        function getListLabelByName(name) {
+            const list = gearLists.find(l => l.name === name);
+            return list ? getGearListLabel(list) : (name || '');
+        }
+
         function updateListSelect() {
             const select = document.getElementById('listSelect');
             select.innerHTML = '';
@@ -1988,7 +1999,7 @@
             gearLists.forEach(list => {
                 const option = document.createElement('option');
                 option.value = list.name;
-                option.textContent = list.name;
+                option.textContent = getGearListLabel(list);
                 option.selected = list.name === currentListName;
                 select.appendChild(option);
             });
