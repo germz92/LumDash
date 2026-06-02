@@ -348,26 +348,31 @@ body:has(#page-container > .general-page) #page-container {
   max-width: 100%;
   min-width: 0;
   -webkit-min-logical-width: 0;
-  overflow: hidden;
+  padding-inline: 12px;
+  padding-block: 10px;
 }
 
 .general-page .info-section input[type="date"]::-webkit-datetime-edit,
-.general-page .info-section input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+.general-page .info-section input[type="date"]::-webkit-datetime-edit-fields-wrapper {
+  min-width: 0;
+  max-width: 100%;
+  padding: 0;
+  margin: 0;
+}
+
 .general-page .info-section input[type="date"]::-webkit-date-and-time-value {
   min-width: 0;
   max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  text-align: left;
+  padding-inline-end: 4px;
 }
 
 .general-page .info-section input[type="date"]::-webkit-calendar-picker-indicator {
   flex-shrink: 0;
   margin: 0;
+  margin-inline-start: 4px;
   padding: 0;
-}
-
-.general-page .info-section input[type="date"]::-webkit-date-and-time-value {
-  text-align: left;
+  opacity: 0.85;
 }
 
 .general-page .info-section input[type="date"]:focus,
@@ -1077,7 +1082,7 @@ body:has(#page-container > .general-page) #page-container {
     min-width: 0;
     max-width: none;
     width: auto;
-    padding: 14px 10px;
+    padding: 14px 12px;
     overflow: clip;
   }
 
@@ -1085,7 +1090,8 @@ body:has(#page-container > .general-page) #page-container {
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    padding: 8px 4px;
+    padding-inline: 10px;
+    padding-block: 8px;
     font-size: 16px;
   }
 
