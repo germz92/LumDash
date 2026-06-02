@@ -86,7 +86,7 @@ console.log(' app.js loaded');
 })();
 
 const PAGE_CLASSES = [
-  'events-page', 'general-page', 'crew-page', 'travel-page', 'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'users-page', 'crew-planner-page', 'crew-calendar-page'
+  'events-page', 'general-page', 'crew-page', 'travel-page', 'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'users-page', 'crew-planner-page', 'crew-calendar-page', 'call-times-page', 'flights-page', 'timesheet-page'
 ];
 
 function setBodyPageClass(page) {
@@ -97,6 +97,17 @@ function setBodyPageClass(page) {
   } else {
     document.body.classList.add(`${page}-page`);
   }
+}
+
+function resetPageContainerForNavigation() {
+  const pageContainer = document.getElementById('page-container');
+  if (!pageContainer) return;
+
+  pageContainer.style.padding = '';
+  pageContainer.style.overflow = '';
+  pageContainer.style.height = '';
+  pageContainer.style.maxHeight = '';
+  pageContainer.classList.remove('card-log-modal-open');
 }
 
 function getTableId() {
@@ -122,9 +133,11 @@ function navigate(page, id) {
   
   navigationInProgress = true;
   window.currentNavigatingPage = page; // Track for debugging
+  window.__navGeneration = (window.__navGeneration || 0) + 1;
+  const navGeneration = window.__navGeneration;
   
   // Only require an ID for pages that need it
-  const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'crew-planner', 'crew-calendar'].includes(page);
+  const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'crew-planner', 'crew-calendar', 'call-times', 'flights', 'timesheet', 'reimbursements', 'reimbursement-detail'].includes(page);
   
   // CRITICAL FIX: Determine the final tableId to use consistently throughout navigation
   let finalId = id;
@@ -141,6 +154,7 @@ function navigate(page, id) {
 
   // Set the correct body class for the page
   setBodyPageClass(page);
+  resetPageContainerForNavigation();
 
   // Store the event ID ONLY if we have a valid one and it's needed
   if (finalId && needsId) {
@@ -161,8 +175,9 @@ function navigate(page, id) {
       const cleanupFunctionMap = {
         'schedule': 'cleanupSchedulePage',
         'card-log': 'cleanupCardLogPage',
-        'shotlist': 'cleanupShotlist'
-        // Add more page cleanup functions here as needed
+        'shotlist': 'cleanupShotlist',
+        'timesheet': 'cleanupTimesheet',
+        'reimbursements': 'cleanupReimbursementsPage'
       };
       
       const cleanupFunctionName = cleanupFunctionMap[window.currentPage] || 
@@ -203,8 +218,9 @@ function navigate(page, id) {
   // Save the current page state for PWA restoration
   saveCurrentPageState(page, finalId);
   
-  // CRITICAL: Always pass the finalId (which is guaranteed to be valid for pages that need it)
-  loadPage(page, needsId ? finalId : null);
+  // Pass the ID for pages that need it, or for detail pages that use their own ID scheme
+  const passId = needsId ? finalId : (page === 'reimbursement-detail' ? id : null);
+  loadPage(page, passId, navGeneration);
   
   // Reset navigation flag after a short delay to allow the page to load
   setTimeout(() => {
@@ -212,17 +228,21 @@ function navigate(page, id) {
   }, 100);
 }
 
-function loadPage(page, id) {
+function loadPage(page, id, navGeneration) {
   fetch(`pages/${page}.html`)
     .then(res => res.text())
     .then(html => {
+      if (navGeneration && window.__navGeneration !== navGeneration) {
+        console.log(`[LOAD_PAGE] Stale navigation for ${page}, skipping inject`);
+        return;
+      }
       // Wait for DOM to be ready if it isn't already
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-          injectPageContent(html, page, id);
+          injectPageContent(html, page, id, navGeneration);
         });
       } else {
-        injectPageContent(html, page, id);
+        injectPageContent(html, page, id, navGeneration);
       }
     })
     .catch(err => {
@@ -230,7 +250,12 @@ function loadPage(page, id) {
     });
 }
 
-function injectPageContent(html, page, id) {
+function injectPageContent(html, page, id, navGeneration) {
+  if (navGeneration && window.__navGeneration !== navGeneration) {
+    console.log(`[INJECT] Stale navigation for ${page}, skipping inject`);
+    return;
+  }
+
   // Use the simple page container
   const targetElement = document.getElementById('page-container');
   if (!targetElement) {
@@ -243,11 +268,16 @@ function injectPageContent(html, page, id) {
   
   // Add new content to the target element
   targetElement.innerHTML = html;
+
+  // Re-apply page class and reset container styles after HTML injection
+  setBodyPageClass(page);
+  resetPageContainerForNavigation();
+  document.body.style.overflow = '';
   
   // Show/hide bottom nav based on page and set it up
   const bottomNav = document.getElementById('bottomNav');
   if (bottomNav) {
-    if (page === 'events') { // 'events' page usually doesn't show the main event-specific nav
+    if (page === 'events' || page === 'call-times' || page === 'flights') { // 'events', 'call-times', and 'flights' pages don't show the main event-specific nav
       bottomNav.style.display = 'none';
     } else {
       bottomNav.style.display = ''; // Ensure it's visible for other pages
@@ -341,6 +371,7 @@ function injectPageContent(html, page, id) {
     const cacheBuster = Date.now();
     
     const script = document.createElement('script');
+    script.id = 'page-script';
     script.src = `js/${page}.js?v=${cacheBuster}`;
     script.onload = callback;
     script.onerror = () => {
@@ -358,6 +389,11 @@ function injectPageContent(html, page, id) {
 
      // Dynamically load JS if it exists
    loadPageScript(page, () => {
+     if (navGeneration && window.__navGeneration !== navGeneration) {
+       console.log(`[SCRIPT_LOAD] Stale navigation for ${page}, skipping init`);
+       return;
+     }
+
      console.log(`Script loaded for ${page}, calling window.initPage with id: ${id}`);
     console.log(`[SCRIPT_LOAD] window.initPage exists: ${typeof window.initPage === 'function'}`);
     
@@ -378,18 +414,25 @@ function injectPageContent(html, page, id) {
     
     // Small delay to ensure the script has been properly initialized
     setTimeout(() => {
+      if (navGeneration && window.__navGeneration !== navGeneration) {
+        console.log(`[INIT_PAGE] Stale navigation for ${page}, skipping initPage`);
+        return;
+      }
+
       if (window.initPage) {
         try {
           // CRITICAL FIX: Always call initPage if it exists, but only pass ID for pages that need it
-          const needsId = !['events', 'dashboard', 'login', 'register', 'users'].includes(page);
+          const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'timesheet', 'reimbursements', 'reimbursement-detail'].includes(page);
           
           if (needsId && id) {
             console.log(`[INIT_PAGE] Calling initPage with explicit id: ${id}`);
             window.initPage(id);
           } else if (needsId && !id) {
             console.warn(`[INIT_PAGE] Page ${page} needs event ID but none provided, initPage not called`);
+          } else if (id) {
+            console.log(`[INIT_PAGE] Calling initPage for page ${page} with id: ${id}`);
+            window.initPage(id);
           } else {
-            // Page doesn't need an ID, call initPage without parameters
             console.log(`[INIT_PAGE] Calling initPage for page ${page} (no ID needed)`);
             window.initPage();
           }
@@ -536,11 +579,14 @@ function loadPageCSS(page) {
     case 'schedule': cssFile = 'css/schedule.css'; break;
     case 'shotlist': cssFile = 'css/shotlist.css'; break;
     case 'users': cssFile = 'css/users.css'; break;
+    case 'timesheet': cssFile = 'css/timesheet.css'; break;
+    case 'reimbursements': cssFile = 'css/reimbursements.css'; break;
+    case 'reimbursement-detail': cssFile = 'css/reimbursements.css'; break;
   }
   if (cssFile) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = cssFile;
+    link.href = `${cssFile}?v=${Date.now()}`;
     link.setAttribute('data-page-css', 'true'); // Mark for easy removal
     document.head.appendChild(link);
   }
@@ -559,7 +605,7 @@ window.addEventListener('hashchange', () => {
   
   // For hash changes (back/forward navigation), we need to be more careful about event IDs
   // Only pass an event ID if the page actually needs one
-  const needsId = !['events', 'dashboard', 'login', 'register', 'users'].includes(page);
+  const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'timesheet', 'reimbursements', 'reimbursement-detail'].includes(page);
   
   if (needsId) {
     const currentEventId = localStorage.getItem('eventId');
@@ -592,7 +638,7 @@ window.addEventListener('DOMContentLoaded', () => {
   // Reset body classes
   const PAGE_CLASSES_RESET = [
     'events-page', 'general-page', 'crew-page', 'travel-page', 
-    'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page'
+    'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'call-times-page', 'flights-page'
   ];
   PAGE_CLASSES_RESET.forEach(cls => document.body.classList.remove(cls));
   
@@ -601,7 +647,7 @@ window.addEventListener('DOMContentLoaded', () => {
   console.log(`[INITIAL_LOAD] Initial page load: ${page}`);
   
   // Use the same logic as hashchange handler for consistency
-  const needsId = !['events', 'dashboard', 'login', 'register', 'users'].includes(page);
+  const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'timesheet'].includes(page);
   
   if (needsId) {
     const currentEventId = localStorage.getItem('eventId');
@@ -1071,7 +1117,7 @@ function restoreLastPageState() {
     }
     
     // Restore the page if it's valid and we have the required eventId for pages that need it
-    const needsId = !['events', 'dashboard', 'login', 'register', 'users'].includes(pageState.page);
+    const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'timesheet'].includes(pageState.page);
     
     if (needsId && !pageState.eventId) {
       console.log('[PWA] Cannot restore page state - missing eventId for page:', pageState.page);

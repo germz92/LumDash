@@ -321,10 +321,14 @@ function cleanupTinyMCE() {
 function renderContactRow(data = {}, readOnly = false) {
   const tbody = document.getElementById('contactRows');
   const row = document.createElement('tr');
+  row.className = 'general-data-row';
   const fields = ['name', 'number', 'email', 'role'];
+  const labels = { name: 'Name', number: 'Phone', email: 'Email', role: 'Role' };
 
   fields.forEach(type => {
     const td = document.createElement('td');
+    td.dataset.label = labels[type];
+    td.dataset.field = type;
     if (readOnly) td.innerHTML = createLinkHTML(data[type], type);
     else td.appendChild(createLinkedTextarea(data[type], type));
     row.appendChild(td);
@@ -333,6 +337,7 @@ function renderContactRow(data = {}, readOnly = false) {
   // Only add action column when not in read-only mode
   if (!readOnly) {
     const deleteTd = document.createElement('td');
+    deleteTd.className = 'general-row-actions';
     const btn = document.createElement('button');
     btn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
     btn.onclick = () => row.remove();
@@ -346,10 +351,13 @@ function renderContactRow(data = {}, readOnly = false) {
 function renderLocationRow(data = {}, readOnly = false) {
   const tbody = document.getElementById('locationsRows');
   const row = document.createElement('tr');
+  row.className = 'general-data-row';
   const fields = ['name', 'address', 'event'];
+  const labels = { name: 'Name', address: 'Address', event: 'Event' };
 
   fields.forEach(type => {
     const td = document.createElement('td');
+    td.dataset.label = labels[type];
     if (readOnly) td.innerHTML = createLinkHTML(data[type], type);
     else td.appendChild(createLinkedTextarea(data[type], type));
     row.appendChild(td);
@@ -358,6 +366,7 @@ function renderLocationRow(data = {}, readOnly = false) {
   // Only add action column when not in read-only mode
   if (!readOnly) {
     const deleteTd = document.createElement('td');
+    deleteTd.className = 'general-row-actions';
     const btn = document.createElement('button');
     btn.innerHTML = '<span class="material-symbols-outlined">delete</span>';
     btn.onclick = () => row.remove();
@@ -436,14 +445,11 @@ function insertAdminNotesBtn(tableId) {
   const container = document.getElementById('adminNotesBtnContainer');
   if (!container) return;
   container.innerHTML = '';
-  container.style.display = 'flex';
-  container.style.alignItems = 'center';
   
   if (isAdmin() || isOwner) {
     const btn = document.createElement('button');
     btn.textContent = 'Notes';
     btn.className = 'admin-notes-btn';
-    btn.style = 'margin-bottom: 18px; background: #CC0007; color: #fff; border: none; border-radius: 8px; padding: 10px 22px; font-weight: 600; font-size: 17px; box-shadow: 0 2px 8px rgba(204,0,7,0.08); cursor: pointer;';
     btn.onclick = () => {
       window.location.href = `/pages/notes.html?id=${tableId}`;
     };
@@ -453,8 +459,7 @@ function insertAdminNotesBtn(tableId) {
   // Add Folder Logs icon button for all users
   const folderBtn = document.createElement('button');
   folderBtn.innerHTML = '<span class="material-symbols-outlined">folder</span>';
-  folderBtn.className = 'folder-logs-btn';
-  folderBtn.style = 'margin-bottom: 18px; margin-left: 8px; background: none; color: #888; border: none; border-radius: 8px; padding: 8px; font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;';
+  folderBtn.className = 'folder-logs-btn general-toolbar-icon-btn';
   folderBtn.title = 'Folder Logs';
   folderBtn.onclick = () => {
     window.location.href = `/folder-logs.html?id=${tableId}`;
@@ -464,8 +469,7 @@ function insertAdminNotesBtn(tableId) {
   // Add QR Code button for all users, styled like folder icon
   const qrBtn = document.createElement('button');
   qrBtn.innerHTML = '<span class="material-symbols-outlined">qr_code</span>';
-  qrBtn.className = 'qr-code-btn';
-  qrBtn.style = 'margin-bottom: 18px; margin-left: 8px; background: none; color: #888; border: none; border-radius: 8px; padding: 8px; font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;';
+  qrBtn.className = 'qr-code-btn general-toolbar-icon-btn';
   qrBtn.title = 'QR Code';
   qrBtn.onclick = () => {
     showQRCodeModal();
@@ -476,8 +480,7 @@ function insertAdminNotesBtn(tableId) {
   if (isOwner) {
     const taskBtn = document.createElement('button');
     taskBtn.innerHTML = '<span class="material-symbols-outlined">task_alt</span>';
-    taskBtn.className = 'task-logs-btn';
-    taskBtn.style = 'margin-bottom: 18px; margin-left: 8px; background: none; color: #888; border: none; border-radius: 8px; padding: 8px; font-size: 17px; cursor: pointer; display: inline-flex; align-items: center; justify-content: center;';
+    taskBtn.className = 'task-logs-btn general-toolbar-icon-btn';
     taskBtn.title = 'To-Do List';
     taskBtn.onclick = () => {
       window.location.href = `/pages/tasks.html?id=${tableId}`;
@@ -644,6 +647,23 @@ function closeQRCodeModal() {
   }
 }
 
+function ensureGeneralPageLayout() {
+  if (!document.querySelector('.general-page')) return;
+
+  document.body.classList.add('general-page');
+
+  const pageContainer = document.getElementById('page-container');
+  if (pageContainer) {
+    pageContainer.style.padding = '';
+    pageContainer.style.overflow = '';
+    pageContainer.style.height = '';
+    pageContainer.style.maxHeight = '';
+    pageContainer.classList.remove('card-log-modal-open');
+  }
+
+  document.body.style.overflow = '';
+}
+
 function initPage(id) {
   // Safeguard: Only run on the general page
   const currentPage = location.hash.replace('#', '') || 'events';
@@ -651,6 +671,8 @@ function initPage(id) {
     console.log(`general.js initPage called on wrong page: ${currentPage}, skipping execution`);
     return;
   }
+
+  ensureGeneralPageLayout();
   
   console.log('[GENERAL] initPage called with id:', id);
   

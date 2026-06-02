@@ -1,177 +1,446 @@
+/* ===== General Page — Modern Design System ===== */
+
 .general-page {
-  font-family: 'Roboto', Arial, sans-serif;
-  background: #f4f4f4;
+  --gp-bg: #ffffff;
+  --gp-input-bg: #f8fafc;
+  --gp-surface: #ffffff;
+  --gp-border: rgba(15, 23, 42, 0.08);
+  --gp-shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04);
+  --gp-shadow-md: 0 4px 16px rgba(15, 23, 42, 0.06);
+  --gp-shadow-lg: 0 8px 32px rgba(15, 23, 42, 0.08);
+  --gp-radius: 12px;
+  --gp-radius-lg: 16px;
+  --gp-text: #0f172a;
+  --gp-text-secondary: #64748b;
+  --gp-text-muted: #94a3b8;
+  --gp-accent: var(--brand-primary, #CC0007);
+  --gp-accent-soft: rgba(var(--brand-primary-rgb, 204, 0, 7), 0.08);
+  --gp-transition: 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+
+  font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #fff;
   margin: 0;
-  padding: 0;
+  padding: 0 16px;
   width: 100%;
+  max-width: 100%;
   min-height: 100%;
   box-sizing: border-box;
   font-size: 16px;
+  color: var(--gp-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+body.general-page,
+body:has(#page-container > .general-page) {
+  background: #fff;
+}
+
+body.general-page #page-container,
+body:has(#page-container > .general-page) #page-container {
+  background: #fff;
+  padding-top: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+  padding-bottom: calc(120px + env(safe-area-inset-bottom, 0px)) !important;
+  max-width: 100%;
+  width: 100%;
 }
 
 .general-page .container {
   width: 100%;
   max-width: none;
-  padding: 1.5rem;
-  padding-bottom: 120px; /* Extra space for bottom navigation */
-  border-radius: 1rem;
-  box-shadow: 0 2px 16px rgba(0,0,0,0.08);
-  margin: 0 auto;
+  padding: 0;
+  padding-bottom: 120px;
+  border-radius: 0;
+  box-shadow: none;
+  margin: 0;
   box-sizing: border-box;
-  background: #fff;
+  background: transparent;
   position: relative;
 }
 
-.general-page h1, .general-page h2 {
-  text-align: center;
-  margin-bottom: 1.25rem;
-  color: #333;
-  font-weight: bold;
-  letter-spacing: 0.01em;
+/* ===== Page Header ===== */
+.general-page-header {
+  background: var(--gp-bg);
+  border-bottom: none;
+  padding: 16px 20px 20px;
+  margin-bottom: 0;
 }
 
-.general-page h1 { font-size: 1.5rem; }
-.general-page h2 { font-size: 1.25rem; }
+.general-event-title {
+  margin: 12px 0 0;
+  padding: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+  color: var(--gp-text);
+  text-align: left;
+}
 
-/* ====== Info Section ====== */
+.general-form {
+  padding: 20px 0;
+  width: 100%;
+  max-width: none;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+/* ===== Toolbar ===== */
+.general-page-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  width: 100%;
+}
+
+#adminNotesBtnContainer {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin: 0;
+  flex: 1;
+  min-width: 0;
+}
+
+.general-page .admin-notes-btn {
+  background: var(--gp-input-bg) !important;
+  color: var(--gp-text-secondary) !important;
+  border: 1px solid var(--gp-border);
+  border-radius: 10px;
+  padding: 0 16px;
+  font-weight: 600;
+  font-size: 13px;
+  line-height: 1;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  box-shadow: var(--gp-shadow-sm);
+  cursor: pointer;
+  transition: background var(--gp-transition), color var(--gp-transition), border-color var(--gp-transition), transform var(--gp-transition);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  margin: 0;
+}
+
+.general-page .admin-notes-btn:hover,
+.general-page .admin-notes-btn:focus {
+  background: #eef0f3 !important;
+  color: var(--gp-text) !important;
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+.general-toolbar-icon-btn,
+.general-page .folder-logs-btn,
+.general-page .qr-code-btn,
+.general-page .task-logs-btn,
+#clockIconContainer .clock-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  margin: 0;
+  border: 1px solid var(--gp-border);
+  border-radius: 10px;
+  background: var(--gp-surface);
+  color: var(--gp-text-secondary);
+  cursor: pointer;
+  transition: background var(--gp-transition), color var(--gp-transition), border-color var(--gp-transition), transform var(--gp-transition);
+  flex-shrink: 0;
+  box-shadow: var(--gp-shadow-sm);
+  font-weight: normal;
+  font-size: inherit;
+}
+
+.general-toolbar-icon-btn .material-symbols-outlined,
+.general-page .folder-logs-btn .material-symbols-outlined,
+.general-page .qr-code-btn .material-symbols-outlined,
+.general-page .task-logs-btn .material-symbols-outlined,
+#clockIconContainer .clock-icon-btn .material-symbols-outlined {
+  font-size: 20px;
+  line-height: 1;
+}
+
+.general-toolbar-icon-btn:hover,
+.general-page .folder-logs-btn:hover,
+.general-page .qr-code-btn:hover,
+.general-page .task-logs-btn:hover {
+  background: #eef0f3;
+  color: var(--gp-text);
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+#clockIconContainer .clock-icon-btn {
+  color: var(--gp-accent);
+  background: var(--gp-surface);
+}
+
+#clockIconContainer .clock-icon-btn:hover {
+  color: #a30005;
+  background: var(--gp-accent-soft);
+  border-color: rgba(var(--brand-primary-rgb, 204, 0, 7), 0.2);
+}
+
+#clockIconContainer {
+  position: relative;
+  z-index: 2100;
+  display: flex;
+  align-items: center;
+  margin-left: 0;
+  flex-shrink: 0;
+}
+
+/* ===== Overview / Info Cards ===== */
+.general-overview {
+  margin-bottom: 24px;
+}
+
 .general-page .info-section {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  margin-bottom: 8px;
+  gap: 16px;
+  margin-bottom: 0;
+}
+
+.general-stats-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
 }
 
 .general-page .info-row {
   display: flex;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin-bottom: 0;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
 }
 
 .general-page .info-card {
-  background-color: #f9f9f9;
-  border: 1px solid #e0e0e0;
-  border-radius: 20px;
-  padding: 16px;
-  margin-bottom: 16px;
+  flex: 1;
+  background: var(--gp-surface);
+  border: 1px solid var(--gp-border);
+  border-radius: var(--gp-radius);
+  padding: 16px 18px;
+  margin-bottom: 0;
+  min-width: 0;
+  box-sizing: border-box;
+  box-shadow: none;
+  transition: border-color var(--gp-transition);
 }
 
+.general-page .info-card:hover {
+  border-color: rgba(15, 23, 42, 0.12);
+}
+
+.general-page .info-card--summary {
+  padding: 0;
+  overflow: hidden;
+}
+
+.general-page .info-card-label,
 .general-page .info-card label {
   display: flex;
-  text-align: center;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
   font-weight: 600;
-  margin-bottom: 8px;
-  color: #333;
+  font-size: 12px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+  color: var(--gp-text-secondary);
+  text-align: left;
 }
 
+.general-page .info-card-label--toggle {
+  cursor: pointer;
+  user-select: none;
+  padding: 16px 18px;
+  margin-bottom: 0;
+  background: var(--gp-bg);
+  border-bottom: 1px solid var(--gp-border);
+  justify-content: space-between;
+}
+
+.general-page .info-card-label-text {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.general-page .info-card-label .material-symbols-outlined,
 .general-page .info-card label .material-symbols-outlined {
-  font-size: 20px;
-  color: var(--brand-primary);
+  font-size: 18px;
+  color: var(--gp-accent);
 }
 
-/* Event Summary toggle icon styles */
+.general-page .info-card-chevron,
 .general-page .info-card label #summaryToggleIcon {
-  font-size: 24px;
-  color: #666;
-  transition: transform 0.3s ease;
+  font-size: 22px;
+  color: var(--gp-text-muted);
+  transition: transform 0.3s ease, color var(--gp-transition);
   cursor: pointer;
 }
 
+.general-page .info-card-chevron:hover,
 .general-page .info-card label #summaryToggleIcon:hover {
-  color: #333;
+  color: var(--gp-text-secondary);
 }
 
-/* Event Summary content wrapper */
+.general-page .info-card-body,
 #summaryContent {
+  padding: 16px 18px;
   max-height: 100vh;
   overflow: visible;
   transition: max-height 0.3s ease, opacity 0.3s ease;
 }
 
-.general-page .info-card .read-only,
-.general-page .info-card input[type="date"] {
-  font-size: 1.08em;
-  color: #333;
-  margin-top: 2px;
+#summaryEditorContainer,
+.summary-editor-wrap {
+  display: none;
 }
 
+.general-page .info-card-value,
+.general-page .info-card .read-only,
+.general-page .info-card input[type="date"] {
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--gp-text);
+  line-height: 1.5;
+  margin-top: 0;
+}
+
+.general-page .info-card .read-only:empty::before {
+  content: '—';
+  color: var(--gp-text-muted);
+  font-weight: 400;
+}
+
+/* ===== Form Inputs ===== */
 .general-page .info-section input[type="date"],
 .general-page .info-section input[type="text"],
 .general-page .info-section textarea {
   width: 100%;
-  font-size: 1rem;
-  padding: 8px;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+  padding: 10px 12px;
   font-family: inherit;
   box-sizing: border-box;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-  background: #fff;
-  color: #333;
-  min-height: 2.25rem;
+  border: 1px solid var(--gp-border);
+  border-radius: 8px;
+  background: var(--gp-input-bg);
+  color: var(--gp-text);
+  min-height: 42px;
   line-height: 1.4;
-  transition: border 0.2s, box-shadow 0.2s;
+  transition: border-color var(--gp-transition), box-shadow var(--gp-transition), background var(--gp-transition);
+}
+
+.general-page .info-section input[type="date"] {
+  display: block;
+  -webkit-min-logical-width: 0;
+}
+
+.general-page .info-section input[type="date"]::-webkit-date-and-time-value {
+  text-align: left;
+  min-width: 0;
 }
 
 .general-page .info-section input[type="date"]:focus,
 .general-page .info-section input[type="text"]:focus,
 .general-page .info-section textarea:focus {
-  border: 1.5px solid #cc0007;
-  outline: 2px solid #cc0007;
-  background: #fff;
+  border-color: var(--gp-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--gp-accent-soft);
+  background: var(--gp-surface);
 }
 
 .general-page .info-section textarea {
-  width: 100%;
   min-height: 48px;
-  font-size: 1rem;
-  line-height: 1.4;
-  padding: 8px;
-  border-radius: 4px;
-  box-sizing: border-box;
   resize: vertical;
   overflow-y: auto;
-  background: #fff;
-  border: 1px solid #ccc;
-  transition: border 0.2s, box-shadow 0.2s;
 }
 
-/* ====== Table Styles ====== */
-.general-page .contacts-container {
+/* ===== Section Headers ===== */
+.general-section {
+  margin-bottom: 28px;
+}
+
+.general-section-header {
+  margin-bottom: 12px;
+}
+
+.general-section-title,
+.general-page h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  color: var(--gp-text);
+  text-align: left;
+}
+
+.general-section-title .material-symbols-outlined,
+.general-page h2 .material-symbols-outlined {
+  font-size: 22px;
+  color: var(--gp-accent);
+}
+
+.general-page h1 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--gp-text);
+}
+
+/* ===== Tables ===== */
+.general-page .contacts-container,
+.general-table-card {
   width: 100%;
   max-width: none;
-  margin: 1rem 0;
-  padding: 0.75rem;
+  margin: 0;
+  padding: 0;
   border: none;
-  border-radius: 0.75rem;
-  background: transparent;
+  border-radius: var(--gp-radius);
+  background: var(--gp-surface);
   box-sizing: border-box;
   box-shadow: none;
-  overflow-x: auto;
-  margin-bottom: 8px;
+  border: 1px solid var(--gp-border);
+  overflow: hidden;
 }
 
 .general-page .contacts-scroll-wrapper {
   width: 100%;
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;
-  max-height: 400px;
+  max-height: 420px;
   overflow-y: auto;
   border: none;
-  border-radius: 4px;
+  border-radius: 0;
 }
 
 .general-page .contacts-container table {
   width: 100% !important;
   min-width: 650px !important;
   table-layout: fixed !important;
-  border-collapse: separate !important;
+  border-collapse: collapse !important;
   border-spacing: 0 !important;
-  background: #fff;
-  border-radius: 10px;
+  background: var(--gp-surface);
+  border-radius: 0;
   overflow: hidden;
-  box-shadow: 0 3px 12px rgba(0,0,0,0.06);
+  box-shadow: none;
   border: none;
 }
 
@@ -183,89 +452,83 @@
   box-sizing: border-box;
   overflow-wrap: break-word;
   word-break: break-word;
-  padding: 8px;
-  font-size: 0.95em;
-  border-right: 1px solid #e0e0e0;
+  padding: 12px 16px;
+  font-size: 14px;
+  border-right: none;
   text-align: left;
-  vertical-align: top;
+  vertical-align: middle;
 }
 
-/* Remove right border from last cell */
 .general-page .contacts-container th:last-child,
 .general-page .contacts-container td:last-child {
   border-right: none;
 }
 
 .general-page .contacts-container th {
-  background: linear-gradient(90deg, #f5f5f5 0%, #e0e0e0 100%);
-  color: #222;
-  font-weight: bold;
+  background: #f8fafc;
+  color: var(--gp-text-secondary);
+  font-weight: 600;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   text-align: left;
   border-radius: 0;
-  border-bottom: 2.5px solid #e0e0e0;
-  letter-spacing: 0.01em;
+  border-bottom: 1px solid var(--gp-border);
   position: sticky;
   top: 0;
   z-index: 1;
 }
 
-/* Add borders to outer edges and round only the outer corners of the header */
 .general-page .contacts-container th:first-child {
-  border-top-left-radius: 10px;
-  border-left: 1px solid #e0e0e0;
+  border-top-left-radius: 0;
+  border-left: none;
 }
 
 .general-page .contacts-container th:last-child {
-  border-top-right-radius: 10px;
-  border-right: 1px solid #e0e0e0;
+  border-top-right-radius: 0;
+  border-right: none;
 }
 
-/* Add top border to all header cells */
 .general-page .contacts-container th {
-  border-top: 1px solid #e0e0e0;
+  border-top: none;
 }
 
-/* Hide last column header in view mode (when no textareas in tbody) */
 .general-page .contacts-container table:not(:has(tbody textarea)) th:last-child {
   display: none;
 }
 
-/* When last header is hidden, apply radius and border to second-to-last header */
 .general-page .contacts-container table:not(:has(tbody textarea)) th:nth-last-child(2) {
-  border-top-right-radius: 10px;
-  border-right: 1px solid #e0e0e0;
+  border-top-right-radius: 0;
+  border-right: none;
 }
 
 .general-page .contacts-container td {
-  background: #f9f9f9;
+  background: var(--gp-surface);
   word-break: break-word;
   white-space: pre-wrap;
-  border-bottom: 1px solid #ececec;
-  transition: background 0.2s;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+  transition: background var(--gp-transition);
 }
 
-/* Add left and right borders to outer cells */
 .general-page .contacts-container td:first-child {
-  border-left: 1px solid #e0e0e0;
+  border-left: none;
 }
 
 .general-page .contacts-container td:last-child {
-  border-right: 1px solid #e0e0e0;
+  border-right: none;
 }
 
-/* Round bottom corners of the last row */
 .general-page .contacts-container tbody tr:last-child td:first-child {
-  border-bottom-left-radius: 10px;
+  border-bottom-left-radius: 0;
 }
 
 .general-page .contacts-container tbody tr:last-child td:last-child {
-  border-bottom-right-radius: 10px;
+  border-bottom-right-radius: 0;
 }
 
-/* When last column is hidden in view mode, apply bottom-right radius to second-to-last cell */
 .general-page .contacts-container table:not(:has(tbody textarea)) tbody tr:last-child td:nth-last-child(2) {
-  border-bottom-right-radius: 10px;
-  border-right: 1px solid #e0e0e0;
+  border-bottom-right-radius: 0;
+  border-right: none;
 }
 
 .general-page .contacts-container tr:nth-child(even) td {
@@ -273,297 +536,275 @@
 }
 
 .general-page .contacts-container tr:nth-child(odd) td {
-  background: #fff;
+  background: var(--gp-surface);
 }
 
-.general-page .contacts-container tr:hover td {
-  background: #f0f4fa !important;
+.general-page .contacts-container tbody tr:hover td {
+  background: #f8fafc !important;
 }
 
-/* Table cell content (view mode) */
 .general-page .contacts-container td > a,
 .general-page .contacts-container td > div,
 .general-page .contacts-container td > span {
   display: block;
   margin: 0;
   padding: 0;
-  font-size: 0.95rem;
-  line-height: 1.2;
+  font-size: 14px;
+  line-height: 1.4;
   min-height: 0;
   height: auto;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: break-word;
+  color: var(--gp-text);
 }
 
-/* Table cell content (edit mode) */
+.general-page .contacts-container td[data-field="name"] > div,
+.general-page .contacts-container td[data-field="name"] > a,
+.general-page .contacts-container td[data-field="name"] textarea {
+  font-weight: 700;
+}
+
 .general-page .contacts-container td textarea,
 .general-page .contacts-container td input[type="text"] {
   width: 100%;
   min-height: 1.1em;
-  font-size: 0.95rem;
-  line-height: 1.2;
-  padding: 0.15em 0.2em;
+  font-size: 14px;
+  line-height: 1.4;
+  padding: 8px 10px;
   margin: 0;
-  border-radius: 0.2em;
+  border-radius: 8px;
   box-sizing: border-box;
   resize: vertical;
   overflow-y: hidden;
   white-space: pre-wrap;
   word-break: break-word;
-  background: #fff;
-  border: 1px solid #ccc;
+  background: var(--gp-input-bg);
+  border: 1px solid var(--gp-border);
+  transition: border-color var(--gp-transition), box-shadow var(--gp-transition);
+}
+
+.general-page .contacts-container td textarea:focus,
+.general-page .contacts-container td input[type="text"]:focus {
+  border-color: var(--gp-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--gp-accent-soft);
+  background: var(--gp-surface);
 }
 
 .general-page .contacts-container td textarea {
-  width: 100%;
   min-height: 42px;
-  font-size: 0.95rem;
-  line-height: 1.4;
-  padding: 0.4rem 0.6rem;
-  border-radius: 0.4rem;
-  box-sizing: border-box;
-  resize: vertical;
   overflow-y: auto;
-  background: #fff;
-  border: 1px solid #ccc;
-  transition: border 0.2s, box-shadow 0.2s;
 }
-
-/* ====== Buttons ====== */
-.general-page .add-row-btn, .general-page .save-button-container button, .general-page button {
-  margin-top: 0.5rem;
-  padding: 0.4rem 0.8rem;
-  background-color: #CC0007;
-  color: white;
-  border: none;
-  border-radius: 0.4rem;
-  font-weight: bold;
-  cursor: pointer;
-  transition: background 0.2s, box-shadow 0.2s;
-  box-shadow: 0 1px 4px rgba(204,0,7,0.08);
-  font-size: 0.95rem;
-}
-
-.general-page .add-row-btn:hover, .general-page .save-button-container button:hover, .general-page button:hover {
-  background: rgb(170, 3, 8);
-}
-
-.general-page .save-button-container {
-  margin-top: 2rem;
-  text-align: center;
-}
-
-/* ====== Responsive: Mobile ====== */
-@media (max-width: 768px) {
-  .general-page .container {
-    padding: 0.7rem;
-    border-radius: 0;
-  }
-  .general-page .info-section {
-    gap: 0.7rem;
-    padding: 0.7rem 0;
-  }
-  .general-page .info-row {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 12px;
-  }
-  .general-page .info-card {
-    min-width: 0;
-    width: 48%;
-    box-sizing: border-box;
-    padding: 14px 10px 10px 10px;
-  }
-  .general-page .contacts-container {
-    padding: 0.5rem;
-    border-radius: 0;
-  }
-  .general-page .contacts-container th,
-  .general-page .contacts-container td {
-    font-size: 16px;
-    padding: 0.05em 0.1em;
-    line-height: 1.1;
-  }
-  .general-page .contacts-container td textarea,
-  .general-page .contacts-container td input[type="text"] {
-    font-size: 16px;
-    min-height: 1em;
-    padding: 0.05em 0.1em;
-    line-height: 1.1;
-  }
-  .general-page .contacts-container td > a,
-  .general-page .contacts-container td > div,
-  .general-page .contacts-container td > span {
-    font-size: 16px;
-    line-height: 1.1;
-  }
-  .general-page h1, .general-page h2 {
-    font-size: 1.1rem;
-    margin-bottom: 0.7rem;
-  }
-  .general-page .add-row-btn, .general-page .save-button-container button, .general-page button {
-    padding: 0.5rem 0.8rem;
-    font-size: 16px;
-  }
-  .general-page .contacts-container table {
-    min-width: 650px !important;
-  }
-  .general-page input,
-  .general-page textarea,
-  .general-page select,
-  .general-page button {
-    font-size: 16px !important;
-  }
-  .general-page .info-section textarea,
-  .general-page .contacts-container td textarea {
-    min-height: 36px !important;
-    font-size: 15px !important;
-    padding: 0.3rem 0.5rem !important;
-    border-radius: 0.4rem !important;
-  }
-}
-
-/* ====== Misc ====== */
-.general-page .back-btn {
-  background: #CCCCCC;
-  color: #ffffff;
-  padding: 0.5rem 1rem;
-  cursor: pointer;
-  font-size: 0.95rem;
-  font-weight: 500;
-  border-radius: 0.5rem;
-}
-
-.general-page .back-btn:hover {
-  background: #bfbfbf;
-}
-
-/* 🔒 Read-only inputs styling */
-.general-page input.read-only-input {
-  background-color: #f5f5f5;
-  cursor: not-allowed;
-  opacity: 0.8;
-  border: 1px solid #ddd;
-  color: #666;
-}
-
-.general-page input.read-only-input:focus {
-  outline: none;
-  box-shadow: none;
-  border-color: #ddd;
-}
-
-/* View Only indicator styles removed - not needed */
 
 .general-page .contacts-container th:last-child,
 .general-page .contacts-container td:last-child {
-  width: 60px !important;
-  min-width: 40px !important;
-  max-width: 60px !important;
+  width: 52px !important;
+  min-width: 52px !important;
+  max-width: 52px !important;
   text-align: center;
   padding-left: 4px;
   padding-right: 4px;
 }
 
+.general-page .contacts-container td button,
+.general-page .contacts-container td button:hover,
+.general-page .contacts-container td button:focus {
+  background: transparent !important;
+  color: var(--gp-text-muted) !important;
+  border: none !important;
+  outline: none !important;
+  box-shadow: none !important;
+  padding: 6px;
+  margin: 0;
+  font-weight: normal;
+  font-size: 1.2rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  border-radius: 8px;
+  transition: color var(--gp-transition), background var(--gp-transition);
+}
+
+.general-page .contacts-container td button:hover {
+  color: var(--gp-accent) !important;
+  background: var(--gp-accent-soft) !important;
+}
+
+.general-page .contacts-container td:last-child {
+  padding: 0 !important;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.contacts-container table button .material-symbols-outlined {
+  color: inherit;
+  vertical-align: middle;
+  font-size: 20px;
+}
+
+/* ===== Buttons ===== */
+.general-page .add-row-btn,
+.general-page .save-button-container button {
+  margin-top: 0;
+  padding: 0 18px;
+  min-height: 40px;
+  border: none;
+  border-radius: 10px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background var(--gp-transition), color var(--gp-transition), box-shadow var(--gp-transition), transform var(--gp-transition);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+}
+
+.general-page .general-btn-primary,
+.general-page .save-button-container .general-btn-primary,
+.general-page .save-button-container button.general-btn-primary {
+  background: linear-gradient(135deg, var(--gp-accent) 0%, #a30006 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(var(--brand-primary-rgb, 204, 0, 7), 0.25);
+  padding: 0 28px;
+  min-height: 44px;
+  font-size: 15px;
+}
+
+.general-page .general-btn-primary:hover,
+.general-page .save-button-container .general-btn-primary:hover {
+  background: linear-gradient(135deg, #a30006 0%, #8a0005 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(var(--brand-primary-rgb, 204, 0, 7), 0.3);
+}
+
+.general-page .general-btn-secondary,
+.general-page .contacts-container > .add-row-btn {
+  margin: 12px 16px 16px;
+  background: var(--gp-input-bg);
+  color: var(--gp-text-secondary);
+  border: 1px dashed rgba(15, 23, 42, 0.15);
+  box-shadow: none;
+}
+
+.general-page .general-btn-secondary:hover,
+.general-page .contacts-container > .add-row-btn:hover {
+  background: #f1f5f9;
+  color: var(--gp-text);
+  border-color: rgba(15, 23, 42, 0.2);
+}
+
+.general-page .general-btn-secondary .material-symbols-outlined {
+  font-size: 18px;
+}
+
+.general-page .general-btn-outline,
+.general-page #editBtn {
+  background: var(--gp-surface);
+  color: var(--gp-accent);
+  border: 1.5px solid var(--gp-accent);
+  box-shadow: none;
+}
+
+.general-page .general-btn-outline:hover,
+.general-page #editBtn:hover {
+  background: var(--gp-accent-soft);
+}
+
+.general-page #editBtn {
+  display: none;
+}
+
+.general-page .save-button-container {
+  margin-top: 24px;
+  margin-bottom: 8px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+}
+
+.general-page .save-button-container button {
+  flex-shrink: 0;
+}
+
+/* Legacy add-row-btn fallback (Save without class) */
+.general-page .save-button-container .add-row-btn:not(.general-btn-outline):not(.general-btn-secondary) {
+  background: linear-gradient(135deg, var(--gp-accent) 0%, #a30006 100%);
+  color: #fff;
+  box-shadow: 0 4px 14px rgba(var(--brand-primary-rgb, 204, 0, 7), 0.25);
+  padding: 0 28px;
+  min-height: 44px;
+}
+
+.general-page .save-button-container .add-row-btn:not(.general-btn-outline):not(.general-btn-secondary):hover {
+  background: linear-gradient(135deg, #a30006 0%, #8a0005 100%);
+}
+
+/* ===== Read-only / Misc ===== */
+.general-page .back-btn {
+  background: #e2e8f0;
+  color: var(--gp-text);
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  border-radius: 8px;
+  border: none;
+}
+
+.general-page .back-btn:hover {
+  background: #cbd5e1;
+}
+
+.general-page input.read-only-input {
+  background-color: #f1f5f9;
+  cursor: not-allowed;
+  opacity: 0.85;
+  border: 1px solid var(--gp-border);
+  color: var(--gp-text-secondary);
+}
+
+.general-page input.read-only-input:focus {
+  outline: none;
+  box-shadow: none;
+  border-color: var(--gp-border);
+}
+
 .general-page #eventSummary.read-only {
   min-height: 80px;
-  background: #f9f9f9;
-  border-radius: 0.5rem;
-  padding: 1rem;
-  font-size: 1.08em;
-  color: #333;
-  margin-bottom: 1rem;
+  background: var(--gp-input-bg);
+  border-radius: 8px;
+  padding: 14px;
+  font-size: 15px;
+  color: var(--gp-text);
+  margin-bottom: 0;
   white-space: pre-wrap;
   word-break: break-word;
   overflow-wrap: break-word;
 }
+
 .general-page textarea#eventSummary {
   min-height: 100px;
   width: 100%;
-  font-size: 1.08em;
-  padding: 1rem;
-  border-radius: 0.5rem;
-  border: 1.5px solid #ccc;
-  background: #fff;
-  color: #222;
-  margin-bottom: 1rem;
+  font-size: 15px;
+  padding: 14px;
+  border-radius: 8px;
+  border: 1px solid var(--gp-border);
+  background: var(--gp-surface);
+  color: var(--gp-text);
+  margin-bottom: 0;
   resize: vertical;
   box-sizing: border-box;
   line-height: 1.5;
-}
-
-/* Add a new media query for desktop specifically */
-@media (min-width: 1024px) {
-  .general-page .info-section {
-    gap: 1rem;
-    margin-bottom: 0.75rem;
-    padding: 0.75rem 0;
-    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  }
-  
-  .general-page .info-section label {
-    margin-bottom: 0.35rem;
-  }
-  
-  .general-page .info-section input[type="date"],
-  .general-page .info-section input[type="text"],
-  .general-page .info-section textarea {
-    min-height: 2rem;
-    padding: 0.35rem 0.5rem;
-  }
-  
-  .general-page .contacts-container {
-    margin: 0.75rem 0;
-  }
-  
-  .general-page .contacts-container table {
-    /* Ensure table uses available space efficiently */
-    min-width: 0 !important;
-  }
-  
-  /* Make the columns more compact by setting widths */
-  .general-page .contacts-container th:nth-child(1),
-  .general-page .contacts-container td:nth-child(1) {
-    width: 20% !important;
-  }
-  
-  .general-page .contacts-container th:nth-child(2),
-  .general-page .contacts-container td:nth-child(2) {
-    width: 30% !important;
-  }
-  
-  .general-page .contacts-container th:nth-child(3),
-  .general-page .contacts-container td:nth-child(3) {
-    width: 25% !important;
-  }
-  
-  .general-page .contacts-container th:nth-child(4),
-  .general-page .contacts-container td:nth-child(4) {
-    width: 20% !important;
-  }
-  
-  /* Further compress spacing in desktop view */
-  .general-page .contacts-container th,
-  .general-page .contacts-container td {
-    padding: 8px 12px;
-  }
-  
-  /* Reduce vertical spacing between tables */
-  .general-page .contacts-container + .contacts-container {
-    margin-top: 1rem;
-  }
-  
-  /* Make headers more compact */
-  .general-page h1 { 
-    font-size: 1.4rem;
-    margin-bottom: 1rem;
-  }
-  
-  .general-page h2 { 
-    font-size: 1.15rem;
-    margin-bottom: 0.75rem;
-  }
 }
 
 .general-page .info-section > .info-card {
@@ -572,174 +813,55 @@
   box-sizing: border-box;
 }
 
-.general-page .admin-notes-btn {
-  background: #f3f4f6 !important;
-  color: #6b7280 !important;
-  border: none;
-  border-radius: 8px;
-  padding: 10px 22px;
-  font-weight: 600;
-  font-size: 17px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-.general-page .admin-notes-btn:hover, .general-page .admin-notes-btn:focus {
-  background: #e5e7eb !important;
-  color: #222 !important;
-}
-
-/* Clock Icon Styles */
-#clockIconContainer .clock-icon-btn {
-  background-color: #f0f0f0;
-  border: none;
-  cursor: pointer;
-  font-size: 2rem;
-  color: #cc0007;
-  transition: color 0.2s, background-color 0.2s;
-  border-radius: 8px;
-  padding: 8px;
-  margin-right: 12px;
-  margin-top: 12px;
-}
-#clockIconContainer .clock-icon-btn:hover {
-  color: #a30005;
-  background-color: #e0e0e0;
-}
-/* Clock popup styles removed - now using fullscreen modal */
-@media (max-width: 600px) {
-  .container > div:first-child {
-    display: flex !important;
-    justify-content: space-between !important;
-    align-items: center !important;
-    flex-direction: row !important;
-    width: 100% !important;
-    padding: 8px !important;
-    box-sizing: border-box !important;
-  }
-  
-  #adminNotesBtnContainer, #clockIconContainer {
-    flex: 0 0 auto !important;
-    margin: 0 !important;
-  }
-  
-  .general-page .container {
-    padding-top: 10px !important;
-  }
-  /* Mobile clock popup styles removed */
-}
-
-#clockIconContainer {
-  position: relative;
-  z-index: 2100;
-  display: inline-block;
-}
-
-#adminNotesBtnContainer {
-  display: inline-block;
-  margin-right: 8px;
-}
-
-.general-page .contacts-container td button,
-.general-page .contacts-container td button:hover,
-.general-page .contacts-container td button:focus {
-  background: transparent !important;
-  color: #333 !important; /* Dark gray for the icon */
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
-  padding: 4px;
-  margin: 0;
-  font-weight: normal;
-  font-size: 1.2rem; /* Adjust icon size if needed */
-  line-height: 1;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%; /* Ensure it takes full cell width for centering */
-  height: 100%; /* Ensure it takes full cell height for centering */
-}
-
-/* Ensure the table cell itself allows for centering */
-.general-page .contacts-container td:last-child {
-  padding: 0 !important; /* Remove padding to allow button to fill for centering */
-  text-align: center;
-  vertical-align: middle;
-}
-
-/* Styles for tables in contacts-container on general page */
-.general-page .contacts-container table th,
-.general-page .contacts-container table td {
-  /* Assuming some default padding might be here or inherited */
-  /* Add to existing padding or set new padding to increase height */
-  padding-top: 12px;
-  padding-bottom: 12px;
-}
-
-.general-page .contacts-container table td textarea {
-  /* Ensure textareas align well within the now taller cells */
-  vertical-align: top; 
-}
-
-/* Style for delete icons in tables */
-.contacts-container table button .material-symbols-outlined {
-  color: #888; /* A medium gray color */
-  vertical-align: middle; /* Align icon nicely with button text if any */
-}
-
-.contacts-container table button:hover .material-symbols-outlined {
-  color: #555; /* Darker gray on hover for feedback */
-}
-
-/* ====== TinyMCE Rich Text Editor Styles ====== */
+/* ===== TinyMCE ===== */
 .general-page .tinymce-editor {
   width: 100%;
-  min-height: 300px;
-  border: 1px solid #ccc;
+  min-height: 280px;
+  border: 1px solid var(--gp-border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--gp-surface);
   box-sizing: border-box;
 }
 
 .general-page .tox-tinymce {
-  border: 1px solid #ccc !important;
+  border: 1px solid var(--gp-border) !important;
   border-radius: 8px !important;
   font-family: 'Roboto', Arial, sans-serif !important;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.1) !important;
+  box-shadow: var(--gp-shadow-sm) !important;
 }
 
 .general-page .tox-toolbar {
-  background: #f9f9f9 !important;
-  border-bottom: 1px solid #e0e0e0 !important;
+  background: #f8fafc !important;
+  border-bottom: 1px solid var(--gp-border) !important;
   border-radius: 8px 8px 0 0 !important;
   padding: 8px !important;
 }
 
 .general-page .tox-toolbar__group {
-  border-right: 1px solid #e0e0e0 !important;
+  border-right: 1px solid var(--gp-border) !important;
   padding: 0 8px !important;
 }
 
 .general-page .tox-tbtn {
-  border-radius: 4px !important;
-  color: #333 !important;
+  border-radius: 6px !important;
+  color: var(--gp-text) !important;
   margin: 0 2px !important;
   transition: all 0.2s !important;
 }
 
 .general-page .tox-tbtn:hover {
-  background: #e0e0e0 !important;
-  border-color: #bbb !important;
+  background: #e2e8f0 !important;
+  border-color: transparent !important;
 }
 
 .general-page .tox-tbtn--enabled {
-  background: #cc0007 !important;
+  background: var(--gp-accent) !important;
   color: #fff !important;
 }
 
 .general-page .tox-editor-header {
-  border-bottom: 1px solid #e0e0e0 !important;
-  background: #fff !important;
+  border-bottom: 1px solid var(--gp-border) !important;
+  background: var(--gp-surface) !important;
 }
 
 .general-page .tox-edit-area {
@@ -748,30 +870,26 @@
 }
 
 .general-page .tox-statusbar {
-  border-top: 1px solid #e0e0e0 !important;
-  background: #f9f9f9 !important;
+  border-top: 1px solid var(--gp-border) !important;
+  background: #f8fafc !important;
   border-radius: 0 0 8px 8px !important;
 }
 
-.general-page .tox-editor-container {
-  border-radius: 0 0 8px 8px !important;
-}
-
+.general-page .tox-editor-container,
 .general-page .tox-sidebar-wrap {
   border-radius: 0 0 8px 8px !important;
 }
 
-/* Rich content display styles */
+/* Rich content */
 .general-page .rich-content {
-  font-size: 1rem;
-  line-height: 1.5;
-  color: #333;
+  font-size: 15px;
+  line-height: 1.6;
+  color: var(--gp-text);
   font-family: 'Roboto', Arial, sans-serif;
 }
 
-/* Preserve natural spacing - let Quill's default behavior work */
 .general-page .rich-content p {
-  margin: 0 0 1em 0; /* Standard paragraph spacing */
+  margin: 0 0 1em 0;
 }
 
 .general-page .rich-content p:last-child {
@@ -780,16 +898,14 @@
 
 .general-page .rich-content ul,
 .general-page .rich-content ol {
-  margin: 1em 0; /* Standard list spacing */
+  margin: 1em 0;
   padding-left: 24px;
 }
 
-/* Preserve line breaks */
 .general-page .rich-content br {
-  line-height: 1.5;
+  line-height: 1.6;
 }
 
-/* Only remove margin from very first and last elements */
 .general-page .rich-content > *:first-child {
   margin-top: 0;
 }
@@ -815,7 +931,7 @@
 }
 
 .general-page .rich-content a {
-  color: #1976d2;
+  color: #2563eb;
   text-decoration: underline;
 }
 
@@ -823,94 +939,467 @@
   text-decoration: none;
 }
 
-/* Fallback textarea styling */
 .general-page #summaryFallback,
 .general-page .fallback-textarea {
   width: 100%;
   min-height: 120px;
-  padding: 12px;
-  border: 1px solid #ccc;
+  padding: 14px;
+  border: 1px solid var(--gp-border);
   border-radius: 8px;
-  font-size: 1rem;
+  font-size: 15px;
   font-family: 'Roboto', Arial, sans-serif;
   resize: vertical;
   box-sizing: border-box;
-  background: #fff;
-  color: #333;
+  background: var(--gp-surface);
+  color: var(--gp-text);
   line-height: 1.5;
-  transition: border 0.2s, box-shadow 0.2s;
+  transition: border-color var(--gp-transition), box-shadow var(--gp-transition);
 }
 
 .general-page #summaryFallback:focus,
 .general-page .fallback-textarea:focus {
-  border: 1.5px solid #cc0007;
-  outline: 2px solid #cc0007;
-  background: #fff;
+  border-color: var(--gp-accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--gp-accent-soft);
 }
 
-/* Mobile responsiveness for TinyMCE editor */
+/* ===== Responsive ===== */
 @media (max-width: 768px) {
+  .general-page-header {
+    padding: 12px 16px 16px;
+    margin-left: -16px;
+    margin-right: -16px;
+  }
+
+  .general-page-toolbar {
+    gap: 6px;
+  }
+
+  #adminNotesBtnContainer {
+    gap: 6px;
+  }
+
+  .general-page .admin-notes-btn {
+    padding: 0 10px;
+    font-size: 11px;
+    min-height: 36px;
+    flex-shrink: 0;
+  }
+
+  .general-toolbar-icon-btn,
+  .general-page .folder-logs-btn,
+  .general-page .qr-code-btn,
+  .general-page .task-logs-btn,
+  #clockIconContainer .clock-icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+
+  .general-toolbar-icon-btn .material-symbols-outlined,
+  .general-page .folder-logs-btn .material-symbols-outlined,
+  .general-page .qr-code-btn .material-symbols-outlined,
+  .general-page .task-logs-btn .material-symbols-outlined,
+  #clockIconContainer .clock-icon-btn .material-symbols-outlined {
+    font-size: 18px;
+  }
+
+  .general-event-title {
+    font-size: 1.25rem;
+  }
+
+  .general-form,
+  .general-page .general-form {
+    padding: 0;
+  }
+
+  .general-page {
+    overflow-x: hidden;
+    max-width: 100%;
+  }
+
+  .general-page .container {
+    padding: 0;
+    padding-bottom: 0;
+  }
+
+  body.general-page #page-container,
+  body:has(#page-container > .general-page) #page-container {
+    padding-bottom: calc(140px + env(safe-area-inset-bottom, 0px)) !important;
+  }
+
+  .general-page .info-section {
+    gap: 12px;
+    max-width: 100%;
+    overflow-x: hidden;
+  }
+
+  .general-page .info-row {
+    flex-direction: row;
+    flex-wrap: wrap;
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+  }
+
+  .general-page .info-row .info-card {
+    flex: 1 1 calc(50% - 5px);
+    min-width: 0;
+    max-width: calc(50% - 5px);
+    width: auto;
+    padding: 14px 12px;
+    overflow: hidden;
+  }
+
+  .general-page .info-row--dates .info-card {
+    flex: 1 1 calc(50% - 5px);
+    max-width: calc(50% - 5px);
+    width: auto;
+  }
+
+  .general-page .info-row--dates input[type="date"] {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    padding: 8px 6px;
+    font-size: 16px;
+  }
+
+  .general-page .info-row--dates .info-card-label,
+  .general-page .info-row--dates label {
+    font-size: 10px;
+    gap: 4px;
+  }
+
+  .general-page .info-row--dates label .material-symbols-outlined {
+    font-size: 16px;
+  }
+
+  .general-page .contacts-container th,
+  .general-page .contacts-container td {
+    font-size: 14px;
+    padding: 10px 12px;
+  }
+
+  /* Mobile card view for contacts & locations tables */
+  .general-page .contacts-container.general-table-card {
+    border: none;
+    background: transparent;
+    box-shadow: none;
+  }
+
+  .general-page .contacts-scroll-wrapper {
+    max-height: none;
+    overflow: visible;
+  }
+
+  .general-page .contacts-container table {
+    min-width: 0 !important;
+    display: block;
+    width: 100% !important;
+  }
+
+  .general-page .contacts-container thead {
+    display: none;
+  }
+
+  .general-page .contacts-container tbody {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .general-page .contacts-container tbody tr.general-data-row {
+    display: flex;
+    flex-direction: column;
+    background: var(--gp-surface);
+    border: 1px solid var(--gp-border);
+    border-radius: var(--gp-radius);
+    padding: 0 14px 10px;
+    box-shadow: var(--gp-shadow-sm);
+  }
+
+  #contactRows tr.general-data-row td[data-field="name"] { order: 1; }
+  #contactRows tr.general-data-row td[data-field="role"] { order: 2; }
+  #contactRows tr.general-data-row td[data-field="number"] { order: 3; }
+  #contactRows tr.general-data-row td[data-field="email"] { order: 4; }
+  #contactRows tr.general-data-row td.general-row-actions { order: 5; }
+
+  /* Compact combined name + role header */
+  #contactRows tr.general-data-row td[data-field="name"],
+  #contactRows tr.general-data-row td[data-field="role"] {
+    border-bottom: none !important;
+  }
+
+  #contactRows tr.general-data-row td[data-field="name"] {
+    padding: 12px 0 0;
+  }
+
+  #contactRows tr.general-data-row td[data-field="name"]::before,
+  #contactRows tr.general-data-row td[data-field="role"]::before {
+    display: none;
+  }
+
+  #contactRows tr.general-data-row td[data-field="name"] > div,
+  #contactRows tr.general-data-row td[data-field="name"] .read-only,
+  #contactRows tr.general-data-row td[data-field="name"] > a,
+  #contactRows tr.general-data-row td[data-field="name"] textarea {
+    font-size: 16px;
+    font-weight: 700 !important;
+    line-height: 1.3;
+    color: var(--gp-text);
+  }
+
+  #contactRows tr.general-data-row td[data-field="role"] {
+    padding: 2px 0 10px;
+    margin-bottom: 2px;
+    border-bottom: 1px solid rgba(15, 23, 42, 0.08) !important;
+  }
+
+  #contactRows tr.general-data-row td[data-field="role"]:empty {
+    display: none;
+  }
+
+  #contactRows tr.general-data-row td[data-field="role"] .read-only,
+  #contactRows tr.general-data-row td[data-field="role"] > a,
+  #contactRows tr.general-data-row td[data-field="role"] textarea {
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.35;
+    color: var(--gp-text-secondary);
+    min-height: 0;
+    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  #contactRows tr.general-data-row td[data-field="role"] textarea {
+    min-height: 28px;
+    padding: 4px 8px;
+  }
+
+  #contactRows tr.general-data-row td[data-field="number"],
+  #contactRows tr.general-data-row td[data-field="email"] {
+    padding: 8px 0;
+  }
+
+  .general-page .contacts-container tbody tr.general-data-row:hover td {
+    background: transparent !important;
+  }
+
+  .general-page .contacts-container tbody tr.general-data-row td {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 4px;
+    padding: 10px 0;
+    border: none !important;
+    background: transparent !important;
+    width: 100% !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    text-align: left;
+  }
+
+  .general-page .contacts-container tbody tr.general-data-row td:not(.general-row-actions) {
+    border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  }
+
+  .general-page .contacts-container tbody tr.general-data-row td[data-label]::before {
+    content: attr(data-label);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--gp-text-secondary);
+  }
+
+  .general-page .contacts-container tbody tr.general-data-row td.general-row-actions {
+    border-bottom: none;
+    padding-top: 4px;
+    align-items: flex-end;
+  }
+
+  .general-page .contacts-container tbody tr.general-data-row td.general-row-actions button {
+    width: auto;
+    min-width: 40px;
+    height: 40px;
+    border-radius: 8px;
+    background: var(--gp-input-bg) !important;
+  }
+
+  .general-page .contacts-container > .add-row-btn {
+    margin: 12px 0 0;
+    width: 100%;
+    justify-content: center;
+  }
+
+  .general-page .contacts-container td textarea,
+  .general-page .contacts-container td input[type="text"] {
+    font-size: 16px;
+    min-height: 1em;
+    padding: 8px;
+    line-height: 1.3;
+  }
+
+  .general-page .contacts-container td > a,
+  .general-page .contacts-container td > div,
+  .general-page .contacts-container td > span {
+    font-size: 14px;
+    line-height: 1.3;
+  }
+
+  .general-page .add-row-btn,
+  .general-page .save-button-container button {
+    font-size: 15px;
+  }
+
+  .general-page input,
+  .general-page textarea,
+  .general-page select,
+  .general-page .add-row-btn,
+  .general-page .save-button-container button {
+    font-size: 16px !important;
+  }
+
+  .general-page .info-section textarea,
+  .general-page .contacts-container td textarea {
+    min-height: 36px !important;
+    font-size: 15px !important;
+    padding: 8px 10px !important;
+    border-radius: 8px !important;
+  }
+
+  .general-page .general-btn-secondary,
+  .general-page .contacts-container > .add-row-btn {
+    margin: 10px 12px 14px;
+  }
+
+  .general-page .contacts-container > .general-btn-secondary {
+    margin: 12px 0 0;
+  }
+
+  .general-page .save-button-container {
+    margin-top: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
   .general-page .tox-toolbar {
     padding: 6px !important;
   }
-  
+
   .general-page .tox-toolbar__group {
     padding: 0 4px !important;
   }
-  
+
   .general-page .tox-tbtn {
     padding: 4px 6px !important;
     margin: 0 1px !important;
   }
-  
+
   .general-page .tox-edit-area {
     min-height: 150px !important;
   }
-  
+
   .general-page .tinymce-editor {
     min-height: 200px;
   }
-  
+
   .general-page #summaryFallback,
   .general-page .fallback-textarea {
     min-height: 100px;
-    padding: 10px;
+    padding: 12px;
   }
 }
 
+@media (max-width: 600px) {
+  .general-page-toolbar {
+    gap: 8px;
+  }
 
-/* Desktop layout for info section */
+  #adminNotesBtnContainer,
+  #clockIconContainer {
+    flex: 0 0 auto !important;
+    margin: 0 !important;
+  }
+}
+
 @media (min-width: 769px) {
+  .general-page {
+    padding-left: 24px;
+    padding-right: 24px;
+  }
+
+  .general-page-header {
+    padding: 20px 24px 24px;
+    margin-left: -24px;
+    margin-right: -24px;
+  }
+
+  .general-form {
+    padding: 24px 0;
+    width: 100%;
+    max-width: none;
+  }
+
+  .general-event-title {
+    font-size: 1.75rem;
+  }
+
+  .general-stats-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+  }
+
+  .general-stats-grid .info-row {
+    display: contents;
+  }
+
+  .general-stats-grid .info-row .info-card {
+    height: 100%;
+  }
+
   .general-page .info-section {
-    display: flex;
-    flex-wrap: wrap;
-    justify-content: space-between; /* Or space-around, depending on desired spacing */
-    gap: 16px; /* Add some gap between items */
+    gap: 16px;
   }
 
-  .general-page .info-section > .info-card, /* Direct info-card (like Event Summary) */
-  .general-page .info-section > .info-row {
-    flex-grow: 1;
-    flex-basis: calc(33.333% - 16px); /* Aim for 3 items per row, adjust gap as needed */
-    /* If you prefer 2 items per row for the paired cards, use calc(50% - 16px) for .info-row */
-    /* Event Summary might need its own flex-basis if it's wider, e.g., calc(50% - 16px) or 100% */
-    min-width: 280px; /* Ensure cards don't get too squished */
+  .general-page .info-section > .info-card--summary {
+    width: 100%;
   }
 
-  /* Optional: If Event Summary card should span more width or full width */
-  .general-page .info-section > .info-card:first-child { /* Assuming Event Summary is the first direct card */
-    /* flex-basis: 100%; */ /* Example: Full width for summary */
-    /* Or, if you want it to be wider but not full: */
-    /* flex-basis: calc(50% - 16px); */ 
+  .general-page .contacts-container table {
+    min-width: 0 !important;
   }
 
-  /* Ensure info-rows themselves also use flex for their internal cards if not already */
-  .general-page .info-row {
-    display: flex;
-    gap: 16px; /* Gap between the two cards within an info-row */
+  .general-page .contacts-container th:nth-child(1),
+  .general-page .contacts-container td:nth-child(1) {
+    width: 20% !important;
   }
 
-  .general-page .info-row .info-card {
-    flex: 1; /* Make cards within an info-row share space equally */
+  .general-page .contacts-container th:nth-child(2),
+  .general-page .contacts-container td:nth-child(2) {
+    width: 30% !important;
+  }
+
+  .general-page .contacts-container th:nth-child(3),
+  .general-page .contacts-container td:nth-child(3) {
+    width: 25% !important;
+  }
+
+  .general-page .contacts-container th:nth-child(4),
+  .general-page .contacts-container td:nth-child(4) {
+    width: 20% !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .general-form {
+    padding: 28px 0 32px;
+    width: 100%;
+    max-width: none;
+  }
+
+  .general-stats-grid {
+    grid-template-columns: repeat(4, 1fr);
   }
 }

@@ -99,6 +99,17 @@ function setBodyPageClass(page) {
   }
 }
 
+function resetPageContainerForNavigation() {
+  const pageContainer = document.getElementById('page-container');
+  if (!pageContainer) return;
+
+  pageContainer.style.padding = '';
+  pageContainer.style.overflow = '';
+  pageContainer.style.height = '';
+  pageContainer.style.maxHeight = '';
+  pageContainer.classList.remove('card-log-modal-open');
+}
+
 function getTableId() {
   const params = new URLSearchParams(window.location.search);
   const urlId = params.get('id');
@@ -122,6 +133,8 @@ function navigate(page, id) {
   
   navigationInProgress = true;
   window.currentNavigatingPage = page; // Track for debugging
+  window.__navGeneration = (window.__navGeneration || 0) + 1;
+  const navGeneration = window.__navGeneration;
   
   // Only require an ID for pages that need it
   const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'crew-planner', 'crew-calendar', 'call-times', 'flights', 'timesheet', 'reimbursements', 'reimbursement-detail'].includes(page);
@@ -141,6 +154,7 @@ function navigate(page, id) {
 
   // Set the correct body class for the page
   setBodyPageClass(page);
+  resetPageContainerForNavigation();
 
   // Store the event ID ONLY if we have a valid one and it's needed
   if (finalId && needsId) {
@@ -206,7 +220,7 @@ function navigate(page, id) {
   
   // Pass the ID for pages that need it, or for detail pages that use their own ID scheme
   const passId = needsId ? finalId : (page === 'reimbursement-detail' ? id : null);
-  loadPage(page, passId);
+  loadPage(page, passId, navGeneration);
   
   // Reset navigation flag after a short delay to allow the page to load
   setTimeout(() => {
@@ -214,17 +228,21 @@ function navigate(page, id) {
   }, 100);
 }
 
-function loadPage(page, id) {
+function loadPage(page, id, navGeneration) {
   fetch(`pages/${page}.html`)
     .then(res => res.text())
     .then(html => {
+      if (navGeneration && window.__navGeneration !== navGeneration) {
+        console.log(`[LOAD_PAGE] Stale navigation for ${page}, skipping inject`);
+        return;
+      }
       // Wait for DOM to be ready if it isn't already
       if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', () => {
-          injectPageContent(html, page, id);
+          injectPageContent(html, page, id, navGeneration);
         });
       } else {
-        injectPageContent(html, page, id);
+        injectPageContent(html, page, id, navGeneration);
       }
     })
     .catch(err => {
@@ -232,7 +250,12 @@ function loadPage(page, id) {
     });
 }
 
-function injectPageContent(html, page, id) {
+function injectPageContent(html, page, id, navGeneration) {
+  if (navGeneration && window.__navGeneration !== navGeneration) {
+    console.log(`[INJECT] Stale navigation for ${page}, skipping inject`);
+    return;
+  }
+
   // Use the simple page container
   const targetElement = document.getElementById('page-container');
   if (!targetElement) {
@@ -245,6 +268,11 @@ function injectPageContent(html, page, id) {
   
   // Add new content to the target element
   targetElement.innerHTML = html;
+
+  // Re-apply page class and reset container styles after HTML injection
+  setBodyPageClass(page);
+  resetPageContainerForNavigation();
+  document.body.style.overflow = '';
   
   // Show/hide bottom nav based on page and set it up
   const bottomNav = document.getElementById('bottomNav');
@@ -343,6 +371,7 @@ function injectPageContent(html, page, id) {
     const cacheBuster = Date.now();
     
     const script = document.createElement('script');
+    script.id = 'page-script';
     script.src = `js/${page}.js?v=${cacheBuster}`;
     script.onload = callback;
     script.onerror = () => {
@@ -360,6 +389,11 @@ function injectPageContent(html, page, id) {
 
      // Dynamically load JS if it exists
    loadPageScript(page, () => {
+     if (navGeneration && window.__navGeneration !== navGeneration) {
+       console.log(`[SCRIPT_LOAD] Stale navigation for ${page}, skipping init`);
+       return;
+     }
+
      console.log(`Script loaded for ${page}, calling window.initPage with id: ${id}`);
     console.log(`[SCRIPT_LOAD] window.initPage exists: ${typeof window.initPage === 'function'}`);
     
@@ -380,6 +414,11 @@ function injectPageContent(html, page, id) {
     
     // Small delay to ensure the script has been properly initialized
     setTimeout(() => {
+      if (navGeneration && window.__navGeneration !== navGeneration) {
+        console.log(`[INIT_PAGE] Stale navigation for ${page}, skipping initPage`);
+        return;
+      }
+
       if (window.initPage) {
         try {
           // CRITICAL FIX: Always call initPage if it exists, but only pass ID for pages that need it
@@ -547,7 +586,7 @@ function loadPageCSS(page) {
   if (cssFile) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
-    link.href = cssFile;
+    link.href = `${cssFile}?v=${Date.now()}`;
     link.setAttribute('data-page-css', 'true'); // Mark for easy removal
     document.head.appendChild(link);
   }
