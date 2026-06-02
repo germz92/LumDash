@@ -134,7 +134,6 @@ body:has(#page-container > .general-page) #page-container {
 }
 
 .general-toolbar-icon-btn,
-.general-page .folder-logs-btn,
 .general-page .qr-code-btn,
 .general-page .task-logs-btn,
 #clockIconContainer .clock-icon-btn {
@@ -158,7 +157,6 @@ body:has(#page-container > .general-page) #page-container {
 }
 
 .general-toolbar-icon-btn .material-symbols-outlined,
-.general-page .folder-logs-btn .material-symbols-outlined,
 .general-page .qr-code-btn .material-symbols-outlined,
 .general-page .task-logs-btn .material-symbols-outlined,
 #clockIconContainer .clock-icon-btn .material-symbols-outlined {
@@ -167,7 +165,6 @@ body:has(#page-container > .general-page) #page-container {
 }
 
 .general-toolbar-icon-btn:hover,
-.general-page .folder-logs-btn:hover,
 .general-page .qr-code-btn:hover,
 .general-page .task-logs-btn:hover {
   background: #eef0f3;
@@ -191,7 +188,7 @@ body:has(#page-container > .general-page) #page-container {
   z-index: 2100;
   display: flex;
   align-items: center;
-  margin-left: 0;
+  margin-left: auto;
   flex-shrink: 0;
 }
 
@@ -233,6 +230,7 @@ body:has(#page-container > .general-page) #page-container {
   box-sizing: border-box;
   box-shadow: none;
   transition: border-color var(--gp-transition);
+  overflow: clip;
 }
 
 .general-page .info-card:hover {
@@ -346,12 +344,30 @@ body:has(#page-container > .general-page) #page-container {
 
 .general-page .info-section input[type="date"] {
   display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   -webkit-min-logical-width: 0;
+  overflow: hidden;
+}
+
+.general-page .info-section input[type="date"]::-webkit-datetime-edit,
+.general-page .info-section input[type="date"]::-webkit-datetime-edit-fields-wrapper,
+.general-page .info-section input[type="date"]::-webkit-date-and-time-value {
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.general-page .info-section input[type="date"]::-webkit-calendar-picker-indicator {
+  flex-shrink: 0;
+  margin: 0;
+  padding: 0;
 }
 
 .general-page .info-section input[type="date"]::-webkit-date-and-time-value {
   text-align: left;
-  min-width: 0;
 }
 
 .general-page .info-section input[type="date"]:focus,
@@ -987,7 +1003,6 @@ body:has(#page-container > .general-page) #page-container {
   }
 
   .general-toolbar-icon-btn,
-  .general-page .folder-logs-btn,
   .general-page .qr-code-btn,
   .general-page .task-logs-btn,
   #clockIconContainer .clock-icon-btn {
@@ -996,7 +1011,6 @@ body:has(#page-container > .general-page) #page-container {
   }
 
   .general-toolbar-icon-btn .material-symbols-outlined,
-  .general-page .folder-logs-btn .material-symbols-outlined,
   .general-page .qr-code-btn .material-symbols-outlined,
   .general-page .task-logs-btn .material-symbols-outlined,
   #clockIconContainer .clock-icon-btn .material-symbols-outlined {
@@ -1050,17 +1064,28 @@ body:has(#page-container > .general-page) #page-container {
     overflow: hidden;
   }
 
+  .general-page .info-row--dates {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px;
+    width: 100%;
+    min-width: 0;
+  }
+
   .general-page .info-row--dates .info-card {
-    flex: 1 1 calc(50% - 5px);
-    max-width: calc(50% - 5px);
+    flex: unset;
+    min-width: 0;
+    max-width: none;
     width: auto;
+    padding: 14px 10px;
+    overflow: clip;
   }
 
   .general-page .info-row--dates input[type="date"] {
     width: 100%;
     max-width: 100%;
     min-width: 0;
-    padding: 8px 6px;
+    padding: 8px 4px;
     font-size: 16px;
   }
 
@@ -1072,6 +1097,12 @@ body:has(#page-container > .general-page) #page-container {
 
   .general-page .info-row--dates label .material-symbols-outlined {
     font-size: 16px;
+  }
+
+  @media (max-width: 400px) {
+    .general-page .info-row--dates {
+      grid-template-columns: 1fr;
+    }
   }
 
   .general-page .contacts-container th,
@@ -1316,8 +1347,7 @@ body:has(#page-container > .general-page) #page-container {
     gap: 8px;
   }
 
-  #adminNotesBtnContainer,
-  #clockIconContainer {
+  #adminNotesBtnContainer {
     flex: 0 0 auto !important;
     margin: 0 !important;
   }
@@ -1347,7 +1377,7 @@ body:has(#page-container > .general-page) #page-container {
 
   .general-stats-grid {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
   }
 

@@ -456,17 +456,7 @@ function insertAdminNotesBtn(tableId) {
     container.appendChild(btn);
   }
   
-  // Add Folder Logs icon button for all users
-  const folderBtn = document.createElement('button');
-  folderBtn.innerHTML = '<span class="material-symbols-outlined">folder</span>';
-  folderBtn.className = 'folder-logs-btn general-toolbar-icon-btn';
-  folderBtn.title = 'Folder Logs';
-  folderBtn.onclick = () => {
-    window.location.href = `/folder-logs.html?id=${tableId}`;
-  };
-  container.appendChild(folderBtn);
-
-  // Add QR Code button for all users, styled like folder icon
+  // Add QR Code button for all users
   const qrBtn = document.createElement('button');
   qrBtn.innerHTML = '<span class="material-symbols-outlined">qr_code</span>';
   qrBtn.className = 'qr-code-btn general-toolbar-icon-btn';
@@ -487,7 +477,6 @@ function insertAdminNotesBtn(tableId) {
     };
     container.appendChild(taskBtn);
   }
-  console.log('Folder logs button added for all users');
 }
 
 function showQRCodeModal() {
