@@ -555,20 +555,20 @@ window.initPage = async function(id) {
   logEventIdState('INIT_START');
   
   // Store the intended event ID at module level to prevent external interference
-  // Make this assignment more defensive
   currentEventId = tableId;
+  window.__activeEventId = tableId;
   console.log(`[INIT] Set module currentEventId to: ${currentEventId}`);
-  
-  // CRITICAL: Trust the navigation system to have already set the correct eventId
-  // Don't override localStorage here as it could persist wrong event IDs
+
+  // Keep localStorage in sync with the explicit id we were given — on refresh the SPA
+  // resolves eventId from lastPageState/localStorage, so a stale value loads the wrong event.
   const previousEventId = localStorage.getItem('eventId');
+  if (previousEventId !== tableId) {
+    console.log(`[INIT] Syncing localStorage eventId: ${previousEventId} → ${tableId}`);
+    localStorage.setItem('eventId', tableId);
+  }
   const isEventChange = previousEventId && previousEventId !== tableId;
   
   console.log(`[INIT] Previous event ID: ${previousEventId}, isEventChange: ${isEventChange}`);
-  
-  // CRITICAL FIX: Don't override localStorage - trust the navigation system
-  // localStorage.setItem('eventId', tableId); // REMOVED - causes wrong event persistence
-  console.log(`[INIT] Using localStorage eventId set by navigation system: ${previousEventId}`);
 
   // Start monitoring for external changes (but don't defensively overwrite)
   startEventIdMonitoring();
@@ -729,6 +729,8 @@ window.initPage = async function(id) {
     }
   }
   
+  setupScheduleImportantGestures();
+
   logEventIdState('INIT_COMPLETE');
   const endTime = Date.now();
   console.log(`=== SCHEDULE INITPAGE COMPLETE (${endTime - startTime}ms) ===\n`);
@@ -786,6 +788,10 @@ async function loadPrograms(tableId = null, retryCount = 0) {
 
   // Update the module variable to match what we're actually loading
   currentEventId = eventId;
+  window.__activeEventId = eventId;
+  if (localStorage.getItem('eventId') !== eventId) {
+    localStorage.setItem('eventId', eventId);
+  }
   console.log(`[LOAD] Updated currentEventId to match what we're loading: ${currentEventId}`);
 
   const maxRetries = 5;
@@ -1277,7 +1283,9 @@ function renderProgramSections(hasScheduleAccess) {
 
     matchingPrograms.forEach(program => {
       const entry = document.createElement('div');
-      entry.className = 'program-entry' + (program.done ? ' done-entry' : '');
+      entry.className = 'program-entry' +
+        (program.done ? ' done-entry' : '') +
+        (program.important ? ' important-entry' : '');
       entry.setAttribute('data-program-index', program.__index);
       
       // Use _id if available, otherwise use _tempId for new programs
@@ -1305,12 +1313,12 @@ function renderProgramSections(hasScheduleAccess) {
               ${!hasScheduleAccess ? 'readonly' : ''}
               onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
               onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'endTime')` : ''}">
-            <div style="display: ${program.folder ? 'flex' : 'none'}; align-items: center; gap: 2px;" class="folder-field-container" data-has-value="${program.folder ? 'true' : 'false'}">
+            <div style="display: ${hasScheduleAccess || program.folder ? 'flex' : 'none'}; align-items: center; gap: 2px;" class="folder-field-container${hasScheduleAccess ? ' folder-field-container--editable' : ''}" data-has-value="${program.folder ? 'true' : 'false'}">
               <span class="material-symbols-outlined folder-icon" style="font-size: 14px; color: #2563eb;">folder</span>
               <input type="text"
                 data-field="folder"
                 class="folder-input"
-                placeholder="Folder"
+                placeholder=""
                 maxlength="7"
                 ${!hasScheduleAccess ? 'readonly' : ''}
                 style="width: 70px; min-width: 50px; padding: 4px 8px; font-size: 12px;"
@@ -1474,12 +1482,145 @@ function applyScrollRestore() {
   }
 }
 
+function showImportantToast(message) {
+  let toast = document.getElementById('scheduleImportantToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'scheduleImportantToast';
+    toast.className = 'schedule-important-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add('show');
+  clearTimeout(showImportantToast._hideTimer);
+  showImportantToast._hideTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+}
+
+function applyImportantStyles(programIndex, isImportant) {
+  const card = document.querySelector(`.program-entry[data-program-index="${programIndex}"]`);
+  if (card) card.classList.toggle('important-entry', isImportant);
+  const row = document.querySelector(`.schedule-table-section tbody tr[data-program-index="${programIndex}"]`);
+  if (row) row.classList.toggle('important-row', isImportant);
+}
+
+function toggleImportant(programIndex) {
+  if (isNaN(programIndex) || !tableData.programs[programIndex]) {
+    console.error(`[IMPORTANT] Invalid program index: ${programIndex}`);
+    return;
+  }
+
+  const oldValue = Boolean(tableData.programs[programIndex].important);
+  const newValue = !oldValue;
+
+  applyImportantStyles(programIndex, newValue);
+  showImportantToast(newValue ? 'Marked important' : 'Removed important flag');
+  saveProgramField({ programIndex, field: 'important', value: newValue, oldValue, baseValue: oldValue });
+}
+
+const SCHEDULE_LONG_PRESS_MS = 500;
+const SCHEDULE_LONG_PRESS_MOVE_CANCEL_PX = 12;
+let scheduleLongPressTimer = null;
+let scheduleLongPressRow = null;
+let scheduleLongPressIndex = null;
+let scheduleLongPressStartX = 0;
+let scheduleLongPressStartY = 0;
+
+function cancelScheduleLongPress() {
+  clearTimeout(scheduleLongPressTimer);
+  scheduleLongPressTimer = null;
+  if (scheduleLongPressRow) {
+    scheduleLongPressRow.classList.remove('schedule-longpress-pending');
+    scheduleLongPressRow = null;
+  }
+  scheduleLongPressIndex = null;
+}
+
+function getScheduleProgramIndexFromTarget(target) {
+  const row = target.closest('.program-entry, .schedule-table-section tbody tr[data-program-index]');
+  if (!row) return null;
+  const index = parseInt(row.getAttribute('data-program-index'), 10);
+  return Number.isNaN(index) ? null : index;
+}
+
+function isScheduleInteractiveTarget(target) {
+  return Boolean(
+    target.closest('input, textarea, select, button, a, label, .delete-date-btn, .delete-row-btn')
+  );
+}
+
+function setupScheduleImportantGestures() {
+  const containers = [
+    document.getElementById('programSections'),
+    document.getElementById('scheduleTableView')
+  ];
+
+  containers.forEach(container => {
+    if (!container || container.dataset.importantGesturesInit) return;
+    container.dataset.importantGesturesInit = '1';
+
+    container.addEventListener('contextmenu', (e) => {
+      if (window.innerWidth <= 768) return;
+      if (isScheduleInteractiveTarget(e.target)) return;
+      const programIndex = getScheduleProgramIndexFromTarget(e.target);
+      if (programIndex == null) return;
+      e.preventDefault();
+      toggleImportant(programIndex);
+    });
+
+    container.addEventListener('touchstart', (e) => {
+      if (window.innerWidth > 768) return;
+      if (e.touches.length !== 1) return;
+      if (isScheduleInteractiveTarget(e.target)) return;
+
+      const programIndex = getScheduleProgramIndexFromTarget(e.target);
+      if (programIndex == null) return;
+
+      scheduleLongPressRow = e.target.closest('.program-entry, .schedule-table-section tbody tr[data-program-index]');
+      if (!scheduleLongPressRow) return;
+
+      scheduleLongPressIndex = programIndex;
+      scheduleLongPressStartX = e.touches[0].clientX;
+      scheduleLongPressStartY = e.touches[0].clientY;
+      scheduleLongPressRow.classList.add('schedule-longpress-pending');
+
+      clearTimeout(scheduleLongPressTimer);
+      scheduleLongPressTimer = setTimeout(() => {
+        scheduleLongPressTimer = null;
+        if (scheduleLongPressIndex == null) return;
+        const index = scheduleLongPressIndex;
+        cancelScheduleLongPress();
+        if (navigator.vibrate) navigator.vibrate(12);
+        toggleImportant(index);
+      }, SCHEDULE_LONG_PRESS_MS);
+    }, { passive: true });
+
+    container.addEventListener('touchmove', (e) => {
+      if (!scheduleLongPressTimer || !scheduleLongPressRow) return;
+      const dx = e.touches[0].clientX - scheduleLongPressStartX;
+      const dy = e.touches[0].clientY - scheduleLongPressStartY;
+      if (Math.hypot(dx, dy) > SCHEDULE_LONG_PRESS_MOVE_CANCEL_PX) {
+        cancelScheduleLongPress();
+      }
+    }, { passive: true });
+
+    container.addEventListener('touchend', cancelScheduleLongPress, { passive: true });
+    container.addEventListener('touchcancel', cancelScheduleLongPress, { passive: true });
+  });
+}
+
 function toggleFolderVisibility(input) {
   const container = input.closest('.folder-field-container');
   if (!container) return;
-  
+
   const hasValue = input.value.trim().length > 0;
   container.setAttribute('data-has-value', hasValue ? 'true' : 'false');
+
+  // Editors always see the folder field in card view (including when empty)
+  if (container.classList.contains('folder-field-container--editable')) {
+    container.style.display = 'flex';
+    return;
+  }
+
   container.style.display = hasValue ? 'flex' : 'none';
 }
 
@@ -1526,46 +1667,8 @@ function toggleDone(checkbox, index) {
   // Update the data attribute to reflect the new original value
   checkbox.setAttribute('data-original-value', newValue ? 'true' : 'false');
   
-  // Use atomic save for checkbox changes
-  if (program._id) {
-    console.log('[TOGGLE DONE] Program has ID - using atomic save');
-    
-    // Get old value for operational transform and optimistic updates
-    const oldValue = originalValue;
-    
-    // Apply optimistic update immediately for instant feedback
-    optimisticUpdates.applyOptimisticUpdate(checkbox, 'done', program._id, newValue, oldValue);
-    
-    // Use atomic save function with operational transform
-    const fieldId = `${program._id}-done`;
-    atomicSaveField(checkbox, 'done', program._id, newValue, oldValue)
-      .then(success => {
-        if (success) {
-          // Confirm the optimistic update
-          optimisticUpdates.confirmUpdate(fieldId);
-          console.log(`[TOGGLE DONE] ✅ Atomic save successful for done field`);
-        } else {
-          // Revert the optimistic update
-          optimisticUpdates.revertUpdate(fieldId, new Error('Save returned false'));
-        }
-      })
-      .catch(error => {
-        console.error('[TOGGLE DONE] Atomic save failed, reverting optimistic update:', error);
-        // Revert the optimistic update
-        optimisticUpdates.revertUpdate(fieldId, error);
-        // Fallback to full save
-        const wasChanged = safeUpdateProgram(index, 'done', newValue);
-        if (wasChanged) {
-          scheduleSave();
-        }
-      });
-  } else {
-    console.log('[TOGGLE DONE] No program ID - using full schedule save');
-    const wasChanged = safeUpdateProgram(index, 'done', newValue);
-    if (wasChanged) {
-      scheduleSave();
-    }
-  }
+  // Route through the canonical single-field save pipeline
+  saveProgramField({ programIndex: index, field: 'done', value: newValue, element: checkbox, oldValue: originalValue, baseValue: originalValue });
 }
 
 function matchesSearch(program) {
@@ -1589,6 +1692,11 @@ window.recentlyEditedFields = new Map(); // Track recently edited fields to prev
 
 function enableEdit(field) {
   field.classList.add('editing');
+  // Capture the value at the moment editing starts. autoSave compares against this
+  // baseline to detect real changes, because optimisticInputHandler mutates tableData
+  // on every keystroke — which would otherwise make change-detection always say "no change"
+  // and silently skip the save.
+  field.dataset.focusValue = field.type === 'checkbox' ? String(field.checked) : (field.value ?? '');
   const entry = field.closest('.program-entry');
   if (entry) {
     const programIndex = entry.getAttribute('data-program-index');
@@ -1604,7 +1712,7 @@ function enableEdit(field) {
 }
 
 // New atomic field save function - prevents data loss
-async function atomicSaveField(field, fieldKey, programId, newValue) {
+async function atomicSaveField(field, fieldKey, programId, newValue, baseValue) {
   const tableId = currentEventId || localStorage.getItem('eventId');
   if (!tableId) {
     console.error('[ATOMIC] No event ID available for saving');
@@ -1634,9 +1742,21 @@ async function atomicSaveField(field, fieldKey, programId, newValue) {
         field: fieldKey,
         value: newValue,
         userId: await getUserIdFromToken(),
-        sessionId: window.SimpleCollab?.getCurrentUser?.()?.sessionId
+        sessionId: window.SimpleCollab?.getCurrentUser?.()?.sessionId,
+        // Only sent for authoritative saves (blur/toggle/table) so the server can do
+        // optimistic-concurrency checks. Omitted for debounced keystroke saves (LWW).
+        ...(baseValue !== undefined ? { baseValue } : {})
       })
     });
+
+    // Optimistic-concurrency conflict: another user changed this field while we edited it
+    if (response.status === 409) {
+      const conflict = await response.json().catch(() => ({}));
+      console.warn(`⚠️ [ATOMIC] Conflict on ${fieldKey}: server has "${conflict.currentValue}"`);
+      field.classList.remove('saving');
+      handleFieldConflict(programId, fieldKey, conflict.currentValue, field);
+      return false;
+    }
     
     if (response.ok) {
       const result = await response.json();
@@ -1686,6 +1806,30 @@ async function atomicSaveField(field, fieldKey, programId, newValue) {
     retryAtomicSave(field, fieldKey, programId, newValue, 1);
     
     return false;
+  }
+}
+
+// Reconcile a field after the server rejects our save due to a concurrent edit by
+// another user. We adopt the authoritative server value in both views (the canonical
+// applier skips the field if the user is still actively editing it).
+function handleFieldConflict(programId, fieldKey, serverValue, element) {
+  // Drop our short-lived edit protection so the authoritative value can be applied
+  window.recentlyEditedFields?.delete(`${programId}-${fieldKey}`);
+
+  const eventId = currentEventId || localStorage.getItem('eventId');
+  if (typeof applyRemoteProgramFieldUpdate === 'function') {
+    applyRemoteProgramFieldUpdate({
+      eventId,
+      programId,
+      field: fieldKey,
+      value: serverValue,
+      userName: 'another user',
+      sessionId: null
+    });
+  }
+
+  if (typeof showImportantToast === 'function') {
+    showImportantToast('Another user changed this field — kept theirs');
   }
 }
 
@@ -1867,300 +2011,110 @@ async function coordinatedSave(operationType, saveFunction) {
   }
 }
 
-// Operational Transform System for concurrent same-field edits
+// Lightweight session registry (used only for presence display names).
+// NOTE: The previous operational-transform layer was removed — for structured
+// per-field records, last-write-wins with server reconciliation is the right model,
+// and the OT/merge machinery added complexity without convergence guarantees.
 const operationalTransform = {
-  // Vector clock for operation ordering
-  vectorClock: new Map(), // userId -> sequence number
-  pendingOps: new Map(), // fieldId -> operation queue
   userSessions: new Map(), // userId -> session info
-  
-  // Create a new operation
-  createOperation(programId, field, oldValue, newValue, userId, cursorPos = null) {
-    const sequence = (this.vectorClock.get(userId) || 0) + 1;
-    this.vectorClock.set(userId, sequence);
-    
-    return {
-      id: `${userId}-${sequence}-${Date.now()}`,
-      programId,
-      field,
-      oldValue,
-      newValue,
-      userId,
-      sequence,
-      timestamp: Date.now(),
-      vectorClock: new Map(this.vectorClock),
-      cursorPos,
-      type: this.detectOperationType(oldValue, newValue, cursorPos)
-    };
-  },
-  
-  // Detect operation type for better transformation
-  detectOperationType(oldValue, newValue, cursorPos) {
-    if (!oldValue) return 'insert';
-    if (!newValue) return 'delete';
-    if (oldValue.length < newValue.length) return 'insert';
-    if (oldValue.length > newValue.length) return 'delete';
-    return 'replace';
-  },
-  
-  // Transform operations for concurrent edits
-  transformOperation(op1, op2) {
-    // If operations are on different fields, no transformation needed
-    if (op1.programId !== op2.programId || op1.field !== op2.field) {
-      return { op1, op2 };
-    }
-    
-    console.log(`[OT] Transforming concurrent operations on ${op1.field}:`, {
-      op1: { user: op1.userId, value: op1.newValue },
-      op2: { user: op2.userId, value: op2.newValue }
-    });
-    
-    // For text fields, use advanced text transformation
-    if (this.isTextField(op1.field)) {
-      return this.transformTextOperations(op1, op2);
-    }
-    
-    // For simple fields, use timestamp precedence with user priority
-    return this.transformSimpleOperations(op1, op2);
-  },
-  
-  // Check if field contains text that can be merged
-  isTextField(field) {
-    return ['name', 'location', 'photographer', 'folder', 'notes'].includes(field);
-  },
-  
-  // Transform text operations (advanced)
-  transformTextOperations(op1, op2) {
-    // If one user just typed and another user made a different change,
-    // try to merge them intelligently
-    
-    const commonBase = this.findCommonBase(op1.oldValue, op2.oldValue);
-    
-    if (commonBase !== null) {
-      // Both operations have the same base - we can merge
-      const merged = this.mergeTextChanges(commonBase, op1.newValue, op2.newValue, op1.userId, op2.userId);
-      
-      return {
-        op1: { ...op1, newValue: merged.result, transformed: true, mergeInfo: merged },
-        op2: { ...op2, newValue: merged.result, transformed: true, mergeInfo: merged }
-      };
-    }
-    
-    // Fall back to timestamp precedence
-    return this.transformSimpleOperations(op1, op2);
-  },
-  
-  // Find common base between two text values
-  findCommonBase(val1, val2) {
-    // Simple implementation - can be enhanced with proper diff algorithms
-    if (val1 === val2) return val1;
-    
-    // Find longest common prefix
-    let i = 0;
-    while (i < Math.min(val1.length, val2.length) && val1[i] === val2[i]) {
-      i++;
-    }
-    
-    if (i > 0) {
-      return val1.substring(0, i);
-    }
-    
-    return null;
-  },
-  
-  // Merge text changes intelligently
-  mergeTextChanges(base, change1, change2, user1, user2) {
-    // For now, concatenate with user attribution
-    // This can be enhanced with more sophisticated merging
-    
-    const addition1 = change1.replace(base, '').trim();
-    const addition2 = change2.replace(base, '').trim();
-    
-    let result;
-    if (addition1 && addition2) {
-      // Both users added content - merge with attribution
-      result = `${base} ${addition1} (${this.getUserName(user1)}) + ${addition2} (${this.getUserName(user2)})`.trim();
-    } else if (addition1) {
-      result = change1;
-    } else if (addition2) {
-      result = change2;
-    } else {
-      result = base;
-    }
-    
-    return {
-      result,
-      merged: true,
-      contributors: [user1, user2],
-      base,
-      changes: { [user1]: addition1, [user2]: addition2 }
-    };
-  },
-  
-  // Transform simple operations (non-text)
-  transformSimpleOperations(op1, op2) {
-    // Use vector clock for ordering
-    const op1Time = op1.vectorClock.get(op1.userId) || 0;
-    const op2Time = op2.vectorClock.get(op2.userId) || 0;
-    
-    if (op1Time > op2Time) {
-      // op1 wins
-      return {
-        op1: op1,
-        op2: { ...op2, superseded: true, supersededBy: op1.id }
-      };
-    } else if (op2Time > op1Time) {
-      // op2 wins  
-      return {
-        op1: { ...op1, superseded: true, supersededBy: op2.id },
-        op2: op2
-      };
-    } else {
-      // Same timestamp - use user ID for consistent ordering
-      const winner = op1.userId < op2.userId ? op1 : op2;
-      const loser = winner === op1 ? op2 : op1;
-      
-      return {
-        op1: winner === op1 ? op1 : { ...op1, superseded: true, supersededBy: op2.id },
-        op2: winner === op2 ? op2 : { ...op2, superseded: true, supersededBy: op1.id }
-      };
-    }
-  },
-  
+
   // Get user display name
   getUserName(userId) {
     const session = this.userSessions.get(userId);
-    return session?.userName || `User ${userId.substr(-4)}`;
+    return session?.userName || `User ${String(userId).substr(-4)}`;
   }
 };
 
-// Enhanced atomic save function with operational transform
+// Atomic save wrapper: coordinates with full-array saves so a field PATCH never
+// races a full save and gets clobbered. (No operational transform — last-write-wins.)
 const originalAtomicSaveField = atomicSaveField;
-atomicSaveField = async function(field, fieldKey, programId, newValue, oldValue = '') {
-  // Check if a full save is in progress
+atomicSaveField = async function(field, fieldKey, programId, newValue, baseValue) {
+  // Defer atomic saves while a full-array save is in progress
   if (saveCoordination.isFullSaveInProgress) {
     console.log(`[COORDINATE] Full save in progress, queuing atomic save: ${fieldKey}`);
     queueFailedSave(field, fieldKey, programId, newValue, 'full_save_in_progress');
     return false;
   }
-  
-  // Create operation for operational transform
-  const userId = window.getCurrentUserId?.() || 'anonymous';
-  const operation = operationalTransform.createOperation(
-    programId, 
-    fieldKey, 
-    oldValue, 
-    newValue, 
-    userId,
-    field.selectionStart
-  );
-  
-  // Check for concurrent operations on the same field
-  const fieldId = `${programId}-${fieldKey}`;
-  const pendingOps = operationalTransform.pendingOps.get(fieldId) || [];
-  
-  if (pendingOps.length > 0) {
-    console.log(`[OT] Concurrent edit detected on ${fieldKey}, applying operational transform`);
-    
-    // Transform with all pending operations
-    let transformedOp = operation;
-    for (const pendingOp of pendingOps) {
-      const result = operationalTransform.transformOperation(transformedOp, pendingOp);
-      transformedOp = result.op1;
-    }
-    
-    // Use transformed value
-    newValue = transformedOp.newValue;
-    
-    // Show merge notification if value was transformed
-    if (transformedOp.transformed) {
-      showMergeNotification(field, transformedOp.mergeInfo);
-    }
-  }
-  
-  // Add to pending operations
-  operationalTransform.pendingOps.set(fieldId, [...pendingOps, operation]);
-  
-  // Track this atomic operation for coordination
+
   const operationId = `${programId}-${fieldKey}-${Date.now()}`;
   saveCoordination.pendingOperations.add(operationId);
-  
+
   try {
-    const result = await originalAtomicSaveField(field, fieldKey, programId, newValue);
-    
-    // Remove from pending operations on success
-    const remaining = operationalTransform.pendingOps.get(fieldId)?.filter(op => op.id !== operation.id) || [];
-    if (remaining.length === 0) {
-      operationalTransform.pendingOps.delete(fieldId);
-    } else {
-      operationalTransform.pendingOps.set(fieldId, remaining);
-    }
-    
-    return result;
-  } catch (error) {
-    // Remove from pending operations on error
-    const remaining = operationalTransform.pendingOps.get(fieldId)?.filter(op => op.id !== operation.id) || [];
-    if (remaining.length === 0) {
-      operationalTransform.pendingOps.delete(fieldId);
-    } else {
-      operationalTransform.pendingOps.set(fieldId, remaining);
-    }
-    throw error;
+    return await originalAtomicSaveField(field, fieldKey, programId, newValue, baseValue);
   } finally {
     saveCoordination.pendingOperations.delete(operationId);
   }
 };
 
-// Merge notification system
-function showMergeNotification(field, mergeInfo) {
-  console.log('[MERGE] Showing merge notification:', mergeInfo);
-  
-  // Create notification element
-  const notification = document.createElement('div');
-  notification.className = 'merge-notification';
-  notification.innerHTML = `
-    <div class="merge-content">
-      <i class="merge-icon">🔀</i>
-      <span class="merge-text">Changes merged with ${mergeInfo.contributors.map(id => operationalTransform.getUserName(id)).join(', ')}</span>
-      <button class="merge-close" onclick="this.parentElement.parentElement.remove()">×</button>
-    </div>
-  `;
-  
-  // Position relative to field with mobile-responsive approach
-  const isMobile = window.innerWidth <= 768;
-  
-  if (isMobile) {
-    // On mobile, use fixed positioning at top of screen
-    notification.style.position = 'fixed';
-    notification.style.top = '10px';
-    notification.style.left = '20px';
-    notification.style.right = '20px';
-    notification.style.width = 'auto';
-    notification.style.zIndex = '10000';
-  } else {
-    // On desktop, position relative to field
-    const rect = field.getBoundingClientRect();
-    notification.style.position = 'absolute';
-    notification.style.top = (rect.bottom + window.scrollY + 5) + 'px';
-    notification.style.left = rect.left + 'px';
-    notification.style.zIndex = '10000';
+/**
+ * Canonical single-field save. Every schedule field edit — card text fields, table
+ * inline edits, the done checkbox, and the important flag — funnels through here so
+ * there is exactly ONE save + broadcast pipeline (PATCH /program-field → programFieldUpdated).
+ *
+ * @param {Object}      opts
+ * @param {number}      opts.programIndex  Index into tableData.programs
+ * @param {string}      opts.field         Schema field key (name, startTime, location, done, important, ...)
+ * @param {*}           opts.value         New value
+ * @param {HTMLElement} [opts.element]     DOM element being edited (for save indicators / optimistic UI)
+ * @param {*}           [opts.oldValue]    Previous value (for optimistic revert)
+ * @param {*}           [opts.baseValue]   Value the edit was based on (for server optimistic-concurrency).
+ *                                         Provide for authoritative saves (blur/toggle/table); omit for
+ *                                         debounced keystroke saves so they remain plain last-write-wins.
+ * @returns {Promise<boolean>} Whether the save succeeded
+ */
+function saveProgramField({ programIndex, field, value, element = null, oldValue, baseValue }) {
+  const program = tableData.programs[programIndex];
+  if (!program) {
+    console.error(`[SAVE FIELD] Invalid program index: ${programIndex}`);
+    return Promise.resolve(false);
   }
-  
-  document.body.appendChild(notification);
-  
-  // Auto-remove after 4 seconds
-  setTimeout(() => {
-    if (notification.parentElement) {
-      notification.remove();
-    }
-  }, 4000);
-  
-  // Add animation
-  requestAnimationFrame(() => {
-    notification.style.opacity = '1';
-    notification.style.transform = 'translateY(0)';
-  });
+
+  const prevValue = oldValue !== undefined ? oldValue : program[field];
+
+  // Sync in-memory data
+  safeUpdateProgram(programIndex, field, value);
+
+  // Protect this field from inbound socket echoes for a short window
+  if (program._id) {
+    const protectionKey = `${program._id}-${field}`;
+    window.recentlyEditedFields = window.recentlyEditedFields || new Map();
+    window.recentlyEditedFields.set(protectionKey, { value, timestamp: Date.now(), field });
+    setTimeout(() => window.recentlyEditedFields.delete(protectionKey), 10000);
+  }
+
+  // New, unsaved row (no Mongo _id yet) → must use a full save
+  if (!program._id) {
+    console.warn(`[SAVE FIELD] No program ID for "${field}"; falling back to full schedule save`);
+    return scheduleSave().then(() => true).catch(() => false);
+  }
+
+  const fieldId = `${program._id}-${field}`;
+  const saveTarget = element || document.createElement('input');
+
+  if (element && optimisticUpdates?.applyOptimisticUpdate) {
+    optimisticUpdates.applyOptimisticUpdate(element, field, program._id, value, prevValue);
+  }
+
+  return atomicSaveField(saveTarget, field, program._id, value, baseValue)
+    .then(success => {
+      if (success) {
+        optimisticUpdates?.confirmUpdate?.(fieldId);
+      } else {
+        optimisticUpdates?.revertUpdate?.(fieldId, new Error('Save returned false'));
+      }
+      return success;
+    })
+    .catch(error => {
+      console.error(`[SAVE FIELD] Save failed for "${field}":`, error);
+      optimisticUpdates?.revertUpdate?.(fieldId, error);
+      // Queue for retry instead of a full save that could clobber other concurrent edits
+      if (typeof queueFailedSave === 'function') {
+        queueFailedSave(saveTarget, field, program._id, value, 'atomic_save_failed');
+      }
+      return false;
+    });
 }
+window.saveProgramField = saveProgramField;
 
 // Optimistic update system
 const optimisticUpdates = {
@@ -3070,10 +3024,25 @@ function autoSave(field, date, ignoredIndex, key) {
   
   console.log(`[AUTOSAVE] Preparing to save field: ${fieldKey} = "${newValue}" for program ${program?._id || programIndex}`);
   
-  // Update local data optimistically
-  const wasChanged = safeUpdateProgram(programIndex, fieldKey, newValue);
+  // Determine whether the value actually changed since editing started.
+  // IMPORTANT: compare against the value captured on focus (enableEdit), NOT tableData.
+  // optimisticInputHandler writes each keystroke into tableData, so safeUpdateProgram
+  // would always report "no change" here and the save would be silently skipped.
+  const focusValueRaw = field.dataset.focusValue;
+  const baselineValue = (typeof focusValueRaw === 'string')
+    ? focusValueRaw
+    : (program[fieldKey] != null ? String(program[fieldKey]) : '');
+  const normalizedNew = field.type === 'checkbox' ? String(newValue) : String(newValue ?? '');
+  const wasChanged = normalizedNew !== baselineValue;
+
+  // Keep tableData in sync regardless of the comparison result above
+  safeUpdateProgram(programIndex, fieldKey, newValue);
+
+  // Consume the focus baseline now that we've used it
+  delete field.dataset.focusValue;
+
   if (!wasChanged) {
-    console.log(`[AUTOSAVE] No change detected for field ${fieldKey}, skipping save`);
+    console.log(`[AUTOSAVE] No change detected for field ${fieldKey} (baseline "${baselineValue}"), skipping save`);
     return;
   }
   
@@ -3085,55 +3054,15 @@ function autoSave(field, date, ignoredIndex, key) {
     setTimeout(() => renderProgramSections(isOwner), 50);
   }
   
-  // Use atomic save if we have a program ID, otherwise fall back to full save
+  // Blur is the authoritative save — cancel any pending debounced input-save for this field
   if (program && program._id) {
-    // Get old value for operational transform and optimistic updates
-    const oldValue = program[fieldKey] || '';
-    
-    // Apply optimistic update immediately for instant feedback
-    optimisticUpdates.applyOptimisticUpdate(field, fieldKey, program._id, newValue, oldValue);
-    
-    // Track this edit with a timestamp to protect it from socket overwrites
-    const protectionKey = `${program._id}-${fieldKey}`;
-    window.recentlyEditedFields = window.recentlyEditedFields || new Map();
-    window.recentlyEditedFields.set(protectionKey, {
-      value: newValue,
-      timestamp: Date.now(),
-      field: fieldKey
-    });
-    
-    console.log(`[AUTOSAVE] Protected field ${fieldKey} for 10 seconds, applied optimistic update`);
-    
-    // Clear the tracking after 10 seconds (increased for better protection)
-    setTimeout(() => {
-      window.recentlyEditedFields.delete(protectionKey);
-      console.log(`[AUTOSAVE] Protection expired for field ${fieldKey}`);
-    }, 10000);
-    
-    // Use new atomic save function with operational transform
-    const fieldId = `${program._id}-${fieldKey}`;
-    atomicSaveField(field, fieldKey, program._id, newValue, oldValue)
-      .then(success => {
-        if (success) {
-          // Confirm the optimistic update
-          optimisticUpdates.confirmUpdate(fieldId);
-          console.log(`[AUTOSAVE] ✅ Atomic save successful for ${fieldKey}`);
-        } else {
-          // Revert the optimistic update
-          optimisticUpdates.revertUpdate(fieldId, new Error('Save returned false'));
-        }
-      })
-      .catch(error => {
-        console.error('[AUTOSAVE] Atomic save failed, queuing for retry:', error);
-        // Revert the optimistic update
-        optimisticUpdates.revertUpdate(fieldId, error);
-        // Queue the failed save instead of doing a full save that could overwrite other changes
-        queueFailedSave(field, fieldKey, program._id, newValue, 'atomic_save_failed');
-      });
-  } else {
-    console.warn(`[AUTOSAVE] No program ID available, falling back to full schedule save`);
-    scheduleSave();
+    cancelPendingInputSave(program._id, fieldKey);
   }
+
+  // Route through the canonical single-field save pipeline.
+  // baseValue is the value captured on focus, so the server can detect a genuine
+  // concurrent edit by another user without false-positives from our own typing.
+  saveProgramField({ programIndex, field: fieldKey, value: newValue, element: field, oldValue: baselineValue, baseValue: baselineValue });
   
   // Clear editing state
   window.currentlyEditing = null;
@@ -3257,8 +3186,13 @@ function safeUpdateProgram(programIndex, field, value) {
   return false; // No change
 }
 
+// Current collaboration session id (used so structural broadcasts skip the originator)
+function getCollabSessionId() {
+  return window.SimpleCollab?.getCurrentUser?.()?.sessionId || null;
+}
+
 function safeAddProgram(date) {
-  // Create new program with temporary ID until saved to database
+  // Optimistically insert with a temp id; the server returns the real _id.
   const newProgram = { 
     date, 
     name: '', 
@@ -3269,44 +3203,52 @@ function safeAddProgram(date) {
     folder: '',
     notes: '',
     done: false,
-    // Add a temporary ID for UI consistency (will be replaced by MongoDB _id after save)
+    important: false,
     _tempId: generateTempId()
   };
   
-  // Store the index where we're adding it
-  const newIndex = tableData.programs.length;
-  
   tableData.programs.push(newProgram);
-  console.log(`✅ [SAFE ADD] Added new program for ${date} with temp ID: ${newProgram._tempId}`);
+  console.log(`✅ [ADD] Optimistically added program for ${date} (${newProgram._tempId})`);
   renderProgramSections(isOwner);
-  
-  // Broadcast to other users if collaboration is enabled
-  if (window.SimpleCollab && window.SimpleCollab.isEnabled()) {
-    window.SimpleCollab.broadcastProgramAdded(date, newProgram);
-  }
-  
-  // Save immediately to get a real MongoDB _id
-  // Coordinate with any pending atomic saves
-  coordinatedSave('program_add', () => scheduleSave()).then(() => {
-    console.log(`✅ [SAFE ADD] Program saved successfully, should now have real _id`);
-    // Re-render to update data-program-id attributes with real IDs
-    if (window.__collaborativeScheduleInitialized) {
-      setTimeout(() => renderProgramSections(isOwner), 100);
-    }
-  }).catch(err => {
-    console.error('❌ [SAFE ADD] CRITICAL: Failed to save new program:', err);
-    
-    // ROLLBACK: Remove the program from local state since save failed
-    console.warn('⚠️ [SAFE ADD] Rolling back - removing unsaved program from local state');
-    const rollbackIndex = tableData.programs.findIndex(p => p._tempId === newProgram._tempId);
-    if (rollbackIndex !== -1) {
-      tableData.programs.splice(rollbackIndex, 1);
+
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  // Structural op: add a single program (no full-array PUT → can't clobber others' edits)
+  fetch(`${API_BASE}/api/tables/${tableId}/program`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': localStorage.getItem('token')
+    },
+    body: JSON.stringify({ date, sessionId: getCollabSessionId() })
+  })
+    .then(async res => {
+      if (!res.ok) throw new Error(`Add failed: ${res.status}`);
+      return res.json();
+    })
+    .then(({ program }) => {
+      if (!program || !program._id) return;
+      // A realtime broadcast may have already inserted this program — drop any dup first
+      const dupIdx = tableData.programs.findIndex(p => p._id === program._id);
+      if (dupIdx !== -1) tableData.programs.splice(dupIdx, 1);
+      // Replace the temp record with the persisted one (real _id)
+      const idx = tableData.programs.findIndex(p => p._tempId === newProgram._tempId);
+      if (idx !== -1) {
+        tableData.programs[idx] = { ...program };
+      } else {
+        tableData.programs.push({ ...program });
+      }
       renderProgramSections(isOwner);
-    }
-    
-    // Alert user about the failure
-    alert(`Failed to add program: ${err.message || 'Network error'}. Please check your connection and try again.`);
-  });
+      console.log(`✅ [ADD] Program persisted with _id ${program._id}`);
+    })
+    .catch(err => {
+      console.error('❌ [ADD] Failed to add program, rolling back:', err);
+      const idx = tableData.programs.findIndex(p => p._tempId === newProgram._tempId);
+      if (idx !== -1) {
+        tableData.programs.splice(idx, 1);
+        renderProgramSections(isOwner);
+      }
+      alert(`Failed to add program: ${err.message || 'Network error'}. Please try again.`);
+    });
 }
 
 function safeDeleteProgram(programIndex) {
@@ -3329,30 +3271,61 @@ function safeDeleteProgram(programIndex) {
     return;
   }
   
-  console.log(`[SAFE DELETE] Removing program: ${programName} on ${program.date}`);
-  
-  // Broadcast to other users if collaboration is enabled
-  if (window.SimpleCollab && window.SimpleCollab.isEnabled()) {
-    window.SimpleCollab.broadcastProgramDeleted(program);
-  }
-  
+  console.log(`[DELETE] Removing program: ${programName} on ${program.date}`);
+
+  // Optimistically remove
   tableData.programs.splice(programIndex, 1);
   renderProgramSections(isOwner);
-  // Coordinate delete with pending atomic saves
-  coordinatedSave('program_delete', () => scheduleSave());
+
+  // Never-persisted rows (temp id only) need no server call
+  if (!program._id) return;
+
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  fetch(`${API_BASE}/api/tables/${tableId}/program/${program._id}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': localStorage.getItem('token')
+    },
+    body: JSON.stringify({ sessionId: getCollabSessionId() })
+  })
+    .then(res => { if (!res.ok) throw new Error(`Delete failed: ${res.status}`); })
+    .catch(err => {
+      console.error('❌ [DELETE] Failed, rolling back:', err);
+      // Re-insert at (approximately) the original position
+      tableData.programs.splice(Math.min(programIndex, tableData.programs.length), 0, program);
+      renderProgramSections(isOwner);
+      alert(`Failed to delete program: ${err.message || 'Network error'}. Please try again.`);
+    });
 }
 
 function safeDeleteDate(date) {
   if (!confirm('Delete all programs for this date?')) return;
-  
-  const originalCount = tableData.programs.length;
+
+  const removed = tableData.programs.filter(p => p.date === date);
   tableData.programs = tableData.programs.filter(p => p.date !== date);
-  const removedCount = originalCount - tableData.programs.length;
-  
-  console.log(`[SAFE DELETE DATE] Removed ${removedCount} programs for ${date}`);
+  console.log(`[DELETE DATE] Removed ${removed.length} programs for ${date}`);
   renderProgramSections(isOwner);
-  // Coordinate date delete with pending atomic saves
-  coordinatedSave('date_delete', () => scheduleSave());
+
+  // If none were ever persisted, nothing to delete server-side
+  if (!removed.some(p => p._id)) return;
+
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  fetch(`${API_BASE}/api/tables/${tableId}/program-date/${encodeURIComponent(date)}`, {
+    method: 'DELETE',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': localStorage.getItem('token')
+    },
+    body: JSON.stringify({ sessionId: getCollabSessionId() })
+  })
+    .then(res => { if (!res.ok) throw new Error(`Delete failed: ${res.status}`); })
+    .catch(err => {
+      console.error('❌ [DELETE DATE] Failed, rolling back:', err);
+      tableData.programs.push(...removed);
+      renderProgramSections(isOwner);
+      alert(`Failed to delete date: ${err.message || 'Network error'}. Please try again.`);
+    });
 }
 
 // Add Date Modal functions
@@ -3386,28 +3359,11 @@ window.confirmAddDate = function () {
 function addDateSection() {
   const date = document.getElementById('newDate').value;
   if (!date) return alert('Please select a date');
-  
-  // Use safe add instead of dangerous captureCurrentPrograms
-  const newProgram = { 
-    date, 
-    name: '', 
-    startTime: '', 
-    endTime: '', 
-    location: '', 
-    photographer: '', 
-    folder: '',
-    notes: '',
-    done: false,
-    // Add automatic temporary ID for collaborative system compatibility
-    _tempId: generateTempId()
-  };
-  
-  tableData.programs.push(newProgram);
+
   document.getElementById('newDate').value = '';
-  console.log(`[ADD DATE SECTION] Added new date section: ${date}`);
-  renderProgramSections(isOwner);
-  // Coordinate add date with pending atomic saves
-  coordinatedSave('date_add', () => scheduleSave());
+  console.log(`[ADD DATE SECTION] Adding new date section: ${date}`);
+  // A new date is just a new (empty) program for that date — use the structural add path
+  safeAddProgram(date);
 }
 
 function addProgram(date) {
@@ -3452,6 +3408,7 @@ window.scheduleSave = scheduleSave;
 window.renderProgramSections = renderProgramSections;
 window.toggleDone = toggleDone;
 window.toggleFolderVisibility = toggleFolderVisibility;
+window.toggleImportant = toggleImportant;
 window.matchesSearch = matchesSearch;
 window.enableEdit = enableEdit;
 window.autoSave = autoSave;
@@ -3951,6 +3908,7 @@ function processImportedData(data) {
       folder: columnMap.folder !== -1 ? (row[columnMap.folder] || '') : '',
       notes: columnMap.notes !== -1 ? (row[columnMap.notes] || '') : '',
       done: isDone,
+      important: false,
       // Add automatic temporary ID for collaborative system compatibility
       _tempId: generateTempId(`import_${i}`)
     });
@@ -4236,6 +4194,151 @@ window.updateProgramRow = updateProgramRow;
 window.updateProgramFields = updateProgramFields;
 window.preserveProgramInputStates = preserveProgramInputStates;
 
+function getRemoteFieldDisplayValue(field, value) {
+  if (field === 'startTime' || field === 'endTime') {
+    return formatTo12Hour(value || '');
+  }
+  return value || '';
+}
+
+function showRemoteFieldUpdateFeedback(targetElement, anchorElement, userName) {
+  if (!targetElement) return;
+
+  targetElement.style.background = '#e3f2fd';
+  targetElement.style.transition = 'background 0.5s ease';
+  setTimeout(() => {
+    targetElement.style.background = '';
+  }, 2000);
+
+  if (userName && userName !== 'Unknown User' && anchorElement) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      position: absolute;
+      top: -25px;
+      right: 0;
+      background: #2196f3;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      z-index: 1000;
+      pointer-events: none;
+    `;
+    notification.textContent = `Updated by ${userName}`;
+    anchorElement.style.position = 'relative';
+    anchorElement.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+  }
+}
+
+function applyRemoteProgramFieldUpdate(data) {
+  const currentEvent = currentEventId || localStorage.getItem('eventId');
+  if (data.eventId !== currentEvent) {
+    console.log(`[SOCKET] Field update is for different event (${data.eventId}), current: ${currentEvent}, ignoring`);
+    return false;
+  }
+
+  const currentSessionId = window.SimpleCollab?.getCurrentUser?.()?.sessionId;
+  if (data.sessionId && data.sessionId === currentSessionId) {
+    console.log('[SOCKET] Ignoring field update from own session');
+    return false;
+  }
+
+  const protectionKey = `${data.programId}-${data.field}`;
+  const recentEdit = window.recentlyEditedFields?.get(protectionKey);
+  if (recentEdit && Date.now() - recentEdit.timestamp < 10000) {
+    console.log(`[SOCKET] Field recently edited by current user, skipping update for ${data.field}`);
+    return false;
+  }
+
+  const programIndex = tableData.programs.findIndex(p => p._id === data.programId);
+  if (programIndex === -1) {
+    console.warn(`[SOCKET] Program not found in local data: ${data.programId}`);
+    return false;
+  }
+
+  const { programId, field, value, userName } = data;
+  let feedbackElement = null;
+  let feedbackAnchor = null;
+
+  const cardEntry = document.querySelector(`.program-entry[data-program-id='${programId}']`);
+  if (cardEntry) {
+    feedbackAnchor = cardEntry;
+
+    if (field === 'important') {
+      cardEntry.classList.toggle('important-entry', Boolean(value));
+    }
+
+    const fieldElement = cardEntry.querySelector(`[data-field='${field}']`);
+    if (fieldElement && document.activeElement !== fieldElement) {
+      if (fieldElement.type === 'checkbox') {
+        fieldElement.checked = Boolean(value);
+        fieldElement.setAttribute('data-original-value', value ? 'true' : 'false');
+        cardEntry.classList.toggle('done-entry', Boolean(value));
+      } else {
+        fieldElement.value = value || '';
+        if (field === 'folder') {
+          toggleFolderVisibility(fieldElement);
+        }
+      }
+      feedbackElement = fieldElement;
+    }
+  }
+
+  const tableRow = document.querySelector(`.schedule-table-section tbody tr[data-program-id='${programId}']`);
+  if (tableRow) {
+    if (!feedbackAnchor) feedbackAnchor = tableRow;
+
+    if (field === 'important') {
+      tableRow.classList.toggle('important-row', Boolean(value));
+    }
+
+    if (field === 'done') {
+      const doneCheckbox = tableRow.querySelector('.done-checkbox');
+      const doneCell = tableRow.querySelector('.done-checkbox-cell');
+      if (
+        doneCheckbox &&
+        document.activeElement !== doneCheckbox &&
+        !doneCell?.classList.contains('editing')
+      ) {
+        doneCheckbox.checked = Boolean(value);
+        doneCheckbox.setAttribute('data-original-value', value ? 'true' : 'false');
+        tableRow.classList.toggle('done-row', Boolean(value));
+        if (!feedbackElement) feedbackElement = doneCheckbox;
+      }
+    } else if (field !== 'important') {
+      const cell = tableRow.querySelector(`td[data-field='${field}']`);
+      const inlineInput = cell?.querySelector('.inline-edit-input');
+      if (
+        cell &&
+        !cell.classList.contains('editing') &&
+        document.activeElement !== inlineInput
+      ) {
+        const display = cell.querySelector('.cell-display');
+        if (display) {
+          display.textContent = getRemoteFieldDisplayValue(field, value);
+          if (!feedbackElement) feedbackElement = display;
+        }
+      }
+    }
+  }
+
+  safeUpdateProgram(programIndex, field, value);
+  showRemoteFieldUpdateFeedback(feedbackElement, feedbackAnchor, userName);
+
+  if (field === 'startTime' || field === 'endTime') {
+    setTimeout(() => renderProgramSections(isOwner), 50);
+    if (currentView === 'table' && window.innerWidth > 768) {
+      setTimeout(() => renderScheduleTable(), 100);
+    }
+  }
+
+  console.log(`✅ [SOCKET] Applied field update: ${field} = "${value}" by ${userName}`);
+  return true;
+}
+
+window.applyRemoteProgramFieldUpdate = applyRemoteProgramFieldUpdate;
+
 // --- Socket.IO real-time updates ---
 if (window.socket) {
   console.log('[SOCKET] Using global socket for schedule updates');
@@ -4390,111 +4493,68 @@ if (window.socket) {
     }
   });
   
-  // NEW: Listen for atomic field updates - this prevents data loss!
+  // Canonical field sync: PATCH /program-field → programFieldUpdated
   window.socket.on('programFieldUpdated', (data) => {
     console.log(`[SOCKET] Field update received:`, data);
-    
+    applyRemoteProgramFieldUpdate(data);
+  });
+
+  // Structural sync: surgical insert/remove (no full reload) from the new endpoints
+  window.socket.on('programInserted', (data) => {
     const currentEvent = currentEventId || localStorage.getItem('eventId');
-    
-    // Only update if this update is for the current event
-    if (data.eventId === currentEvent) {
-      console.log(`[SOCKET] Field update is for current event (${currentEvent}), processing...`);
-      
-      // Don't update if this came from the current user's session
-      const currentSessionId = window.SimpleCollab?.getCurrentUser?.()?.sessionId;
-      if (data.sessionId && data.sessionId === currentSessionId) {
-        console.log('[SOCKET] Ignoring field update from own session');
-        return;
-      }
-      
-      // Find the specific field element
-      const container = document.getElementById('programSections');
-      if (!container) {
-        console.warn('[SOCKET] Program container not found');
-        return;
-      }
-      
-      const entry = container.querySelector(`.program-entry[data-program-id='${data.programId}']`);
-      if (!entry) {
-        console.warn(`[SOCKET] Program entry not found: ${data.programId}`);
-        return;
-      }
-      
-      const fieldElement = entry.querySelector(`[data-field='${data.field}']`);
-      if (!fieldElement) {
-        console.warn(`[SOCKET] Field element not found: ${data.field}`);
-        return;
-      }
-      
-      // Don't update if user is currently editing this specific field
-      if (document.activeElement === fieldElement) {
-        console.log('[SOCKET] User is editing this field, deferring update');
-        return;
-      }
-      
-      // Check if this field was recently edited by the current user
-      const protectionKey = `${data.programId}-${data.field}`;
-      const recentEdit = window.recentlyEditedFields?.get(protectionKey);
-      if (recentEdit && Date.now() - recentEdit.timestamp < 10000) {
-        console.log(`[SOCKET] Field recently edited by current user, skipping update for ${data.field}`);
-        return;
-      }
-      
-      // Update the field value
-      const oldValue = fieldElement.type === 'checkbox' ? fieldElement.checked : fieldElement.value;
-      
-      if (fieldElement.type === 'checkbox') {
-        fieldElement.checked = data.value;
-        fieldElement.setAttribute('data-original-value', data.value ? 'true' : 'false');
-        // Update visual state
-        entry.classList.toggle('done-entry', data.value);
-      } else {
-        fieldElement.value = data.value || '';
-      }
-      
-      // Update local data
-      const programIndex = tableData.programs.findIndex(p => p._id === data.programId);
-      if (programIndex !== -1) {
-        safeUpdateProgram(programIndex, data.field, data.value);
-      }
-      
-      // Show visual feedback that field was updated by another user
-      fieldElement.style.background = '#e3f2fd';
-      fieldElement.style.transition = 'background 0.5s ease';
-      
-      setTimeout(() => {
-        fieldElement.style.background = '';
-      }, 2000);
-      
-      // Show notification of who made the change
-      if (data.userName && data.userName !== 'Unknown User') {
-        const notification = document.createElement('div');
-        notification.style.cssText = `
-          position: absolute;
-          top: -25px;
-          right: 0;
-          background: #2196f3;
-          color: white;
-          padding: 2px 6px;
-          border-radius: 3px;
-          font-size: 11px;
-          z-index: 1000;
-          pointer-events: none;
-        `;
-        notification.textContent = `Updated by ${data.userName}`;
-        
-        entry.style.position = 'relative';
-        entry.appendChild(notification);
-        
-        setTimeout(() => {
-          notification.remove();
-        }, 3000);
-      }
-      
-      console.log(`✅ [SOCKET] Applied field update: ${data.field} = "${data.value}" by ${data.userName}`);
-    } else {
-      console.log(`[SOCKET] Field update is for different event (${data.eventId}), current: ${currentEvent}, ignoring`);
+    if (data.eventId !== currentEvent) return;
+    if (data.sessionId && data.sessionId === getCollabSessionId()) return; // our own add
+    if (!data.program || !data.program._id) return;
+    if (tableData.programs.some(p => p._id === data.program._id)) return; // dedupe
+    console.log(`[SOCKET] Remote program inserted: ${data.program._id}`);
+    tableData.programs.push({ ...data.program });
+    renderProgramSections(isOwner);
+  });
+
+  window.socket.on('programRemoved', (data) => {
+    const currentEvent = currentEventId || localStorage.getItem('eventId');
+    if (data.eventId !== currentEvent) return;
+    if (data.sessionId && data.sessionId === getCollabSessionId()) return; // our own delete
+    const idx = tableData.programs.findIndex(p => p._id === data.programId);
+    if (idx !== -1) {
+      console.log(`[SOCKET] Remote program removed: ${data.programId}`);
+      tableData.programs.splice(idx, 1);
+      renderProgramSections(isOwner);
     }
+  });
+
+  window.socket.on('programsRemovedByDate', (data) => {
+    const currentEvent = currentEventId || localStorage.getItem('eventId');
+    if (data.eventId !== currentEvent) return;
+    if (data.sessionId && data.sessionId === getCollabSessionId()) return; // our own delete
+    const before = tableData.programs.length;
+    tableData.programs = tableData.programs.filter(p => p.date !== data.date);
+    if (tableData.programs.length !== before) {
+      console.log(`[SOCKET] Remote date removed: ${data.date}`);
+      renderProgramSections(isOwner);
+    }
+  });
+
+  // Re-sync schedule from the server whenever the socket (re)connects, so we never
+  // sit on stale data after a dropped connection missed live broadcasts. The first
+  // connect is skipped because the initial loadPrograms() already fetched fresh data.
+  let socketHasConnectedBefore = window.socket.connected;
+  window.socket.on('connect', () => {
+    if (!socketHasConnectedBefore) {
+      socketHasConnectedBefore = true;
+      return;
+    }
+    if (!document.querySelector('.schedule-page')) return;
+    const tableId = currentEventId || localStorage.getItem('eventId');
+    if (!tableId || typeof loadPrograms !== 'function') return;
+
+    if (window.isActiveEditing) {
+      console.log('[SOCKET] Reconnected while editing — deferring schedule resync');
+      window.pendingReload = true;
+      return;
+    }
+    console.log('[SOCKET] Reconnected — resyncing schedule from server');
+    loadPrograms(tableId);
   });
   
   // Listen for user presence updates
@@ -4609,9 +4669,57 @@ function handleBlur(e) {
   }
 }
 
+// --- Debounced save-on-input ---
+// Persist edits while the user is still typing so changes survive a tab close /
+// navigation that happens before the blur-driven autoSave fires. The final blur
+// save remains authoritative; we cancel any pending input-save when blur saves.
+const inputSaveTimers = {};
+const INPUT_SAVE_DEBOUNCE_MS = 900;
+
+function getFieldKeyFromElement(field) {
+  const dataField = field.getAttribute('data-field');
+  if (dataField) return dataField;
+  let key = field.getAttribute('placeholder');
+  if (key) return key.toLowerCase();
+  if (field.className.includes('program-name')) return 'name';
+  return null;
+}
+
+function cancelPendingInputSave(programId, fieldKey) {
+  const timerKey = `${programId}-${fieldKey}`;
+  if (inputSaveTimers[timerKey]) {
+    clearTimeout(inputSaveTimers[timerKey]);
+    delete inputSaveTimers[timerKey];
+  }
+}
+
+function debouncedFieldSaveOnInput(field) {
+  if (field.type === 'checkbox') return;
+  const entry = field.closest('.program-entry');
+  if (!entry) return; // table-view inline edits save on their own blur
+  const programIndex = parseInt(entry.getAttribute('data-program-index'), 10);
+  if (Number.isNaN(programIndex)) return;
+  const fieldKey = getFieldKeyFromElement(field);
+  if (!fieldKey) return;
+  const program = tableData.programs[programIndex];
+  if (!program || !program._id) return; // unsaved rows persist via full save
+
+  const timerKey = `${program._id}-${fieldKey}`;
+  if (inputSaveTimers[timerKey]) clearTimeout(inputSaveTimers[timerKey]);
+  inputSaveTimers[timerKey] = setTimeout(() => {
+    delete inputSaveTimers[timerKey];
+    // No element passed → silent save (no border/optimistic flashing on the field
+    // the user is actively typing in). The authoritative blur save shows feedback.
+    saveProgramField({ programIndex, field: fieldKey, value: field.value });
+  }, INPUT_SAVE_DEBOUNCE_MS);
+}
+
 function handleInput(e) {
   // Immediately update optimistic UI
   optimisticInputHandler(e);
+  
+  // Persist while typing (debounced) so edits aren't lost if the tab closes before blur
+  debouncedFieldSaveOnInput(e.target);
   
   // For textareas, also trigger auto-resize
   if (e.target.tagName === 'TEXTAREA') {
@@ -4656,6 +4764,7 @@ function updateProgramRow(program, hasScheduleAccess) {
   
   // Always update the done-entry class for strikethrough
   entry.classList.toggle('done-entry', program.done);
+  entry.classList.toggle('important-entry', Boolean(program.important));
   
   // Merge the incoming program data with protection for active editing
   const currentProgram = tableData.programs[programIndex];
@@ -4719,6 +4828,8 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
       entry.classList.toggle('done-entry', Boolean(program.done));
     }
   }
+
+  entry.classList.toggle('important-entry', Boolean(program.important));
   
   // Update start time
   const startTimeInput = entry.querySelector('input[type="time"]:first-of-type');
@@ -4785,12 +4896,12 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
       
       folderInput.value = program.folder || '';
       
-      // Show/hide folder field based on whether there's data
       const container = folderInput.closest('.folder-field-container');
       if (container) {
         const hasValue = (program.folder || '').trim().length > 0;
         container.setAttribute('data-has-value', hasValue ? 'true' : 'false');
-        container.style.display = hasValue ? 'flex' : 'none';
+        const alwaysVisible = container.classList.contains('folder-field-container--editable');
+        container.style.display = alwaysVisible || hasValue ? 'flex' : 'none';
       }
     }
   }
@@ -5226,7 +5337,7 @@ function renderScheduleTable() {
     const tbody = document.createElement('tbody');
     matchingPrograms.forEach(program => {
       const row = document.createElement('tr');
-      row.className = program.done ? 'done-row' : '';
+      row.className = (program.done ? 'done-row' : '') + (program.important ? ' important-row' : '');
       row.setAttribute('data-program-index', program.__index);
       
       const programId = program._id || program._tempId;
@@ -5342,21 +5453,9 @@ function makeTableCellEditable(cell, program) {
     const programIndex = parseInt(cell.closest('tr').getAttribute('data-program-index'));
     
     if (newValue !== currentValue) {
-      // Update the program
-      const wasChanged = safeUpdateProgram(programIndex, field, newValue);
-      if (wasChanged) {
-        // Use atomic save if program has ID
-        if (program._id) {
-          atomicSaveField(inputElement, field, program._id, newValue, currentValue)
-            .then(() => console.log(`[TABLE VIEW] Saved ${field} for program ${programIndex}`))
-            .catch(err => {
-              console.error(`[TABLE VIEW] Failed to save ${field}:`, err);
-              alert('Failed to save changes. Please try again.');
-            });
-        } else {
-          scheduleSave();
-        }
-      }
+      // Route through the canonical single-field save pipeline
+      saveProgramField({ programIndex, field, value: newValue, element: inputElement, oldValue: currentValue, baseValue: currentValue })
+        .then(ok => { if (ok) console.log(`[TABLE VIEW] Saved ${field} for program ${programIndex}`); });
     }
     
     // Restore display

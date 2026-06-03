@@ -408,49 +408,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  // When user updates a field
-  socket.on('updateField', async (data) => {
-    console.log('⚡ [SIMPLE] Field update received:', data);
-    
-    const { eventId, programId, field, value, userId, sessionId, userName } = data;
-    if (eventId && programId && field && userId) {
-      try {
-        const roomName = `event-${eventId}`;
-        
-        // Save to database first
-        await updateProgramInDatabase({
-          eventId,
-          programId,
-          field,
-          value,
-          userId
-        });
-        
-        // Broadcast to all other users in the same event
-        socket.to(roomName).emit('fieldUpdated', {
-          eventId,
-          programId,
-          field,
-          value,
-          userId,
-          sessionId,
-          userName
-        });
-        
-        console.log(`✅ [SIMPLE] Broadcasted field update: ${field} = ${value} by ${userName}`);
-        
-      } catch (error) {
-        console.error('❌ [SIMPLE] Error updating field:', error);
-        
-        // Send error back to user
-        socket.emit('updateError', {
-          eventId,
-          programId,
-          field,
-          error: 'Failed to update field'
-        });
-      }
-    }
+  // Deprecated: field persistence uses PATCH /program-field only (programFieldUpdated broadcast).
+  socket.on('updateField', (data) => {
+    console.warn('[SIMPLE] updateField ignored — schedule fields must be saved via PATCH /program-field');
   });
   
   // =============================================================================
@@ -2562,6 +2522,7 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
         _id: req.params.id,
         $or: [
           { owners: req.user.id },
+          { leads: req.user.id },
           { sharedWith: req.user.id }
         ]
       },
@@ -2613,7 +2574,7 @@ app.patch('/api/tables/:id/program-field', authenticate, async (req, res) => {
     return res.status(400).json({ error: "Invalid table ID" });
   }
   
-  const { programId, field, value, userId, sessionId } = req.body;
+  const { programId, field, value, userId, sessionId, baseValue } = req.body;
   if (!programId || !field) {
     return res.status(400).json({ error: "programId and field are required" });
   }
@@ -2627,10 +2588,15 @@ app.patch('/api/tables/:id/program-field', authenticate, async (req, res) => {
       return res.status(404).json({ error: 'Table not found' });
     }
     
-    // Check permissions
-    const isOwner = currentTable.owners.includes(req.user.id);
-    const isShared = currentTable.sharedWith.includes(req.user.id);
-    if (!isOwner && !isShared) {
+    // Check permissions: admins, owners, leads, or shared users (matches UI access:
+    // hasScheduleAccess = isOwner || isLead). Previously this only allowed owners +
+    // sharedWith, so leads could edit in the UI but their saves were rejected (403).
+    const userId = String(req.user.id);
+    const isAdmin = req.user.role === 'admin';
+    const isOwner = currentTable.owners && currentTable.owners.map(String).includes(userId);
+    const isLead = currentTable.leads && currentTable.leads.map(String).includes(userId);
+    const isShared = currentTable.sharedWith && currentTable.sharedWith.map(String).includes(userId);
+    if (!isAdmin && !isOwner && !isLead && !isShared) {
       return res.status(403).json({ error: 'Not authorized to edit this table' });
     }
     
@@ -2641,6 +2607,32 @@ app.patch('/api/tables/:id/program-field', authenticate, async (req, res) => {
     }
     
     const oldValue = currentProgram[field];
+
+    // Optimistic concurrency: reject only a GENUINE divergent concurrent edit.
+    // A conflict requires that (a) the client told us the value it edited from
+    // (baseValue), (b) the current server value differs from that baseline,
+    // (c) it also differs from the value we're about to write, and (d) the last
+    // writer was a DIFFERENT user. The same-user guard prevents false positives
+    // from a single user's own debounced/intermediate saves across tabs.
+    const lastBy = currentProgram.lastModifiedBy ? String(currentProgram.lastModifiedBy) : null;
+    const norm = (v) => (v === undefined || v === null) ? '' : String(v);
+    const isConflict =
+      baseValue !== undefined &&
+      norm(oldValue) !== norm(baseValue) &&
+      norm(oldValue) !== norm(value) &&
+      lastBy && lastBy !== String(req.user.id);
+
+    if (isConflict) {
+      console.warn(`⚠️ [ATOMIC] Conflict on ${field} for program ${programId}: client base "${baseValue}", server "${oldValue}"`);
+      return res.status(409).json({
+        conflict: true,
+        field,
+        programId,
+        currentValue: oldValue,
+        lastModifiedBy: lastBy,
+        message: 'Field was modified by another user'
+      });
+    }
     
     // Use MongoDB's positional operator to update only the specific field atomically
     const result = await Table.findOneAndUpdate(
@@ -2653,7 +2645,8 @@ app.patch('/api/tables/:id/program-field', authenticate, async (req, res) => {
           [`programSchedule.$.${field}`]: value,
           [`programSchedule.$.lastModified`]: new Date(),
           [`programSchedule.$.lastModifiedBy`]: req.user.id
-        }
+        },
+        $inc: { 'programSchedule.$.rev': 1 }
       },
       { new: true, runValidators: true }
     );
@@ -2667,13 +2660,14 @@ app.patch('/api/tables/:id/program-field', authenticate, async (req, res) => {
     if (updatedProgram) {
       console.log(`✅ [ATOMIC] Updated field ${field}: "${oldValue}" → "${value}" for program ${programId}`);
       
-      // Broadcast field-level update to all users in the room except the sender
+      // Broadcast field-level update to everyone in the room (sender filters by sessionId)
       io.to(`event-${req.params.id}`).emit('programFieldUpdated', { 
         eventId: req.params.id,
         programId, 
         field, 
         value, 
         oldValue,
+        rev: updatedProgram.rev,
         userId: req.user.id,
         sessionId: sessionId || null,
         userName: req.user.fullName || req.user.name || 'Unknown User',
@@ -2687,11 +2681,144 @@ app.patch('/api/tables/:id/program-field', authenticate, async (req, res) => {
       message: 'Program field updated successfully',
       field,
       value,
-      oldValue
+      oldValue,
+      rev: updatedProgram ? updatedProgram.rev : undefined
     });
   } catch (err) {
     console.error('❌ [ATOMIC] Error updating program field:', err);
     res.status(500).json({ error: 'Failed to update program field', details: err.message });
+  }
+});
+
+// Helper: authorize a structural schedule mutation (admins, owners, leads)
+function canEditSchedule(table, req) {
+  const userId = String(req.user.id);
+  if (req.user.role === 'admin') return true;
+  if (table.owners && table.owners.map(String).includes(userId)) return true;
+  if (table.leads && table.leads.map(String).includes(userId)) return true;
+  return false;
+}
+
+// ADD A SINGLE PROGRAM — structural op that avoids the full-array PUT clobbering
+// concurrent field edits made by other users.
+app.post('/api/tables/:id/program', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === 'null') {
+    return res.status(400).json({ error: 'Invalid table ID' });
+  }
+  const { date, sessionId } = req.body;
+  if (!date) return res.status(400).json({ error: 'date is required' });
+
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) return res.status(404).json({ error: 'Table not found' });
+    if (!canEditSchedule(table, req)) {
+      return res.status(403).json({ error: 'Only owners and leads can add programs' });
+    }
+
+    const newProgram = {
+      date,
+      name: req.body.name || '',
+      startTime: req.body.startTime || '',
+      endTime: req.body.endTime || '',
+      location: req.body.location || '',
+      photographer: req.body.photographer || '',
+      folder: req.body.folder || '',
+      notes: req.body.notes || '',
+      done: false,
+      important: false,
+      lastModified: new Date(),
+      lastModifiedBy: req.user.id,
+      rev: 0
+    };
+
+    const result = await Table.findByIdAndUpdate(
+      req.params.id,
+      { $push: { programSchedule: newProgram } },
+      { new: true, runValidators: true }
+    );
+    const created = result.programSchedule[result.programSchedule.length - 1];
+
+    io.to(`event-${req.params.id}`).emit('programInserted', {
+      eventId: req.params.id,
+      program: created,
+      sessionId: sessionId || null,
+      userId: req.user.id
+    });
+
+    res.json({ message: 'Program added', program: created });
+  } catch (err) {
+    console.error('❌ [PROGRAM ADD] Error:', err);
+    res.status(500).json({ error: 'Failed to add program', details: err.message });
+  }
+});
+
+// DELETE A SINGLE PROGRAM
+app.delete('/api/tables/:id/program/:programId', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === 'null') {
+    return res.status(400).json({ error: 'Invalid table ID' });
+  }
+  const { programId } = req.params;
+  const sessionId = req.body && req.body.sessionId;
+
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) return res.status(404).json({ error: 'Table not found' });
+    if (!canEditSchedule(table, req)) {
+      return res.status(403).json({ error: 'Only owners and leads can delete programs' });
+    }
+
+    await Table.findByIdAndUpdate(
+      req.params.id,
+      { $pull: { programSchedule: { _id: programId } } },
+      { new: true }
+    );
+
+    io.to(`event-${req.params.id}`).emit('programRemoved', {
+      eventId: req.params.id,
+      programId,
+      sessionId: sessionId || null,
+      userId: req.user.id
+    });
+
+    res.json({ message: 'Program deleted', programId });
+  } catch (err) {
+    console.error('❌ [PROGRAM DELETE] Error:', err);
+    res.status(500).json({ error: 'Failed to delete program', details: err.message });
+  }
+});
+
+// DELETE ALL PROGRAMS FOR A DATE
+app.delete('/api/tables/:id/program-date/:date', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === 'null') {
+    return res.status(400).json({ error: 'Invalid table ID' });
+  }
+  const { date } = req.params;
+  const sessionId = req.body && req.body.sessionId;
+
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) return res.status(404).json({ error: 'Table not found' });
+    if (!canEditSchedule(table, req)) {
+      return res.status(403).json({ error: 'Only owners and leads can delete programs' });
+    }
+
+    await Table.findByIdAndUpdate(
+      req.params.id,
+      { $pull: { programSchedule: { date } } },
+      { new: true }
+    );
+
+    io.to(`event-${req.params.id}`).emit('programsRemovedByDate', {
+      eventId: req.params.id,
+      date,
+      sessionId: sessionId || null,
+      userId: req.user.id
+    });
+
+    res.json({ message: 'Programs for date deleted', date });
+  } catch (err) {
+    console.error('❌ [PROGRAM DATE DELETE] Error:', err);
+    res.status(500).json({ error: 'Failed to delete programs for date', details: err.message });
   }
 });
 

@@ -3848,6 +3848,151 @@ window.updateProgramRow = updateProgramRow;
 window.updateProgramFields = updateProgramFields;
 window.preserveProgramInputStates = preserveProgramInputStates;
 
+function getRemoteFieldDisplayValue(field, value) {
+  if (field === 'startTime' || field === 'endTime') {
+    return formatTo12Hour(value || '');
+  }
+  return value || '';
+}
+
+function showRemoteFieldUpdateFeedback(targetElement, anchorElement, userName) {
+  if (!targetElement) return;
+
+  targetElement.style.background = '#e3f2fd';
+  targetElement.style.transition = 'background 0.5s ease';
+  setTimeout(() => {
+    targetElement.style.background = '';
+  }, 2000);
+
+  if (userName && userName !== 'Unknown User' && anchorElement) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      position: absolute;
+      top: -25px;
+      right: 0;
+      background: #2196f3;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      z-index: 1000;
+      pointer-events: none;
+    `;
+    notification.textContent = `Updated by ${userName}`;
+    anchorElement.style.position = 'relative';
+    anchorElement.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+  }
+}
+
+function applyRemoteProgramFieldUpdate(data) {
+  const currentEvent = currentEventId || localStorage.getItem('eventId');
+  if (data.eventId !== currentEvent) {
+    console.log(`[SOCKET] Field update is for different event (${data.eventId}), current: ${currentEvent}, ignoring`);
+    return false;
+  }
+
+  const currentSessionId = window.SimpleCollab?.getCurrentUser?.()?.sessionId;
+  if (data.sessionId && data.sessionId === currentSessionId) {
+    console.log('[SOCKET] Ignoring field update from own session');
+    return false;
+  }
+
+  const protectionKey = `${data.programId}-${data.field}`;
+  const recentEdit = window.recentlyEditedFields?.get(protectionKey);
+  if (recentEdit && Date.now() - recentEdit.timestamp < 10000) {
+    console.log(`[SOCKET] Field recently edited by current user, skipping update for ${data.field}`);
+    return false;
+  }
+
+  const programIndex = tableData.programs.findIndex(p => p._id === data.programId);
+  if (programIndex === -1) {
+    console.warn(`[SOCKET] Program not found in local data: ${data.programId}`);
+    return false;
+  }
+
+  const { programId, field, value, userName } = data;
+  let feedbackElement = null;
+  let feedbackAnchor = null;
+
+  const cardEntry = document.querySelector(`.program-entry[data-program-id='${programId}']`);
+  if (cardEntry) {
+    feedbackAnchor = cardEntry;
+
+    if (field === 'important') {
+      cardEntry.classList.toggle('important-entry', Boolean(value));
+    }
+
+    const fieldElement = cardEntry.querySelector(`[data-field='${field}']`);
+    if (fieldElement && document.activeElement !== fieldElement) {
+      if (fieldElement.type === 'checkbox') {
+        fieldElement.checked = Boolean(value);
+        fieldElement.setAttribute('data-original-value', value ? 'true' : 'false');
+        cardEntry.classList.toggle('done-entry', Boolean(value));
+      } else {
+        fieldElement.value = value || '';
+        if (field === 'folder' && typeof toggleFolderVisibility === 'function') {
+          toggleFolderVisibility(fieldElement);
+        }
+      }
+      feedbackElement = fieldElement;
+    }
+  }
+
+  const tableRow = document.querySelector(`.schedule-table-section tbody tr[data-program-id='${programId}']`);
+  if (tableRow) {
+    if (!feedbackAnchor) feedbackAnchor = tableRow;
+
+    if (field === 'important') {
+      tableRow.classList.toggle('important-row', Boolean(value));
+    }
+
+    if (field === 'done') {
+      const doneCheckbox = tableRow.querySelector('.done-checkbox');
+      const doneCell = tableRow.querySelector('.done-checkbox-cell');
+      if (
+        doneCheckbox &&
+        document.activeElement !== doneCheckbox &&
+        !doneCell?.classList.contains('editing')
+      ) {
+        doneCheckbox.checked = Boolean(value);
+        doneCheckbox.setAttribute('data-original-value', value ? 'true' : 'false');
+        tableRow.classList.toggle('done-row', Boolean(value));
+        if (!feedbackElement) feedbackElement = doneCheckbox;
+      }
+    } else if (field !== 'important') {
+      const cell = tableRow.querySelector(`td[data-field='${field}']`);
+      const inlineInput = cell?.querySelector('.inline-edit-input');
+      if (
+        cell &&
+        !cell.classList.contains('editing') &&
+        document.activeElement !== inlineInput
+      ) {
+        const display = cell.querySelector('.cell-display');
+        if (display) {
+          display.textContent = getRemoteFieldDisplayValue(field, value);
+          if (!feedbackElement) feedbackElement = display;
+        }
+      }
+    }
+  }
+
+  safeUpdateProgram(programIndex, field, value);
+  showRemoteFieldUpdateFeedback(feedbackElement, feedbackAnchor, userName);
+
+  if (field === 'startTime' || field === 'endTime') {
+    setTimeout(() => renderProgramSections(isOwner), 50);
+    if (currentView === 'table' && window.innerWidth > 768) {
+      setTimeout(() => renderScheduleTable(), 100);
+    }
+  }
+
+  console.log(`✅ [SOCKET] Applied field update: ${field} = "${value}" by ${userName}`);
+  return true;
+}
+
+window.applyRemoteProgramFieldUpdate = applyRemoteProgramFieldUpdate;
+
 // --- Socket.IO real-time updates ---
 if (window.socket) {
   console.log('[SOCKET] Using global socket for schedule updates');
@@ -4002,111 +4147,10 @@ if (window.socket) {
     }
   });
   
-  // NEW: Listen for atomic field updates - this prevents data loss!
+  // Canonical field sync: PATCH /program-field → programFieldUpdated
   window.socket.on('programFieldUpdated', (data) => {
     console.log(`[SOCKET] Field update received:`, data);
-    
-    const currentEvent = currentEventId || localStorage.getItem('eventId');
-    
-    // Only update if this update is for the current event
-    if (data.eventId === currentEvent) {
-      console.log(`[SOCKET] Field update is for current event (${currentEvent}), processing...`);
-      
-      // Don't update if this came from the current user's session
-      const currentSessionId = window.SimpleCollab?.getCurrentUser?.()?.sessionId;
-      if (data.sessionId && data.sessionId === currentSessionId) {
-        console.log('[SOCKET] Ignoring field update from own session');
-        return;
-      }
-      
-      // Find the specific field element
-      const container = document.getElementById('programSections');
-      if (!container) {
-        console.warn('[SOCKET] Program container not found');
-        return;
-      }
-      
-      const entry = container.querySelector(`.program-entry[data-program-id='${data.programId}']`);
-      if (!entry) {
-        console.warn(`[SOCKET] Program entry not found: ${data.programId}`);
-        return;
-      }
-      
-      const fieldElement = entry.querySelector(`[data-field='${data.field}']`);
-      if (!fieldElement) {
-        console.warn(`[SOCKET] Field element not found: ${data.field}`);
-        return;
-      }
-      
-      // Don't update if user is currently editing this specific field
-      if (document.activeElement === fieldElement) {
-        console.log('[SOCKET] User is editing this field, deferring update');
-        return;
-      }
-      
-      // Check if this field was recently edited by the current user
-      const protectionKey = `${data.programId}-${data.field}`;
-      const recentEdit = window.recentlyEditedFields?.get(protectionKey);
-      if (recentEdit && Date.now() - recentEdit.timestamp < 10000) {
-        console.log(`[SOCKET] Field recently edited by current user, skipping update for ${data.field}`);
-        return;
-      }
-      
-      // Update the field value
-      const oldValue = fieldElement.type === 'checkbox' ? fieldElement.checked : fieldElement.value;
-      
-      if (fieldElement.type === 'checkbox') {
-        fieldElement.checked = data.value;
-        fieldElement.setAttribute('data-original-value', data.value ? 'true' : 'false');
-        // Update visual state
-        entry.classList.toggle('done-entry', data.value);
-      } else {
-        fieldElement.value = data.value || '';
-      }
-      
-      // Update local data
-      const programIndex = tableData.programs.findIndex(p => p._id === data.programId);
-      if (programIndex !== -1) {
-        safeUpdateProgram(programIndex, data.field, data.value);
-      }
-      
-      // Show visual feedback that field was updated by another user
-      fieldElement.style.background = '#e3f2fd';
-      fieldElement.style.transition = 'background 0.5s ease';
-      
-      setTimeout(() => {
-        fieldElement.style.background = '';
-      }, 2000);
-      
-      // Show notification of who made the change
-      if (data.userName && data.userName !== 'Unknown User') {
-        const notification = document.createElement('div');
-        notification.style.cssText = `
-          position: absolute;
-          top: -25px;
-          right: 0;
-          background: #2196f3;
-          color: white;
-          padding: 2px 6px;
-          border-radius: 3px;
-          font-size: 11px;
-          z-index: 1000;
-          pointer-events: none;
-        `;
-        notification.textContent = `Updated by ${data.userName}`;
-        
-        entry.style.position = 'relative';
-        entry.appendChild(notification);
-        
-        setTimeout(() => {
-          notification.remove();
-        }, 3000);
-      }
-      
-      console.log(`✅ [SOCKET] Applied field update: ${data.field} = "${data.value}" by ${data.userName}`);
-    } else {
-      console.log(`[SOCKET] Field update is for different event (${data.eventId}), current: ${currentEvent}, ignoring`);
-    }
+    applyRemoteProgramFieldUpdate(data);
   });
   
   // Listen for user presence updates

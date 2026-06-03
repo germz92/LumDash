@@ -68,15 +68,19 @@ function init(eventId, userId, userName) {
     // Start aggressive mobile notification cleanup
     startMobileNotificationCleanup();
     
-    // Join the event room for real-time collaboration
-    if (window.socket.connected) {
+    // Join the event room for real-time collaboration.
+    // CRITICAL: We must (re)join on every connect/reconnect — not only when the
+    // socket happens to be connected at init time. Otherwise a socket that finishes
+    // connecting after init (common on cloud/polling) never joins the room and never
+    // receives live `programFieldUpdated` broadcasts, forcing a manual refresh.
+    const joinRooms = () => {
       window.socket.emit('joinEventRoom', {
         eventId: eventId,
         userId: userId,
         userName: userName,
         userColor: collabState.currentUser.color
       });
-      
+
       // Emit schedule-specific join event
       window.socket.emit('joinScheduleCollaboration', {
         eventId: eventId,
@@ -84,9 +88,9 @@ function init(eventId, userId, userName) {
         userName: userName,
         userColor: collabState.currentUser.color
       });
-      
+
       console.log(`📡 Joined event room for schedule collaboration: event-${eventId}`);
-      
+
       // Add current user to active users
       collabState.activeUsers.set(userId, {
         userName: userName,
@@ -94,6 +98,17 @@ function init(eventId, userId, userName) {
         joinedAt: Date.now()
       });
       // updateActiveUsersDisplay(); // DISABLED: prevents mobile header blocking
+    };
+
+    // Re-join automatically whenever the socket connects or reconnects
+    socketHandlers.connect = joinRooms;
+    window.socket.on('connect', socketHandlers.connect);
+
+    // If already connected, join immediately; otherwise the connect handler will fire
+    if (window.socket.connected) {
+      joinRooms();
+    } else {
+      console.log('⏳ Socket not yet connected — will join event room on connect');
     }
   } else {
     console.warn('⚠️ Socket not available - collaboration disabled');
@@ -175,25 +190,8 @@ function startMobileNotificationCleanup() {
 const socketHandlers = {};
 
 function setupSocketListeners() {
-  // Listen for field changes from other users
-  socketHandlers.fieldUpdated = (data) => {
-    // Safety check: Only process if on schedule page
-    if (!document.querySelector('.schedule-page')) {
-      return;
-    }
-    
-    console.log('🔍 [DEBUG] Received fieldUpdated event:', data);
-    if (data.eventId === collabState.eventId && data.sessionId !== collabState.currentUser.sessionId) {
-      console.log('✅ [DEBUG] Processing remote field update');
-      handleRemoteFieldChange(data);
-    } else {
-      console.log('❌ [DEBUG] Ignoring field update - eventId or sessionId mismatch');
-      console.log(`   My eventId: ${collabState.eventId}, received: ${data.eventId}`);
-      console.log(`   My sessionId: ${collabState.currentUser.sessionId}, received: ${data.sessionId}`);
-    }
-  };
-  window.socket.on('fieldUpdated', socketHandlers.fieldUpdated);
-  
+  // Field value sync is handled by schedule.js via programFieldUpdated (PATCH /program-field).
+
   // Listen for editing status
   socketHandlers.userStartedEditing = (data) => {
     // Safety check: Only process if on schedule page
@@ -316,10 +314,9 @@ function setupSocketListeners() {
 }
 
 function attachFieldListeners() {
-  // Use event delegation for better performance
+  // Presence only — field saves go through PATCH /program-field in schedule.js
   document.addEventListener('focusin', handleFieldFocus);
   document.addEventListener('focusout', handleFieldBlur);
-  document.addEventListener('input', handleFieldInput);
 }
 
 // =============================================================================
@@ -372,139 +369,6 @@ function handleFieldBlur(e) {
   }
   
   console.log(`✅ Stopped editing: ${fieldInfo.field}`);
-}
-
-function handleFieldInput(e) {
-  if (!isScheduleField(e.target)) return;
-  
-  const fieldInfo = getFieldInfo(e.target);
-  if (!fieldInfo) return;
-  
-  const newValue = e.target.type === 'checkbox' ? e.target.checked : e.target.value;
-  
-  // Update local data immediately
-  updateLocalData(fieldInfo.programId, fieldInfo.field, newValue);
-  
-  // Send update to others (debounced)
-  debouncedSendUpdate(fieldInfo.programId, fieldInfo.field, newValue);
-  
-  console.log(`⚡ Field changed: ${fieldInfo.field} = ${newValue}`);
-}
-
-// =============================================================================
-// UPDATE HANDLING
-// =============================================================================
-
-let updateTimeouts = {};
-
-function debouncedSendUpdate(programId, field, value) {
-  const key = `${programId}-${field}`;
-  
-  // Clear existing timeout
-  if (updateTimeouts[key]) {
-    clearTimeout(updateTimeouts[key]);
-  }
-  
-  // Set new timeout
-  updateTimeouts[key] = setTimeout(() => {
-    sendFieldUpdate(programId, field, value);
-    delete updateTimeouts[key];
-  }, 300); // 300ms debounce
-}
-
-function sendFieldUpdate(programId, field, value) {
-  if (!window.socket) return;
-  
-  window.socket.emit('updateField', {
-    eventId: collabState.eventId,
-    programId: programId,
-    field: field,
-    value: value,
-    userId: collabState.currentUser.id,
-    sessionId: collabState.currentUser.sessionId,
-    userName: collabState.currentUser.name
-  });
-  
-  console.log(`📡 Sent update: ${field} = ${value}`);
-}
-
-function handleRemoteFieldChange(data) {
-  const { programId, field, value, userName } = data;
-  
-  // Find the field element
-  const fieldElement = document.querySelector(
-    `[data-program-id="${programId}"] [data-field="${field}"]`
-  );
-  
-  if (!fieldElement) {
-    console.warn(`Field not found: ${programId}-${field}`);
-    return;
-  }
-  
-  // Don't update if user is currently editing this field
-  if (document.activeElement === fieldElement) {
-    console.log(`⏸️ Skipping update - user is editing`);
-    return;
-  }
-  
-  // Update the field
-  if (fieldElement.type === 'checkbox') {
-    fieldElement.checked = value;
-    // Update data attribute for checkbox consistency
-    fieldElement.setAttribute('data-original-value', value ? 'true' : 'false');
-  } else {
-    fieldElement.value = value || '';
-  }
-  
-  // Update local data
-  updateLocalData(programId, field, value);
-  
-  // Visual feedback
-  showUpdateFeedback(fieldElement, userName);
-  
-  console.log(`📥 Applied remote update: ${field} = ${value} from ${userName}`);
-}
-
-function updateLocalData(programId, field, value) {
-  if (!window.tableData || !window.tableData.programs) return;
-  
-  const program = window.tableData.programs.find(p => p._id === programId);
-  if (program) {
-    program[field] = value;
-  }
-}
-
-function showUpdateFeedback(element, userName) {
-  // Yellow background flash
-  element.style.background = '#fff3cd';
-  element.style.transition = 'background 0.3s ease';
-  
-  setTimeout(() => {
-    element.style.background = '';
-  }, 1000);
-  
-  // Optional: Show who made the change
-  const indicator = document.createElement('div');
-  indicator.textContent = `Updated by ${userName}`;
-  indicator.style.cssText = `
-    position: absolute;
-    top: -25px;
-    right: 0;
-    background: #28a745;
-    color: white;
-    padding: 2px 6px;
-    border-radius: 3px;
-    font-size: 11px;
-    z-index: 1000;
-    pointer-events: none;
-  `;
-  
-  element.parentNode.style.position = 'relative';
-  element.parentNode.appendChild(indicator);
-  
-  setTimeout(() => {
-    indicator.remove();
-  }, 2000);
 }
 
 // =============================================================================
@@ -732,12 +596,11 @@ function cleanup() {
   // Remove event listeners
   document.removeEventListener('focusin', handleFieldFocus);
   document.removeEventListener('focusout', handleFieldBlur);
-  document.removeEventListener('input', handleFieldInput);
   
   // Remove socket event listeners using specific handler references
   if (window.socket) {
-    if (socketHandlers.fieldUpdated) {
-      window.socket.off('fieldUpdated', socketHandlers.fieldUpdated);
+    if (socketHandlers.connect) {
+      window.socket.off('connect', socketHandlers.connect);
     }
     if (socketHandlers.userStartedEditing) {
       window.socket.off('userStartedEditing', socketHandlers.userStartedEditing);
@@ -766,10 +629,6 @@ function cleanup() {
     
     console.log('🧹 Removed all simple collaboration socket listeners');
   }
-  
-  // Clear timeouts
-  Object.values(updateTimeouts).forEach(clearTimeout);
-  updateTimeouts = {};
   
   // Clear state
   collabState.activeEditors.clear();
@@ -965,11 +824,16 @@ window.SimpleCollab = {
   // Testing functions
   test: {
     simulateRemoteUpdate: (programId, field, value) => {
-      handleRemoteFieldChange({
-        programId, field, value, 
-        userName: 'Test User',
-        userId: 'test-user'
-      });
+      if (typeof window.applyRemoteProgramFieldUpdate === 'function') {
+        window.applyRemoteProgramFieldUpdate({
+          eventId: collabState.eventId,
+          programId,
+          field,
+          value,
+          userName: 'Test User',
+          userId: 'test-user'
+        });
+      }
     },
     
     showTestIndicator: (programId, field) => {

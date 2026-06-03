@@ -112,7 +112,7 @@ function resetPageContainerForNavigation() {
 
 function getTableId() {
   const params = new URLSearchParams(window.location.search);
-  const urlId = params.get('id');
+  const urlId = params.get('id') || params.get('eventId');
   const storedId = localStorage.getItem('eventId');
   const result = urlId || storedId;
   
@@ -121,8 +121,63 @@ function getTableId() {
   return result;
 }
 
+/**
+ * Best-effort event id for the page we're (re)loading.
+ * On refresh, localStorage.eventId can be stale (another tab, a partial nav, etc.).
+ * lastPageState is written on every navigate() with the explicit id and is more reliable.
+ *
+ * NOTE: Do NOT read ?eventId= from the URL here. That param is a one-shot deep link
+ * from the gear page; it stays in the address bar after SPA navigation and hijacks
+ * refresh if we treat it as authoritative (see dashboard.html initial load).
+ */
+function resolveEventIdForPage(page) {
+  try {
+    const savedState = localStorage.getItem('lastPageState');
+    if (savedState) {
+      const pageState = JSON.parse(savedState);
+      const maxAge = 7 * 24 * 60 * 60 * 1000;
+      const isRecent = Date.now() - (pageState.timestamp || 0) <= maxAge;
+      if (pageState.page === page && pageState.eventId && isRecent) {
+        console.log(`[resolveEventId] Using lastPageState eventId: ${pageState.eventId} for page: ${page}`);
+        return pageState.eventId;
+      }
+    }
+  } catch (e) {
+    console.warn('[resolveEventId] Could not parse lastPageState:', e);
+  }
+
+  const storedId = localStorage.getItem('eventId');
+  console.log(`[resolveEventId] Falling back to localStorage: ${storedId}`);
+  return storedId;
+}
+
+/** Event id for the page the user is actually viewing (may differ from stale localStorage). */
+function getActiveEventId() {
+  if (window.__activeEventId) return window.__activeEventId;
+  return localStorage.getItem('eventId');
+}
+
+window.resolveEventIdForPage = resolveEventIdForPage;
+window.getActiveEventId = getActiveEventId;
+
 // Global navigation state
 let navigationInProgress = false;
+
+/** Keep the address bar in sync with SPA routing; remove one-shot gear deep-link params. */
+function syncSpaUrl(page) {
+  try {
+    const url = new URL(window.location.href);
+    url.searchParams.delete('eventId');
+    url.searchParams.delete('page');
+    url.searchParams.delete('id');
+    url.hash = `#${page}`;
+    history.replaceState(null, '', url.pathname + url.search + url.hash);
+  } catch (e) {
+    location.hash = `#${page}`;
+  }
+}
+
+window.syncSpaUrl = syncSpaUrl;
 
 function navigate(page, id) {
   // Prevent double navigation
@@ -142,8 +197,8 @@ function navigate(page, id) {
   // CRITICAL FIX: Determine the final tableId to use consistently throughout navigation
   let finalId = id;
   if (needsId && (!finalId || finalId === "null")) {
-    finalId = getTableId();
-    console.log(`[NAVIGATE] No valid ID provided for ${page}, using getTableId(): ${finalId}`);
+    finalId = resolveEventIdForPage(page) || getTableId();
+    console.log(`[NAVIGATE] No valid ID provided for ${page}, using resolveEventIdForPage/getTableId(): ${finalId}`);
   }
   
   if (needsId && (!finalId || finalId === "null")) {
@@ -159,6 +214,7 @@ function navigate(page, id) {
   // Store the event ID ONLY if we have a valid one and it's needed
   if (finalId && needsId) {
     localStorage.setItem('eventId', finalId);
+    window.__activeEventId = finalId;
     // Logging handled by the localStorage wrapper
   }
   
@@ -208,8 +264,10 @@ function navigate(page, id) {
     pageContainer.innerHTML = '';
   }
   
-  // Update hash and load new page
-  location.hash = `#${page}`;
+  // Update hash and scrub stale ?eventId=&page= query params left over from gear-page
+  // deep links. If we only set location.hash, refresh re-reads the old McGriff id
+  // from the query string and loads the wrong event.
+  syncSpaUrl(page);
   loadPageCSS(page);
   
   // Track the current page to know when we're navigating
@@ -608,7 +666,7 @@ window.addEventListener('hashchange', () => {
   const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'timesheet', 'reimbursements', 'reimbursement-detail'].includes(page);
   
   if (needsId) {
-    const currentEventId = localStorage.getItem('eventId');
+    const currentEventId = resolveEventIdForPage(page);
     console.log(`[HASHCHANGE] Page ${page} needs event ID, using: ${currentEventId}`);
     navigate(page, currentEventId);
   } else {
@@ -617,7 +675,8 @@ window.addEventListener('hashchange', () => {
   }
 });
 
-// Initial load
+// Initial load — dashboard.html owns first navigation (PWA restore + hash routing).
+// app.js only handles hashchange/back-forward after the first paint.
 window.addEventListener('DOMContentLoaded', () => {
   console.log('🔥 DOMContentLoaded fired, checking for elements...');
   console.log('page-container exists:', !!document.getElementById('page-container'));
@@ -641,16 +700,19 @@ window.addEventListener('DOMContentLoaded', () => {
     'card-log-page', 'schedule-page', 'dashboard-page', 'login-page', 'register-page', 'call-times-page', 'flights-page'
   ];
   PAGE_CLASSES_RESET.forEach(cls => document.body.classList.remove(cls));
-  
-  // Get page from hash or default to events
+
+  // dashboard.html inline script performs the initial navigate(); skip here to avoid double-load
+  if (document.getElementById('page-container') && window.location.pathname.endsWith('dashboard.html')) {
+    console.log('[INITIAL_LOAD] dashboard.html will handle first navigation');
+    return;
+  }
+
   const page = location.hash.replace('#', '') || 'events';
   console.log(`[INITIAL_LOAD] Initial page load: ${page}`);
-  
-  // Use the same logic as hashchange handler for consistency
   const needsId = !['events', 'dashboard', 'login', 'register', 'users', 'timesheet'].includes(page);
   
   if (needsId) {
-    const currentEventId = localStorage.getItem('eventId');
+    const currentEventId = resolveEventIdForPage(page);
     console.log(`[INITIAL_LOAD] Page ${page} needs event ID, using: ${currentEventId}`);
     navigate(page, currentEventId);
   } else {
@@ -688,7 +750,7 @@ if (window.PullToRefresh) {
       // Call SPA page refresh logic
       if (window.currentPage && window.navigate) {
         // Get the current event ID more reliably
-        const currentEventId = localStorage.getItem('eventId');
+        const currentEventId = getActiveEventId();
         console.log(`PTR: Refreshing page ${window.currentPage} with eventId: ${currentEventId}`);
         window.navigate(window.currentPage, currentEventId);
       } else {
@@ -806,7 +868,7 @@ function setupDesktopNavigation(navContainer, tableId, currentPage) {
     navLink.addEventListener('click', function(e) {
       e.preventDefault();
       const page = navLink.getAttribute('data-page');
-      const currentEventId = localStorage.getItem('eventId');
+      const currentEventId = typeof getActiveEventId === 'function' ? getActiveEventId() : localStorage.getItem('eventId');
       console.log(`Desktop nav link clicked: ${page}, using currentEventId: ${currentEventId}`);
       
       // Special handling for gear page - redirect to new gear system
@@ -913,7 +975,7 @@ function setupRegularNavLinks(navContainer) {
     newLink.addEventListener('click', function(e) {
       e.preventDefault();
       const page = newLink.getAttribute('data-page');
-      const currentEventId = localStorage.getItem('eventId');
+      const currentEventId = typeof getActiveEventId === 'function' ? getActiveEventId() : localStorage.getItem('eventId');
       console.log(`Regular nav link clicked: ${page}, using currentEventId: ${currentEventId}`);
       
       // Close dropdown menu if it's open
@@ -1087,7 +1149,7 @@ function updateActiveNavigation(currentPage) {
 function saveCurrentPageState(page, eventId = null) {
   const pageState = {
     page: page,
-    eventId: eventId || localStorage.getItem('eventId'),
+    eventId: eventId || getActiveEventId(),
     timestamp: Date.now(),
     url: window.location.href
   };

@@ -610,6 +610,8 @@ window.initPage = async function(id) {
     }
   }
   
+  setupScheduleImportantGestures();
+
   logEventIdState('INIT_COMPLETE');
   const endTime = Date.now();
   console.log(`=== SCHEDULE INITPAGE COMPLETE (${endTime - startTime}ms) ===\n`);
@@ -1158,7 +1160,9 @@ function renderProgramSections(hasScheduleAccess) {
 
     matchingPrograms.forEach(program => {
       const entry = document.createElement('div');
-      entry.className = 'program-entry' + (program.done ? ' done-entry' : '');
+      entry.className = 'program-entry' +
+        (program.done ? ' done-entry' : '') +
+        (program.important ? ' important-entry' : '');
       entry.setAttribute('data-program-index', program.__index);
       
       // Use _id if available, otherwise use _tempId for new programs
@@ -1186,12 +1190,12 @@ function renderProgramSections(hasScheduleAccess) {
               ${!hasScheduleAccess ? 'readonly' : ''}
               onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
               onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'endTime')` : ''}">
-            <div style="display: ${program.folder ? 'flex' : 'none'}; align-items: center; gap: 2px;" class="folder-field-container" data-has-value="${program.folder ? 'true' : 'false'}">
+            <div style="display: ${hasScheduleAccess || program.folder ? 'flex' : 'none'}; align-items: center; gap: 2px;" class="folder-field-container${hasScheduleAccess ? ' folder-field-container--editable' : ''}" data-has-value="${program.folder ? 'true' : 'false'}">
               <span class="material-symbols-outlined folder-icon" style="font-size: 14px; color: #2563eb;">folder</span>
               <input type="text"
                 data-field="folder"
                 class="folder-input"
-                placeholder="Folder"
+                placeholder=""
                 maxlength="7"
                 ${!hasScheduleAccess ? 'readonly' : ''}
                 style="width: 70px; min-width: 50px; padding: 4px 8px; font-size: 12px;"
@@ -1355,12 +1359,144 @@ function applyScrollRestore() {
   }
 }
 
+function showImportantToast(message) {
+  let toast = document.getElementById('scheduleImportantToast');
+  if (!toast) {
+    toast = document.createElement('div');
+    toast.id = 'scheduleImportantToast';
+    toast.className = 'schedule-important-toast';
+    document.body.appendChild(toast);
+  }
+  toast.textContent = message;
+  toast.classList.add('show');
+  clearTimeout(showImportantToast._hideTimer);
+  showImportantToast._hideTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+}
+
+function applyImportantStyles(programIndex, isImportant) {
+  const card = document.querySelector(`.program-entry[data-program-index="${programIndex}"]`);
+  if (card) card.classList.toggle('important-entry', isImportant);
+  const row = document.querySelector(`.schedule-table-section tbody tr[data-program-index="${programIndex}"]`);
+  if (row) row.classList.toggle('important-row', isImportant);
+}
+
+function toggleImportant(programIndex) {
+  if (isNaN(programIndex) || !tableData.programs[programIndex]) {
+    console.error(`[IMPORTANT] Invalid program index: ${programIndex}`);
+    return;
+  }
+
+  const newValue = !tableData.programs[programIndex].important;
+  if (!safeUpdateProgram(programIndex, 'important', newValue)) return;
+
+  applyImportantStyles(programIndex, newValue);
+  showImportantToast(newValue ? 'Marked important' : 'Removed important flag');
+  scheduleSave();
+}
+
+const SCHEDULE_LONG_PRESS_MS = 500;
+const SCHEDULE_LONG_PRESS_MOVE_CANCEL_PX = 12;
+let scheduleLongPressTimer = null;
+let scheduleLongPressRow = null;
+let scheduleLongPressIndex = null;
+let scheduleLongPressStartX = 0;
+let scheduleLongPressStartY = 0;
+
+function cancelScheduleLongPress() {
+  clearTimeout(scheduleLongPressTimer);
+  scheduleLongPressTimer = null;
+  if (scheduleLongPressRow) {
+    scheduleLongPressRow.classList.remove('schedule-longpress-pending');
+    scheduleLongPressRow = null;
+  }
+  scheduleLongPressIndex = null;
+}
+
+function getScheduleProgramIndexFromTarget(target) {
+  const row = target.closest('.program-entry, .schedule-table-section tbody tr[data-program-index]');
+  if (!row) return null;
+  const index = parseInt(row.getAttribute('data-program-index'), 10);
+  return Number.isNaN(index) ? null : index;
+}
+
+function isScheduleInteractiveTarget(target) {
+  return Boolean(
+    target.closest('input, textarea, select, button, a, label, .delete-date-btn, .delete-row-btn')
+  );
+}
+
+function setupScheduleImportantGestures() {
+  const containers = [
+    document.getElementById('programSections'),
+    document.getElementById('scheduleTableView')
+  ];
+
+  containers.forEach(container => {
+    if (!container || container.dataset.importantGesturesInit) return;
+    container.dataset.importantGesturesInit = '1';
+
+    container.addEventListener('contextmenu', (e) => {
+      if (window.innerWidth <= 768) return;
+      if (isScheduleInteractiveTarget(e.target)) return;
+      const programIndex = getScheduleProgramIndexFromTarget(e.target);
+      if (programIndex == null) return;
+      e.preventDefault();
+      toggleImportant(programIndex);
+    });
+
+    container.addEventListener('touchstart', (e) => {
+      if (window.innerWidth > 768) return;
+      if (e.touches.length !== 1) return;
+      if (isScheduleInteractiveTarget(e.target)) return;
+
+      const programIndex = getScheduleProgramIndexFromTarget(e.target);
+      if (programIndex == null) return;
+
+      scheduleLongPressRow = e.target.closest('.program-entry, .schedule-table-section tbody tr[data-program-index]');
+      if (!scheduleLongPressRow) return;
+
+      scheduleLongPressIndex = programIndex;
+      scheduleLongPressStartX = e.touches[0].clientX;
+      scheduleLongPressStartY = e.touches[0].clientY;
+      scheduleLongPressRow.classList.add('schedule-longpress-pending');
+
+      clearTimeout(scheduleLongPressTimer);
+      scheduleLongPressTimer = setTimeout(() => {
+        scheduleLongPressTimer = null;
+        if (scheduleLongPressIndex == null) return;
+        const index = scheduleLongPressIndex;
+        cancelScheduleLongPress();
+        if (navigator.vibrate) navigator.vibrate(12);
+        toggleImportant(index);
+      }, SCHEDULE_LONG_PRESS_MS);
+    }, { passive: true });
+
+    container.addEventListener('touchmove', (e) => {
+      if (!scheduleLongPressTimer || !scheduleLongPressRow) return;
+      const dx = e.touches[0].clientX - scheduleLongPressStartX;
+      const dy = e.touches[0].clientY - scheduleLongPressStartY;
+      if (Math.hypot(dx, dy) > SCHEDULE_LONG_PRESS_MOVE_CANCEL_PX) {
+        cancelScheduleLongPress();
+      }
+    }, { passive: true });
+
+    container.addEventListener('touchend', cancelScheduleLongPress, { passive: true });
+    container.addEventListener('touchcancel', cancelScheduleLongPress, { passive: true });
+  });
+}
+
 function toggleFolderVisibility(input) {
   const container = input.closest('.folder-field-container');
   if (!container) return;
-  
+
   const hasValue = input.value.trim().length > 0;
   container.setAttribute('data-has-value', hasValue ? 'true' : 'false');
+
+  if (container.classList.contains('folder-field-container--editable')) {
+    container.style.display = 'flex';
+    return;
+  }
+
   container.style.display = hasValue ? 'flex' : 'none';
 }
 
@@ -3150,6 +3286,7 @@ function safeAddProgram(date) {
     folder: '',
     notes: '',
     done: false,
+    important: false,
     // Add a temporary ID for UI consistency (will be replaced by MongoDB _id after save)
     _tempId: generateTempId()
   };
@@ -3279,6 +3416,7 @@ function addDateSection() {
     folder: '',
     notes: '',
     done: false,
+    important: false,
     // Add automatic temporary ID for collaborative system compatibility
     _tempId: generateTempId()
   };
@@ -3333,6 +3471,7 @@ window.scheduleSave = scheduleSave;
 window.renderProgramSections = renderProgramSections;
 window.toggleDone = toggleDone;
 window.toggleFolderVisibility = toggleFolderVisibility;
+window.toggleImportant = toggleImportant;
 window.matchesSearch = matchesSearch;
 window.enableEdit = enableEdit;
 window.autoSave = autoSave;
@@ -3828,6 +3967,7 @@ function processImportedData(data) {
       folder: columnMap.folder !== -1 ? (row[columnMap.folder] || '') : '',
       notes: columnMap.notes !== -1 ? (row[columnMap.notes] || '') : '',
       done: isDone,
+      important: false,
       // Add automatic temporary ID for collaborative system compatibility
       _tempId: generateTempId(`import_${i}`)
     });
@@ -4113,6 +4253,151 @@ window.updateProgramRow = updateProgramRow;
 window.updateProgramFields = updateProgramFields;
 window.preserveProgramInputStates = preserveProgramInputStates;
 
+function getRemoteFieldDisplayValue(field, value) {
+  if (field === 'startTime' || field === 'endTime') {
+    return formatTo12Hour(value || '');
+  }
+  return value || '';
+}
+
+function showRemoteFieldUpdateFeedback(targetElement, anchorElement, userName) {
+  if (!targetElement) return;
+
+  targetElement.style.background = '#e3f2fd';
+  targetElement.style.transition = 'background 0.5s ease';
+  setTimeout(() => {
+    targetElement.style.background = '';
+  }, 2000);
+
+  if (userName && userName !== 'Unknown User' && anchorElement) {
+    const notification = document.createElement('div');
+    notification.style.cssText = `
+      position: absolute;
+      top: -25px;
+      right: 0;
+      background: #2196f3;
+      color: white;
+      padding: 2px 6px;
+      border-radius: 3px;
+      font-size: 11px;
+      z-index: 1000;
+      pointer-events: none;
+    `;
+    notification.textContent = `Updated by ${userName}`;
+    anchorElement.style.position = 'relative';
+    anchorElement.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+  }
+}
+
+function applyRemoteProgramFieldUpdate(data) {
+  const currentEvent = currentEventId || localStorage.getItem('eventId');
+  if (data.eventId !== currentEvent) {
+    console.log(`[SOCKET] Field update is for different event (${data.eventId}), current: ${currentEvent}, ignoring`);
+    return false;
+  }
+
+  const currentSessionId = window.SimpleCollab?.getCurrentUser?.()?.sessionId;
+  if (data.sessionId && data.sessionId === currentSessionId) {
+    console.log('[SOCKET] Ignoring field update from own session');
+    return false;
+  }
+
+  const protectionKey = `${data.programId}-${data.field}`;
+  const recentEdit = window.recentlyEditedFields?.get(protectionKey);
+  if (recentEdit && Date.now() - recentEdit.timestamp < 10000) {
+    console.log(`[SOCKET] Field recently edited by current user, skipping update for ${data.field}`);
+    return false;
+  }
+
+  const programIndex = tableData.programs.findIndex(p => p._id === data.programId);
+  if (programIndex === -1) {
+    console.warn(`[SOCKET] Program not found in local data: ${data.programId}`);
+    return false;
+  }
+
+  const { programId, field, value, userName } = data;
+  let feedbackElement = null;
+  let feedbackAnchor = null;
+
+  const cardEntry = document.querySelector(`.program-entry[data-program-id='${programId}']`);
+  if (cardEntry) {
+    feedbackAnchor = cardEntry;
+
+    if (field === 'important') {
+      cardEntry.classList.toggle('important-entry', Boolean(value));
+    }
+
+    const fieldElement = cardEntry.querySelector(`[data-field='${field}']`);
+    if (fieldElement && document.activeElement !== fieldElement) {
+      if (fieldElement.type === 'checkbox') {
+        fieldElement.checked = Boolean(value);
+        fieldElement.setAttribute('data-original-value', value ? 'true' : 'false');
+        cardEntry.classList.toggle('done-entry', Boolean(value));
+      } else {
+        fieldElement.value = value || '';
+        if (field === 'folder') {
+          toggleFolderVisibility(fieldElement);
+        }
+      }
+      feedbackElement = fieldElement;
+    }
+  }
+
+  const tableRow = document.querySelector(`.schedule-table-section tbody tr[data-program-id='${programId}']`);
+  if (tableRow) {
+    if (!feedbackAnchor) feedbackAnchor = tableRow;
+
+    if (field === 'important') {
+      tableRow.classList.toggle('important-row', Boolean(value));
+    }
+
+    if (field === 'done') {
+      const doneCheckbox = tableRow.querySelector('.done-checkbox');
+      const doneCell = tableRow.querySelector('.done-checkbox-cell');
+      if (
+        doneCheckbox &&
+        document.activeElement !== doneCheckbox &&
+        !doneCell?.classList.contains('editing')
+      ) {
+        doneCheckbox.checked = Boolean(value);
+        doneCheckbox.setAttribute('data-original-value', value ? 'true' : 'false');
+        tableRow.classList.toggle('done-row', Boolean(value));
+        if (!feedbackElement) feedbackElement = doneCheckbox;
+      }
+    } else if (field !== 'important') {
+      const cell = tableRow.querySelector(`td[data-field='${field}']`);
+      const inlineInput = cell?.querySelector('.inline-edit-input');
+      if (
+        cell &&
+        !cell.classList.contains('editing') &&
+        document.activeElement !== inlineInput
+      ) {
+        const display = cell.querySelector('.cell-display');
+        if (display) {
+          display.textContent = getRemoteFieldDisplayValue(field, value);
+          if (!feedbackElement) feedbackElement = display;
+        }
+      }
+    }
+  }
+
+  safeUpdateProgram(programIndex, field, value);
+  showRemoteFieldUpdateFeedback(feedbackElement, feedbackAnchor, userName);
+
+  if (field === 'startTime' || field === 'endTime') {
+    setTimeout(() => renderProgramSections(isOwner), 50);
+    if (currentView === 'table' && window.innerWidth > 768) {
+      setTimeout(() => renderScheduleTable(), 100);
+    }
+  }
+
+  console.log(`✅ [SOCKET] Applied field update: ${field} = "${value}" by ${userName}`);
+  return true;
+}
+
+window.applyRemoteProgramFieldUpdate = applyRemoteProgramFieldUpdate;
+
 // --- Socket.IO real-time updates ---
 if (window.socket) {
   console.log('[SOCKET] Using global socket for schedule updates');
@@ -4267,111 +4552,10 @@ if (window.socket) {
     }
   });
   
-  // NEW: Listen for atomic field updates - this prevents data loss!
+  // Canonical field sync: PATCH /program-field → programFieldUpdated
   window.socket.on('programFieldUpdated', (data) => {
     console.log(`[SOCKET] Field update received:`, data);
-    
-    const currentEvent = currentEventId || localStorage.getItem('eventId');
-    
-    // Only update if this update is for the current event
-    if (data.eventId === currentEvent) {
-      console.log(`[SOCKET] Field update is for current event (${currentEvent}), processing...`);
-      
-      // Don't update if this came from the current user's session
-      const currentSessionId = window.SimpleCollab?.getCurrentUser?.()?.sessionId;
-      if (data.sessionId && data.sessionId === currentSessionId) {
-        console.log('[SOCKET] Ignoring field update from own session');
-        return;
-      }
-      
-      // Find the specific field element
-      const container = document.getElementById('programSections');
-      if (!container) {
-        console.warn('[SOCKET] Program container not found');
-        return;
-      }
-      
-      const entry = container.querySelector(`.program-entry[data-program-id='${data.programId}']`);
-      if (!entry) {
-        console.warn(`[SOCKET] Program entry not found: ${data.programId}`);
-        return;
-      }
-      
-      const fieldElement = entry.querySelector(`[data-field='${data.field}']`);
-      if (!fieldElement) {
-        console.warn(`[SOCKET] Field element not found: ${data.field}`);
-        return;
-      }
-      
-      // Don't update if user is currently editing this specific field
-      if (document.activeElement === fieldElement) {
-        console.log('[SOCKET] User is editing this field, deferring update');
-        return;
-      }
-      
-      // Check if this field was recently edited by the current user
-      const protectionKey = `${data.programId}-${data.field}`;
-      const recentEdit = window.recentlyEditedFields?.get(protectionKey);
-      if (recentEdit && Date.now() - recentEdit.timestamp < 10000) {
-        console.log(`[SOCKET] Field recently edited by current user, skipping update for ${data.field}`);
-        return;
-      }
-      
-      // Update the field value
-      const oldValue = fieldElement.type === 'checkbox' ? fieldElement.checked : fieldElement.value;
-      
-      if (fieldElement.type === 'checkbox') {
-        fieldElement.checked = data.value;
-        fieldElement.setAttribute('data-original-value', data.value ? 'true' : 'false');
-        // Update visual state
-        entry.classList.toggle('done-entry', data.value);
-      } else {
-        fieldElement.value = data.value || '';
-      }
-      
-      // Update local data
-      const programIndex = tableData.programs.findIndex(p => p._id === data.programId);
-      if (programIndex !== -1) {
-        safeUpdateProgram(programIndex, data.field, data.value);
-      }
-      
-      // Show visual feedback that field was updated by another user
-      fieldElement.style.background = '#e3f2fd';
-      fieldElement.style.transition = 'background 0.5s ease';
-      
-      setTimeout(() => {
-        fieldElement.style.background = '';
-      }, 2000);
-      
-      // Show notification of who made the change
-      if (data.userName && data.userName !== 'Unknown User') {
-        const notification = document.createElement('div');
-        notification.style.cssText = `
-          position: absolute;
-          top: -25px;
-          right: 0;
-          background: #2196f3;
-          color: white;
-          padding: 2px 6px;
-          border-radius: 3px;
-          font-size: 11px;
-          z-index: 1000;
-          pointer-events: none;
-        `;
-        notification.textContent = `Updated by ${data.userName}`;
-        
-        entry.style.position = 'relative';
-        entry.appendChild(notification);
-        
-        setTimeout(() => {
-          notification.remove();
-        }, 3000);
-      }
-      
-      console.log(`✅ [SOCKET] Applied field update: ${data.field} = "${data.value}" by ${data.userName}`);
-    } else {
-      console.log(`[SOCKET] Field update is for different event (${data.eventId}), current: ${currentEvent}, ignoring`);
-    }
+    applyRemoteProgramFieldUpdate(data);
   });
   
   // Listen for user presence updates
@@ -4533,6 +4717,7 @@ function updateProgramRow(program, hasScheduleAccess) {
   
   // Always update the done-entry class for strikethrough
   entry.classList.toggle('done-entry', program.done);
+  entry.classList.toggle('important-entry', Boolean(program.important));
   
   // Merge the incoming program data with protection for active editing
   const currentProgram = tableData.programs[programIndex];
@@ -4596,6 +4781,8 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
       entry.classList.toggle('done-entry', Boolean(program.done));
     }
   }
+
+  entry.classList.toggle('important-entry', Boolean(program.important));
   
   // Update start time
   const startTimeInput = entry.querySelector('input[type="time"]:first-of-type');
@@ -4662,12 +4849,12 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
       
       folderInput.value = program.folder || '';
       
-      // Show/hide folder field based on whether there's data
       const container = folderInput.closest('.folder-field-container');
       if (container) {
         const hasValue = (program.folder || '').trim().length > 0;
         container.setAttribute('data-has-value', hasValue ? 'true' : 'false');
-        container.style.display = hasValue ? 'flex' : 'none';
+        const alwaysVisible = container.classList.contains('folder-field-container--editable');
+        container.style.display = alwaysVisible || hasValue ? 'flex' : 'none';
       }
     }
   }
@@ -5103,7 +5290,7 @@ function renderScheduleTable() {
     const tbody = document.createElement('tbody');
     matchingPrograms.forEach(program => {
       const row = document.createElement('tr');
-      row.className = program.done ? 'done-row' : '';
+      row.className = (program.done ? 'done-row' : '') + (program.important ? ' important-row' : '');
       row.setAttribute('data-program-index', program.__index);
       
       const programId = program._id || program._tempId;

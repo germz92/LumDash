@@ -376,49 +376,9 @@ io.on('connection', (socket) => {
     }
   });
 
-  // When user updates a field
-  socket.on('updateField', async (data) => {
-    console.log('⚡ [SIMPLE] Field update received:', data);
-    
-    const { eventId, programId, field, value, userId, sessionId, userName } = data;
-    if (eventId && programId && field && userId) {
-      try {
-        const roomName = `event-${eventId}`;
-        
-        // Save to database first
-        await updateProgramInDatabase({
-          eventId,
-          programId,
-          field,
-          value,
-          userId
-        });
-        
-        // Broadcast to all other users in the same event
-        socket.to(roomName).emit('fieldUpdated', {
-          eventId,
-          programId,
-          field,
-          value,
-          userId,
-          sessionId,
-          userName
-        });
-        
-        console.log(`✅ [SIMPLE] Broadcasted field update: ${field} = ${value} by ${userName}`);
-        
-      } catch (error) {
-        console.error('❌ [SIMPLE] Error updating field:', error);
-        
-        // Send error back to user
-        socket.emit('updateError', {
-          eventId,
-          programId,
-          field,
-          error: 'Failed to update field'
-        });
-      }
-    }
+  // Deprecated: field persistence uses PATCH /program-field only (programFieldUpdated broadcast).
+  socket.on('updateField', (data) => {
+    console.warn('[SIMPLE] updateField ignored — schedule fields must be saved via PATCH /program-field');
   });
   
   // =============================================================================

@@ -197,8 +197,9 @@
       const hasEventParam = urlParams.get('id') || urlParams.get('eventId');
       const pageParam = urlParams.get('page');
       
-      // If there's a page parameter (coming from gear page), navigate to that page
-      if (pageParam && hasEventParam) {
+      // One-shot deep link from gear page (?eventId=&page=) — only when there is no hash yet.
+      // If #schedule (etc.) is already present, the query params are stale leftovers.
+      if (pageParam && hasEventParam && !urlHash) {
         console.log(`[PWA] Navigating to page from URL parameter: ${pageParam} with eventId: ${hasEventParam}`);
         navigate(pageParam, hasEventParam);
         return;
@@ -214,8 +215,11 @@
           navigate('events');
         }
       } else if (urlHash) {
-        // If there's a hash in the URL, navigate to that page
-        const eventId = hasEventParam || localStorage.getItem('eventId');
+        // Hash is authoritative for page; event id comes from lastPageState/localStorage — NOT ?eventId=
+        const eventId = typeof resolveEventIdForPage === 'function'
+          ? resolveEventIdForPage(urlHash)
+          : localStorage.getItem('eventId');
+        console.log(`[PWA] Hash restore: page=${urlHash}, eventId=${eventId}`);
         navigate(urlHash, eventId);
       } else {
         // Default fallback
@@ -227,7 +231,7 @@
     window.addEventListener('hashchange', function(e) {
       const newHash = window.location.hash.replace('#', '');
       if (newHash && typeof saveCurrentPageState === 'function') {
-        const eventId = localStorage.getItem('eventId');
+        const eventId = typeof getActiveEventId === 'function' ? getActiveEventId() : localStorage.getItem('eventId');
         console.log('[PWA] Hash changed to:', newHash, 'saving page state');
         saveCurrentPageState(newHash, eventId);
       }
@@ -236,7 +240,7 @@
     // Handle PWA lifecycle events to save page state
     document.addEventListener('visibilitychange', function() {
       if (document.hidden && typeof saveCurrentPageState === 'function' && window.currentPage) {
-        const eventId = localStorage.getItem('eventId');
+        const eventId = typeof getActiveEventId === 'function' ? getActiveEventId() : localStorage.getItem('eventId');
         console.log('[PWA] App going to background, saving current page state:', window.currentPage);
         saveCurrentPageState(window.currentPage, eventId);
         
@@ -254,7 +258,7 @@
     // Handle beforeunload to save state when app is closed
     window.addEventListener('beforeunload', function() {
       if (typeof saveCurrentPageState === 'function' && window.currentPage) {
-        const eventId = localStorage.getItem('eventId');
+        const eventId = typeof getActiveEventId === 'function' ? getActiveEventId() : localStorage.getItem('eventId');
         console.log('[PWA] App closing, saving current page state:', window.currentPage);
         saveCurrentPageState(window.currentPage, eventId);
       }
