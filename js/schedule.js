@@ -1660,6 +1660,12 @@ function applyProgramRowColorStyles(programIndex, colorId) {
   });
 }
 
+function syncProgramRowColorFromData(programIndex) {
+  const program = tableData.programs[programIndex];
+  if (!program) return;
+  applyProgramRowColorStyles(programIndex, getProgramRowColor(program));
+}
+
 function setProgramRowColor(programIndex, colorId) {
   if (isNaN(programIndex) || !tableData.programs[programIndex]) {
     console.error(`[ROW COLOR] Invalid program index: ${programIndex}`);
@@ -1976,7 +1982,10 @@ function enableEdit(field) {
   field.dataset.focusValue = field.type === 'checkbox' ? String(field.checked) : (field.value ?? '');
   const entry = field.closest('.program-entry');
   if (entry) {
-    const programIndex = entry.getAttribute('data-program-index');
+    const programIndex = parseInt(entry.getAttribute('data-program-index'), 10);
+    if (!Number.isNaN(programIndex)) {
+      syncProgramRowColorFromData(programIndex);
+    }
     const program = tableData.programs[programIndex];
     if (program && program._id) {
       window.currentlyEditing = {
@@ -5057,38 +5066,40 @@ function updateProgramRow(program, hasScheduleAccess) {
   
   // Always update the done-entry class for strikethrough
   entry.classList.toggle('done-entry', program.done);
-  SCHEDULE_COLOR_CLASS_NAMES.forEach(cls => entry.classList.remove(cls));
-  const rowColor = getProgramRowColor(program);
-  if (rowColor) entry.classList.add(`schedule-color-${rowColor}`);
-  
+
   // Merge the incoming program data with protection for active editing
   const currentProgram = tableData.programs[programIndex];
   const finalProgram = { ...currentProgram };
-  
+
   // Check each field in the incoming update
   for (const [key, value] of Object.entries(program)) {
     const fieldKey = `${program._id}-${key}`;
     const recentEdit = window.recentlyEditedFields.get(fieldKey);
     const currentlyEditing = window.currentlyEditingField === fieldKey;
     const isFieldFocused = preservationData.focusedField === key;
-    
+
     // Skip this field if it was recently edited, currently being edited, or currently focused
     if (recentEdit && Date.now() - recentEdit.timestamp < 5000) {
       console.log(`[UPDATE] Preserving recently edited field: ${key} (${Date.now() - recentEdit.timestamp}ms ago)`);
       continue;
     }
-    
+
     if (currentlyEditing || isFieldFocused) {
       console.log(`[UPDATE] Preserving actively editing field: ${key}`);
       continue;
     }
-    
+
     finalProgram[key] = value;
   }
-  
+
   // Update the local data
   tableData.programs[programIndex] = finalProgram;
-  
+
+  // Row color must use merged data — partial socket payloads often omit rowColor
+  SCHEDULE_COLOR_CLASS_NAMES.forEach(cls => entry.classList.remove(cls));
+  const rowColor = getProgramRowColor(finalProgram);
+  if (rowColor) entry.classList.add(`schedule-color-${rowColor}`);
+
   // Smart update individual fields instead of rebuilding entire HTML
   updateProgramFields(entry, finalProgram, preservationData, hasScheduleAccess, programIndex);
   
