@@ -729,7 +729,7 @@ window.initPage = async function(id) {
     }
   }
   
-  setupScheduleImportantGestures();
+  setupScheduleColorGestures();
 
   logEventIdState('INIT_COMPLETE');
   const endTime = Date.now();
@@ -833,6 +833,7 @@ async function loadPrograms(tableId = null, retryCount = 0) {
 
     const data = await response.json();
     console.log(`[LOAD] Event data received for event: ${eventId}`);
+    scheduleColorLegend = normalizeScheduleColorLegend(data.scheduleColorLegend);
     logEventIdState('AFTER_EVENT_PARSE');
 
     // Use the original data structure with validation
@@ -1285,7 +1286,7 @@ function renderProgramSections(hasScheduleAccess) {
       const entry = document.createElement('div');
       entry.className = 'program-entry' +
         (program.done ? ' done-entry' : '') +
-        (program.important ? ' important-entry' : '');
+        getProgramRowColorClass(program);
       entry.setAttribute('data-program-index', program.__index);
       
       // Use _id if available, otherwise use _tempId for new programs
@@ -1482,39 +1483,313 @@ function applyScrollRestore() {
   }
 }
 
-function showImportantToast(message) {
-  let toast = document.getElementById('scheduleImportantToast');
+const SCHEDULE_ROW_COLORS = {
+  red: { label: 'Red' },
+  blue: { label: 'Blue' },
+  green: { label: 'Green' },
+  yellow: { label: 'Yellow' }
+};
+const SCHEDULE_COLOR_CLASS_NAMES = Object.keys(SCHEDULE_ROW_COLORS).map(id => `schedule-color-${id}`);
+const DEFAULT_SCHEDULE_COLOR_LEGEND = {
+  red: 'Important',
+  blue: '',
+  green: '',
+  yellow: ''
+};
+let scheduleColorLegend = { ...DEFAULT_SCHEDULE_COLOR_LEGEND };
+
+function normalizeScheduleColorLegend(raw) {
+  const legend = { ...DEFAULT_SCHEDULE_COLOR_LEGEND };
+  if (raw && typeof raw === 'object') {
+    Object.keys(SCHEDULE_ROW_COLORS).forEach((id) => {
+      if (typeof raw[id] === 'string') legend[id] = raw[id];
+    });
+  }
+  return legend;
+}
+
+function escapeScheduleLegendHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function renderScheduleColorLegendModal() {
+  const body = document.getElementById('scheduleLegendBody');
+  const footer = document.getElementById('scheduleLegendFooter');
+  const editHint = document.getElementById('scheduleLegendEditHint');
+  const viewHint = document.getElementById('scheduleLegendViewHint');
+  if (!body) return;
+
+  const canEdit = isOwner || getUserRoleFromToken() === 'admin';
+
+  if (editHint) editHint.style.display = canEdit ? 'block' : 'none';
+  if (viewHint) viewHint.style.display = canEdit ? 'none' : 'block';
+  if (footer) footer.style.display = canEdit ? 'flex' : 'none';
+
+  body.innerHTML = Object.entries(SCHEDULE_ROW_COLORS).map(([id, { label }]) => {
+    const value = scheduleColorLegend[id] || '';
+    if (canEdit) {
+      return `
+        <div class="schedule-legend-row">
+          <span class="schedule-color-swatch schedule-color-swatch-${id}" aria-hidden="true"></span>
+          <div class="schedule-legend-row-content">
+            <span class="schedule-legend-color-name">${label}</span>
+            <input type="text" class="schedule-legend-input" data-color-id="${id}"
+              value="${escapeScheduleLegendHtml(value)}"
+              placeholder="e.g. ${id === 'red' ? 'Important' : 'Add meaning…'}"
+              maxlength="80" aria-label="${label} meaning">
+          </div>
+        </div>`;
+    }
+    const meaning = value
+      ? `<span class="schedule-legend-meaning">${escapeScheduleLegendHtml(value)}</span>`
+      : '<span class="schedule-legend-meaning schedule-legend-meaning--empty">Not set</span>';
+    return `
+      <div class="schedule-legend-row schedule-legend-row--readonly">
+        <span class="schedule-color-swatch schedule-color-swatch-${id}" aria-hidden="true"></span>
+        <div class="schedule-legend-row-content">
+          <span class="schedule-legend-color-name">${label}</span>
+          ${meaning}
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function openScheduleColorLegendModal() {
+  const modal = document.getElementById('scheduleColorLegendModal');
+  if (!modal) return;
+  renderScheduleColorLegendModal();
+  modal.style.display = 'flex';
+  document.body.classList.add('schedule-legend-modal-open');
+}
+
+function closeScheduleColorLegendModal() {
+  const modal = document.getElementById('scheduleColorLegendModal');
+  if (!modal) return;
+  modal.style.display = 'none';
+  document.body.classList.remove('schedule-legend-modal-open');
+}
+
+async function saveScheduleColorLegend() {
+  if (!isOwner && getUserRoleFromToken() !== 'admin') return;
+
+  const tableId = currentEventId || localStorage.getItem('eventId');
+  if (!tableId) return;
+
+  const legend = { ...DEFAULT_SCHEDULE_COLOR_LEGEND };
+  document.querySelectorAll('#scheduleLegendBody .schedule-legend-input').forEach((input) => {
+    const id = input.dataset.colorId;
+    if (id && SCHEDULE_ROW_COLORS[id]) {
+      legend[id] = input.value.trim();
+    }
+  });
+
+  const saveBtn = document.querySelector('.schedule-legend-save-btn');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Saving…';
+  }
+
+  try {
+    const response = await fetch(`${API_BASE}/api/tables/${tableId}/schedule-color-legend`, {
+      method: 'PATCH',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: localStorage.getItem('token')
+      },
+      body: JSON.stringify({ legend })
+    });
+
+    if (!response.ok) {
+      const err = await response.json().catch(() => ({}));
+      throw new Error(err.error || 'Failed to save legend');
+    }
+
+    const result = await response.json();
+    scheduleColorLegend = normalizeScheduleColorLegend(result.legend);
+    closeScheduleColorLegendModal();
+    showScheduleToast('Legend saved');
+  } catch (error) {
+    console.error('[LEGEND] Save failed:', error);
+    alert(error.message || 'Could not save legend');
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Save Legend';
+    }
+  }
+}
+
+function getProgramRowColor(program) {
+  if (program.rowColor && SCHEDULE_ROW_COLORS[program.rowColor]) return program.rowColor;
+  if (program.important) return 'red';
+  return '';
+}
+
+function getProgramRowColorClass(program) {
+  const color = getProgramRowColor(program);
+  return color ? ` schedule-color-${color}` : '';
+}
+
+function showScheduleToast(message) {
+  let toast = document.getElementById('scheduleColorToast');
   if (!toast) {
     toast = document.createElement('div');
-    toast.id = 'scheduleImportantToast';
-    toast.className = 'schedule-important-toast';
+    toast.id = 'scheduleColorToast';
+    toast.className = 'schedule-color-toast';
     document.body.appendChild(toast);
   }
   toast.textContent = message;
   toast.classList.add('show');
-  clearTimeout(showImportantToast._hideTimer);
-  showImportantToast._hideTimer = setTimeout(() => toast.classList.remove('show'), 1800);
+  clearTimeout(showScheduleToast._hideTimer);
+  showScheduleToast._hideTimer = setTimeout(() => toast.classList.remove('show'), 1800);
 }
 
-function applyImportantStyles(programIndex, isImportant) {
+function applyProgramRowColorStyles(programIndex, colorId) {
   const card = document.querySelector(`.program-entry[data-program-index="${programIndex}"]`);
-  if (card) card.classList.toggle('important-entry', isImportant);
   const row = document.querySelector(`.schedule-table-section tbody tr[data-program-index="${programIndex}"]`);
-  if (row) row.classList.toggle('important-row', isImportant);
+  [card, row].forEach(el => {
+    if (!el) return;
+    SCHEDULE_COLOR_CLASS_NAMES.forEach(cls => el.classList.remove(cls));
+    if (colorId && SCHEDULE_ROW_COLORS[colorId]) {
+      el.classList.add(`schedule-color-${colorId}`);
+    }
+  });
 }
 
-function toggleImportant(programIndex) {
+function setProgramRowColor(programIndex, colorId) {
   if (isNaN(programIndex) || !tableData.programs[programIndex]) {
-    console.error(`[IMPORTANT] Invalid program index: ${programIndex}`);
+    console.error(`[ROW COLOR] Invalid program index: ${programIndex}`);
     return;
   }
 
-  const oldValue = Boolean(tableData.programs[programIndex].important);
-  const newValue = !oldValue;
+  const program = tableData.programs[programIndex];
+  const oldValue = getProgramRowColor(program);
+  const newValue = colorId && SCHEDULE_ROW_COLORS[colorId] ? colorId : '';
 
-  applyImportantStyles(programIndex, newValue);
-  showImportantToast(newValue ? 'Marked important' : 'Removed important flag');
-  saveProgramField({ programIndex, field: 'important', value: newValue, oldValue, baseValue: oldValue });
+  applyProgramRowColorStyles(programIndex, newValue);
+  showScheduleToast(
+    newValue ? `Marked ${SCHEDULE_ROW_COLORS[newValue].label}` : 'Color cleared'
+  );
+  saveProgramField({ programIndex, field: 'rowColor', value: newValue, oldValue, baseValue: oldValue });
+}
+
+let scheduleColorMenu = null;
+let scheduleColorMenuOutsideHandler = null;
+
+function hideScheduleColorMenu() {
+  if (!scheduleColorMenu) return;
+  scheduleColorMenu.classList.remove('show');
+  scheduleColorMenu._programIndex = null;
+  if (scheduleColorMenuOutsideHandler) {
+    document.removeEventListener('mousedown', scheduleColorMenuOutsideHandler);
+    document.removeEventListener('touchstart', scheduleColorMenuOutsideHandler);
+    scheduleColorMenuOutsideHandler = null;
+  }
+}
+
+function ensureScheduleColorMenu() {
+  if (scheduleColorMenu) return scheduleColorMenu;
+
+  const menu = document.createElement('div');
+  menu.id = 'scheduleColorMenu';
+  menu.className = 'schedule-color-menu';
+  menu.innerHTML = `
+    <div class="schedule-color-menu-title">Row color</div>
+    ${Object.entries(SCHEDULE_ROW_COLORS).map(([id, { label }]) => `
+      <button type="button" class="schedule-color-option" data-color="${id}">
+        <span class="schedule-color-swatch schedule-color-swatch-${id}" aria-hidden="true"></span>
+        ${label}
+      </button>
+    `).join('')}
+    <button type="button" class="schedule-color-option schedule-color-clear" data-color="">
+      Clear color
+    </button>
+    <button type="button" class="schedule-color-option schedule-color-legend-link" data-action="legend">
+      <span class="material-symbols-outlined" aria-hidden="true">palette</span>
+      Color legend
+    </button>
+  `;
+
+  menu.addEventListener('click', (e) => {
+    const legendBtn = e.target.closest('[data-action="legend"]');
+    if (legendBtn) {
+      e.stopPropagation();
+      hideScheduleColorMenu();
+      openScheduleColorLegendModal();
+      return;
+    }
+    const btn = e.target.closest('[data-color]');
+    if (!btn || menu._programIndex == null) return;
+    e.stopPropagation();
+    setProgramRowColor(menu._programIndex, btn.dataset.color || '');
+    hideScheduleColorMenu();
+  });
+
+  document.body.appendChild(menu);
+  scheduleColorMenu = menu;
+  return menu;
+}
+
+function refreshScheduleColorMenuLabels() {
+  const menu = scheduleColorMenu || document.getElementById('scheduleColorMenu');
+  if (!menu) return;
+  menu.querySelectorAll('.schedule-color-option[data-color]').forEach((btn) => {
+    const id = btn.dataset.color;
+    if (!id || !SCHEDULE_ROW_COLORS[id]) return;
+    const meaning = scheduleColorLegend[id];
+    let hint = btn.querySelector('.schedule-color-option-hint');
+    if (meaning) {
+      if (!hint) {
+        hint = document.createElement('span');
+        hint.className = 'schedule-color-option-hint';
+        btn.appendChild(hint);
+      }
+      hint.textContent = meaning;
+    } else if (hint) {
+      hint.remove();
+    }
+  });
+}
+
+function showScheduleColorMenu(programIndex, clientX, clientY) {
+  const menu = ensureScheduleColorMenu();
+  refreshScheduleColorMenuLabels();
+  menu._programIndex = programIndex;
+  menu.classList.add('show');
+  menu.style.visibility = 'hidden';
+
+  const menuRect = menu.getBoundingClientRect();
+  const pad = 8;
+  let left = clientX;
+  let top = clientY;
+  if (left + menuRect.width > window.innerWidth - pad) {
+    left = window.innerWidth - menuRect.width - pad;
+  }
+  if (top + menuRect.height > window.innerHeight - pad) {
+    top = window.innerHeight - menuRect.height - pad;
+  }
+  menu.style.left = `${Math.max(pad, left)}px`;
+  menu.style.top = `${Math.max(pad, top)}px`;
+  menu.style.visibility = '';
+
+  scheduleColorMenuOutsideHandler = (e) => {
+    if (menu.contains(e.target)) return;
+    hideScheduleColorMenu();
+  };
+  setTimeout(() => {
+    document.addEventListener('mousedown', scheduleColorMenuOutsideHandler);
+    document.addEventListener('touchstart', scheduleColorMenuOutsideHandler, { passive: true });
+  }, 0);
+}
+
+function openScheduleColorMenuForProgram(programIndex, x, y) {
+  if (isNaN(programIndex) || !tableData.programs[programIndex]) return;
+  hideScheduleColorMenu();
+  showScheduleColorMenu(programIndex, x, y);
 }
 
 const SCHEDULE_LONG_PRESS_MS = 500;
@@ -1548,15 +1823,15 @@ function isScheduleInteractiveTarget(target) {
   );
 }
 
-function setupScheduleImportantGestures() {
+function setupScheduleColorGestures() {
   const containers = [
     document.getElementById('programSections'),
     document.getElementById('scheduleTableView')
   ];
 
   containers.forEach(container => {
-    if (!container || container.dataset.importantGesturesInit) return;
-    container.dataset.importantGesturesInit = '1';
+    if (!container || container.dataset.colorGesturesInit) return;
+    container.dataset.colorGesturesInit = '1';
 
     container.addEventListener('contextmenu', (e) => {
       if (window.innerWidth <= 768) return;
@@ -1564,7 +1839,7 @@ function setupScheduleImportantGestures() {
       const programIndex = getScheduleProgramIndexFromTarget(e.target);
       if (programIndex == null) return;
       e.preventDefault();
-      toggleImportant(programIndex);
+      openScheduleColorMenuForProgram(programIndex, e.clientX, e.clientY);
     });
 
     container.addEventListener('touchstart', (e) => {
@@ -1588,9 +1863,11 @@ function setupScheduleImportantGestures() {
         scheduleLongPressTimer = null;
         if (scheduleLongPressIndex == null) return;
         const index = scheduleLongPressIndex;
+        const touchX = scheduleLongPressStartX;
+        const touchY = scheduleLongPressStartY;
         cancelScheduleLongPress();
         if (navigator.vibrate) navigator.vibrate(12);
-        toggleImportant(index);
+        openScheduleColorMenuForProgram(index, touchX, touchY);
       }, SCHEDULE_LONG_PRESS_MS);
     }, { passive: true });
 
@@ -2048,12 +2325,12 @@ atomicSaveField = async function(field, fieldKey, programId, newValue, baseValue
 
 /**
  * Canonical single-field save. Every schedule field edit — card text fields, table
- * inline edits, the done checkbox, and the important flag — funnels through here so
+ * inline edits, the done checkbox, and row color — funnels through here so
  * there is exactly ONE save + broadcast pipeline (PATCH /program-field → programFieldUpdated).
  *
  * @param {Object}      opts
  * @param {number}      opts.programIndex  Index into tableData.programs
- * @param {string}      opts.field         Schema field key (name, startTime, location, done, important, ...)
+ * @param {string}      opts.field         Schema field key (name, startTime, location, done, rowColor, ...)
  * @param {*}           opts.value         New value
  * @param {HTMLElement} [opts.element]     DOM element being edited (for save indicators / optimistic UI)
  * @param {*}           [opts.oldValue]    Previous value (for optimistic revert)
@@ -3204,6 +3481,7 @@ function safeAddProgram(date) {
     notes: '',
     done: false,
     important: false,
+    rowColor: '',
     _tempId: generateTempId()
   };
   
@@ -3408,7 +3686,10 @@ window.scheduleSave = scheduleSave;
 window.renderProgramSections = renderProgramSections;
 window.toggleDone = toggleDone;
 window.toggleFolderVisibility = toggleFolderVisibility;
-window.toggleImportant = toggleImportant;
+window.setProgramRowColor = setProgramRowColor;
+window.openScheduleColorLegendModal = openScheduleColorLegendModal;
+window.closeScheduleColorLegendModal = closeScheduleColorLegendModal;
+window.saveScheduleColorLegend = saveScheduleColorLegend;
 window.matchesSearch = matchesSearch;
 window.enableEdit = enableEdit;
 window.autoSave = autoSave;
@@ -3909,6 +4190,7 @@ function processImportedData(data) {
       notes: columnMap.notes !== -1 ? (row[columnMap.notes] || '') : '',
       done: isDone,
       important: false,
+    rowColor: '',
       // Add automatic temporary ID for collaborative system compatibility
       _tempId: generateTempId(`import_${i}`)
     });
@@ -4265,8 +4547,9 @@ function applyRemoteProgramFieldUpdate(data) {
   if (cardEntry) {
     feedbackAnchor = cardEntry;
 
-    if (field === 'important') {
-      cardEntry.classList.toggle('important-entry', Boolean(value));
+    if (field === 'rowColor' || field === 'important') {
+      const colorId = field === 'rowColor' ? (value || '') : (value ? 'red' : '');
+      applyProgramRowColorStyles(programIndex, colorId);
     }
 
     const fieldElement = cardEntry.querySelector(`[data-field='${field}']`);
@@ -4289,8 +4572,9 @@ function applyRemoteProgramFieldUpdate(data) {
   if (tableRow) {
     if (!feedbackAnchor) feedbackAnchor = tableRow;
 
-    if (field === 'important') {
-      tableRow.classList.toggle('important-row', Boolean(value));
+    if (field === 'rowColor' || field === 'important') {
+      const colorId = field === 'rowColor' ? (value || '') : (value ? 'red' : '');
+      applyProgramRowColorStyles(programIndex, colorId);
     }
 
     if (field === 'done') {
@@ -4306,7 +4590,7 @@ function applyRemoteProgramFieldUpdate(data) {
         tableRow.classList.toggle('done-row', Boolean(value));
         if (!feedbackElement) feedbackElement = doneCheckbox;
       }
-    } else if (field !== 'important') {
+    } else if (field !== 'rowColor' && field !== 'important') {
       const cell = tableRow.querySelector(`td[data-field='${field}']`);
       const inlineInput = cell?.querySelector('.inline-edit-input');
       if (
@@ -4493,6 +4777,15 @@ if (window.socket) {
     }
   });
   
+  window.socket.on('scheduleColorLegendUpdated', (data) => {
+    const currentEvent = currentEventId || localStorage.getItem('eventId');
+    if (data.eventId !== currentEvent || !data.legend) return;
+    scheduleColorLegend = normalizeScheduleColorLegend(data.legend);
+    if (document.getElementById('scheduleColorLegendModal')?.style.display === 'flex') {
+      renderScheduleColorLegendModal();
+    }
+  });
+
   // Canonical field sync: PATCH /program-field → programFieldUpdated
   window.socket.on('programFieldUpdated', (data) => {
     console.log(`[SOCKET] Field update received:`, data);
@@ -4764,7 +5057,9 @@ function updateProgramRow(program, hasScheduleAccess) {
   
   // Always update the done-entry class for strikethrough
   entry.classList.toggle('done-entry', program.done);
-  entry.classList.toggle('important-entry', Boolean(program.important));
+  SCHEDULE_COLOR_CLASS_NAMES.forEach(cls => entry.classList.remove(cls));
+  const rowColor = getProgramRowColor(program);
+  if (rowColor) entry.classList.add(`schedule-color-${rowColor}`);
   
   // Merge the incoming program data with protection for active editing
   const currentProgram = tableData.programs[programIndex];
@@ -4829,7 +5124,9 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
     }
   }
 
-  entry.classList.toggle('important-entry', Boolean(program.important));
+  SCHEDULE_COLOR_CLASS_NAMES.forEach(cls => entry.classList.remove(cls));
+  const rowColor = getProgramRowColor(program);
+  if (rowColor) entry.classList.add(`schedule-color-${rowColor}`);
   
   // Update start time
   const startTimeInput = entry.querySelector('input[type="time"]:first-of-type');
@@ -5337,7 +5634,7 @@ function renderScheduleTable() {
     const tbody = document.createElement('tbody');
     matchingPrograms.forEach(program => {
       const row = document.createElement('tr');
-      row.className = (program.done ? 'done-row' : '') + (program.important ? ' important-row' : '');
+      row.className = (program.done ? 'done-row' : '') + getProgramRowColorClass(program);
       row.setAttribute('data-program-index', program.__index);
       
       const programId = program._id || program._tempId;

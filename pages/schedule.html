@@ -14,13 +14,18 @@
       <button id="exportBtn" class="export-btn" style="margin-left: 8px; background-color: #28a745;">Export to Excel</button>
       <input type="file" id="fileImport" accept=".csv,.xlsx,.xls" style="display: none;">
       <a href="#" id="downloadTemplateBtn" onclick="downloadImportTemplate()" style="margin-left: 8px; font-size: 14px; color: #4a5568;">Download Template</a>
-      <button id="shareScheduleBtn" class="share-schedule-btn" style="background-color: #1565c0;" onclick="openShareScheduleModal()">
-        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 4px;">share</span><span class="btn-label">Share</span>
-      </button>
-      <button id="changeRequestsBtn" class="cr-review-btn" onclick="openChangeRequestsPanel()">
-        <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 4px;">rate_review</span><span class="btn-label">Requests</span>
-        <span id="crBadge" class="cr-badge" style="display:none;">0</span>
-      </button>
+      <div class="top-controls-icon-group" aria-label="Schedule actions">
+        <button id="scheduleLegendBtn" class="schedule-legend-btn" type="button" onclick="openScheduleColorLegendModal()">
+          <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 4px;">palette</span><span class="btn-label">Legend</span>
+        </button>
+        <button id="shareScheduleBtn" class="share-schedule-btn" onclick="openShareScheduleModal()">
+          <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 4px;">share</span><span class="btn-label">Share</span>
+        </button>
+        <button id="changeRequestsBtn" class="cr-review-btn" onclick="openChangeRequestsPanel()">
+          <span class="material-symbols-outlined" style="font-size: 18px; vertical-align: middle; margin-right: 4px;">rate_review</span><span class="btn-label">Requests</span>
+          <span id="crBadge" class="cr-badge" style="display:none;">0</span>
+        </button>
+      </div>
       <button id="viewToggleBtn" class="view-toggle-btn desktop-only" onclick="toggleScheduleView()" style="margin-left: 16px;">
         <span class="material-symbols-outlined">view_module</span>
         <span id="viewToggleText">Card View</span>
@@ -108,6 +113,29 @@
       </div>
       <div id="crReviewBody" class="cr-review-body">
         <div style="text-align:center; padding:40px; color:#888;">Loading...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Row Color Legend Modal -->
+  <div id="scheduleColorLegendModal" class="share-modal-overlay schedule-legend-overlay" style="display:none;" onclick="if (event.target === this) closeScheduleColorLegendModal()">
+    <div class="share-modal-content schedule-legend-modal" role="dialog" aria-labelledby="scheduleLegendTitle" aria-modal="true">
+      <div class="share-modal-header">
+        <h3 id="scheduleLegendTitle"><span class="material-symbols-outlined" style="vertical-align: middle; margin-right: 6px;">palette</span>Color Legend</h3>
+        <button type="button" class="share-modal-close" onclick="closeScheduleColorLegendModal()" aria-label="Close">&times;</button>
+      </div>
+      <div class="share-modal-body schedule-legend-body">
+        <p id="scheduleLegendEditHint" class="schedule-legend-hint" style="display:none;">
+          Define what each row color means for your team. Right-click or long-press a row to apply a color.
+        </p>
+        <p id="scheduleLegendViewHint" class="schedule-legend-hint schedule-legend-hint--muted">
+          Row colors are set by right-clicking (desktop) or long-pressing (mobile) a schedule row.
+        </p>
+        <div id="scheduleLegendBody" class="schedule-legend-list"></div>
+      </div>
+      <div id="scheduleLegendFooter" class="schedule-legend-footer" style="display:none;">
+        <button type="button" class="schedule-legend-cancel-btn" onclick="closeScheduleColorLegendModal()">Cancel</button>
+        <button type="button" class="schedule-legend-save-btn" onclick="saveScheduleColorLegend()">Save Legend</button>
       </div>
     </div>
   </div>

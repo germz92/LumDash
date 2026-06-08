@@ -2699,6 +2699,50 @@ function canEditSchedule(table, req) {
   return false;
 }
 
+// PATCH schedule row-color legend labels (owners + leads)
+app.patch('/api/tables/:id/schedule-color-legend', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === 'null') {
+    return res.status(400).json({ error: 'Invalid table ID' });
+  }
+
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) return res.status(404).json({ error: 'Table not found' });
+    if (!canEditSchedule(table, req)) {
+      return res.status(403).json({ error: 'Only owners and leads can edit the color legend' });
+    }
+
+    const allowed = ['red', 'blue', 'green', 'yellow'];
+    const legend = {
+      red: table.scheduleColorLegend?.red ?? 'Important',
+      blue: table.scheduleColorLegend?.blue ?? '',
+      green: table.scheduleColorLegend?.green ?? '',
+      yellow: table.scheduleColorLegend?.yellow ?? ''
+    };
+
+    if (req.body.legend && typeof req.body.legend === 'object') {
+      allowed.forEach((key) => {
+        if (typeof req.body.legend[key] === 'string') {
+          legend[key] = req.body.legend[key].trim().slice(0, 80);
+        }
+      });
+    }
+
+    table.scheduleColorLegend = legend;
+    await table.save();
+
+    io.to(`event-${req.params.id}`).emit('scheduleColorLegendUpdated', {
+      eventId: req.params.id,
+      legend
+    });
+
+    res.json({ legend: table.scheduleColorLegend });
+  } catch (err) {
+    console.error('❌ [LEGEND] Error updating schedule color legend:', err);
+    res.status(500).json({ error: 'Failed to update color legend' });
+  }
+});
+
 // ADD A SINGLE PROGRAM — structural op that avoids the full-array PUT clobbering
 // concurrent field edits made by other users.
 app.post('/api/tables/:id/program', authenticate, async (req, res) => {
@@ -2726,6 +2770,7 @@ app.post('/api/tables/:id/program', authenticate, async (req, res) => {
       notes: req.body.notes || '',
       done: false,
       important: false,
+      rowColor: '',
       lastModified: new Date(),
       lastModifiedBy: req.user.id,
       rev: 0

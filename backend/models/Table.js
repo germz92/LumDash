@@ -33,7 +33,8 @@ const programSchema = new mongoose.Schema({
   folder: String,
   notes: String,
   done: { type: Boolean, default: false },
-  important: { type: Boolean, default: false },
+  important: { type: Boolean, default: false }, // legacy; prefer rowColor
+  rowColor: { type: String, default: '' }, // '', 'red', 'blue', 'green', 'yellow'
   // Concurrency / audit metadata for field-level optimistic concurrency
   lastModified: Date,
   lastModifiedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
@@ -226,6 +227,16 @@ const tableSchema = new mongoose.Schema({
     }
   ],
   archived: { type: Boolean, default: false },
+  // Per-event labels for schedule row colors (right-click color coding)
+  scheduleColorLegend: {
+    type: {
+      red: { type: String, default: 'Important' },
+      blue: { type: String, default: '' },
+      green: { type: String, default: '' },
+      yellow: { type: String, default: '' }
+    },
+    default: () => ({ red: 'Important', blue: '', green: '', yellow: '' })
+  },
   // Share token for public read-only schedule sharing with clients
   shareToken: { type: String, default: null, index: true },
   // Admin-only notes for this event/table

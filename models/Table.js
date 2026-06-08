@@ -33,7 +33,8 @@ const programSchema = new mongoose.Schema({
   notes: String,
   folder: String,
   done: { type: Boolean, default: false },
-  important: { type: Boolean, default: false }
+  important: { type: Boolean, default: false },
+  rowColor: { type: String, default: '' }
 }, { _id: true });
 
 // ✅ NEW: Separate crew row schema with ObjectId _id
