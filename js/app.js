@@ -69,6 +69,8 @@ console.log(' app.js loaded');
         el.remove();
       }
     });
+    
+    ensurePageScrollUnlocked();
   }
   
   // Run cleanup immediately
@@ -99,15 +101,64 @@ function setBodyPageClass(page) {
   }
 }
 
+function releaseAllPageScrollLocks() {
+  document.body.classList.remove('card-log-modal-open', 'schedule-legend-modal-open');
+  document.body.style.overflow = '';
+  document.body.style.position = '';
+  document.body.style.top = '';
+  document.body.style.width = '';
+
+  const pageContainer = document.getElementById('page-container');
+  if (pageContainer) {
+    pageContainer.style.overflow = '';
+    pageContainer.style.height = '';
+    pageContainer.style.maxHeight = '';
+    pageContainer.classList.remove('card-log-modal-open');
+  }
+
+  if (typeof window.forceReleaseCardLogScrollLock === 'function') {
+    window.forceReleaseCardLogScrollLock();
+  }
+
+  const legendModal = document.getElementById('scheduleColorLegendModal');
+  if (legendModal) {
+    legendModal.style.display = 'none';
+  }
+}
+
+/** Clear orphaned scroll locks when no modal is actually visible. */
+function ensurePageScrollUnlocked() {
+  const cardEntryModal = document.getElementById('card-entry-modal');
+  const dateModal = document.getElementById('date-modal');
+  const legendModal = document.getElementById('scheduleColorLegendModal');
+
+  const cardEntryOpen = cardEntryModal && window.getComputedStyle(cardEntryModal).display !== 'none';
+  const dateModalOpen = dateModal && window.getComputedStyle(dateModal).display !== 'none';
+  const legendOpen = legendModal && window.getComputedStyle(legendModal).display !== 'none';
+
+  if (!cardEntryOpen && !dateModalOpen) {
+    if (document.body.classList.contains('card-log-modal-open')) {
+      if (typeof window.forceReleaseCardLogScrollLock === 'function') {
+        window.forceReleaseCardLogScrollLock();
+      } else {
+        document.body.classList.remove('card-log-modal-open');
+        document.getElementById('page-container')?.classList.remove('card-log-modal-open');
+      }
+    }
+  }
+
+  if (!legendOpen && document.body.classList.contains('schedule-legend-modal-open')) {
+    document.body.classList.remove('schedule-legend-modal-open');
+  }
+}
+
 function resetPageContainerForNavigation() {
+  releaseAllPageScrollLocks();
+
   const pageContainer = document.getElementById('page-container');
   if (!pageContainer) return;
 
   pageContainer.style.padding = '';
-  pageContainer.style.overflow = '';
-  pageContainer.style.height = '';
-  pageContainer.style.maxHeight = '';
-  pageContainer.classList.remove('card-log-modal-open');
 }
 
 function getTableId() {
@@ -330,7 +381,6 @@ function injectPageContent(html, page, id, navGeneration) {
   // Re-apply page class and reset container styles after HTML injection
   setBodyPageClass(page);
   resetPageContainerForNavigation();
-  document.body.style.overflow = '';
   
   // Show/hide bottom nav based on page and set it up
   const bottomNav = document.getElementById('bottomNav');

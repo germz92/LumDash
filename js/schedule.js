@@ -410,16 +410,82 @@ function getScrollContainer() {
   return container || window; // Fallback to window if container not found
 }
 
+function getFilterTableId(overrideId) {
+  return overrideId || currentEventId || localStorage.getItem('eventId');
+}
+
+function loadSavedFilterState(tableId) {
+  const id = getFilterTableId(tableId);
+  if (!id) {
+    return { filterDate: 'all', searchQuery: '' };
+  }
+
+  const savedFilterDate = localStorage.getItem(`schedule_filter_date_${id}`) || 'all';
+  const savedSearch = localStorage.getItem(`schedule_search_${id}`) || '';
+  const filterDateValue = savedFilterDate === 'all' ? 'all' : savedFilterDate;
+  const searchValue = savedSearch.length <= 100 ? savedSearch : '';
+
+  return {
+    filterDate: filterDateValue,
+    searchQuery: searchValue.toLowerCase()
+  };
+}
+
+function applyFilterState(state, options = {}) {
+  const next = state || { filterDate: 'all', searchQuery: '' };
+  filterDate = next.filterDate || 'all';
+  searchQuery = next.searchQuery || '';
+
+  if (options.syncUi !== false) {
+    syncFilterControlsUi(options);
+  }
+
+  return { filterDate, searchQuery };
+}
+
+function syncFilterControlsUi(options = {}) {
+  const { validateDateAgainstOptions = true } = options;
+
+  const searchInput = document.getElementById('searchInput');
+  if (searchInput && searchInput.value !== searchQuery) {
+    searchInput.value = searchQuery;
+  }
+
+  const filterDropdown = document.getElementById('filterDateDropdown');
+  if (!filterDropdown) return;
+
+  const dropdownOptions = Array.from(filterDropdown.options);
+  // Dropdown only has the static "All Dates" option until programs are loaded.
+  if (dropdownOptions.length <= 1 && filterDate !== 'all') {
+    return;
+  }
+
+  const hasSelectedOption = dropdownOptions.some(option => option.value === filterDate);
+  if (hasSelectedOption) {
+    filterDropdown.value = filterDate;
+    return;
+  }
+
+  if (filterDate === 'all') {
+    filterDropdown.value = 'all';
+    return;
+  }
+
+  if (validateDateAgainstOptions) {
+    filterDate = 'all';
+    filterDropdown.value = 'all';
+    saveFilterSettings();
+  }
+}
+
 // Save filter settings to localStorage (persistent) and scroll to sessionStorage (temporary)
 function saveFilterSettings() {
-  // Use the module-level currentEventId first, then fall back to localStorage
-  const tableId = currentEventId || localStorage.getItem('eventId');
+  const tableId = getFilterTableId();
   if (!tableId) {
     console.warn('No event ID available for saving filter settings');
     return;
   }
   
-  // Save filters to localStorage for persistence across sessions (like crew.js)
   localStorage.setItem(`schedule_filter_date_${tableId}`, filterDate);
   localStorage.setItem(`schedule_search_${tableId}`, searchQuery);
   
@@ -468,39 +534,21 @@ function createScrollListener() {
 }
 
 // Restore filter settings from localStorage (persistent)
-function restoreFilterSettings() {
-  // Use the module-level currentEventId first, then fall back to localStorage
-  const tableId = currentEventId || localStorage.getItem('eventId');
-  if (!tableId) {
-    console.warn('No event ID available for restoring filter settings');
-    return;
-  }
-  
+function restoreFilterSettings(tableId) {
   try {
-    // Restore filters from localStorage (like crew.js)
-    const savedFilterDate = localStorage.getItem(`schedule_filter_date_${tableId}`) || 'all';
-    const savedSearch = localStorage.getItem(`schedule_search_${tableId}`) || '';
-    
-    console.log('🔄 SCHEDULE: Restoring filter state...', { savedFilterDate, savedSearch, tableId });
-    
-    // Validate and restore filter date
-    if (savedFilterDate && savedFilterDate !== 'all') {
-      filterDate = savedFilterDate;
-      console.log(`📅 SCHEDULE: Restored filter date: ${filterDate}`);
+    const saved = loadSavedFilterState(tableId);
+    console.log('🔄 SCHEDULE: Restoring filter state...', { ...saved, tableId: getFilterTableId(tableId) });
+    // Apply module state only — dropdown options are rebuilt after programs load.
+    applyFilterState(saved, { syncUi: false });
+    // Guarded assignment: on reconnect resync the user may be typing in the search box;
+    // values already match (saved on every keystroke) and reassigning would move the cursor.
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput && searchInput.value !== searchQuery) {
+      searchInput.value = searchQuery;
     }
-    
-    // Validate and restore search query
-    if (savedSearch && savedSearch.length <= 100) { // Reasonable limit
-      searchQuery = savedSearch;
-      const searchInput = document.getElementById('searchInput');
-      if (searchInput) searchInput.value = searchQuery;
-      console.log(`🔍 SCHEDULE: Restored search query: ${searchQuery}`);
-    }
-    
-    console.log('✅ SCHEDULE: Filter state restoration complete');
+    console.log('✅ SCHEDULE: Filter state restoration complete', { filterDate, searchQuery });
   } catch (err) {
     console.error('❌ SCHEDULE: Error restoring filter settings:', err);
-    // Continue with defaults, don't break the page
   }
 }
 
@@ -566,9 +614,13 @@ window.initPage = async function(id) {
     console.log(`[INIT] Syncing localStorage eventId: ${previousEventId} → ${tableId}`);
     localStorage.setItem('eventId', tableId);
   }
-  const isEventChange = previousEventId && previousEventId !== tableId;
-  
-  console.log(`[INIT] Previous event ID: ${previousEventId}, isEventChange: ${isEventChange}`);
+
+  // sessionStorage survives refresh; localStorage.eventId can be stale on refresh and must
+  // not be treated as an event switch (that skipped filter restore and cleared saved filters).
+  const lastScheduleEventId = sessionStorage.getItem('schedule_last_event_id');
+  const isEventChange = lastScheduleEventId && lastScheduleEventId !== tableId;
+
+  console.log(`[INIT] lastScheduleEventId: ${lastScheduleEventId}, isEventChange: ${isEventChange}`);
 
   // Start monitoring for external changes (but don't defensively overwrite)
   startEventIdMonitoring();
@@ -713,22 +765,22 @@ window.initPage = async function(id) {
     console.warn(`[INIT] Event ID was modified during program loading - this indicates interference`);
   }
 
-  // Only restore filter settings after loadPrograms
   if (isEventChange) {
-    console.log('[INIT] Event changed, resetting filters and scroll position');
-    resetFilterSettings();
+    console.log('[INIT] Event changed, clearing scroll position for new event');
+    pendingScrollRestore = null;
+    sessionStorage.removeItem(`schedule_scroll_${tableId}`);
   } else {
-    console.log('[INIT] Same event, restoring filter and scroll settings');
-    restoreFilterSettings();
     restoreScrollPosition();
-    
-    // If we restored filters, re-render to apply them
-    if (filterDate !== 'all' || searchQuery) {
-      console.log('[INIT] Re-rendering to apply restored filters:', { filterDate, searchQuery });
-      renderProgramSections(isOwner);
+    // The render inside loadPrograms already finished (its delayed applyScrollRestore
+    // may have fired before pendingScrollRestore was set), so apply directly here.
+    if (pendingScrollRestore !== null) {
+      applyScrollRestore();
     }
   }
-  
+
+  syncFilterControlsUi();
+  sessionStorage.setItem('schedule_last_event_id', tableId);
+
   setupScheduleColorGestures();
 
   logEventIdState('INIT_COMPLETE');
@@ -762,7 +814,7 @@ async function loadCollaborativeSystem() {
   });
 }
 
-async function loadPrograms(tableId = null, retryCount = 0) {
+async function loadPrograms(tableId = null, retryCount = 0, options = {}) {
   console.log(`\n--- LOAD PROGRAMS START (retry: ${retryCount}) ---`);
   const loadStartTime = Date.now();
   
@@ -807,7 +859,7 @@ async function loadPrograms(tableId = null, retryCount = 0) {
       if (retryCount < maxRetries) {
         console.warn(`[LOAD] No userId available, retrying in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries + 1})`);
         setTimeout(() => {
-          loadPrograms(eventId, retryCount + 1);
+          loadPrograms(eventId, retryCount + 1, options);
         }, retryDelay);
         return;
       } else {
@@ -936,6 +988,9 @@ async function loadPrograms(tableId = null, retryCount = 0) {
     }
     logEventIdState('AFTER_BODY_CLASS_UPDATE');
 
+    console.log(`[LOAD] Restoring saved filters before render...`);
+    restoreFilterSettings(eventId);
+
     console.log(`[LOAD] Calling renderProgramSections with hasScheduleAccess: ${hasScheduleAccess}...`);
     renderProgramSections(hasScheduleAccess);
     console.log(`[LOAD] renderProgramSections completed`);
@@ -943,6 +998,7 @@ async function loadPrograms(tableId = null, retryCount = 0) {
 
     console.log(`[LOAD] Setting up date filter options...`);
     setupDateFilterOptions();
+    syncFilterControlsUi();
     console.log(`[LOAD] Date filter options setup complete`);
     logEventIdState('AFTER_DATE_FILTER_SETUP');
 
@@ -977,7 +1033,7 @@ async function loadPrograms(tableId = null, retryCount = 0) {
     if (retryCount < maxRetries) {
       console.warn(`[LOAD] Retrying loadPrograms in ${retryDelay}ms... (attempt ${retryCount + 1}/${maxRetries + 1})`);
       setTimeout(() => {
-        loadPrograms(eventId, retryCount + 1);
+        loadPrograms(eventId, retryCount + 1, options);
       }, retryDelay);
     } else {
       console.error('[LOAD] Failed to load programs after maximum retries');
@@ -1194,7 +1250,11 @@ function renderProgramSections(hasScheduleAccess) {
   const filterDropdown = document.getElementById('filterDateDropdown');
   if (filterDropdown) {
     const allDates = [...new Set(tableData.programs.map(p => p.date))].sort((a, b) => a.localeCompare(b));
-    const currentSelection = filterDate || 'all';
+    let currentSelection = filterDate || 'all';
+    if (currentSelection !== 'all' && !allDates.includes(currentSelection)) {
+      currentSelection = 'all';
+      filterDate = 'all';
+    }
     filterDropdown.innerHTML = `<option value="all">All Dates</option>`;
     allDates.forEach(date => {
       const option = document.createElement('option');
@@ -3920,6 +3980,9 @@ function resetModuleVariables() {
 // Main cleanup function - preserves state but cleans up memory
 window.cleanupSchedulePage = function cleanupSchedulePage() {
   console.log('🧹 [CLEANUP] cleanupSchedulePage called');
+
+  closeScheduleColorLegendModal();
+  hideScheduleColorMenu();
   
   // First, preserve current user state
   preserveSessionState();
@@ -3952,6 +4015,9 @@ function handleNavClick(e) {
 
 // Call cleanupSchedulePage before navigating away
 window.addEventListener('beforeunload', cleanupSchedulePage);
+window.addEventListener('pagehide', () => {
+  if (currentEventId) preserveSessionState();
+});
 
 // Import the SheetJS library dynamically when needed
 function loadSheetJSLibrary() {
@@ -4877,15 +4943,7 @@ window.scheduleScrollHandler = createScrollListener();
 
 // Add a function to reset filter settings
 function resetFilterSettings() {
-  // Reset filter date
-  filterDate = 'all';
-  const filterDropdown = document.getElementById('filterDateDropdown');
-  if (filterDropdown) filterDropdown.value = 'all';
-  
-  // Reset search query
-  searchQuery = '';
-  const searchInput = document.getElementById('searchInput');
-  if (searchInput) searchInput.value = '';
+  applyFilterState({ filterDate: 'all', searchQuery: '' });
   
   // Reset scroll position
   window.scrollTo(0, 0);
@@ -5304,32 +5362,30 @@ function isFieldCurrentlyFocused(element, preservationData) {
   return preservationData.focusedElement === element;
 }
 
-// Add missing setupDateFilterOptions function and fix programs reference
 function setupDateFilterOptions() {
   const filterDropdown = document.getElementById('filterDateDropdown');
-  if (filterDropdown && tableData.programs) {
-    const allDates = [...new Set(tableData.programs.map(p => p.date))].sort((a, b) => a.localeCompare(b));
-    
-    // Check if there's a saved filter date in localStorage
-    const tableId = currentEventId || localStorage.getItem('eventId');
-    const savedFilterDate = localStorage.getItem(`schedule_filter_date_${tableId}`) || null;
-    
-    // Use saved filter date if available, otherwise use current filterDate, fallback to 'all'
-    const currentSelection = savedFilterDate || filterDate || 'all';
-    
-    // Update the global filterDate variable to match what we're setting
-    filterDate = currentSelection;
-    
-    filterDropdown.innerHTML = `<option value="all">All Dates</option>`;
-    allDates.forEach(date => {
-      const option = document.createElement('option');
-      option.value = date;
-      option.textContent = formatDate(date);
-      filterDropdown.appendChild(option);
-    });
+  if (!filterDropdown || !tableData.programs) return;
+
+  const allDates = [...new Set(tableData.programs.map(p => p.date))].sort((a, b) => a.localeCompare(b));
+  const currentSelection = filterDate || 'all';
+
+  filterDropdown.innerHTML = `<option value="all">All Dates</option>`;
+  allDates.forEach(date => {
+    const option = document.createElement('option');
+    option.value = date;
+    option.textContent = formatDate(date);
+    filterDropdown.appendChild(option);
+  });
+
+  if (currentSelection !== 'all' && !allDates.includes(currentSelection)) {
+    filterDate = 'all';
+    filterDropdown.value = 'all';
+    saveFilterSettings();
+  } else {
     filterDropdown.value = currentSelection;
-    console.log(`[FILTER] Setup ${allDates.length} date filter options, current: ${currentSelection}, saved: ${savedFilterDate}`);
   }
+
+  console.log(`[FILTER] Setup ${allDates.length} date filter options, current: ${filterDate}`);
 }
 
 // Note: setupBottomNavigation monitoring removed to prevent duplicate function calls

@@ -76,6 +76,19 @@ function releaseCardLogModalScrollLockIfNeeded() {
   }
 }
 
+window.forceReleaseCardLogScrollLock = function forceReleaseCardLogScrollLock() {
+  cardLogModalScrollLockCount = 0;
+  document.body.classList.remove('card-log-modal-open');
+  delete document.body.dataset.cardLogScrollTop;
+
+  const pageContainer = document.getElementById('page-container');
+  if (pageContainer) {
+    pageContainer.classList.remove('card-log-modal-open');
+    delete pageContainer.dataset.cardLogScrollTop;
+    pageContainer.style.overflow = '';
+  }
+};
+
 // Function to refresh owner status and update collaborative system
 function refreshOwnerStatus(newOwnerStatus) {
   const oldOwnerStatus = isOwner;
@@ -517,15 +530,42 @@ function closeDateModal() {
   releaseCardLogModalScrollLockIfNeeded();
 }
 
-function createNewDay() {
+async function createNewDay() {
   const dateInput = document.getElementById('new-date-input');
   const date = dateInput.value;
   if (!date || document.getElementById(`day-${date}`)) return alert('Date missing or already exists');
-  addDaySection(date);
+  
   dateInput.value = '';
   closeDateModal();
-  // Only save, do not reload the card log
-  saveToMongoDB();
+  
+  try {
+    // Atomic day creation — never sends the whole card log, so it can't
+    // overwrite entries added concurrently by other users.
+    const response = await fetch(`${API_BASE}/api/tables/${localStorage.getItem('eventId')}/cardlog/days`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') },
+      body: JSON.stringify({ date })
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      alert(`Error creating day: ${errorData.error || response.statusText}`);
+      return;
+    }
+    
+    const result = await response.json();
+    // The cardLogAdded socket event may have already created the section
+    if (!document.getElementById(`day-${date}`)) {
+      addDaySection(date);
+    }
+    if (result.dayId) {
+      const dayDiv = document.getElementById(`day-${date}`);
+      if (dayDiv) dayDiv.setAttribute('data-id', result.dayId);
+    }
+  } catch (error) {
+    console.error('[CARD-LOG] Error creating day:', error);
+    alert('Error creating day. Please try again.');
+  }
 }
 
 // Add event handlers to page elements
@@ -649,13 +689,29 @@ function setupEventListeners() {
           return;
         }
         
-        // Remove from DOM and save
-        row.remove();
-        
-        // Get current data and save
+        // Delete atomically so a stale local view can't clobber other users' entries
+        const entryId = row.getAttribute('data-id');
+        const dayDiv = row.closest('.day-table');
+        const date = dayDiv ? (dayDiv.getAttribute('data-date') || dayDiv.querySelector('h3').textContent) : null;
+
         try {
-          await saveToMongoDB();
-          console.log('[CARD-LOG] Entry deleted successfully');
+          const response = await fetch(
+            `${API_BASE}/api/tables/${localStorage.getItem('eventId')}/cardlog/entries/${entryId}?date=${encodeURIComponent(date)}`,
+            { method: 'DELETE', headers: { Authorization: localStorage.getItem('token') } }
+          );
+
+          if (response.ok) {
+            row.remove();
+            console.log('[CARD-LOG] Entry deleted atomically');
+          } else if (response.status === 404) {
+            // Legacy temp id the server doesn't know — fall back to the full save
+            console.warn('[CARD-LOG] Atomic delete failed (entry not found), falling back to full save');
+            row.remove();
+            await saveToMongoDB();
+          } else {
+            const errorData = await response.json().catch(() => ({}));
+            alert(`Error deleting entry: ${errorData.error || response.statusText}`);
+          }
         } catch (error) {
           console.error('[CARD-LOG] Error deleting entry:', error);
           alert('Error deleting entry. Please refresh the page.');
@@ -669,22 +725,25 @@ function setupEventListeners() {
         }
         const dayDiv = e.target.closest('.day-table');
         if (dayDiv && confirm('Delete this entire day?')) {
-          // Store the day information before removing it
-          const date = dayDiv.querySelector('h3').textContent;
-          const dayId = dayDiv.getAttribute('data-id');
+          const date = dayDiv.getAttribute('data-date') || dayDiv.querySelector('h3').textContent;
           
-          // Remove from DOM
-          dayDiv.remove();
-          
-          // Try to save
-          const success = await saveToMongoDB();
-          
-          // If saving failed, recreate the day
-          if (!success) {
-            console.log(`Save failed, restoring deleted day: ${date}`);
-            // Reload the entire card log to ensure consistency
+          try {
+            const response = await fetch(
+              `${API_BASE}/api/tables/${localStorage.getItem('eventId')}/cardlog/days/${encodeURIComponent(date)}`,
+              { method: 'DELETE', headers: { Authorization: localStorage.getItem('token') } }
+            );
+            
+            if (response.ok) {
+              dayDiv.remove();
+              console.log(`[CARD-LOG] Day ${date} deleted atomically`);
+            } else {
+              const errorData = await response.json().catch(() => ({}));
+              alert(`The day could not be deleted: ${errorData.error || response.statusText}`);
+            }
+          } catch (error) {
+            console.error('[CARD-LOG] Error deleting day:', error);
             await loadCardLog();
-            alert(`The day could not be deleted due for an error. The page has been refreshed.`);
+            alert('The day could not be deleted due to an error. The page has been refreshed.');
           }
         }
       }
@@ -875,6 +934,8 @@ function cleanupCardLogPage() {
   // Reset global data
   users = [];
   customCameras = [];
+
+  window.forceReleaseCardLogScrollLock();
   
   console.log('[CARD-LOG] ✅ Card log page cleaned up');
 }
@@ -1326,20 +1387,42 @@ async function toggleCardBackedUp(row, field) {
     cell.classList.toggle('backed-up', !isBackedUp);
   }
 
-  try {
-    const saved = await saveToMongoDB();
-    if (!saved) {
-      row.setAttribute(`data-${field}-backed-up`, isBackedUp ? 'true' : 'false');
-      if (cell) cell.classList.toggle('backed-up', isBackedUp);
-      showSaveError('Failed to save backup status');
-      return;
-    }
-    showToastNotification(isBackedUp ? 'Backup mark removed' : 'Marked as backed up', 'success');
-  } catch (error) {
-    console.error('[CARD-LOG] Error saving backup mark:', error);
+  const revert = () => {
     row.setAttribute(`data-${field}-backed-up`, isBackedUp ? 'true' : 'false');
     if (cell) cell.classList.toggle('backed-up', isBackedUp);
     showSaveError('Failed to save backup status');
+  };
+
+  try {
+    const entryId = row.getAttribute('data-id');
+    const dayDiv = row.closest('.day-table');
+    const date = dayDiv ? (dayDiv.getAttribute('data-date') || dayDiv.querySelector('h3').textContent) : null;
+
+    // Patch only this one field — a full save here could wipe entries this
+    // client hasn't received yet from other users.
+    const response = await fetch(`${API_BASE}/api/tables/${localStorage.getItem('eventId')}/cardlog/entries/${entryId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') },
+      body: JSON.stringify({ date, fields: { [`${field}BackedUp`]: !isBackedUp } })
+    });
+
+    if (response.status === 404) {
+      // Legacy temp id — fall back to the full save
+      console.warn('[CARD-LOG] Atomic backup toggle failed (entry not found), falling back to full save');
+      const saved = await saveToMongoDB();
+      if (!saved) {
+        revert();
+        return;
+      }
+    } else if (!response.ok) {
+      revert();
+      return;
+    }
+
+    showToastNotification(isBackedUp ? 'Backup mark removed' : 'Marked as backed up', 'success');
+  } catch (error) {
+    console.error('[CARD-LOG] Error saving backup mark:', error);
+    revert();
   }
 }
 
@@ -1775,98 +1858,78 @@ async function addOrUpdateCardEntry(date, entryData) {
     console.error('[CARD-LOG] Invalid date passed to addOrUpdateCardEntry:', date);
     throw new Error('Invalid date: cannot save entry');
   }
-  
-  console.log('[CARD-LOG] Adding/updating entry for date:', date);
-  
-  // Get current card log from DOM
-  const tables = document.querySelectorAll('.day-table');
-  const cardLog = Array.from(tables).map(dayTable => {
-    const dayDate = dayTable.querySelector('h3').textContent;
-    const entries = Array.from(dayTable.querySelectorAll('tbody tr')).map(row => {
-      const rowId = row.getAttribute('data-id');
-      const camera = row.querySelector('[data-field="camera"]').textContent;
-      const card1 = row.querySelector('[data-field="card1"]').textContent;
-      const card2 = row.querySelector('[data-field="card2"]').textContent;
-      const user = row.querySelector('[data-field="user"]').textContent;
-      const category = row.getAttribute('data-category') || 'Photo';
-      const notes = row.getAttribute('data-notes') || '';
-      const createdBy = row.getAttribute('data-created-by');
-      const createdAt = row.getAttribute('data-created-at');
-      
-      return {
-        _id: rowId,
-        camera,
-        card1,
-        card2,
-        card1BackedUp: row.getAttribute('data-card1-backed-up') === 'true',
-        card2BackedUp: row.getAttribute('data-card2-backed-up') === 'true',
-        user,
-        category,
-        notes,
-        createdBy,
-        createdAt,
-        updatedAt: new Date().toISOString()
-      };
-    });
-    
-    const dayId = dayTable.getAttribute('data-id');
-    return { 
-      _id: dayId,
-      date: dayDate, 
-      entries
-    };
-  });
-  
-  // Find the day and update/add the entry
-  let dayFound = false;
-  cardLog.forEach(day => {
-    if (day.date === date) {
-      dayFound = true;
-      
-      if (currentEditingEntry) {
-        // Update existing entry
-        const entryIndex = day.entries.findIndex(e => e._id === currentEditingEntry._id);
-        if (entryIndex !== -1) {
-          day.entries[entryIndex] = entryData;
-        }
-      } else {
-        // Add new entry
-        day.entries.push(entryData);
-      }
-    }
-  });
-  
-  // If day doesn't exist, create it
-  if (!dayFound) {
-    cardLog.push({
-      _id: `day-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      date,
-      entries: [entryData]
-    });
-  }
-  
-  // Update the DOM immediately for better UX
+
+  const eventId = localStorage.getItem('eventId');
+  const authHeaders = { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') };
+
   if (currentEditingEntry) {
-    // Update existing row in DOM
+    console.log('[CARD-LOG] Updating entry atomically:', entryData._id);
+
+    const response = await fetch(`${API_BASE}/api/tables/${eventId}/cardlog/entries/${entryData._id}`, {
+      method: 'PATCH',
+      headers: authHeaders,
+      body: JSON.stringify({
+        date,
+        fields: {
+          camera: entryData.camera,
+          card1: entryData.card1,
+          card2: entryData.card2,
+          card1BackedUp: entryData.card1BackedUp,
+          card2BackedUp: entryData.card2BackedUp,
+          user: entryData.user,
+          category: entryData.category,
+          notes: entryData.notes
+        }
+      })
+    });
+
+    if (response.status === 404) {
+      // Entry id unknown to the server (e.g. legacy temp id from a pre-update session)
+      // — fall back to the full save so the edit isn't dropped.
+      console.warn('[CARD-LOG] Atomic update failed (entry not found), falling back to full save');
+      updateExistingRowInDOM(date, entryData);
+      const saved = await saveToMongoDB();
+      if (!saved) throw new Error('Fallback save failed');
+      return;
+    }
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || response.statusText);
+    }
+
     updateExistingRowInDOM(date, entryData);
-  } else {
-    // Add new row to DOM
-    addNewRowToDOM(date, entryData);
+    console.log('[CARD-LOG] Entry updated atomically');
+    return;
   }
-  
-  // Save to backend
-  const response = await fetch(`${API_BASE}/api/tables/${localStorage.getItem('eventId')}/cardlog`, {
-    method: 'PUT',
-    headers: { 'Content-Type': 'application/json', Authorization: localStorage.getItem('token') },
-    body: JSON.stringify({ cardLog })
+
+  console.log('[CARD-LOG] Adding entry atomically for date:', date);
+  const response = await fetch(`${API_BASE}/api/tables/${eventId}/cardlog/entries`, {
+    method: 'POST',
+    headers: authHeaders,
+    body: JSON.stringify({ date, entry: entryData })
   });
-  
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     throw new Error(errorData.error || response.statusText);
   }
-  
-  console.log('[CARD-LOG] Entry saved and DOM updated immediately');
+
+  const result = await response.json();
+  const savedEntry = result.entry || entryData;
+
+  // The cardLogUpdated socket event may have already added this row — don't duplicate it.
+  const existingRow = document.querySelector(`tr[data-id="${savedEntry._id}"]`);
+  if (!existingRow) {
+    addNewRowToDOM(date, savedEntry);
+  }
+
+  // Keep the day's DOM id in sync with the server-side id
+  if (result.dayId) {
+    const dayDiv = document.getElementById(`day-${date}`);
+    if (dayDiv) dayDiv.setAttribute('data-id', result.dayId);
+  }
+
+  console.log('[CARD-LOG] Entry added atomically with id:', savedEntry._id);
 }
 
 // Helper function to add a new row to the DOM immediately
@@ -2649,11 +2712,10 @@ function refreshAllRowAccessControl() {
                 const option = new Option(trimmedCamera, trimmedCamera, true, true);
                 this.insertBefore(option, this.querySelector('[value="add-new-camera"]'));
                 
-                // Update all other camera dropdowns to include the new camera
+                // Update all other camera dropdowns to include the new camera.
+                // No card log save needed: custom cameras persist in localStorage and
+                // a full save here could clobber entries from other users.
                 updateAllCameraDropdowns();
-                
-                // Trigger save to persist the change
-                debounceSave();
                 
                 console.log(`[CARD-LOG] Added new camera: ${trimmedCamera}`);
               } else {

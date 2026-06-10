@@ -1755,6 +1755,237 @@ app.put('/api/tables/:id/cardlog', authenticate, async (req, res) => {
   }
 });
 
+// --- Atomic card log operations ---
+// These avoid the lost-update problem of the full-array PUT above: a client with a
+// stale view can only ever touch its own entry, never overwrite other users' rows.
+
+function sanitizeCardLogEntry(entry, { generateId = false } = {}) {
+  return {
+    _id: generateId ? new mongoose.Types.ObjectId() : ensureObjectId(entry._id),
+    camera: entry.camera || '',
+    card1: entry.card1 || '',
+    card2: entry.card2 || '',
+    card1BackedUp: !!entry.card1BackedUp,
+    card2BackedUp: !!entry.card2BackedUp,
+    user: entry.user || '',
+    category: entry.category || 'Photo',
+    notes: entry.notes || '',
+    createdBy: entry.createdBy || null,
+    createdAt: entry.createdAt || new Date(),
+    updatedAt: new Date()
+  };
+}
+
+function cardLogPermissionFilter(tableId, userId) {
+  return {
+    _id: tableId,
+    $or: [{ owners: userId }, { sharedWith: userId }]
+  };
+}
+
+function emitCardLogDay(eventType, table, date, tableId) {
+  const day = (table.cardLog || []).find(d => d && d.date === date);
+  if (day) {
+    notifyDataChange(eventType, { cardLog: day }, tableId);
+  }
+}
+
+// Add a single entry to a date (creates the day atomically if needed)
+app.post('/api/tables/:id/cardlog/entries', authenticate, async (req, res) => {
+  const { date, entry } = req.body || {};
+  if (!req.params.id || req.params.id === 'null' || !date || !entry) {
+    return res.status(400).json({ error: 'date and entry are required' });
+  }
+
+  try {
+    const sanitizedEntry = sanitizeCardLogEntry(entry, { generateId: true });
+    const perms = cardLogPermissionFilter(req.params.id, req.user.id);
+
+    // Try pushing onto an existing day first
+    let result = await Table.findOneAndUpdate(
+      { ...perms, 'cardLog.date': date },
+      { $push: { 'cardLog.$.entries': sanitizedEntry } },
+      { new: true }
+    );
+    let dayCreated = false;
+
+    if (!result) {
+      // Day doesn't exist — create it with the entry. The $ne guard prevents a
+      // duplicate day if two clients race to create the same date.
+      result = await Table.findOneAndUpdate(
+        { ...perms, 'cardLog.date': { $ne: date } },
+        { $push: { cardLog: { _id: new mongoose.Types.ObjectId(), date, entries: [sanitizedEntry] } } },
+        { new: true }
+      );
+      dayCreated = true;
+
+      if (!result) {
+        // Lost the creation race — the day exists now, push onto it.
+        result = await Table.findOneAndUpdate(
+          { ...perms, 'cardLog.date': date },
+          { $push: { 'cardLog.$.entries': sanitizedEntry } },
+          { new: true }
+        );
+        dayCreated = false;
+      }
+    }
+
+    if (!result) {
+      return res.status(404).json({ error: 'Table not found or not authorized' });
+    }
+
+    emitCardLogDay(dayCreated ? 'cardLogAdded' : 'cardLogUpdated', result, date, req.params.id);
+
+    const day = (result.cardLog || []).find(d => d && d.date === date);
+    return res.json({ entry: sanitizedEntry, dayId: day ? day._id : null, dayCreated });
+  } catch (err) {
+    console.error('[CARDLOG] Error adding entry:', err);
+    return res.status(500).json({ error: 'Failed to add card log entry', details: err.message });
+  }
+});
+
+// Update fields on a single entry
+app.patch('/api/tables/:id/cardlog/entries/:entryId', authenticate, async (req, res) => {
+  const { date, fields } = req.body || {};
+  if (!req.params.id || req.params.id === 'null' || !date || !fields || typeof fields !== 'object') {
+    return res.status(400).json({ error: 'date and fields are required' });
+  }
+  if (!mongoose.Types.ObjectId.isValid(req.params.entryId)) {
+    return res.status(404).json({ error: 'Entry not found' });
+  }
+
+  try {
+    const allowedFields = ['camera', 'card1', 'card2', 'card1BackedUp', 'card2BackedUp', 'user', 'category', 'notes'];
+    const setOps = { };
+    for (const key of allowedFields) {
+      if (Object.prototype.hasOwnProperty.call(fields, key)) {
+        const value = (key === 'card1BackedUp' || key === 'card2BackedUp') ? !!fields[key] : (fields[key] ?? '');
+        setOps[`cardLog.$[d].entries.$[e].${key}`] = value;
+      }
+    }
+    if (Object.keys(setOps).length === 0) {
+      return res.status(400).json({ error: 'No valid fields provided' });
+    }
+    setOps['cardLog.$[d].entries.$[e].updatedAt'] = new Date();
+
+    const result = await Table.findOneAndUpdate(
+      cardLogPermissionFilter(req.params.id, req.user.id),
+      { $set: setOps },
+      {
+        new: true,
+        arrayFilters: [
+          { 'd.date': date },
+          { 'e._id': new mongoose.Types.ObjectId(req.params.entryId) }
+        ]
+      }
+    );
+
+    if (!result) {
+      return res.status(404).json({ error: 'Table not found or not authorized' });
+    }
+
+    const day = (result.cardLog || []).find(d => d && d.date === date);
+    const updatedEntry = day && (day.entries || []).find(e => e && String(e._id) === req.params.entryId);
+    if (!updatedEntry) {
+      return res.status(404).json({ error: 'Entry not found' });
+    }
+
+    emitCardLogDay('cardLogUpdated', result, date, req.params.id);
+    return res.json({ entry: updatedEntry });
+  } catch (err) {
+    console.error('[CARDLOG] Error updating entry:', err);
+    return res.status(500).json({ error: 'Failed to update card log entry', details: err.message });
+  }
+});
+
+// Delete a single entry
+app.delete('/api/tables/:id/cardlog/entries/:entryId', authenticate, async (req, res) => {
+  const date = req.query.date;
+  if (!req.params.id || req.params.id === 'null' || !date) {
+    return res.status(400).json({ error: 'date query parameter is required' });
+  }
+  if (!mongoose.Types.ObjectId.isValid(req.params.entryId)) {
+    return res.status(404).json({ error: 'Entry not found' });
+  }
+
+  try {
+    const result = await Table.findOneAndUpdate(
+      cardLogPermissionFilter(req.params.id, req.user.id),
+      { $pull: { 'cardLog.$[d].entries': { _id: new mongoose.Types.ObjectId(req.params.entryId) } } },
+      { new: true, arrayFilters: [{ 'd.date': date }] }
+    );
+
+    if (!result) {
+      return res.status(404).json({ error: 'Table not found or not authorized' });
+    }
+
+    emitCardLogDay('cardLogUpdated', result, date, req.params.id);
+    return res.json({ message: 'Entry deleted' });
+  } catch (err) {
+    console.error('[CARDLOG] Error deleting entry:', err);
+    return res.status(500).json({ error: 'Failed to delete card log entry', details: err.message });
+  }
+});
+
+// Add an empty day (idempotent)
+app.post('/api/tables/:id/cardlog/days', authenticate, async (req, res) => {
+  const { date } = req.body || {};
+  if (!req.params.id || req.params.id === 'null' || !date) {
+    return res.status(400).json({ error: 'date is required' });
+  }
+
+  try {
+    const perms = cardLogPermissionFilter(req.params.id, req.user.id);
+    const result = await Table.findOneAndUpdate(
+      { ...perms, 'cardLog.date': { $ne: date } },
+      { $push: { cardLog: { _id: new mongoose.Types.ObjectId(), date, entries: [] } } },
+      { new: true }
+    );
+
+    if (result) {
+      emitCardLogDay('cardLogAdded', result, date, req.params.id);
+      const day = (result.cardLog || []).find(d => d && d.date === date);
+      return res.json({ dayId: day ? day._id : null, created: true });
+    }
+
+    // Either no permission or the day already exists — distinguish the two
+    const table = await Table.findOne(perms);
+    if (!table) {
+      return res.status(404).json({ error: 'Table not found or not authorized' });
+    }
+    const existingDay = (table.cardLog || []).find(d => d && d.date === date);
+    return res.json({ dayId: existingDay ? existingDay._id : null, created: false });
+  } catch (err) {
+    console.error('[CARDLOG] Error adding day:', err);
+    return res.status(500).json({ error: 'Failed to add card log day', details: err.message });
+  }
+});
+
+// Delete an entire day (owners only, matching the UI restriction)
+app.delete('/api/tables/:id/cardlog/days/:date', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === 'null' || !req.params.date) {
+    return res.status(400).json({ error: 'Invalid table ID or date' });
+  }
+
+  try {
+    const result = await Table.findOneAndUpdate(
+      { _id: req.params.id, owners: req.user.id },
+      { $pull: { cardLog: { date: req.params.date } } },
+      { new: true }
+    );
+
+    if (!result) {
+      return res.status(404).json({ error: 'Table not found or not authorized (owners only)' });
+    }
+
+    notifyDataChange('cardLogDeleted', { cardLog: { date: req.params.date } }, req.params.id);
+    return res.json({ message: 'Day deleted' });
+  } catch (err) {
+    console.error('[CARDLOG] Error deleting day:', err);
+    return res.status(500).json({ error: 'Failed to delete card log day', details: err.message });
+  }
+});
+
 // ✅ Save shotlist data
 app.put('/api/tables/:id/shotlist', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === "null") {
