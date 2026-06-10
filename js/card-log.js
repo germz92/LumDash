@@ -935,6 +935,21 @@ function cleanupCardLogPage() {
   users = [];
   customCameras = [];
 
+  // Remove body-appended modals and the context menu. Modals are moved to
+  // document.body when opened, so they survive SPA navigation; a stale open
+  // modal becomes an invisible full-screen overlay (touch-action: none) that
+  // blocks scrolling, and its duplicate id breaks the close/release logic.
+  hideCardBackupContextMenu();
+  if (cardLogContextMenu) {
+    cardLogContextMenu.remove();
+    cardLogContextMenu = null;
+  }
+  document.querySelectorAll('#card-entry-modal, #date-modal').forEach(modal => {
+    if (modal.parentElement === document.body) {
+      modal.remove();
+    }
+  });
+
   window.forceReleaseCardLogScrollLock();
   
   console.log('[CARD-LOG] ✅ Card log page cleaned up');
@@ -1303,8 +1318,10 @@ function ensureCardBackupContextMenu() {
 
     if (!cardLogContextTarget) return;
     const { row, field } = cardLogContextTarget;
-    await toggleCardBackedUp(row, field);
+    // Hide the menu before the network call so it can't get stuck open
+    // while the save is in flight (or if it fails).
     hideCardBackupContextMenu();
+    await toggleCardBackedUp(row, field);
   });
 
   if (!window.__cardLogBackupDismissBound) {
