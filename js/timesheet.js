@@ -54,41 +54,49 @@
     return new Date().toISOString();
   }
 
-  // Calculate hours between clock in and clock out
-  // Uses UTC timestamps when available (handles timezone changes during travel)
-  // Falls back to date/time strings for manual entries or legacy data
+  // Calculate hours between clock in and clock out.
+  //
+  // The displayed date/time strings are the source of truth: the sheet must
+  // always agree with what the user sees (and what an approver reads). Entries
+  // edited before the server started clearing utcTimestamp on edit carry a
+  // stale timestamp of the original clock moment — using it made an
+  // immediate in/out edited to 9:35→2:35 still show 0.00h.
+  //
+  // UTC timestamps are only used as a fallback when a time string is missing.
   function calculateHours(clockIn, clockOut) {
     if (!clockIn || !clockOut) return null;
     
-    // If both have UTC timestamps, use those for accurate calculation
-    // This handles the case where someone clocks in PT and clocks out ET
+    if (clockIn.time && clockOut.time) {
+      const inDate = new Date(clockIn.date);
+      const outDate = new Date(clockOut.date);
+      
+      const [inHours, inMinutes] = clockIn.time.split(':').map(Number);
+      const [outHours, outMinutes] = clockOut.time.split(':').map(Number);
+      
+      inDate.setHours(inHours, inMinutes, 0, 0);
+      outDate.setHours(outHours, outMinutes, 0, 0);
+      
+      const diffMs = outDate - inDate;
+      const diffHours = diffMs / (1000 * 60 * 60);
+      
+      return Math.max(0, diffHours).toFixed(2);
+    }
+    
+    // Fallback: actual recorded moments (also handles timezone changes)
     if (clockIn.utcTimestamp && clockOut.utcTimestamp) {
-      const inTime = new Date(clockIn.utcTimestamp);
-      const outTime = new Date(clockOut.utcTimestamp);
-      const diffMs = outTime - inTime;
+      const diffMs = new Date(clockOut.utcTimestamp) - new Date(clockIn.utcTimestamp);
       const diffHours = diffMs / (1000 * 60 * 60);
       return Math.max(0, diffHours).toFixed(2);
     }
     
-    // Fallback: use date/time strings (for manual entries or legacy data)
-    // Note: This may be inaccurate if timezones changed between clock in/out
-    const inDate = new Date(clockIn.date);
-    const outDate = new Date(clockOut.date);
-    
-    // Parse times
-    const [inHours, inMinutes] = (clockIn.time || '00:00').split(':').map(Number);
-    const [outHours, outMinutes] = (clockOut.time || '00:00').split(':').map(Number);
-    
-    inDate.setHours(inHours, inMinutes, 0, 0);
-    outDate.setHours(outHours, outMinutes, 0, 0);
-    
-    const diffMs = outDate - inDate;
-    const diffHours = diffMs / (1000 * 60 * 60);
-    
-    return Math.max(0, diffHours).toFixed(2);
+    return null;
   }
 
-  // Filter entries based on selected period
+  // Filter entries based on selected period.
+  // Entry dates are stored as UTC midnight (YYYY-MM-DD), and the UI displays
+  // them with timeZone: 'UTC'. The filter must read UTC date parts too —
+  // local getMonth() shifts entries on the 1st of a month into the previous
+  // month for anyone west of UTC, skewing the monthly totals.
   function filterEntries(entries) {
     const now = new Date();
     const currentMonth = now.getMonth();
@@ -96,8 +104,8 @@
     
     return entries.filter(entry => {
       const entryDate = new Date(entry.date);
-      const entryMonth = entryDate.getMonth();
-      const entryYear = entryDate.getFullYear();
+      const entryMonth = entryDate.getUTCMonth();
+      const entryYear = entryDate.getUTCFullYear();
       
       switch (currentFilter) {
         case 'this_month':
@@ -115,9 +123,11 @@
           return entryYear === currentYear;
         case 'custom':
           if (customStartDate && customEndDate) {
+            // Date inputs give YYYY-MM-DD, which parses as UTC midnight —
+            // matching how entry dates are stored.
             const start = new Date(customStartDate);
             const end = new Date(customEndDate);
-            end.setHours(23, 59, 59, 999); // Include the entire end day
+            end.setUTCHours(23, 59, 59, 999); // Include the entire end day
             return entryDate >= start && entryDate <= end;
           }
           return true; // Show all if custom range not set
@@ -562,8 +572,11 @@
     const dateInput = document.createElement('input');
     dateInput.type = 'date';
     dateInput.className = 'inline-edit-input';
+    // Use UTC parts: entry dates are stored as UTC midnight, and local getters
+    // would pre-fill the previous day for timezones west of UTC (then any edit
+    // saves that wrong date).
     const entryDate = new Date(entry.date);
-    dateInput.value = `${entryDate.getFullYear()}-${String(entryDate.getMonth() + 1).padStart(2, '0')}-${String(entryDate.getDate()).padStart(2, '0')}`;
+    dateInput.value = `${entryDate.getUTCFullYear()}-${String(entryDate.getUTCMonth() + 1).padStart(2, '0')}-${String(entryDate.getUTCDate()).padStart(2, '0')}`;
     dateInput.onchange = async () => {
       await updateEntry(entry._id, { date: dateInput.value });
     };

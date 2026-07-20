@@ -7977,6 +7977,14 @@ app.put('/api/timesheet/entry/:entryId', authenticate, async (req, res) => {
     if (notes !== undefined) entry.notes = notes;
     if (hours !== undefined) entry.hours = hours;
     if (pairId !== undefined) entry.pairId = pairId;
+
+    // Editing the date or time invalidates the recorded clock-in/out moment.
+    // Hours are calculated from utcTimestamp when present, so keeping a stale
+    // one makes the display show the edited time while the math uses the old
+    // moment (e.g. an immediate in/out edited to a 5h shift still shows 0.00h).
+    if (date || time !== undefined) {
+      entry.utcTimestamp = null;
+    }
     
     await timesheet.save();
     res.json({ message: 'Entry updated', entry });
