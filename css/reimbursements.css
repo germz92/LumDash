@@ -596,6 +596,18 @@ body:has(.reimbursement-detail-page) .bottom-nav-material {
   cursor: pointer;
   transition: all 0.2s;
   border: none;
+  position: relative;
+}
+
+/* iOS Safari often ignores file inputs with display:none, even inside a label */
+.btn-upload-receipt .file-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  font-size: 0;
 }
 
 .btn-upload-receipt:hover {

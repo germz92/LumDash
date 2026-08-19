@@ -125,7 +125,7 @@
                   </button>`
                 : `<label class="btn-upload-receipt" title="Upload receipt">
                     <span class="material-symbols-outlined">upload_file</span>
-                    <input type="file" class="file-input" accept="image/jpeg,image/png,application/pdf" data-idx="${idx}" style="display:none">
+                    <input type="file" class="file-input" accept="image/*,application/pdf,.heic,.heif,.jpg,.jpeg,.png,.webp,.pdf" data-idx="${idx}">
                   </label>`
               }
             </td>
@@ -189,7 +189,7 @@
                   <button class="btn-remove-receipt" data-idx="${idx}"><span class="material-symbols-outlined">close</span></button>`
                 : `<label class="btn-upload-receipt">
                     <span class="material-symbols-outlined">upload_file</span> Upload
-                    <input type="file" class="file-input" accept="image/jpeg,image/png,application/pdf" data-idx="${idx}" style="display:none">
+                    <input type="file" class="file-input" accept="image/*,application/pdf,.heic,.heif,.jpg,.jpeg,.png,.webp,.pdf" data-idx="${idx}">
                   </label>`
               }
             </div>
@@ -276,12 +276,29 @@
       });
     });
 
-    // File upload
+    // File upload — copy the file into memory immediately. iOS/PWA photo
+    // pickers background the app; the original File stream is often already
+    // closed by the time fetch/FormData runs (busboy "Unexpected end of form").
     document.querySelectorAll('.file-input').forEach(el => {
-      el.addEventListener('change', (e) => {
-        const idx = parseInt(e.target.dataset.idx);
-        const file = e.target.files[0];
-        if (file) uploadReceipt(idx, file);
+      el.addEventListener('change', async (e) => {
+        const input = e.target;
+        const idx = parseInt(input.dataset.idx, 10);
+        const file = input.files && input.files[0];
+        if (!file) return;
+        const name = file.name || 'receipt.jpg';
+        const type = file.type || 'application/octet-stream';
+        try {
+          const buffer = await file.arrayBuffer();
+          input.value = '';
+          if (!buffer || buffer.byteLength === 0) {
+            alert('Could not read that photo. Please try again.');
+            return;
+          }
+          await uploadReceipt(idx, new File([buffer], name, { type }));
+        } catch (err) {
+          console.error('Error reading receipt file:', err);
+          alert('Could not read that photo. Please try again.');
+        }
       });
     });
   }
@@ -303,20 +320,102 @@
     if (lastRow) lastRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
+  async function compressImageToJpeg(file, maxDim = 1920, quality = 0.82) {
+    let source;
+    try {
+      source = await createImageBitmap(file);
+    } catch (_) {
+      source = await new Promise((resolve, reject) => {
+        const img = new Image();
+        const url = URL.createObjectURL(file);
+        img.onload = () => {
+          URL.revokeObjectURL(url);
+          resolve(img);
+        };
+        img.onerror = () => {
+          URL.revokeObjectURL(url);
+          reject(new Error('Could not read this photo'));
+        };
+        img.src = url;
+      });
+    }
+
+    const scale = Math.min(1, maxDim / Math.max(source.width, source.height));
+    const canvas = document.createElement('canvas');
+    canvas.width = Math.max(1, Math.round(source.width * scale));
+    canvas.height = Math.max(1, Math.round(source.height * scale));
+    canvas.getContext('2d').drawImage(source, 0, 0, canvas.width, canvas.height);
+    if (source.close) source.close();
+
+    const blob = await new Promise((resolve, reject) => {
+      canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not compress photo'))), 'image/jpeg', quality);
+    });
+
+    const base = (file.name || 'receipt').replace(/\.[^/.]+$/, '') || 'receipt';
+    return new File([blob], `${base}.jpg`, { type: 'image/jpeg' });
+  }
+
+  async function prepareReceiptFile(file) {
+    const type = (file.type || '').toLowerCase();
+    const name = (file.name || '').toLowerCase();
+    const isPdf = type === 'application/pdf' || name.endsWith('.pdf');
+    if (isPdf) {
+      if (file.size > 25 * 1024 * 1024) {
+        throw new Error('PDF is too large (max 25MB).');
+      }
+      return file;
+    }
+
+    // Already a reasonably small JPEG/PNG — send as-is.
+    if ((type === 'image/jpeg' || type === 'image/jpg' || type === 'image/png') && file.size <= 2 * 1024 * 1024) {
+      return file;
+    }
+
+    try {
+      return await compressImageToJpeg(file);
+    } catch (err) {
+      console.warn('[REIMBURSE] Could not convert/compress photo, uploading original', err);
+      if (file.size > 25 * 1024 * 1024) {
+        throw new Error('Photo is too large. Try taking a new picture or choosing a smaller image.');
+      }
+      return file;
+    }
+  }
+
+  function arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
+    }
+    return btoa(binary);
+  }
+
   async function uploadReceipt(idx, file) {
     try {
-      const formData = new FormData();
-      formData.append('file', file);
+      const prepared = await prepareReceiptFile(file);
+      const buffer = await prepared.arrayBuffer();
+      if (!buffer.byteLength) {
+        throw new Error('Photo data was empty. Please try again.');
+      }
 
-      const res = await fetch(`${API_BASE}/api/reimbursements/${requestId}/upload`, {
+      const res = await fetch(`${API_BASE}/api/reimbursements/${requestId}/upload-base64`, {
         method: 'POST',
-        headers: { Authorization: token },
-        body: formData
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: token
+        },
+        body: JSON.stringify({
+          filename: prepared.name || 'receipt.jpg',
+          mimeType: prepared.type || 'image/jpeg',
+          data: arrayBufferToBase64(buffer)
+        })
       });
 
       if (!res.ok) {
-        const err = await res.json();
-        alert(err.error || 'Upload failed');
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Upload failed. Please try again.');
         return;
       }
 
@@ -327,7 +426,7 @@
       renderItems();
     } catch (err) {
       console.error('Error uploading receipt:', err);
-      alert('Failed to upload receipt');
+      alert(err.message || 'Failed to upload receipt. Please try again.');
     }
   }
 

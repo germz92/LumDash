@@ -96,6 +96,67 @@ const upload = multer({
   }
 });
 
+// Phone camera rolls often send HEIC/HEIF (or a blank/octet-stream type) and
+// original photos can be well over 10MB. Keep the documents uploader strict;
+// receipts get a dedicated, mobile-friendly config.
+const receiptUpload = multer({
+  storage: storage,
+  limits: {
+    fileSize: 25 * 1024 * 1024
+  },
+  fileFilter: (req, file, cb) => {
+    const mime = (file.mimetype || '').toLowerCase();
+    const name = (file.originalname || '').toLowerCase();
+    const allowedMimes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/webp',
+      'image/heic', 'image/heif', 'image/heic-sequence',
+      'application/pdf'
+    ];
+    const allowedExt = /\.(jpe?g|png|webp|heic|heif|pdf)$/i.test(name);
+    if (allowedMimes.includes(mime) || allowedExt || mime === 'application/octet-stream' && allowedExt) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Please upload a photo (JPG, PNG, HEIC) or PDF.'), false);
+    }
+  }
+});
+
+function sendMulterError(err, res) {
+  if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
+    return res.status(400).json({ error: 'Photo is too large (max 25MB). Try taking a new picture or choosing a smaller image.' });
+  }
+  if (err && /Unexpected end of form/i.test(err.message || '')) {
+    return res.status(400).json({ error: 'Upload was interrupted. Please try again.' });
+  }
+  return res.status(400).json({ error: err.message || 'Upload failed' });
+}
+
+async function uploadReceiptBufferToCloudinary(requestId, buffer, originalName, mimeType) {
+  const name = originalName || 'receipt.jpg';
+  const cleanFilename = name.replace(/\.[^/.]+$/, '');
+  const sanitizedFilename = cleanFilename.replace(/[^a-zA-Z0-9.-]/g, '_') || 'receipt';
+  const isPdf = (mimeType || '').toLowerCase() === 'application/pdf' || /\.pdf$/i.test(name);
+
+  return new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      {
+        resource_type: isPdf ? 'image' : 'auto',
+        folder: `lumdash/reimbursements/${requestId}`,
+        public_id: `${Date.now()}_${sanitizedFilename}`,
+        use_filename: false,
+        unique_filename: true,
+        type: 'upload',
+        access_mode: 'public'
+      },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    );
+    uploadStream.end(buffer);
+  });
+}
+
 const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
@@ -8222,44 +8283,80 @@ app.delete('/api/reimbursements/:id', authenticate, async (req, res) => {
 });
 
 // Upload receipt attachment for a reimbursement item
-app.post('/api/reimbursements/:id/upload', authenticate, upload.single('file'), async (req, res) => {
+app.post('/api/reimbursements/:id/upload', authenticate, (req, res, next) => {
+  receiptUpload.single('file')(req, res, (err) => {
+    if (err) return sendMulterError(err, res);
+    next();
+  });
+}, async (req, res) => {
   try {
     const request = await ReimbursementRequest.findOne({ _id: req.params.id, userId: req.user.id });
     if (!request) return res.status(404).json({ error: 'Request not found' });
 
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    const cleanFilename = req.file.originalname.replace(/\.[^/.]+$/, '');
-    const sanitizedFilename = cleanFilename.replace(/[^a-zA-Z0-9.-]/g, '_');
-
-    const uploadResult = await new Promise((resolve, reject) => {
-      const uploadStream = cloudinary.uploader.upload_stream(
-        {
-          resource_type: 'image',
-          folder: `lumdash/reimbursements/${req.params.id}`,
-          public_id: `${Date.now()}_${sanitizedFilename}`,
-          use_filename: false,
-          unique_filename: true,
-          type: 'upload',
-          access_mode: 'public'
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-      uploadStream.end(req.file.buffer);
-    });
+    const originalName = req.file.originalname || 'receipt.jpg';
+    const uploadResult = await uploadReceiptBufferToCloudinary(
+      req.params.id,
+      req.file.buffer,
+      originalName,
+      req.file.mimetype
+    );
 
     res.json({
       url: uploadResult.secure_url,
       publicId: uploadResult.public_id,
-      originalName: req.file.originalname
+      originalName
     });
   } catch (err) {
     console.error('Error uploading reimbursement receipt:', err);
-    res.status(500).json({ error: 'Failed to upload receipt' });
+    res.status(500).json({ error: 'Failed to upload receipt. Try a JPG photo or a smaller file.' });
   }
+});
+
+// Phone/PWA multipart uploads often arrive truncated (busboy "Unexpected end of
+// form") after iOS backgrounds the app for the photo picker. This JSON path
+// never uses multer/busboy — the file bytes are already in memory on the client.
+app.post('/api/reimbursements/:id/upload-base64', authenticate, express.json({ limit: '20mb' }), async (req, res) => {
+  try {
+    const request = await ReimbursementRequest.findOne({ _id: req.params.id, userId: req.user.id });
+    if (!request) return res.status(404).json({ error: 'Request not found' });
+
+    const { filename, mimeType, data } = req.body || {};
+    if (!data || typeof data !== 'string') {
+      return res.status(400).json({ error: 'No file data uploaded' });
+    }
+
+    const buffer = Buffer.from(data, 'base64');
+    if (!buffer.length) {
+      return res.status(400).json({ error: 'Uploaded file was empty. Please try again.' });
+    }
+
+    const originalName = filename || 'receipt.jpg';
+    const uploadResult = await uploadReceiptBufferToCloudinary(
+      req.params.id,
+      buffer,
+      originalName,
+      mimeType || ''
+    );
+
+    res.json({
+      url: uploadResult.secure_url,
+      publicId: uploadResult.public_id,
+      originalName
+    });
+  } catch (err) {
+    console.error('Error uploading reimbursement receipt (base64):', err);
+    res.status(500).json({ error: 'Failed to upload receipt. Try a JPG photo or a smaller file.' });
+  }
+});
+
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  if (err && /Unexpected end of form/i.test(err.message || '')) {
+    return res.status(400).json({ error: 'Upload was interrupted. Please try again.' });
+  }
+  next(err);
 });
 
 // SERVER
