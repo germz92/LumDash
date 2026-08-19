@@ -627,7 +627,14 @@ const corsOptions = {
   exposedHeaders: ['rndr-id']
 };
 app.use(cors(corsOptions));
-app.use(express.json());
+// Default JSON body limit is 100kb. Receipt uploads send a base64 photo and
+// would 413 here before the route-level 20mb parser ever runs.
+app.use((req, res, next) => {
+  if (req.method === 'POST' && /\/api\/reimbursements\/[^/]+\/upload-base64\/?$/.test(req.path)) {
+    return next();
+  }
+  express.json({ limit: '1mb' })(req, res, next);
+});
 
 // Debug: Log all incoming requests
 app.use((req, res, next) => {
@@ -8355,6 +8362,9 @@ app.use((err, req, res, next) => {
   if (res.headersSent) return next(err);
   if (err && /Unexpected end of form/i.test(err.message || '')) {
     return res.status(400).json({ error: 'Upload was interrupted. Please try again.' });
+  }
+  if (err && (err.type === 'entity.too.large' || err.status === 413 || /too large/i.test(err.message || ''))) {
+    return res.status(413).json({ error: 'Photo is too large. Try taking a new picture or choosing a smaller image.' });
   }
   next(err);
 });

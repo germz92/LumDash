@@ -320,7 +320,7 @@
     if (lastRow) lastRow.scrollIntoView({ behavior: 'smooth', block: 'center' });
   }
 
-  async function compressImageToJpeg(file, maxDim = 1920, quality = 0.82) {
+  async function compressImageToJpeg(file, maxDim = 1600, quality = 0.72) {
     let source;
     try {
       source = await createImageBitmap(file);
@@ -350,6 +350,11 @@
     const blob = await new Promise((resolve, reject) => {
       canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Could not compress photo'))), 'image/jpeg', quality);
     });
+
+    // If still large, recompress at lower quality so the base64 JSON body stays reasonable.
+    if (blob.size > 1.5 * 1024 * 1024 && quality > 0.55) {
+      return compressImageToJpeg(file, maxDim, 0.55);
+    }
 
     const base = (file.name || 'receipt').replace(/\.[^/.]+$/, '') || 'receipt';
     return new File([blob], `${base}.jpg`, { type: 'image/jpeg' });
