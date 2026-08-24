@@ -304,38 +304,35 @@ class DocumentsPage {
       return;
     }
 
-    // Handle click events for both desktop and mobile
-    const handleUploadAreaClick = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      
-      // Check if user is owner before allowing file selection
-      if (!this.isOwner) {
-        this.showError('Only event owners can upload maps');
-        return;
-      }
-      
-      console.log('Upload area clicked, triggering file input');
-      fileInput.click();
-    };
-
-    // Add both click and touchend events for better mobile support
-    uploadArea.addEventListener('click', handleUploadAreaClick);
-    uploadArea.addEventListener('touchend', (e) => {
-      e.preventDefault();
-      handleUploadAreaClick(e);
-    });
+    // Native <label for="fileInput"> opens the picker. Do not programmatically
+    // click() or preventDefault — that double-fires on some browsers and iOS
+    // often drops the user-gesture, which then aborts the upload mid-form.
 
     // Drag and drop events
     uploadArea.addEventListener('dragover', this.handleDragOver.bind(this));
     uploadArea.addEventListener('dragleave', this.handleDragLeave.bind(this));
     uploadArea.addEventListener('drop', this.handleDrop.bind(this));
 
-    // File input change event
-    fileInput.addEventListener('change', (e) => {
-      console.log('File input changed, files:', e.target.files.length);
-      if (e.target.files.length > 0) {
-        this.uploadFile(e.target.files[0]);
+    // Copy the file into memory immediately. iOS/PWA pickers background the
+    // app; the original File stream is often already closed by the time
+    // fetch/FormData runs (busboy "Unexpected end of form").
+    fileInput.addEventListener('change', async (e) => {
+      const input = e.target;
+      const file = input.files && input.files[0];
+      if (!file) return;
+      const name = file.name || 'document';
+      const type = file.type || 'application/octet-stream';
+      try {
+        const buffer = await file.arrayBuffer();
+        input.value = '';
+        if (!buffer || buffer.byteLength === 0) {
+          this.showError('Could not read that file. Please try again.');
+          return;
+        }
+        await this.uploadFile(new File([buffer], name, { type }));
+      } catch (err) {
+        console.error('Error reading map file:', err);
+        this.showError('Could not read that file. Please try again.');
       }
     });
 
@@ -375,9 +372,31 @@ class DocumentsPage {
     }
     
     const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      this.uploadFile(files[0]);
+    if (!files.length) return;
+
+    const file = files[0];
+    const name = file.name || 'document';
+    const type = file.type || 'application/octet-stream';
+    file.arrayBuffer().then((buffer) => {
+      if (!buffer || buffer.byteLength === 0) {
+        this.showError('Could not read that file. Please try again.');
+        return;
+      }
+      return this.uploadFile(new File([buffer], name, { type }));
+    }).catch((err) => {
+      console.error('Error reading dropped map file:', err);
+      this.showError('Could not read that file. Please try again.');
+    });
+  }
+
+  arrayBufferToBase64(buffer) {
+    const bytes = new Uint8Array(buffer);
+    const chunkSize = 0x8000;
+    let binary = '';
+    for (let i = 0; i < bytes.length; i += chunkSize) {
+      binary += String.fromCharCode.apply(null, bytes.subarray(i, i + chunkSize));
     }
+    return btoa(binary);
   }
 
   async uploadFile(file) {
@@ -408,23 +427,29 @@ class DocumentsPage {
       return;
     }
 
-    const formData = new FormData();
-    formData.append('file', file);
-    formData.append('eventId', this.eventId);
-
     this.showUploadProgress();
 
     try {
       const token = localStorage.getItem('token');
       console.log('Upload token exists:', token ? 'YES' : 'NO');
+
+      const buffer = await file.arrayBuffer();
+      if (!buffer || buffer.byteLength === 0) {
+        throw new Error('File data was empty. Please try again.');
+      }
       
       const apiBase = window.API_BASE || API_BASE || 'http://localhost:3000';
-      const response = await fetch(`${apiBase}/api/tables/${this.eventId}/documents`, {
+      const response = await fetch(`${apiBase}/api/tables/${this.eventId}/documents/upload-base64`, {
         method: 'POST',
         headers: {
+          'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: formData
+        body: JSON.stringify({
+          filename: file.name || 'document',
+          mimeType: file.type || 'application/octet-stream',
+          data: this.arrayBufferToBase64(buffer)
+        })
       });
 
       console.log('Upload response status:', response.status);
@@ -449,7 +474,8 @@ class DocumentsPage {
       this.loadDocuments();
       
       // Reset file input
-      document.getElementById('fileInput').value = '';
+      const fileInput = document.getElementById('fileInput');
+      if (fileInput) fileInput.value = '';
       
     } catch (error) {
       console.error('Upload error:', error);

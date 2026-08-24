@@ -111,6 +111,9 @@ function handleDocumentFileUpload(req, res, next) {
   upload.single('file')(req, res, (err) => {
     if (!err) return next();
     console.error('Document multer error:', err);
+    if (err && /Unexpected end of form/i.test(err.message || '')) {
+      return res.status(400).json({ error: 'Upload was interrupted. Please try again.' });
+    }
     const message = err.code === 'LIMIT_FILE_SIZE'
       ? 'File size must be less than 10MB'
       : (err.message || 'Invalid file upload');
@@ -652,7 +655,10 @@ app.use(cors(corsOptions));
 // Default JSON body limit is 100kb. Receipt uploads send a base64 photo and
 // would 413 here before the route-level 20mb parser ever runs.
 app.use((req, res, next) => {
-  if (req.method === 'POST' && /\/api\/reimbursements\/[^/]+\/upload-base64\/?$/.test(req.path)) {
+  if (req.method === 'POST' && (
+    /\/api\/reimbursements\/[^/]+\/upload-base64\/?$/.test(req.path) ||
+    /\/api\/tables\/[^/]+\/documents\/upload-base64\/?$/.test(req.path)
+  )) {
     return next();
   }
   express.json({ limit: '1mb' })(req, res, next);
@@ -6037,6 +6043,60 @@ function uploadEventDocumentToCloudinary(file, eventId) {
   });
 }
 
+async function saveUploadedEventDocument(req, res, file) {
+  try {
+    const table = await Table.findById(req.params.id);
+    const isOwner = !!(table && table.owners && table.owners.map(String).includes(String(req.user.id)));
+    if (!table || !isOwner) {
+      return res.status(403).json({ error: 'Not authorized or not found' });
+    }
+
+    if (!file || !file.buffer || !file.buffer.length) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    if (file.buffer.length > 10 * 1024 * 1024) {
+      return res.status(400).json({ error: 'File size must be less than 10MB' });
+    }
+
+    const mime = (file.mimetype || '').toLowerCase();
+    const allowedByMime = allowedDocumentMimeTypes.includes(mime);
+    const allowedByExt = hasAllowedDocumentExtension(file.originalname) &&
+      (!mime || mime === 'application/octet-stream');
+    if (!allowedByMime && !allowedByExt) {
+      return res.status(400).json({ error: 'Only JPG, PNG, and PDF files are allowed' });
+    }
+
+    const uploadResult = await uploadEventDocumentToCloudinary(file, req.params.id);
+
+    const newDocument = {
+      originalName: file.originalname,
+      cloudinaryPublicId: uploadResult.public_id,
+      url: uploadResult.secure_url,
+      fileType: file.mimetype || 'application/octet-stream',
+      size: file.size || file.buffer.length,
+      uploadedBy: req.user.id,
+      uploadedAt: new Date()
+    };
+
+    table.documents.push(newDocument);
+    await table.save();
+
+    notifyDataChange('documentsChanged', null, req.params.id);
+
+    res.json({
+      message: 'Document uploaded successfully',
+      document: table.documents[table.documents.length - 1]
+    });
+  } catch (err) {
+    console.error('Error uploading document:', err);
+    if (res.headersSent) return;
+    const message = err.message || 'Failed to upload document';
+    const status = err.http_code === 400 ? 400 : 500;
+    res.status(status).json({ error: message });
+  }
+}
+
 // Get all documents for an event
 app.get('/api/tables/:id/documents', authenticate, async (req, res) => {
   try {
@@ -6074,47 +6134,26 @@ app.get('/api/tables/:id/documents/:documentId', authenticate, async (req, res) 
 
 // Upload a new document
 app.post('/api/tables/:id/documents', authenticate, handleDocumentFileUpload, async (req, res) => {
-  try {
-    const table = await Table.findById(req.params.id);
-    const isOwner = !!(table && table.owners && table.owners.map(String).includes(String(req.user.id)));
-    if (!table || !isOwner) {
-      return res.status(403).json({ error: 'Not authorized or not found' });
-    }
-    
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
-    
-    const uploadResult = await uploadEventDocumentToCloudinary(req.file, req.params.id);
-    
-    // Add document to table
-    const newDocument = {
-      originalName: req.file.originalname,
-      cloudinaryPublicId: uploadResult.public_id,
-      url: uploadResult.secure_url,
-      fileType: req.file.mimetype || 'application/octet-stream',
-      size: req.file.size,
-      uploadedBy: req.user.id,
-      uploadedAt: new Date()
-    };
-    
-    table.documents.push(newDocument);
-    await table.save();
-    
-    // Notify clients about the new document
-    notifyDataChange('documentsChanged', null, req.params.id);
-    
-    res.json({
-      message: 'Document uploaded successfully',
-      document: table.documents[table.documents.length - 1]
-    });
-    
-  } catch (err) {
-    console.error('Error uploading document:', err);
-    const message = err.message || 'Failed to upload document';
-    const status = err.http_code === 400 ? 400 : 500;
-    res.status(status).json({ error: message });
+  await saveUploadedEventDocument(req, res, req.file);
+});
+
+// Phone/PWA multipart uploads often arrive truncated (busboy "Unexpected end of
+// form") after iOS backgrounds the app for the file picker. This JSON path
+// never uses multer/busboy — the file bytes are already in memory on the client.
+app.post('/api/tables/:id/documents/upload-base64', authenticate, express.json({ limit: '16mb' }), async (req, res) => {
+  const { filename, mimeType, data } = req.body || {};
+  if (!data || typeof data !== 'string') {
+    return res.status(400).json({ error: 'No file data uploaded' });
   }
+
+  const raw = data.includes(',') ? data.split(',').pop() : data;
+  const buffer = Buffer.from(raw, 'base64');
+  await saveUploadedEventDocument(req, res, {
+    originalname: filename || 'document',
+    mimetype: mimeType || 'application/octet-stream',
+    buffer,
+    size: buffer.length
+  });
 });
 
 // Delete a document
