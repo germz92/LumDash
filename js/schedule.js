@@ -370,15 +370,34 @@ function setupPhotographerAutocomplete() {
   window.addEventListener('resize', hideAutocomplete);
 }
 
-// --- Search bar autocomplete ---
+// --- Search bar autocomplete (photographers on this schedule only) ---
 
-// Show search autocomplete suggestions
+function getSchedulePhotographerNames() {
+  const names = new Set();
+  (tableData.programs || []).forEach((program) => {
+    const raw = program && program.photographer != null ? String(program.photographer) : '';
+    raw.split(/[,;/]+/).forEach((part) => {
+      const name = part.trim();
+      if (name) names.add(name);
+    });
+  });
+  return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+}
+
+function photographerNameMatchesQuery(name, query) {
+  const q = query.toLowerCase();
+  const lower = name.toLowerCase();
+  if (lower.startsWith(q)) return true;
+  return lower.split(/\s+/).some((word) => word.startsWith(q));
+}
+
 function showSearchAutocomplete(input, suggestions) {
   hideSearchAutocomplete();
   if (suggestions.length === 0) return;
 
   searchAutocompleteContainer = document.createElement('div');
   searchAutocompleteContainer.className = 'search-autocomplete';
+  searchAutocompleteContainer.setAttribute('role', 'listbox');
   searchAutocompleteContainer.style.cssText = `
     position: fixed;
     background: white;
@@ -387,7 +406,7 @@ function showSearchAutocomplete(input, suggestions) {
     box-shadow: 0 4px 12px rgba(0,0,0,0.18);
     max-height: 200px;
     overflow-y: auto;
-    z-index: 1100;
+    z-index: 2100;
     min-width: 150px;
   `;
 
@@ -396,14 +415,16 @@ function showSearchAutocomplete(input, suggestions) {
   searchAutocompleteContainer.style.left = `${rect.left}px`;
   searchAutocompleteContainer.style.width = `${rect.width}px`;
 
-  suggestions.forEach(suggestion => {
+  suggestions.forEach((suggestion) => {
     const item = document.createElement('div');
     item.textContent = suggestion;
+    item.setAttribute('role', 'option');
     item.style.cssText = `
       padding: 8px 12px;
       cursor: pointer;
       border-bottom: 1px solid #f0f0f0;
       font-size: 14px;
+      touch-action: manipulation;
     `;
 
     item.addEventListener('mouseenter', () => {
@@ -413,8 +434,9 @@ function showSearchAutocomplete(input, suggestions) {
       item.style.backgroundColor = 'white';
     });
 
-    item.addEventListener('mousedown', (e) => {
-      e.preventDefault(); // Prevent input blur
+    item.addEventListener('pointerdown', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       input.value = suggestion;
       searchQuery = suggestion.toLowerCase();
       renderProgramSections(isOwner);
@@ -428,7 +450,6 @@ function showSearchAutocomplete(input, suggestions) {
   document.body.appendChild(searchAutocompleteContainer);
 }
 
-// Hide search autocomplete
 function hideSearchAutocomplete() {
   if (searchAutocompleteContainer) {
     searchAutocompleteContainer.remove();
@@ -436,18 +457,18 @@ function hideSearchAutocomplete() {
   }
 }
 
-// Handle search autocomplete logic
 function handleSearchAutocomplete(input) {
+  if (!input) return;
   const query = input.value.trim();
-
-  if (!query || query.length === 0) {
+  const photographers = getSchedulePhotographerNames();
+  if (photographers.length === 0) {
     hideSearchAutocomplete();
     return;
   }
 
-  const suggestions = cachedUserFirstNames.filter(name =>
-    name.toLowerCase().startsWith(query.toLowerCase())
-  ).slice(0, 8);
+  const suggestions = query
+    ? photographers.filter((name) => photographerNameMatchesQuery(name, query)).slice(0, 8)
+    : photographers.slice(0, 8);
 
   if (suggestions.length > 0) {
     showSearchAutocomplete(input, suggestions);
@@ -456,34 +477,39 @@ function handleSearchAutocomplete(input) {
   }
 }
 
-// Setup search bar autocomplete
+let searchAutocompleteDocumentBound = false;
+
 function setupSearchAutocomplete() {
   const searchInput = document.getElementById('searchInput');
   if (!searchInput) return;
 
-  // Show suggestions on input
-  searchInput.addEventListener('input', () => {
-    handleSearchAutocomplete(searchInput);
-  });
+  if (!searchInput.dataset.searchAcBound) {
+    searchInput.dataset.searchAcBound = 'true';
+    searchInput.addEventListener('input', () => handleSearchAutocomplete(searchInput));
+    searchInput.addEventListener('focus', () => handleSearchAutocomplete(searchInput));
+    searchInput.addEventListener('blur', () => {
+      setTimeout(hideSearchAutocomplete, 180);
+    });
+    searchInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') {
+        hideSearchAutocomplete();
+      }
+    });
+  }
 
-  // Hide on blur (with small delay so clicks on suggestions register)
-  searchInput.addEventListener('blur', () => {
-    setTimeout(hideSearchAutocomplete, 150);
-  });
-
-  // Hide on Escape
-  searchInput.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
+  if (!searchAutocompleteDocumentBound) {
+    searchAutocompleteDocumentBound = true;
+    document.addEventListener('click', (e) => {
+      if (e.target.closest('#searchInput') || e.target.closest('.search-autocomplete')) {
+        return;
+      }
       hideSearchAutocomplete();
-    }
-  });
-
-  // Hide when clicking outside
-  document.addEventListener('click', (e) => {
-    if (e.target !== searchInput && !e.target.closest('.search-autocomplete')) {
+    });
+    document.addEventListener('scroll', (e) => {
+      if (searchAutocompleteContainer && searchAutocompleteContainer.contains(e.target)) return;
       hideSearchAutocomplete();
-    }
-  });
+    }, true);
+  }
 }
 
 // Add a global variable to track if scroll position should be restored
@@ -498,7 +524,7 @@ function getScrollContainer() {
 
 const SCHEDULE_MOBILE_HEADER_MAX_PX = 768;
 const SCHEDULE_HEADER_SCROLL_DELTA = 10;
-const SCHEDULE_HEADER_SHOW_AT_TOP = 16;
+const SCHEDULE_HEADER_SHOW_AT_TOP = 80;
 
 let mobileHeaderScrollState = null;
 let mobileHeaderLastY = 0;

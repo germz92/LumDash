@@ -27,6 +27,7 @@ html, body {
   padding: 0;
   height: 100%;
   color: var(--md-sys-color-on-surface); /* Default text color */
+  background-color: var(--md-sys-color-surface);
 }
 
 /* Basic Material Type Scale (can be expanded) */
@@ -335,7 +336,7 @@ body:has(.bottom-nav-material) #page-container {
 .bottom-nav-material,
 #bottomNav {
   position: fixed !important;
-  bottom: 0 !important;
+  bottom: var(--app-vv-bottom, 0px) !important;
   left: 0 !important;
   right: 0 !important;
   width: 100% !important;

@@ -15,6 +15,22 @@ body:has(.schedule-page) #page-container {
     padding-right: 0 !important;
 }
 
+/* Rubber-band overscroll would otherwise reveal the default white html/body
+   behind the fixed header. Paint the same surface and disable the bounce. */
+body:has(.schedule-page) {
+    background: #f5f7fa;
+}
+body:has(.schedule-page) #page-container {
+    background: #f5f7fa;
+}
+
+@media (max-width: 768px) {
+    body:has(.schedule-page),
+    body:has(.schedule-page) #page-container {
+        overscroll-behavior-y: none;
+    }
+}
+
 /* Hide export, import, and add-date buttons for non-owners/non-leads */
 body.no-owner-controls .schedule-page #importBtn,
 body.no-owner-controls .schedule-page #exportBtn,
@@ -53,6 +69,18 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
     border-bottom: 1.5px solid #e0e0e0;
     box-sizing: border-box;
+}
+
+/* Fill the iOS/Chrome overscroll area above the fixed header */
+.schedule-page .top-controls-fixed::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 100%;
+    height: 50vh;
+    background: inherit;
+    pointer-events: none;
 }
 
 /* Add spacing to scrollable content - RESTORED */
@@ -679,7 +707,6 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     .schedule-page .top-controls-fixed {
         padding: 10px 12px 12px;
         transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-        will-change: transform;
     }
 
     /* Chrome-style: slide off-screen while scrolling down so more schedule is visible */
@@ -692,7 +719,6 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     @media (prefers-reduced-motion: reduce) {
         .schedule-page .top-controls-fixed {
             transition: none;
-            will-change: auto;
         }
     }
 
@@ -823,7 +849,7 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 
     .schedule-page .program-entry input,
     .schedule-page .program-entry textarea {
-        font-size: 14px !important;
+        font-size: 16px !important;
         padding: 2px 4px !important;
         min-height: 28px !important;
     }
@@ -1205,6 +1231,19 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     max-height: 60px !important;
     resize: vertical !important;
     font-size: 12px !important; /* Added !important to override mobile styles */
+}
+
+/* iOS zooms the page when focusing fields under 16px, which leaves the
+   bottom nav looking stuck/mid-screen. Keep 16px on mobile. */
+@media (max-width: 768px) {
+    .schedule-page .program-entry input,
+    .schedule-page .program-entry textarea,
+    .schedule-page .program-entry input[type="time"],
+    .schedule-page .program-entry input.program-name,
+    .schedule-page .program-entry textarea[placeholder="Location"],
+    .schedule-page .program-entry textarea[placeholder="Photographer"] {
+        font-size: 16px !important;
+    }
 }
 
 .schedule-page .delete-date-btn {

@@ -1281,3 +1281,29 @@ function getCurrentPageState() {
 // Make PWA utilities globally available
 window.clearPageState = clearPageState;
 window.getCurrentPageState = getCurrentPageState;
+
+// Keep the fixed bottom nav glued to the visible viewport on mobile.
+// iOS overscroll and accidental zoom shift visualViewport so position:fixed
+// bottom:0 can sit in the middle of the screen until the next rotation.
+(function pinBottomNavToVisualViewport() {
+  const root = document.documentElement;
+
+  function sync() {
+    if (!window.visualViewport) {
+      root.style.setProperty('--app-vv-bottom', '0px');
+      return;
+    }
+    const vv = window.visualViewport;
+    const inset = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
+    root.style.setProperty('--app-vv-bottom', `${Math.round(inset)}px`);
+  }
+
+  window.addEventListener('resize', sync);
+  window.addEventListener('orientationchange', () => setTimeout(sync, 250));
+  window.addEventListener('touchend', () => setTimeout(sync, 50), { passive: true });
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', sync);
+    window.visualViewport.addEventListener('scroll', sync);
+  }
+  sync();
+})();
