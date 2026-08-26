@@ -530,6 +530,7 @@ let mobileHeaderScrollState = null;
 let mobileHeaderLastY = 0;
 let mobileHeaderTicking = false;
 let mobileHeaderHidden = false;
+let scheduleHeaderResizeObserver = null;
 
 function isScheduleMobileViewport() {
   return window.matchMedia(`(max-width: ${SCHEDULE_MOBILE_HEADER_MAX_PX}px)`).matches;
@@ -563,6 +564,36 @@ function isScheduleHeaderInteractionLocked() {
     if (el && el.style.display !== 'none' && el.offsetParent !== null) return true;
   }
   return false;
+}
+
+function syncScheduleHeaderHeight() {
+  const page = document.querySelector('.schedule-page');
+  if (!page) return;
+  const header = getScheduleHeaderEl();
+  const layoutHeight = header ? header.offsetHeight : 0;
+  if (layoutHeight > 0) {
+    page.style.setProperty('--header-height', `${layoutHeight}px`);
+  }
+}
+
+function setupScheduleHeaderHeightSync() {
+  const header = getScheduleHeaderEl();
+  if (scheduleHeaderResizeObserver) {
+    scheduleHeaderResizeObserver.disconnect();
+    scheduleHeaderResizeObserver = null;
+  }
+  if (header && typeof ResizeObserver !== 'undefined') {
+    scheduleHeaderResizeObserver = new ResizeObserver(() => syncScheduleHeaderHeight());
+    scheduleHeaderResizeObserver.observe(header);
+  }
+  syncScheduleHeaderHeight();
+}
+
+function teardownScheduleHeaderHeightSync() {
+  if (scheduleHeaderResizeObserver) {
+    scheduleHeaderResizeObserver.disconnect();
+    scheduleHeaderResizeObserver = null;
+  }
 }
 
 function setScheduleHeaderHidden(hidden) {
@@ -623,6 +654,7 @@ function onScheduleHeaderResize() {
   if (!isScheduleMobileViewport()) {
     setScheduleHeaderHidden(false);
   }
+  syncScheduleHeaderHeight();
 }
 
 function teardownMobileScheduleHeaderScroll() {
@@ -637,6 +669,7 @@ function teardownMobileScheduleHeaderScroll() {
   const header = getScheduleHeaderEl();
   if (header) header.classList.remove('schedule-header-hidden');
   mobileHeaderHidden = false;
+  teardownScheduleHeaderHeightSync();
 }
 
 function setupMobileScheduleHeaderScroll() {
@@ -655,6 +688,7 @@ function setupMobileScheduleHeaderScroll() {
   mobileHeaderScrollState = { targets };
   mobileHeaderLastY = getScheduleScrollY();
   setScheduleHeaderHidden(false);
+  setupScheduleHeaderHeightSync();
 }
 
 function getFilterTableId(overrideId) {

@@ -65,9 +65,9 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     width: 100%;
     background: white;
     z-index: 1001;
-    padding: 16px 8px 12px 8px; /* Increased bottom padding from 10px to 12px */
-    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.10);
-    border-bottom: 1.5px solid #e0e0e0;
+    padding: 10px 12px 8px;
+    box-shadow: 0 1px 0 #e8eaed;
+    border-bottom: none;
     box-sizing: border-box;
 }
 
@@ -85,7 +85,7 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 
 /* Add spacing to scrollable content - RESTORED */
 .schedule-page .program-container {
-    padding-top: calc(var(--header-height) + 60px);
+    padding-top: calc(var(--header-height) + 16px);
     padding-bottom: 100px; /* Space for bottom navigation */
     padding-left: 14px; /* Increased from 8px to 14px (added 6px) */
     padding-right: 14px; /* Increased from 8px to 14px (added 6px) */
@@ -97,10 +97,46 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     margin: 0 auto; /* Center the container */
 }
 
+.schedule-page .program-entry.done-entry {
+    background: #f1f3f5;
+    border-color: #e4e7eb;
+    box-shadow: none;
+}
+
+.schedule-page .program-entry.done-entry input,
+.schedule-page .program-entry.done-entry textarea {
+    color: #8b8f94;
+}
+
 .schedule-page .done-entry input.program-name {
     text-decoration: line-through;
-    color: #888;
+    color: #8b8f94;
+    font-weight: 500;
     transition: color 0.22s ease;
+}
+
+.schedule-page .done-entry .material-symbols-outlined {
+    color: #b0b4b8 !important;
+}
+
+.schedule-page .done-entry .folder-input {
+    color: #8b8f94 !important;
+    background: #e8eaed !important;
+    border-color: #d5d8dc !important;
+}
+
+.schedule-page .done-entry .show-notes-btn,
+.schedule-page .done-entry .delete-btn {
+    opacity: 0.65;
+}
+
+.schedule-page .program-entry.done-entry:hover {
+    box-shadow: none !important;
+}
+
+.schedule-page .program-entry.done-entry:not([class*="schedule-color-"]):hover {
+    background: #eceef1 !important;
+    box-shadow: none !important;
 }
 
 .schedule-page .done-checkbox {
@@ -159,6 +195,23 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     background: rgba(245, 158, 11, 0.14);
     border-color: rgba(245, 158, 11, 0.4);
     box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.15);
+}
+
+.schedule-page .program-entry.done-entry.schedule-color-red {
+    background: rgba(204, 0, 7, 0.05);
+    border-color: rgba(204, 0, 7, 0.2);
+}
+.schedule-page .program-entry.done-entry.schedule-color-blue {
+    background: rgba(21, 101, 192, 0.05);
+    border-color: rgba(21, 101, 192, 0.2);
+}
+.schedule-page .program-entry.done-entry.schedule-color-green {
+    background: rgba(33, 136, 56, 0.05);
+    border-color: rgba(33, 136, 56, 0.2);
+}
+.schedule-page .program-entry.done-entry.schedule-color-yellow {
+    background: rgba(245, 158, 11, 0.07);
+    border-color: rgba(245, 158, 11, 0.22);
 }
 
 .schedule-page .program-entry.schedule-longpress-pending {
@@ -328,7 +381,7 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 .schedule-page h2 {
     text-align: center;
     font-size: 20px; /* Restored to original */
-    margin: 8px 0; /* Restored to original */
+    margin: 4px 0 8px;
 }
 
 .schedule-page .top-controls {
@@ -337,14 +390,14 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 12px; /* Restored to original */
-    margin: 8px auto; /* Restored to original */
+    gap: 10px;
+    margin: 0 auto;
     flex-wrap: wrap;
-    background: #f8fafd;
-    border-radius: 10px; /* Restored to original */
-    box-shadow: 0 2px 8px rgba(204,0,7,0.06);
-    padding: 10px 8px; /* Restored to original */
-    border: 1.5px solid #e0e0e0;
+    background: transparent;
+    border-radius: 0;
+    box-shadow: none;
+    padding: 6px 0;
+    border: none;
 }
 
 .schedule-page .top-controls input,
@@ -539,6 +592,35 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     box-shadow: inset 0 0 0 1px rgba(245, 158, 11, 0.16), 0 4px 16px rgba(245, 158, 11, 0.12) !important;
 }
 
+.schedule-page .program-entry.done-entry.schedule-color-red:hover,
+.schedule-page .program-entry.done-entry.schedule-color-red:active,
+.schedule-page .program-entry.done-entry.schedule-color-red:focus-within {
+    background: rgba(204, 0, 7, 0.07) !important;
+    border-color: rgba(204, 0, 7, 0.22) !important;
+    box-shadow: none !important;
+}
+.schedule-page .program-entry.done-entry.schedule-color-blue:hover,
+.schedule-page .program-entry.done-entry.schedule-color-blue:active,
+.schedule-page .program-entry.done-entry.schedule-color-blue:focus-within {
+    background: rgba(21, 101, 192, 0.07) !important;
+    border-color: rgba(21, 101, 192, 0.22) !important;
+    box-shadow: none !important;
+}
+.schedule-page .program-entry.done-entry.schedule-color-green:hover,
+.schedule-page .program-entry.done-entry.schedule-color-green:active,
+.schedule-page .program-entry.done-entry.schedule-color-green:focus-within {
+    background: rgba(33, 136, 56, 0.07) !important;
+    border-color: rgba(33, 136, 56, 0.22) !important;
+    box-shadow: none !important;
+}
+.schedule-page .program-entry.done-entry.schedule-color-yellow:hover,
+.schedule-page .program-entry.done-entry.schedule-color-yellow:active,
+.schedule-page .program-entry.done-entry.schedule-color-yellow:focus-within {
+    background: rgba(245, 158, 11, 0.09) !important;
+    border-color: rgba(245, 158, 11, 0.24) !important;
+    box-shadow: none !important;
+}
+
 .schedule-page .program-entry input,
 .schedule-page .program-entry textarea {
     width: 100%;
@@ -705,7 +787,7 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     }
 
     .schedule-page .top-controls-fixed {
-        padding: 10px 12px 12px;
+        padding: 8px 12px 6px;
         transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
     }
 
@@ -722,6 +804,11 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
         }
     }
 
+    .schedule-page h2 {
+        font-size: 17px;
+        margin: 0 0 4px;
+    }
+
     /* Primary toolbar: Add Date | Show Notes | icon actions */
     .schedule-page .top-controls:first-of-type {
         display: flex;
@@ -729,16 +816,16 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
         align-items: center;
         justify-content: space-between;
         width: 100%;
-        gap: 10px;
-        padding: 10px 12px;
+        gap: 8px;
+        padding: 4px 0;
         box-sizing: border-box;
         overflow: visible;
     }
 
     .schedule-page #searchFilterContainer.top-controls {
-        gap: 10px;
-        padding: 10px 12px;
-        margin-top: 4px;
+        gap: 8px;
+        padding: 4px 0 2px;
+        margin-top: 0;
     }
 
     .schedule-page .top-controls input,
@@ -1845,7 +1932,7 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 /* Table View Container */
 .schedule-table-view {
   display: none; /* Hidden by default, shown when table view active */
-  padding-top: calc(var(--header-height) + 80px); /* Increased from 60px to 80px for more breathing room */
+  padding-top: calc(var(--header-height) + 16px);
   padding-bottom: 100px; /* Space for bottom navigation */
   padding-left: 14px;
   padding-right: 14px;
@@ -1953,8 +2040,19 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 }
 
 .schedule-table-section tbody tr.done-row {
-  opacity: 0.6;
+  background: #f3f4f6 !important;
+  opacity: 1;
+  color: #8b8f94;
+}
+.schedule-table-section tbody tr.done-row td,
+.schedule-table-section tbody tr.done-row .cell-display {
+  color: #8b8f94;
+}
+.schedule-table-section tbody tr.done-row td:nth-child(3) .cell-display {
   text-decoration: line-through;
+}
+.schedule-table-section tbody tr.done-row:hover {
+  background: #eceef1 !important;
 }
 
 .schedule-table-section td {
