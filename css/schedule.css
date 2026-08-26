@@ -678,6 +678,22 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 
     .schedule-page .top-controls-fixed {
         padding: 10px 12px 12px;
+        transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+        will-change: transform;
+    }
+
+    /* Chrome-style: slide off-screen while scrolling down so more schedule is visible */
+    .schedule-page .top-controls-fixed.schedule-header-hidden {
+        transform: translate3d(0, -110%, 0);
+        pointer-events: none;
+        box-shadow: none;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .schedule-page .top-controls-fixed {
+            transition: none;
+            will-change: auto;
+        }
     }
 
     /* Primary toolbar: Add Date | Show Notes | icon actions */

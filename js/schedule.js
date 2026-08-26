@@ -496,6 +496,141 @@ function getScrollContainer() {
   return container || window; // Fallback to window if container not found
 }
 
+const SCHEDULE_MOBILE_HEADER_MAX_PX = 768;
+const SCHEDULE_HEADER_SCROLL_DELTA = 10;
+const SCHEDULE_HEADER_SHOW_AT_TOP = 16;
+
+let mobileHeaderScrollState = null;
+let mobileHeaderLastY = 0;
+let mobileHeaderTicking = false;
+let mobileHeaderHidden = false;
+
+function isScheduleMobileViewport() {
+  return window.matchMedia(`(max-width: ${SCHEDULE_MOBILE_HEADER_MAX_PX}px)`).matches;
+}
+
+function getScheduleHeaderEl() {
+  return document.querySelector('.schedule-page .top-controls-fixed');
+}
+
+function getScheduleScrollY() {
+  const el = document.getElementById('page-container');
+  const containerY = el ? el.scrollTop : 0;
+  const windowY = window.scrollY || window.pageYOffset || document.documentElement.scrollTop || 0;
+  return Math.max(containerY, windowY, 0);
+}
+
+function isScheduleHeaderInteractionLocked() {
+  const header = getScheduleHeaderEl();
+  const active = document.activeElement;
+  if (
+    header &&
+    active &&
+    header.contains(active) &&
+    (active.tagName === 'INPUT' || active.tagName === 'SELECT' || active.tagName === 'TEXTAREA')
+  ) {
+    return true;
+  }
+  if (document.body.classList.contains('schedule-legend-modal-open')) return true;
+  const overlays = document.querySelectorAll('.share-modal-overlay, .cr-review-overlay');
+  for (const el of overlays) {
+    if (el && el.style.display !== 'none' && el.offsetParent !== null) return true;
+  }
+  return false;
+}
+
+function setScheduleHeaderHidden(hidden) {
+  const header = getScheduleHeaderEl();
+  if (!header) return;
+  if (!isScheduleMobileViewport()) {
+    header.classList.remove('schedule-header-hidden');
+    mobileHeaderHidden = false;
+    return;
+  }
+  if (hidden === mobileHeaderHidden && header.classList.contains('schedule-header-hidden') === hidden) {
+    return;
+  }
+  mobileHeaderHidden = hidden;
+  header.classList.toggle('schedule-header-hidden', hidden);
+}
+
+function updateScheduleMobileHeader() {
+  if (!isScheduleMobileViewport()) {
+    setScheduleHeaderHidden(false);
+    return;
+  }
+  if (isScheduleHeaderInteractionLocked()) {
+    setScheduleHeaderHidden(false);
+    return;
+  }
+
+  const y = getScheduleScrollY();
+  const delta = y - mobileHeaderLastY;
+  mobileHeaderLastY = y;
+
+  if (y <= SCHEDULE_HEADER_SHOW_AT_TOP) {
+    setScheduleHeaderHidden(false);
+    return;
+  }
+  if (Math.abs(delta) < SCHEDULE_HEADER_SCROLL_DELTA) return;
+
+  setScheduleHeaderHidden(delta > 0);
+}
+
+function onScheduleMobileHeaderScroll() {
+  if (mobileHeaderTicking) return;
+  mobileHeaderTicking = true;
+  requestAnimationFrame(() => {
+    mobileHeaderTicking = false;
+    updateScheduleMobileHeader();
+  });
+}
+
+function onScheduleHeaderFocusIn(e) {
+  const header = getScheduleHeaderEl();
+  if (header && e.target && header.contains(e.target)) {
+    setScheduleHeaderHidden(false);
+  }
+}
+
+function onScheduleHeaderResize() {
+  if (!isScheduleMobileViewport()) {
+    setScheduleHeaderHidden(false);
+  }
+}
+
+function teardownMobileScheduleHeaderScroll() {
+  if (mobileHeaderScrollState) {
+    mobileHeaderScrollState.targets.forEach((target) => {
+      target.removeEventListener('scroll', onScheduleMobileHeaderScroll);
+    });
+    window.removeEventListener('resize', onScheduleHeaderResize);
+    document.removeEventListener('focusin', onScheduleHeaderFocusIn);
+    mobileHeaderScrollState = null;
+  }
+  const header = getScheduleHeaderEl();
+  if (header) header.classList.remove('schedule-header-hidden');
+  mobileHeaderHidden = false;
+}
+
+function setupMobileScheduleHeaderScroll() {
+  teardownMobileScheduleHeaderScroll();
+  const targets = new Set();
+  const scroller = getScrollContainer();
+  targets.add(scroller);
+  if (scroller !== window) targets.add(window);
+
+  targets.forEach((target) => {
+    target.addEventListener('scroll', onScheduleMobileHeaderScroll, { passive: true });
+  });
+  window.addEventListener('resize', onScheduleHeaderResize);
+  document.addEventListener('focusin', onScheduleHeaderFocusIn);
+
+  mobileHeaderScrollState = { targets };
+  mobileHeaderLastY = getScheduleScrollY();
+  setScheduleHeaderHidden(false);
+}
+
 function getFilterTableId(overrideId) {
   return overrideId || currentEventId || localStorage.getItem('eventId');
 }
@@ -868,6 +1003,7 @@ window.initPage = async function(id) {
   sessionStorage.setItem('schedule_last_event_id', tableId);
 
   setupScheduleColorGestures();
+  setupMobileScheduleHeaderScroll();
 
   logEventIdState('INIT_COMPLETE');
   const endTime = Date.now();
@@ -4094,6 +4230,7 @@ function cleanupEventListenersAndMemory() {
       console.log(`Removed scroll event listener from ${container.id || 'window'}`);
     }
   }
+  teardownMobileScheduleHeaderScroll();
   
   // Clear scroll timeout if exists
   if (window.scrollSaveTimeout) {
