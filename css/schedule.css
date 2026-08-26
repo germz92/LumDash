@@ -2379,14 +2379,14 @@ body.no-owner-controls .schedule-page .program-entry .entry-actions {
 
 /* Photographer Autocomplete Styles */
 .photographer-autocomplete {
-  position: absolute;
+  position: fixed;
   background: white;
   border: 1px solid #ccc;
   border-radius: 4px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
   max-height: 200px;
   overflow-y: auto;
-  z-index: 1000;
+  z-index: 2000;
   min-width: 150px;
   font-family: 'Roboto', Arial, sans-serif;
 }

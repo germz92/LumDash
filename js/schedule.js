@@ -111,6 +111,40 @@ function checkEventIdStability() {
 let cachedUserFirstNames = [];
 let autocompleteContainer = null;
 let searchAutocompleteContainer = null;
+let photographerAutocompleteInitialized = false;
+let skipNextPhotographerAutocomplete = false;
+let photographerSuggestionCommitLock = false;
+
+// Per-edit baselines keyed by programId::field. Stored off-DOM so a list rebuild
+// that restores focus cannot recapture the in-progress value and skip the save.
+const editBaselines = new Map();
+
+function editBaselineKey(programId, field) {
+  if (!programId || !field) return null;
+  return `${programId}::${field}`;
+}
+
+function getProgramIdForBaseline(program, programIndex) {
+  return (program && program._id) ? String(program._id) : (Number.isInteger(programIndex) ? `idx-${programIndex}` : null);
+}
+
+function captureEditBaseline(program, field, value, programIndex) {
+  const current = value == null ? '' : String(value);
+  const key = editBaselineKey(getProgramIdForBaseline(program, programIndex), field);
+  if (!key) return current;
+  if (!editBaselines.has(key)) {
+    editBaselines.set(key, current);
+  }
+  return editBaselines.get(key);
+}
+
+function consumeEditBaseline(program, field, programIndex) {
+  const key = editBaselineKey(getProgramIdForBaseline(program, programIndex), field);
+  if (!key || !editBaselines.has(key)) return null;
+  const value = editBaselines.get(key);
+  editBaselines.delete(key);
+  return value;
+}
 
 // Fetch and cache user first names
 async function loadUserFirstNames() {
@@ -149,30 +183,32 @@ function showAutocomplete(textarea, suggestions, currentWord, cursorPos) {
   autocompleteContainer = document.createElement('div');
   autocompleteContainer.className = 'photographer-autocomplete';
   autocompleteContainer.style.cssText = `
-    position: absolute;
+    position: fixed;
     background: white;
     border: 1px solid #ccc;
     border-radius: 4px;
     box-shadow: 0 2px 8px rgba(0,0,0,0.15);
     max-height: 200px;
     overflow-y: auto;
-    z-index: 1000;
+    z-index: 2000;
     min-width: 150px;
   `;
   
-  // Position it below the textarea
+  // Viewport-fixed so it isn't left behind when an inner container scrolls.
+  // Scroll/blur listeners dismiss it; it should never "float" while scrolling.
   const rect = textarea.getBoundingClientRect();
-  autocompleteContainer.style.top = `${rect.bottom + window.scrollY}px`;
-  autocompleteContainer.style.left = `${rect.left + window.scrollX}px`;
+  autocompleteContainer.style.top = `${rect.bottom}px`;
+  autocompleteContainer.style.left = `${rect.left}px`;
   
   // Add suggestions
-  suggestions.forEach((suggestion, index) => {
+  suggestions.forEach((suggestion) => {
     const item = document.createElement('div');
     item.textContent = suggestion;
     item.style.cssText = `
       padding: 8px 12px;
       cursor: pointer;
       border-bottom: 1px solid #f0f0f0;
+      touch-action: manipulation;
     `;
     
     // Hover effect
@@ -183,12 +219,13 @@ function showAutocomplete(textarea, suggestions, currentWord, cursorPos) {
       item.style.backgroundColor = 'white';
     });
     
-    // Click to select
-    item.addEventListener('mousedown', (e) => {
-      e.preventDefault(); // Prevent textarea blur
-      insertSuggestion(textarea, suggestion, currentWord, cursorPos);
-      hideAutocomplete();
-    });
+    const selectSuggestion = (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      commitPhotographerSuggestion(textarea, suggestion, currentWord, cursorPos);
+    };
+    item.addEventListener('pointerdown', selectSuggestion);
+    item.addEventListener('touchend', selectSuggestion);
     
     autocompleteContainer.appendChild(item);
   });
@@ -225,12 +262,41 @@ function insertSuggestion(textarea, suggestion, currentWord, cursorPos) {
   const newCursorPos = (before ? before.length + 2 : 0) + suggestion.length;
   textarea.setSelectionRange(newCursorPos, newCursorPos);
   
-  // Trigger input event to auto-resize
+  // Trigger input event to auto-resize / sync tableData, but do not reopen the list
+  skipNextPhotographerAutocomplete = true;
   textarea.dispatchEvent(new Event('input', { bubbles: true }));
+}
+
+function commitPhotographerSuggestion(textarea, suggestion, currentWord, cursorPos) {
+  if (photographerSuggestionCommitLock) return;
+  photographerSuggestionCommitLock = true;
+  try {
+    insertSuggestion(textarea, suggestion, currentWord, cursorPos);
+    hideAutocomplete();
+    // Persist now — do not wait for blur. On mobile blur often already fired with
+    // the partial typed value, or never fires because preventDefault kept focus.
+    if (typeof autoSave === 'function') {
+      autoSave(textarea, '', 0, 'photographer');
+    }
+    if (document.activeElement === textarea) {
+      textarea.blur();
+    }
+  } finally {
+    // Stay locked briefly so touchend/click cannot commit twice after pointerdown
+    setTimeout(() => {
+      photographerSuggestionCommitLock = false;
+    }, 400);
+  }
 }
 
 // Handle autocomplete on input
 function handlePhotographerInput(textarea) {
+  if (skipNextPhotographerAutocomplete) {
+    skipNextPhotographerAutocomplete = false;
+    hideAutocomplete();
+    return;
+  }
+
   const cursorPos = textarea.selectionStart;
   const value = textarea.value;
   const beforeCursor = value.substring(0, cursorPos);
@@ -249,6 +315,12 @@ function handlePhotographerInput(textarea) {
   const suggestions = cachedUserFirstNames.filter(name => 
     name.toLowerCase().startsWith(currentWord.toLowerCase())
   ).slice(0, 10); // Limit to 10 suggestions
+
+  // Exact match after picking a name (or typing it in full) — list is done
+  if (suggestions.length === 1 && suggestions[0].toLowerCase() === currentWord.toLowerCase()) {
+    hideAutocomplete();
+    return;
+  }
   
   if (suggestions.length > 0) {
     showAutocomplete(textarea, suggestions, currentWord, cursorPos);
@@ -259,6 +331,9 @@ function handlePhotographerInput(textarea) {
 
 // Setup autocomplete for photographer fields
 function setupPhotographerAutocomplete() {
+  if (photographerAutocompleteInitialized) return;
+  photographerAutocompleteInitialized = true;
+
   // Add event delegation for photographer textareas
   document.addEventListener('input', (e) => {
     if (e.target.matches('textarea[data-field="photographer"]')) {
@@ -282,6 +357,17 @@ function setupPhotographerAutocomplete() {
       }
     }
   });
+
+  // Dismiss when the schedule is scrolled so names cannot linger. Ignore
+  // visualViewport/keyboard resizes — those would hide the list before a tap lands.
+  document.addEventListener('scroll', (e) => {
+    if (!autocompleteContainer) return;
+    if (e.target === autocompleteContainer || autocompleteContainer.contains(e.target)) {
+      return;
+    }
+    hideAutocomplete();
+  }, true);
+  window.addEventListener('resize', hideAutocomplete);
 }
 
 // --- Search bar autocomplete ---
@@ -943,8 +1029,22 @@ async function loadPrograms(tableId = null, retryCount = 0, options = {}) {
         protectedChanges.push({ index, checked: change.checked });
       }
     });
+
+    const localById = new Map(
+      (tableData.programs || [])
+        .filter(p => p && p._id)
+        .map(p => [String(p._id), p])
+    );
     
     tableData.programs = loadedPrograms;
+
+    const applyPreservedField = (programId, field, value) => {
+      if (!programId || !field) return;
+      const program = tableData.programs.find(p => p && String(p._id) === String(programId));
+      if (program) {
+        program[field] = value;
+      }
+    };
     
     // Re-apply protected checkbox changes after loading
     if (protectedChanges.length > 0) {
@@ -956,6 +1056,34 @@ async function loadPrograms(tableId = null, retryCount = 0, options = {}) {
         }
       });
     }
+
+    // Re-apply recently saved text fields so a stale GET cannot clobber an in-flight PATCH
+    if (window.recentlyEditedFields && window.recentlyEditedFields.size > 0) {
+      let preserved = 0;
+      window.recentlyEditedFields.forEach((edit, protectionKey) => {
+        if (!edit || now - edit.timestamp >= 10000 || !edit.field) return;
+        const suffix = `-${edit.field}`;
+        if (!protectionKey.endsWith(suffix)) return;
+        const programId = protectionKey.slice(0, -suffix.length);
+        applyPreservedField(programId, edit.field, edit.value);
+        preserved++;
+      });
+      if (preserved > 0) {
+        console.log(`✅ [LOAD] Preserving ${preserved} recently edited field(s) from being overwritten`);
+      }
+    }
+
+    // Keep values the user is still editing (optimistic tableData) across a reload
+    editBaselines.forEach((_baseline, key) => {
+      const sep = key.indexOf('::');
+      if (sep === -1) return;
+      const programId = key.slice(0, sep);
+      const field = key.slice(sep + 2);
+      const local = localById.get(String(programId));
+      if (local && field && local[field] !== undefined) {
+        applyPreservedField(programId, field, local[field]);
+      }
+    });
     
     console.log(`✅ [LOAD] Programs loaded for event ${eventId}, count: ${tableData.programs.length}`);
     
@@ -1479,6 +1607,9 @@ function renderProgramSections(hasScheduleAccess) {
       }
       if (!target && candidates.length === 1) target = candidates[0];
       if (target) {
+        if (typeof focusInfo.value === 'string' && target.value !== focusInfo.value) {
+          target.value = focusInfo.value;
+        }
         target.focus();
         if (typeof focusInfo.selectionStart === 'number' && typeof focusInfo.selectionEnd === 'number') {
           target.setSelectionRange(focusInfo.selectionStart, focusInfo.selectionEnd);
@@ -2039,18 +2170,27 @@ function enableEdit(field) {
   // baseline to detect real changes, because optimisticInputHandler mutates tableData
   // on every keystroke — which would otherwise make change-detection always say "no change"
   // and silently skip the save.
-  field.dataset.focusValue = field.type === 'checkbox' ? String(field.checked) : (field.value ?? '');
+  // Store the baseline off-DOM: restoring focus after a re-render must not recapture
+  // the in-progress value as a new "original" and skip the save.
   const entry = field.closest('.program-entry');
+  const programIndex = entry ? parseInt(entry.getAttribute('data-program-index'), 10) : NaN;
+  const program = !Number.isNaN(programIndex) ? tableData.programs[programIndex] : null;
+  const fieldKey = (typeof getFieldKeyFromElement === 'function' && getFieldKeyFromElement(field))
+    || field.getAttribute('data-field')
+    || (field.getAttribute('placeholder') || '').toLowerCase()
+    || (field.className.includes('program-name') ? 'name' : null);
+  const currentValue = field.type === 'checkbox' ? String(field.checked) : (field.value ?? '');
+  const baseline = captureEditBaseline(program, fieldKey, currentValue, programIndex);
+  field.dataset.focusValue = baseline;
+
   if (entry) {
-    const programIndex = parseInt(entry.getAttribute('data-program-index'), 10);
     if (!Number.isNaN(programIndex)) {
       syncProgramRowColorFromData(programIndex);
     }
-    const program = tableData.programs[programIndex];
     if (program && program._id) {
       window.currentlyEditing = {
         programId: program._id,
-        field: field.getAttribute('placeholder') || field.className,
+        field: fieldKey || field.getAttribute('placeholder') || field.className,
         pendingUpdate: null
       };
     }
@@ -2151,7 +2291,7 @@ async function atomicSaveField(field, fieldKey, programId, newValue, baseValue) 
     // Add retry mechanism for network errors
     retryAtomicSave(field, fieldKey, programId, newValue, 1);
     
-    return false;
+    return 'queued';
   }
 }
 
@@ -2379,7 +2519,7 @@ atomicSaveField = async function(field, fieldKey, programId, newValue, baseValue
   if (saveCoordination.isFullSaveInProgress) {
     console.log(`[COORDINATE] Full save in progress, queuing atomic save: ${fieldKey}`);
     queueFailedSave(field, fieldKey, programId, newValue, 'full_save_in_progress');
-    return false;
+    return 'queued';
   }
 
   const operationId = `${programId}-${fieldKey}-${Date.now()}`;
@@ -2443,12 +2583,14 @@ function saveProgramField({ programIndex, field, value, element = null, oldValue
 
   return atomicSaveField(saveTarget, field, program._id, value, baseValue)
     .then(success => {
-      if (success) {
+      if (success === true) {
         optimisticUpdates?.confirmUpdate?.(fieldId);
+      } else if (success === 'queued') {
+        console.log(`[SAVE FIELD] Queued "${field}" for retry — keeping optimistic value`);
       } else {
         optimisticUpdates?.revertUpdate?.(fieldId, new Error('Save returned false'));
       }
-      return success;
+      return success === true;
     })
     .catch(error => {
       console.error(`[SAVE FIELD] Save failed for "${field}":`, error);
@@ -3330,6 +3472,10 @@ if (window.addEventListener) {
 function autoSave(field, date, ignoredIndex, key) {
   field.classList.remove('editing');
   const entry = field.closest('.program-entry');
+  if (!entry) {
+    console.error('[AUTOSAVE] No program entry for field');
+    return;
+  }
   const programIndex = parseInt(entry.getAttribute('data-program-index'), 10);
   
   if (isNaN(programIndex) || !tableData.programs[programIndex]) {
@@ -3374,10 +3520,14 @@ function autoSave(field, date, ignoredIndex, key) {
   // IMPORTANT: compare against the value captured on focus (enableEdit), NOT tableData.
   // optimisticInputHandler writes each keystroke into tableData, so safeUpdateProgram
   // would always report "no change" here and the save would be silently skipped.
+  // Prefer the off-DOM baseline so a re-render that restores focus cannot skip the save.
+  const storedBaseline = consumeEditBaseline(program, fieldKey, programIndex);
   const focusValueRaw = field.dataset.focusValue;
-  const baselineValue = (typeof focusValueRaw === 'string')
-    ? focusValueRaw
-    : (program[fieldKey] != null ? String(program[fieldKey]) : '');
+  const baselineValue = (storedBaseline != null)
+    ? storedBaseline
+    : ((typeof focusValueRaw === 'string')
+      ? focusValueRaw
+      : (program[fieldKey] != null ? String(program[fieldKey]) : ''));
   const normalizedNew = field.type === 'checkbox' ? String(newValue) : String(newValue ?? '');
   const wasChanged = normalizedNew !== baselineValue;
 
@@ -5012,6 +5162,14 @@ function handleBlur(e) {
   const field = e.target;
   window.isActiveEditing = false;
   window.currentlyEditingField = null;
+  if (field && field.matches && field.matches('textarea[data-field="photographer"]')) {
+    // Delay so a tap on a suggestion can commit before the list is removed.
+    // Immediate hide on blur is why mobile taps left a floating unused popup.
+    setTimeout(() => {
+      if (photographerSuggestionCommitLock) return;
+      hideAutocomplete();
+    }, 300);
+  }
   
   // Add a delay before processing pending updates to allow autoSave to complete
   if (window.pendingReload) {
