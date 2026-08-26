@@ -2098,6 +2098,18 @@ function toggleFolderVisibility(input) {
   container.style.display = hasValue ? 'flex' : 'none';
 }
 
+function playDoneCheckboxAnimation(checkbox) {
+  if (!checkbox) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const target = checkbox.closest('label') || checkbox.closest('.done-checkbox-cell') || checkbox;
+  target.classList.remove('checkbox-pop');
+  void target.offsetWidth;
+  target.classList.add('checkbox-pop');
+  target.addEventListener('animationend', () => {
+    target.classList.remove('checkbox-pop');
+  }, { once: true });
+}
+
 function toggleDone(checkbox, index) {
   if (isNaN(index) || !tableData.programs[index]) {
     console.error(`[TOGGLE DONE] Invalid program index: ${index}`);
@@ -2122,6 +2134,7 @@ function toggleDone(checkbox, index) {
   if (entry) {
     entry.classList.toggle('done-entry', newValue);
   }
+  playDoneCheckboxAnimation(checkbox);
   
   // Update in-memory data immediately for responsive UI
   program.done = newValue;

@@ -72,6 +72,40 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 .schedule-page .done-entry input.program-name {
     text-decoration: line-through;
     color: #888;
+    transition: color 0.22s ease;
+}
+
+.schedule-page .done-checkbox {
+    accent-color: #CC0007;
+    cursor: pointer;
+    transform-origin: center center;
+}
+
+.schedule-page .done-checkbox:active {
+    transform: scale(0.9);
+}
+
+.schedule-page label.checkbox-pop,
+.schedule-page .done-checkbox-cell.checkbox-pop,
+.schedule-page .done-checkbox.checkbox-pop {
+    animation: schedule-checkbox-pop 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    transform-origin: center center;
+}
+
+@keyframes schedule-checkbox-pop {
+    0% { transform: scale(0.88); }
+    45% { transform: scale(1.14); }
+    100% { transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .schedule-page .done-checkbox:active,
+    .schedule-page label.checkbox-pop,
+    .schedule-page .done-checkbox-cell.checkbox-pop,
+    .schedule-page .done-checkbox.checkbox-pop {
+        animation: none;
+        transform: none;
+    }
 }
 
 /* Row color coding (right-click / long-press menu) */
