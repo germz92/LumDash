@@ -83,6 +83,52 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     pointer-events: none;
 }
 
+.schedule-scroll-date {
+    display: none;
+}
+
+@media (max-width: 768px) {
+    .schedule-scroll-date {
+        display: block;
+        position: fixed;
+        left: 50%;
+        top: calc(var(--header-height, 120px) + 10px);
+        z-index: 1002;
+        transform: translateX(-50%) translateY(-4px);
+        padding: 6px 14px;
+        border-radius: 16px;
+        background: rgba(32, 32, 32, 0.82);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+        line-height: 1.2;
+        white-space: nowrap;
+        pointer-events: none;
+        opacity: 0;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+        transition: opacity 0.22s ease, transform 0.22s ease, top 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .schedule-scroll-date.is-visible {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+
+    .schedule-page:has(.schedule-header-hidden) .schedule-scroll-date {
+        top: max(10px, env(safe-area-inset-top, 0px));
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+        .schedule-scroll-date {
+            transition: opacity 0.01s linear;
+            transform: translateX(-50%);
+        }
+    }
+}
+
 /* Add spacing to scrollable content - RESTORED */
 .schedule-page .program-container {
     padding-top: calc(var(--header-height) + 16px);
@@ -539,7 +585,7 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 .schedule-page .program-entry {
     background: #fff;
     box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-    padding: 14px;
+    padding: 14px 14px 4px;
     border-radius: 12px;
     display: flex;
     flex-direction: column;
@@ -549,6 +595,92 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     border: 1.5px solid #e0e0e0;
     margin-bottom: 8px;
     transition: background 0.2s, box-shadow 0.2s;
+}
+
+.schedule-page .program-entry .all-day-label {
+    display: none;
+    appearance: none;
+    -webkit-appearance: none;
+    border: none !important;
+    outline: none !important;
+    box-shadow: none !important;
+    background: none !important;
+    color: #222;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.01em;
+    padding: 6px 0;
+    margin: 0;
+    border-radius: 0;
+    cursor: pointer;
+    font-family: inherit;
+    line-height: 20px;
+    height: 32px;
+    min-height: 32px;
+    box-sizing: border-box;
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+    text-align: left;
+}
+
+.schedule-page .program-entry span.all-day-label {
+    cursor: default;
+}
+
+.schedule-page .time-inputs-slot {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+}
+
+.schedule-page .time-fields-container.is-all-day:not(.is-all-day-editing) .all-day-label {
+    display: inline-flex;
+    align-items: center;
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    z-index: 1;
+}
+
+.schedule-page .time-fields-container.is-all-day:not(.is-all-day-editing) .time-inputs-slot > input[type="time"],
+.schedule-page .time-fields-container.is-all-day:not(.is-all-day-editing) .time-inputs-slot > .time-display {
+    visibility: hidden;
+}
+
+.schedule-page .time-display {
+    display: inline-flex;
+    align-items: center;
+    width: 110px;
+    min-width: 90px;
+    box-sizing: border-box;
+    padding: 6px 8px;
+    font-size: 12px;
+    line-height: 20px;
+    height: 32px;
+    color: #222;
+    pointer-events: none;
+    user-select: none;
+    cursor: default;
+}
+
+.schedule-page .done-entry .time-display {
+    color: #8b8f94;
+}
+
+.schedule-page .done-entry .all-day-label {
+    color: #8b8f94;
+}
+
+body.no-owner-controls .schedule-page .time-display,
+body.no-owner-controls .schedule-page .all-day-label,
+body.no-owner-controls .schedule-page .program-entry input[type="time"] {
+    pointer-events: none !important;
+    cursor: default !important;
 }
 
 .schedule-page .program-entry:hover {
@@ -710,7 +842,7 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     justify-content: space-between;
     gap: 6px; /* Reduced from 12px for more compact layout */
     margin-top: 4px; /* Reduced from 8px for more compact layout */
-    padding: 2px 0; /* Added minimal padding for touch targets */
+    padding: 0;
 }
 
 .schedule-page .program-entry .show-notes-btn {
@@ -756,6 +888,11 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 .schedule-page .notes-field {
     display: none;
     margin-top: 8px;
+}
+
+.schedule-page .program-entry.notes-open,
+.schedule-page .program-entry:has(.notes-field[style*="display: block"]) {
+    padding-bottom: 14px;
 }
 
 /* Mobile styles */
@@ -927,11 +1064,16 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     }
 
     .schedule-page .program-entry {
-        padding: 12px !important;
+        padding: 12px 12px 2px !important;
         gap: 2px !important;
         font-size: 14px !important;
         border-radius: 20px !important;
         margin-bottom: 4px !important;
+    }
+
+    .schedule-page .program-entry.notes-open,
+    .schedule-page .program-entry:has(.notes-field[style*="display: block"]) {
+        padding-bottom: 12px !important;
     }
 
     .schedule-page .program-entry input,
@@ -1026,6 +1168,28 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
         transition: border-color 0.2s, box-shadow 0.2s, background-color 0.2s !important;
     }
 
+    .schedule-page .program-entry .all-day-label {
+        padding: 4px 0 !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        line-height: 20px !important;
+        font-size: 12px !important;
+        background: none !important;
+        border: none !important;
+        box-shadow: none !important;
+    }
+
+    .schedule-page .time-display {
+        width: 90px !important;
+        min-width: 90px !important;
+        max-width: 90px !important;
+        padding: 4px 2px !important;
+        height: 28px !important;
+        min-height: 28px !important;
+        font-size: 12px !important;
+        pointer-events: none !important;
+    }
+
     /* Mobile focus and hover states */
     .schedule-page .program-entry input[type="time"]:focus {
         border-color: #CC0007 !important;
@@ -1066,6 +1230,11 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     .schedule-page .program-entry .time-fields-container {
         gap: 4px !important;
         overflow: hidden !important;
+    }
+
+    .schedule-page .program-entry .time-inputs-slot {
+        gap: 4px !important;
+        flex-shrink: 0 !important;
     }
 
     /* Folder container should shrink if needed to prevent overlap */
@@ -1145,7 +1314,7 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
         font-size: 16px !important;
     }
 
-    .schedule-page .program-entry textarea {
+    .schedule-page .program-entry .notes-field textarea {
         min-height: 80px !important;
         max-height: 300px !important;
         overflow-y: auto !important;
@@ -1160,6 +1329,47 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
         border: 1px solid #eee !important;
         border-radius: 4px !important;
         background: #f9f9f9 !important;
+    }
+
+    .schedule-page .program-entry .meta-fields {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        align-items: flex-start !important;
+        width: 100% !important;
+    }
+
+    .schedule-page .program-entry .meta-field {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: flex-start !important;
+        flex: 1 1 0 !important;
+        width: auto !important;
+        min-width: 0 !important;
+    }
+
+    .schedule-page .program-entry .meta-field .material-symbols-outlined {
+        margin-top: 0 !important;
+        align-self: flex-start !important;
+    }
+
+    .schedule-page .program-entry textarea.compact-textarea,
+    .schedule-page .program-entry textarea[data-field="location"],
+    .schedule-page .program-entry textarea[data-field="photographer"] {
+        height: 28px !important;
+        min-height: 28px !important;
+        max-height: 60px !important;
+        padding: 5px 4px !important;
+        font-size: 12px !important;
+        line-height: 18px !important;
+        resize: none !important;
+        overflow-x: hidden !important;
+        overflow-y: auto !important;
+        background: transparent !important;
+        border: none !important;
+        width: 100% !important;
+        min-width: 0 !important;
+        flex: 1 1 auto !important;
     }
 
     .schedule-page .program-entry .right-actions {
@@ -1312,12 +1522,55 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
     border-color: rgba(204, 0, 7, 0.2);
 }
 
+.schedule-page .program-entry .meta-fields {
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: nowrap !important;
+    align-items: flex-start !important;
+    gap: 6px;
+    margin-top: 4px;
+}
+
+.schedule-page .program-entry .meta-field {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-start !important;
+    flex: 1 1 0;
+    width: auto !important;
+    min-width: 0;
+}
+
+.schedule-page .program-entry .meta-field .material-symbols-outlined {
+    display: block;
+    margin-right: 4px;
+    margin-top: 0 !important;
+    padding-top: 5px;
+    font-size: 18px;
+    line-height: 18px;
+    flex-shrink: 0;
+    align-self: flex-start !important;
+}
+
+.schedule-page .program-entry textarea.compact-textarea,
+.schedule-page .program-entry textarea[data-field="location"],
+.schedule-page .program-entry textarea[data-field="photographer"],
 .schedule-page .program-entry textarea[placeholder="Location"],
 .schedule-page .program-entry textarea[placeholder="Photographer"] {
-    min-height: 32px !important;
+    flex: 1 1 auto;
+    width: 100%;
+    min-width: 0 !important;
+    height: 28px !important;
+    min-height: 28px !important;
     max-height: 60px !important;
-    resize: vertical !important;
+    padding: 5px 6px !important;
+    line-height: 18px !important;
+    resize: none !important;
+    overflow-x: hidden !important;
+    overflow-y: auto !important;
+    white-space: pre-wrap !important;
+    word-break: break-word !important;
     font-size: 12px !important; /* Added !important to override mobile styles */
+    box-sizing: border-box !important;
 }
 
 .schedule-page .delete-date-btn {
@@ -2252,7 +2505,12 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 
   /* Reduce padding on program entries */
   .schedule-page .program-entry {
-    padding: 10px !important;
+    padding: 10px 10px 2px !important;
+  }
+
+  .schedule-page .program-entry.notes-open,
+  .schedule-page .program-entry:has(.notes-field[style*="display: block"]) {
+    padding-bottom: 10px !important;
   }
 }
 

@@ -531,6 +531,8 @@ let mobileHeaderLastY = 0;
 let mobileHeaderTicking = false;
 let mobileHeaderHidden = false;
 let scheduleHeaderResizeObserver = null;
+let scheduleScrollDateHideTimer = null;
+const SCHEDULE_SCROLL_DATE_HIDE_MS = 750;
 
 function isScheduleMobileViewport() {
   return window.matchMedia(`(max-width: ${SCHEDULE_MOBILE_HEADER_MAX_PX}px)`).matches;
@@ -596,6 +598,81 @@ function teardownScheduleHeaderHeightSync() {
   }
 }
 
+function getScheduleScrollDateEl() {
+  return document.getElementById('scheduleScrollDate');
+}
+
+function ensureScheduleScrollDateEl() {
+  let el = getScheduleScrollDateEl();
+  if (el) return el;
+  const page = document.querySelector('.schedule-page');
+  if (!page) return null;
+  el = document.createElement('div');
+  el.id = 'scheduleScrollDate';
+  el.className = 'schedule-scroll-date';
+  el.setAttribute('aria-hidden', 'true');
+  page.appendChild(el);
+  return el;
+}
+
+function hideScheduleScrollDate() {
+  if (scheduleScrollDateHideTimer) {
+    clearTimeout(scheduleScrollDateHideTimer);
+    scheduleScrollDateHideTimer = null;
+  }
+  const el = getScheduleScrollDateEl();
+  if (el) el.classList.remove('is-visible');
+}
+
+function getCurrentScheduleDateLabel() {
+  const header = getScheduleHeaderEl();
+  const headerHidden = !!(header && header.classList.contains('schedule-header-hidden'));
+  const headerH = header && !headerHidden ? header.offsetHeight : 0;
+  const probeY = headerH + 12;
+
+  const sections = document.querySelectorAll(
+    '.schedule-page .date-section[data-date], .schedule-page .schedule-table-section[data-date]'
+  );
+  let current = null;
+  for (const section of sections) {
+    if (section.getBoundingClientRect().bottom > probeY) {
+      current = section;
+      break;
+    }
+  }
+  if (!current) return '';
+
+  const inFlowHeader = current.querySelector('.date-header');
+  if (inFlowHeader) {
+    const hr = inFlowHeader.getBoundingClientRect();
+    if (hr.bottom > probeY && hr.top >= probeY - 10) return '';
+  }
+
+  const dateStr = current.getAttribute('data-date');
+  return dateStr ? formatDate(dateStr) : '';
+}
+
+function updateScheduleScrollDate() {
+  if (!isScheduleMobileViewport() || (filterDate && filterDate !== 'all')) {
+    hideScheduleScrollDate();
+    return;
+  }
+
+  const el = ensureScheduleScrollDateEl();
+  if (!el) return;
+
+  const label = getCurrentScheduleDateLabel();
+  if (!label) {
+    hideScheduleScrollDate();
+    return;
+  }
+
+  if (el.textContent !== label) el.textContent = label;
+  el.classList.add('is-visible');
+  if (scheduleScrollDateHideTimer) clearTimeout(scheduleScrollDateHideTimer);
+  scheduleScrollDateHideTimer = setTimeout(hideScheduleScrollDate, SCHEDULE_SCROLL_DATE_HIDE_MS);
+}
+
 function setScheduleHeaderHidden(hidden) {
   const header = getScheduleHeaderEl();
   if (!header) return;
@@ -640,6 +717,7 @@ function onScheduleMobileHeaderScroll() {
   requestAnimationFrame(() => {
     mobileHeaderTicking = false;
     updateScheduleMobileHeader();
+    updateScheduleScrollDate();
   });
 }
 
@@ -670,6 +748,7 @@ function teardownMobileScheduleHeaderScroll() {
   if (header) header.classList.remove('schedule-header-hidden');
   mobileHeaderHidden = false;
   teardownScheduleHeaderHeightSync();
+  hideScheduleScrollDate();
 }
 
 function setupMobileScheduleHeaderScroll() {
@@ -867,6 +946,92 @@ function formatTo12Hour(time) {
   return `${h.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')} ${ampm}`;
 }
 
+function normalizeScheduleTime(value) {
+  if (value == null) return '';
+  const raw = String(value).trim();
+  if (!raw) return '';
+  const match = raw.match(/^(\d{1,2}):(\d{2})/);
+  if (match) {
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return '';
+    if (hours === 24 && minutes === 0) hours = 0;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  }
+  if (typeof formatTimeValue === 'function') {
+    const formatted = formatTimeValue(raw);
+    if (typeof formatted === 'string' && /^\d{1,2}:\d{2}/.test(formatted)) {
+      return normalizeScheduleTime(formatted);
+    }
+  }
+  return '';
+}
+
+function isAllDayTimeRange(start, end) {
+  const startTime = normalizeScheduleTime(start);
+  const endTime = normalizeScheduleTime(end);
+  if (startTime !== '00:00') return false;
+  return endTime === '23:59' || endTime === '00:00';
+}
+
+function getEntryTimeValues(container) {
+  if (!container) return { start: '', end: '' };
+  const startInput = container.querySelector('input[data-field="startTime"]');
+  const endInput = container.querySelector('input[data-field="endTime"]');
+  if (startInput || endInput) {
+    return { start: startInput?.value || '', end: endInput?.value || '' };
+  }
+  const startDisplay = container.querySelector('.time-display[data-field="startTime"]');
+  const endDisplay = container.querySelector('.time-display[data-field="endTime"]');
+  return {
+    start: startDisplay?.getAttribute('data-value') || '',
+    end: endDisplay?.getAttribute('data-value') || ''
+  };
+}
+
+function syncAllDayTimeDisplay(entry) {
+  if (!entry) return;
+  const container = entry.querySelector('.time-fields-container');
+  if (!container) return;
+  const { start, end } = getEntryTimeValues(container);
+  const allDay = isAllDayTimeRange(start, end);
+  container.classList.toggle('is-all-day', allDay);
+  const active = document.activeElement;
+  const editingTimes = !!(active && container.contains(active) && active.matches('input[type="time"]'));
+  if (!allDay || !editingTimes) {
+    container.classList.toggle('is-all-day-editing', false);
+  }
+}
+
+function revealAllDayTimes(trigger) {
+  const container = trigger && trigger.closest('.time-fields-container');
+  if (!container || container.querySelector('input[type="time"][readonly]')) return;
+  container.classList.add('is-all-day-editing');
+  const start = container.querySelector('input[data-field="startTime"]');
+  if (!start) return;
+  start.focus();
+  if (typeof start.showPicker === 'function') {
+    try { start.showPicker(); } catch (_) { /* native picker not available */ }
+  }
+}
+
+function onScheduleTimeBlur(field, date, index, fieldKey) {
+  if (typeof autoSave === 'function') autoSave(field, date, index, fieldKey);
+  const entry = field && field.closest('.program-entry');
+  setTimeout(() => {
+    if (!entry) return;
+    const container = entry.querySelector('.time-fields-container');
+    if (!container) return;
+    const active = document.activeElement;
+    if (active && container.contains(active) && active.matches('input[type="time"]')) return;
+    container.classList.remove('is-all-day-editing');
+    syncAllDayTimeDisplay(entry);
+  }, 0);
+}
+
+window.revealAllDayTimes = revealAllDayTimes;
+window.onScheduleTimeBlur = onScheduleTimeBlur;
+
 window.initPage = async function(id) {
   console.log(`\n=== SCHEDULE INITPAGE START ===`);
   const startTime = Date.now();
@@ -985,6 +1150,7 @@ window.initPage = async function(id) {
   if (filterDropdown) {
     filterDropdown.addEventListener('change', function(e) {
       filterDate = e.target.value;
+      hideScheduleScrollDate();
       renderProgramSections(isOwner); // Use the correct access
       saveFilterSettings(); // Save filter selection
     });
@@ -1679,25 +1845,32 @@ function renderProgramSections(hasScheduleAccess) {
         entry.setAttribute('data-program-id', programId);
       }
 
+      const allDay = isAllDayTimeRange(program.startTime, program.endTime);
+
       entry.innerHTML = `
         <div style="display: flex; justify-content: space-between; align-items: center; gap: 4px;" class="time-row">
-          <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;" class="time-fields-container">
+          <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;" class="time-fields-container${allDay ? ' is-all-day' : ''}">
+            <div class="time-inputs-slot">
+            ${hasScheduleAccess
+              ? `<button type="button" class="all-day-label" onclick="revealAllDayTimes(this)">All Day</button>
             <input type="time" placeholder="Start Time" 
               data-field="startTime"
               class="time-input"
               style="width: 110px; min-width: 90px; text-align: left; font-size: 12px;"
               value="${program.startTime || ''}"
-              ${!hasScheduleAccess ? 'readonly' : ''}
-              onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
-              onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'startTime')` : ''}">
+              onfocus="enableEdit(this)"
+              onblur="onScheduleTimeBlur(this, '${program.date}', ${program.__index}, 'startTime')">
             <input type="time" placeholder="End Time" 
               data-field="endTime"
               class="time-input"
               style="width: 110px; min-width: 90px; text-align: left; font-size: 12px;"
               value="${program.endTime || ''}"
-              ${!hasScheduleAccess ? 'readonly' : ''}
-              onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}"
-              onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'endTime')` : ''}">
+              onfocus="enableEdit(this)"
+              onblur="onScheduleTimeBlur(this, '${program.date}', ${program.__index}, 'endTime')">`
+              : `<span class="all-day-label">All Day</span>
+            <span class="time-display" data-field="startTime" data-value="${program.startTime || ''}">${formatTo12Hour(program.startTime || '')}</span>
+            <span class="time-display" data-field="endTime" data-value="${program.endTime || ''}">${formatTo12Hour(program.endTime || '')}</span>`}
+            </div>
             <div style="display: ${hasScheduleAccess || program.folder ? 'flex' : 'none'}; align-items: center; gap: 2px;" class="folder-field-container${hasScheduleAccess ? ' folder-field-container--editable' : ''}" data-has-value="${program.folder ? 'true' : 'false'}">
               <span class="material-symbols-outlined folder-icon" style="font-size: 14px; color: #2563eb;">folder</span>
               <input type="text"
@@ -1734,10 +1907,11 @@ function renderProgramSections(hasScheduleAccess) {
             onfocus="${hasScheduleAccess ? 'enableEdit(this)' : ''}" 
             onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'name')` : ''}">
         </div>
-        <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
-          <div style="display: flex; align-items: center; flex: 1;">
-            <span class="material-symbols-outlined" style="margin-right: 4px; font-size: 18px;">location_on</span>
-            <textarea style="flex: 1; resize: none;"
+        <div class="meta-fields" style="display:flex;align-items:flex-start;gap:6px;margin-top:4px;">
+          <div class="meta-field" style="display:flex;align-items:flex-start;flex:1;min-width:0;">
+            <span class="material-symbols-outlined" style="margin-right:4px;margin-top:0;font-size:18px;line-height:18px;flex-shrink:0;align-self:flex-start;">location_on</span>
+            <textarea class="compact-textarea"
+              rows="1"
               data-field="location"
               placeholder="Location"
               ${!hasScheduleAccess ? 'readonly' : ''}
@@ -1745,9 +1919,10 @@ function renderProgramSections(hasScheduleAccess) {
               oninput="${hasScheduleAccess ? 'autoResizeTextarea(this)' : ''}"
               onblur="${hasScheduleAccess ? `autoSave(this, '${program.date}', ${program.__index}, 'location')` : ''}">${program.location || ''}</textarea>
           </div>
-          <div style="display: flex; align-items: center; flex: 1;">
-            <span class="material-symbols-outlined" style="margin-right: 4px; font-size: 18px;">photo_camera</span>
-            <textarea style="flex: 1; resize: none;"
+          <div class="meta-field" style="display:flex;align-items:flex-start;flex:1;min-width:0;">
+            <span class="material-symbols-outlined" style="margin-right:4px;margin-top:0;font-size:18px;line-height:18px;flex-shrink:0;align-self:flex-start;">photo_camera</span>
+            <textarea class="compact-textarea"
+              rows="1"
               data-field="photographer"
               placeholder="Photographer"
               ${!hasScheduleAccess ? 'readonly' : ''}
@@ -3809,6 +3984,7 @@ function toggleNotes(button) {
   const textarea = notesField.querySelector('textarea');
   const isOpen = notesField.style.display === 'block';
   notesField.style.display = isOpen ? 'none' : 'block';
+  entry.classList.toggle('notes-open', !isOpen);
   button.textContent = isOpen ? 'Show Notes' : 'Hide Notes';
   if (!isOpen && textarea) {
     // Force a reflow to ensure the textarea is visible
@@ -3822,6 +3998,8 @@ function toggleAllNotes() {
   const allButtons = document.querySelectorAll('.show-notes-btn');
   allNotes.forEach(note => {
     note.style.display = allNotesVisible ? 'none' : 'block';
+    const entry = note.closest('.program-entry');
+    if (entry) entry.classList.toggle('notes-open', !allNotesVisible);
     const textarea = note.querySelector('textarea');
     if (!allNotesVisible && textarea) setupTextareaResize(textarea);
   });
@@ -3833,17 +4011,42 @@ function toggleAllNotes() {
   if (toggleBtn) toggleBtn.textContent = allNotesVisible ? 'Hide All Notes' : 'Show All Notes';
 }
 
+const COMPACT_FIELD_SINGLE_LINE = 28;
+const COMPACT_FIELD_MAX_HEIGHT = 60;
+
+function isCompactScheduleField(textarea) {
+  return !!(textarea && (
+    textarea.classList.contains('compact-textarea') ||
+    textarea.matches('textarea[data-field="location"], textarea[data-field="photographer"], textarea[placeholder="Location"], textarea[placeholder="Photographer"]')
+  ));
+}
+
 function autoResizeTextarea(textarea) {
   if (!textarea) return;
 
-  // Reset height to auto to get the correct scrollHeight
+  if (isCompactScheduleField(textarea)) {
+    const singleLine = COMPACT_FIELD_SINGLE_LINE;
+    const maxHeight = COMPACT_FIELD_MAX_HEIGHT;
+
+    if (!textarea.value) {
+      textarea.style.setProperty('height', singleLine + 'px', 'important');
+      textarea.style.setProperty('min-height', singleLine + 'px', 'important');
+      return;
+    }
+
+    const placeholder = textarea.getAttribute('placeholder') || '';
+    textarea.setAttribute('placeholder', '');
+    textarea.style.setProperty('min-height', '0px', 'important');
+    textarea.style.setProperty('height', '0px', 'important');
+    const nextHeight = Math.max(singleLine, Math.min(textarea.scrollHeight, maxHeight));
+    textarea.style.setProperty('min-height', singleLine + 'px', 'important');
+    textarea.style.setProperty('height', nextHeight + 'px', 'important');
+    textarea.setAttribute('placeholder', placeholder);
+    return;
+  }
+
   textarea.style.height = 'auto';
-
-  // Calculate the new height
-  const newHeight = Math.max(textarea.scrollHeight, 40); // Ensure minimum height of 40px
-
-  // Set the new height
-  textarea.style.height = newHeight + 'px';
+  textarea.style.height = Math.max(textarea.scrollHeight, 40) + 'px';
 }
 
 function setupTextareaResize(textarea) {
@@ -5566,7 +5769,7 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
   if (rowColor) entry.classList.add(`schedule-color-${rowColor}`);
   
   // Update start time
-  const startTimeInput = entry.querySelector('input[type="time"]:first-of-type');
+  const startTimeInput = entry.querySelector('input[data-field="startTime"]');
   if (startTimeInput && !isFieldCurrentlyFocused(startTimeInput, preservationData)) {
     if (startTimeInput.value !== (program.startTime || '')) {
       console.log(`[UPDATE] Updating start time: '${startTimeInput.value}' -> '${program.startTime || ''}'`);
@@ -5577,9 +5780,15 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
       startTimeInput.value = program.startTime || '';
     }
   }
+  const startTimeDisplay = entry.querySelector('.time-display[data-field="startTime"]');
+  if (startTimeDisplay) {
+    startTimeDisplay.setAttribute('data-value', program.startTime || '');
+    startTimeDisplay.textContent = formatTo12Hour(program.startTime || '');
+  }
+  syncAllDayTimeDisplay(entry);
   
   // Update end time
-  const endTimeInput = entry.querySelector('input[type="time"]:last-of-type');
+  const endTimeInput = entry.querySelector('input[data-field="endTime"]');
   if (endTimeInput && !isFieldCurrentlyFocused(endTimeInput, preservationData)) {
     if (endTimeInput.value !== (program.endTime || '')) {
       console.log(`[UPDATE] Updating end time: '${endTimeInput.value}' -> '${program.endTime || ''}'`);
@@ -5590,6 +5799,12 @@ function updateProgramFields(entry, program, preservationData, hasScheduleAccess
       endTimeInput.value = program.endTime || '';
     }
   }
+  const endTimeDisplay = entry.querySelector('.time-display[data-field="endTime"]');
+  if (endTimeDisplay) {
+    endTimeDisplay.setAttribute('data-value', program.endTime || '');
+    endTimeDisplay.textContent = formatTo12Hour(program.endTime || '');
+  }
+  syncAllDayTimeDisplay(entry);
   
   // Update location textarea
   const locationTextarea = entry.querySelector('textarea:first-of-type');
@@ -6077,12 +6292,14 @@ function renderScheduleTable() {
         row.setAttribute('data-program-id', programId);
       }
       
+      const allDay = isAllDayTimeRange(program.startTime, program.endTime);
+
       row.innerHTML = `
         <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-field="startTime">
-          <span class="cell-display">${formatTo12Hour(program.startTime || '')}</span>
+          <span class="cell-display">${allDay ? 'All Day' : formatTo12Hour(program.startTime || '')}</span>
         </td>
         <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-field="endTime">
-          <span class="cell-display">${formatTo12Hour(program.endTime || '')}</span>
+          <span class="cell-display">${allDay ? '' : formatTo12Hour(program.endTime || '')}</span>
         </td>
         <td class="editable-cell ${isOwner ? 'owner-editable' : ''}" data-field="name">
           <span class="cell-display">${program.name || ''}</span>
@@ -6151,9 +6368,9 @@ function makeTableCellEditable(cell, program) {
   const displaySpan = cell.querySelector('.cell-display');
   if (!displaySpan) return;
   
-  // Get current value from the cell display, not from program object
-  // This ensures we're editing what's actually shown in the cell
-  const currentValue = displaySpan.textContent.trim();
+  const currentValue = (field === 'startTime' || field === 'endTime')
+    ? (program[field] || '')
+    : displaySpan.textContent.trim();
   
   cell.classList.add('editing');
   
@@ -6189,9 +6406,23 @@ function makeTableCellEditable(cell, program) {
       saveProgramField({ programIndex, field, value: newValue, element: inputElement, oldValue: currentValue, baseValue: currentValue })
         .then(ok => { if (ok) console.log(`[TABLE VIEW] Saved ${field} for program ${programIndex}`); });
     }
-    
-    // Restore display
-    displaySpan.textContent = field === 'startTime' || field === 'endTime' ? formatTo12Hour(newValue) : newValue;
+
+    const updated = tableData.programs[programIndex] || program;
+    if (field === 'startTime' || field === 'endTime') {
+      updated[field] = newValue;
+      const row = cell.closest('tr');
+      const startDisplay = row.querySelector('td[data-field="startTime"] .cell-display');
+      const endDisplay = row.querySelector('td[data-field="endTime"] .cell-display');
+      if (isAllDayTimeRange(updated.startTime, updated.endTime)) {
+        if (startDisplay) startDisplay.textContent = 'All Day';
+        if (endDisplay) endDisplay.textContent = '';
+      } else {
+        if (startDisplay) startDisplay.textContent = formatTo12Hour(updated.startTime || '');
+        if (endDisplay) endDisplay.textContent = formatTo12Hour(updated.endTime || '');
+      }
+    } else {
+      displaySpan.textContent = newValue;
+    }
     cell.classList.remove('editing');
     displaySpan.style.display = 'block';
     inputElement.remove();

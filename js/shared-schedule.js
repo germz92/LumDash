@@ -36,6 +36,26 @@
     return `${h}:${minute.toString().padStart(2, '0')} ${ampm}`;
   }
 
+  function normalizeScheduleTime(value) {
+    if (value == null) return '';
+    const raw = String(value).trim();
+    if (!raw) return '';
+    const match = raw.match(/^(\d{1,2}):(\d{2})/);
+    if (!match) return '';
+    let hours = parseInt(match[1], 10);
+    const minutes = parseInt(match[2], 10);
+    if (!Number.isFinite(hours) || !Number.isFinite(minutes)) return '';
+    if (hours === 24 && minutes === 0) hours = 0;
+    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
+  }
+
+  function isAllDayTimeRange(start, end) {
+    const startTime = normalizeScheduleTime(start);
+    const endTime = normalizeScheduleTime(end);
+    if (startTime !== '00:00') return false;
+    return endTime === '23:59' || endTime === '00:00';
+  }
+
   function matchesSearch(program) {
     if (filterDate !== 'all' && program.date !== filterDate) return false;
     if (!searchQuery) return true;
@@ -235,6 +255,7 @@
 
     const isHidden = notesField.style.display === 'none' || notesField.style.display === '';
     notesField.style.display = isHidden ? 'block' : 'none';
+    entry.classList.toggle('notes-open', isHidden);
     btn.textContent = isHidden ? 'Hide Notes' : 'Show Notes';
   };
 
@@ -289,19 +310,16 @@
           notes: program.notes || ''
         }));
 
+        const allDay = isAllDayTimeRange(program.startTime, program.endTime);
+
         entry.innerHTML = `
           <div style="display: flex; justify-content: space-between; align-items: center; gap: 4px;" class="time-row">
-            <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;" class="time-fields-container">
-              <input type="time"
-                class="time-input"
-                style="width: 110px; min-width: 90px; text-align: left; font-size: 12px;"
-                value="${program.startTime || ''}"
-                readonly>
-              <input type="time"
-                class="time-input"
-                style="width: 110px; min-width: 90px; text-align: left; font-size: 12px;"
-                value="${program.endTime || ''}"
-                readonly>
+            <div style="display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0;" class="time-fields-container${allDay ? ' is-all-day' : ''}">
+              <div class="time-inputs-slot">
+              <span class="all-day-label">All Day</span>
+              <span class="time-display" data-field="startTime" data-value="${program.startTime || ''}">${formatTo12Hour(program.startTime || '')}</span>
+              <span class="time-display" data-field="endTime" data-value="${program.endTime || ''}">${formatTo12Hour(program.endTime || '')}</span>
+              </div>
             </div>
             <div class="right-actions" style="flex-shrink: 0; margin-left: auto; display: flex; align-items: center; gap: 6px;">
               ${program.done ? '<span class="material-symbols-outlined" style="color: #28a745; font-size: 20px;">check_circle</span>' : ''}
@@ -316,14 +334,14 @@
               value="${program.name || ''}"
               readonly>
           </div>
-          <div style="display: flex; align-items: center; gap: 6px; margin-top: 4px;">
-            <div style="display: flex; align-items: center; flex: 1;">
-              <span class="material-symbols-outlined" style="margin-right: 4px; font-size: 18px;">location_on</span>
-              <textarea style="flex: 1; resize: none;" placeholder="Location" readonly>${program.location || ''}</textarea>
+          <div class="meta-fields" style="display:flex;align-items:flex-start;gap:6px;margin-top:4px;">
+            <div class="meta-field" style="display:flex;align-items:flex-start;flex:1;min-width:0;">
+              <span class="material-symbols-outlined" style="margin-right:4px;margin-top:0;font-size:18px;line-height:18px;flex-shrink:0;align-self:flex-start;">location_on</span>
+              <textarea class="compact-textarea" rows="1" data-field="location" placeholder="Location" readonly>${program.location || ''}</textarea>
             </div>
-            <div style="display: flex; align-items: center; flex: 1;">
-              <span class="material-symbols-outlined" style="margin-right: 4px; font-size: 18px;">photo_camera</span>
-              <textarea style="flex: 1; resize: none;" placeholder="Photographer" readonly>${program.photographer || ''}</textarea>
+            <div class="meta-field" style="display:flex;align-items:flex-start;flex:1;min-width:0;">
+              <span class="material-symbols-outlined" style="margin-right:4px;margin-top:0;font-size:18px;line-height:18px;flex-shrink:0;align-self:flex-start;">photo_camera</span>
+              <textarea class="compact-textarea" rows="1" data-field="photographer" placeholder="Photographer" readonly>${program.photographer || ''}</textarea>
             </div>
           </div>
           <div class="entry-actions">
@@ -338,6 +356,18 @@
       });
 
       container.appendChild(section);
+    });
+
+    container.querySelectorAll('textarea.compact-textarea').forEach((el) => {
+      if (!el.value) {
+        el.style.setProperty('height', '28px', 'important');
+        return;
+      }
+      el.style.setProperty('min-height', '0px', 'important');
+      el.style.setProperty('height', '0px', 'important');
+      const nextHeight = Math.max(28, Math.min(el.scrollHeight, 60));
+      el.style.setProperty('min-height', '28px', 'important');
+      el.style.setProperty('height', nextHeight + 'px', 'important');
     });
   }
 
@@ -405,9 +435,11 @@
           notes: program.notes || ''
         }));
 
+        const allDay = isAllDayTimeRange(program.startTime, program.endTime);
+
         row.innerHTML = `
-          <td><span class="cell-display">${formatTo12Hour(program.startTime || '')}</span></td>
-          <td><span class="cell-display">${formatTo12Hour(program.endTime || '')}</span></td>
+          <td><span class="cell-display">${allDay ? 'All Day' : formatTo12Hour(program.startTime || '')}</span></td>
+          <td><span class="cell-display">${allDay ? '' : formatTo12Hour(program.endTime || '')}</span></td>
           <td><span class="cell-display">${program.name || ''}</span></td>
           <td><span class="cell-display">${program.location || ''}</span></td>
           <td><span class="cell-display">${program.photographer || ''}</span></td>
