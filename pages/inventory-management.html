@@ -30,6 +30,11 @@
             box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
             margin-bottom: 24px;
             border-left: 4px solid #cc0007;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 16px;
+            flex-wrap: wrap;
         }
 
         .header h1 {
@@ -543,6 +548,86 @@
             transform: translateY(-1px);
         }
 
+        .checked-out-modal .modal-content {
+            max-width: 1100px;
+        }
+
+        .checked-out-toolbar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            flex-wrap: wrap;
+        }
+
+        .checked-out-search {
+            flex: 1;
+            min-width: 220px;
+            padding: 10px 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 8px;
+            font-size: 14px;
+        }
+
+        .checked-out-search:focus {
+            outline: none;
+            border-color: #cc0007;
+        }
+
+        .checked-out-count {
+            font-size: 14px;
+            color: #555;
+            font-weight: 600;
+            white-space: nowrap;
+        }
+
+        .checked-out-table-wrap {
+            overflow-x: auto;
+        }
+
+        .checked-out-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .checked-out-table th,
+        .checked-out-table td {
+            padding: 10px 12px;
+            text-align: left;
+            border-bottom: 1px solid #e0e0e0;
+            font-size: 14px;
+            vertical-align: top;
+        }
+
+        .checked-out-table th {
+            background: #f8f9fa;
+            font-weight: 600;
+            color: #333;
+            position: sticky;
+            top: 0;
+        }
+
+        .checked-out-type {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 999px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+        }
+
+        .checked-out-type-event {
+            background: #e8f4fd;
+            color: #1565c0;
+        }
+
+        .checked-out-type-manual {
+            background: #fff4e5;
+            color: #c05600;
+        }
+
         .release-all-btn:disabled {
             background: #6c757d;
             cursor: not-allowed;
@@ -842,6 +927,16 @@
                 justify-content: center;
             }
 
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+
+            .header .btn {
+                width: 100%;
+                justify-content: center;
+            }
+
             .inventory-table {
                 font-size: 14px;
             }
@@ -911,8 +1006,14 @@
         </button>
 
         <div class="header">
-            <h1>Inventory Management</h1>
-            <p>Add and manage inventory items for gear reservations</p>
+            <div>
+                <h1>Inventory Management</h1>
+                <p>Add and manage inventory items for gear reservations</p>
+            </div>
+            <button type="button" class="btn btn-info" id="checkedOutBtn" onclick="openCheckedOutModal()" style="display: none;">
+                <span class="material-symbols-outlined">assignment_returned</span>
+                Currently Checked Out
+            </button>
         </div>
 
         <div id="accessCheck" class="loading">
@@ -1236,6 +1337,29 @@
         </div>
     </div>
 
+    <div id="checkedOutModal" class="modal checked-out-modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Currently Checked Out</h2>
+                <button class="modal-close" onclick="closeCheckedOutModal()" type="button">
+                    <span class="material-symbols-outlined">close</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="checked-out-toolbar">
+                    <input type="text" class="checked-out-search" id="checkedOutSearch" placeholder="Search item, serial, person, or event..." oninput="renderCheckedOutList()">
+                    <span class="checked-out-count" id="checkedOutCount"></span>
+                </div>
+                <div id="checkedOutContent">
+                    <div class="loading">
+                        <div class="loading-spinner"></div>
+                        <p>Loading checked-out gear...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="../js/config.js"></script>
     <script>
         let currentInventory = [];
@@ -1247,6 +1371,7 @@
         let manualReservationMode = false; // Track if we're in manual reservation mode
         let manualCart = []; // Track items selected for manual reservation
         let allManualReservations = []; // Track all manual reservations
+        let checkedOutItems = [];
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
@@ -1275,6 +1400,8 @@
                 // User has access, show main content
                 document.getElementById('accessCheck').style.display = 'none';
                 document.getElementById('mainContent').style.display = 'block';
+                const checkedOutBtn = document.getElementById('checkedOutBtn');
+                if (checkedOutBtn) checkedOutBtn.style.display = 'inline-flex';
                 
                 // Load inventory and manual reservations
                 loadInventory();
@@ -2659,6 +2786,114 @@
             }, 3000);
         }
 
+        // ========= CURRENTLY CHECKED OUT =========
+        async function openCheckedOutModal() {
+            const modal = document.getElementById('checkedOutModal');
+            const content = document.getElementById('checkedOutContent');
+            const search = document.getElementById('checkedOutSearch');
+            modal.style.display = 'block';
+            if (search) search.value = '';
+            content.innerHTML = `
+                <div class="loading">
+                    <div class="loading-spinner"></div>
+                    <p>Loading checked-out gear...</p>
+                </div>
+            `;
+            document.getElementById('checkedOutCount').textContent = '';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/gear-inventory/checked-out`, {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('token')}`
+                    }
+                });
+                if (!response.ok) {
+                    const error = await response.json().catch(() => ({}));
+                    throw new Error(error.error || 'Failed to load checked-out gear');
+                }
+                const data = await response.json();
+                checkedOutItems = data.items || [];
+                renderCheckedOutList();
+            } catch (error) {
+                console.error('Error loading checked-out gear:', error);
+                content.innerHTML = `
+                    <div class="empty-reservations">
+                        <div class="empty-icon">⚠️</div>
+                        <h4>Failed to load checked-out gear</h4>
+                        <p>${escapeHtml(error.message || 'Please try again.')}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function closeCheckedOutModal() {
+            document.getElementById('checkedOutModal').style.display = 'none';
+        }
+
+        function renderCheckedOutList() {
+            const content = document.getElementById('checkedOutContent');
+            const query = (document.getElementById('checkedOutSearch')?.value || '').trim().toLowerCase();
+            const items = checkedOutItems.filter(item => {
+                if (!query) return true;
+                const haystack = [
+                    item.brand, item.model, item.category, item.serial,
+                    item.checkedOutTo, item.person, item.email, item.type
+                ].join(' ').toLowerCase();
+                return haystack.includes(query);
+            });
+
+            const countEl = document.getElementById('checkedOutCount');
+            countEl.textContent = query
+                ? `${items.length} of ${checkedOutItems.length} shown`
+                : `${checkedOutItems.length} item${checkedOutItems.length !== 1 ? 's' : ''} out`;
+
+            if (items.length === 0) {
+                content.innerHTML = `
+                    <div class="empty-reservations">
+                        <div class="empty-icon">📦</div>
+                        <h4>${checkedOutItems.length === 0 ? 'Nothing is checked out' : 'No matching items'}</h4>
+                        <p>${checkedOutItems.length === 0 ? 'No gear is currently out for events or manual reservations.' : 'Try a different search.'}</p>
+                    </div>
+                `;
+                return;
+            }
+
+            content.innerHTML = `
+                <div class="checked-out-table-wrap">
+                    <table class="checked-out-table">
+                        <thead>
+                            <tr>
+                                <th>Item</th>
+                                <th>Category</th>
+                                <th>Serial</th>
+                                <th>Qty</th>
+                                <th>Checked Out To</th>
+                                <th>Dates</th>
+                                <th>Type</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${items.map(item => `
+                                <tr>
+                                    <td><strong>${escapeHtml(item.brand || '')} ${escapeHtml(item.model || '')}</strong></td>
+                                    <td>${escapeHtml(item.category || '')}</td>
+                                    <td>${escapeHtml(formatSerialDisplay(item.serial))}</td>
+                                    <td>${item.quantity || 1}</td>
+                                    <td>
+                                        ${escapeHtml(item.checkedOutTo || '')}
+                                        ${item.person && item.type === 'event' ? `<br><span style="color:#666;font-size:12px;">${escapeHtml(item.person)}${item.email ? ` (${escapeHtml(item.email)})` : ''}</span>` : ''}
+                                        ${item.type === 'manual' && item.email ? `<br><span style="color:#666;font-size:12px;">${escapeHtml(item.email)}</span>` : ''}
+                                    </td>
+                                    <td>${formatDate(item.startDate)} – ${formatDate(item.endDate)}</td>
+                                    <td><span class="checked-out-type ${item.type === 'manual' ? 'checked-out-type-manual' : 'checked-out-type-event'}">${item.type === 'manual' ? 'Manual' : 'Event'}</span></td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            `;
+        }
+
         // ========= RESERVATION MANAGEMENT =========
         let currentInventoryId = null;
         let currentReservations = null;
@@ -3033,6 +3268,10 @@
             }
             if (event.target === editItemModal) {
                 closeEditModal();
+            }
+            const checkedOutModal = document.getElementById('checkedOutModal');
+            if (event.target === checkedOutModal) {
+                closeCheckedOutModal();
             }
         }
     </script>

@@ -3683,6 +3683,78 @@ app.get('/api/gear-inventory', authenticate, async (req, res) => {
   }
 });
 
+// Currently checked-out gear (admin): reservations covering today
+app.get('/api/gear-inventory/checked-out', authenticate, async (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const today = new Date();
+    today.setUTCHours(0, 0, 0, 0);
+
+    const [eventReservations, manualReservations] = await Promise.all([
+      ReservedGearItem.find({
+        checkOutDate: { $lte: today },
+        checkInDate: { $gte: today }
+      })
+        .populate('eventId', 'title')
+        .populate('userId', 'fullName email')
+        .populate('inventoryId', 'label category serial')
+        .sort({ category: 1, brand: 1, model: 1 }),
+      ManualReservation.find({
+        startDate: { $lte: today },
+        endDate: { $gte: today }
+      })
+        .populate('inventoryId', 'label category serial')
+        .sort({ category: 1, brand: 1, model: 1 })
+    ]);
+
+    const items = [
+      ...eventReservations.map((reservation) => ({
+        id: reservation._id,
+        type: 'event',
+        brand: reservation.brand,
+        model: reservation.model,
+        category: reservation.category,
+        serial: reservation.serial || reservation.inventoryId?.serial || '',
+        quantity: reservation.quantity,
+        checkedOutTo: reservation.eventId?.title || 'Unknown Event',
+        person: reservation.userId?.fullName || 'Unknown User',
+        email: reservation.userId?.email || '',
+        startDate: reservation.checkOutDate,
+        endDate: reservation.checkInDate
+      })),
+      ...manualReservations.map((reservation) => ({
+        id: reservation._id,
+        type: 'manual',
+        brand: reservation.brand,
+        model: reservation.model,
+        category: reservation.category,
+        serial: reservation.serial || reservation.inventoryId?.serial || '',
+        quantity: reservation.quantity,
+        checkedOutTo: reservation.personName,
+        person: reservation.personName,
+        email: reservation.personEmail || '',
+        startDate: reservation.startDate,
+        endDate: reservation.endDate
+      }))
+    ];
+
+    items.sort((a, b) =>
+      String(a.category || '').localeCompare(String(b.category || '')) ||
+      String(a.brand || '').localeCompare(String(b.brand || '')) ||
+      String(a.model || '').localeCompare(String(b.model || '')) ||
+      String(a.serial || '').localeCompare(String(b.serial || ''))
+    );
+
+    res.json({ count: items.length, items });
+  } catch (err) {
+    console.error('Error fetching checked-out inventory:', err);
+    res.status(500).json({ error: 'Failed to fetch checked-out inventory' });
+  }
+});
+
 // Get inventory with availability for specific date range
 app.get('/api/gear-inventory/availability', authenticate, async (req, res) => {
   try {
