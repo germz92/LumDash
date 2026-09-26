@@ -19,6 +19,12 @@ html {
   --brand-primary: #CC0007;
   --brand-on-primary: #FFFFFF;
   --brand-primary-rgb: 204,0,7; /* For use with alpha, e.g., rgba(var(--brand-primary-rgb), 0.08) */
+
+  /* Bottom nav: 80px bar + home-indicator inset + iOS visual-viewport shift */
+  --app-vv-bottom: 0px;
+  --bottom-nav-bar: 80px;
+  --bottom-nav-height: calc(var(--bottom-nav-bar) + env(safe-area-inset-bottom, 0px));
+  --bottom-nav-offset: calc(var(--bottom-nav-height) + var(--app-vv-bottom));
 }
 
 html, body {
@@ -209,47 +215,84 @@ html, body {
   left: 0 !important;
   right: 0 !important;
   width: 100% !important;
-  background: #fff; /* Surface color */
-  box-shadow: 0px -1px 3px rgba(0, 0, 0, 0.1), 0px -2px 2px rgba(0, 0, 0, 0.06), 0px -0px 1px rgba(0,0,0,0.07); /* Subtle top shadow */
+  background: rgba(255, 255, 255, 0.92);
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: none;
   display: flex;
   justify-content: space-around;
-  align-items: center; /* Vertically center the items if bar becomes taller than items */
+  align-items: center;
   z-index: 1000 !important;
-  padding-top: 8px; /* Reduced from 16px to 8px to move icons higher */
-  padding-bottom: calc(16px + env(safe-area-inset-bottom, 16px)); /* Symmetrical base padding + safe area (16px fallback) */
-  min-height: 80px; /* Ensure consistent height */
+  padding-top: 6px;
+  padding-bottom: calc(10px + env(safe-area-inset-bottom, 0px));
+  min-height: var(--bottom-nav-bar);
   box-sizing: border-box !important;
 }
 
 .bottom-nav-material a,
-.bottom-nav-material .dropdown-toggle { /* Apply common styles to both direct links and the toggle */
-  color: var(--md-sys-color-on-surface-variant); /* Medium emphasis for inactive */
+.bottom-nav-material .dropdown-toggle {
+  color: #64748b;
   text-decoration: none;
-  font-size: 12px; /* Material label small */
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.01em;
   font-family: 'Roboto', Arial, sans-serif;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start; /* Move content (icon + text) to the top of the 56px box */
+  justify-content: flex-start;
+  gap: 1px;
   flex: 1;
-  padding: 0px 5px; /* Removed specific top/bottom padding here, will control with inner item padding */
-  padding-top: 2px; /* Reduced from 6px to 2px to move icons higher */
-  min-height: 56px; /* Maintain minimum tap target height */
-  /* height: 100%; Removed as parent height is now auto */
-  border-radius: 16px; 
-  transition: background-color 0.3s ease, color 0.3s ease;
-  cursor: pointer; /* Ensure toggle is also a pointer */
-  width: 100%; /* Ensure toggle takes up space in flex container */
+  padding: 2px 4px 0;
+  min-height: 52px;
+  border-radius: 14px;
+  transition: color 0.2s ease;
+  cursor: pointer;
+  width: 100%;
+  background: transparent;
 }
 
-.bottom-nav-material a:hover,
+.bottom-nav-material > a:hover,
 .bottom-nav-material .dropdown-toggle:hover {
-  background-color: rgba(var(--brand-primary-rgb), 0.04); /* Primary color with low opacity for hover */
+  color: #334155;
+  background: transparent;
 }
 
-.bottom-nav-material a.active,
+.bottom-nav-material > a.active,
 .bottom-nav-material .dropdown-toggle.active {
   color: var(--brand-primary);
+}
+
+.bottom-nav-material > a .material-symbols-outlined,
+.bottom-nav-material .nav-dropdown > .dropdown-toggle .material-symbols-outlined {
+  width: 56px;
+  height: 28px;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  font-size: 22px;
+  line-height: 1;
+  transition: background-color 0.2s ease, font-variation-settings 0.2s ease;
+}
+
+.bottom-nav-material > a.active .material-symbols-outlined,
+.bottom-nav-material .dropdown-toggle.active .material-symbols-outlined {
+  background: rgba(var(--brand-primary-rgb), 0.12);
+}
+
+.bottom-nav-material > a span:not(.material-symbols-outlined),
+.bottom-nav-material .dropdown-toggle > span:not(.material-symbols-outlined) {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 13px;
+}
+
+.bottom-nav-material > a.active span:not(.material-symbols-outlined),
+.bottom-nav-material .dropdown-toggle.active > span:not(.material-symbols-outlined) {
+  font-weight: 600;
 }
 
 /* Styling for icons within the material nav */
@@ -272,63 +315,87 @@ html, body {
 /* Styles for the dropdown menu, assuming it's a child of .nav-dropdown */
 .bottom-nav-material .dropdown-menu {
   position: absolute;
-  bottom: calc(100% + 4px); /* Position above the nav bar, with a little space */
-  right: 50%; /* Start from center */
-  transform: translateX(50%); /* Center align the dropdown */
-  background: #FFFFFF; /* Surface color */
-  border-radius: 8px; /* Material corner radius */
-  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15); /* Elevation 2 */
-  min-width: 90px; /* Adjusted min-width to 90px */
-  width: max-content; /* Allow content to define width up to max-width */
-  max-width: calc(100vw - 40px); /* Adjusted max-width to be responsive, leaving 20px margin on each side */
+  bottom: calc(100% + 10px);
+  right: 8px;
+  transform: translateY(6px);
+  background: rgba(255, 255, 255, 0.98);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.14);
+  min-width: 196px;
+  width: max-content;
+  max-width: calc(100vw - 24px);
   opacity: 0;
   visibility: hidden;
-  transform-origin: bottom center;
-  transition: opacity 0.15s ease, transform 0.15s ease;
+  transform-origin: bottom right;
+  transition: opacity 0.16s ease, transform 0.16s ease;
   z-index: 1001;
-  padding-top: 8px; 
-  padding-bottom: 8px;
+  padding: 6px;
 }
 
 .bottom-nav-material .dropdown-menu.show {
   opacity: 1;
   visibility: visible;
-  transform: translateX(50%) translateY(0) scale(1);
+  transform: translateY(0);
 }
 
 .bottom-nav-material .dropdown-menu a {
   display: flex;
+  flex-direction: row;
   align-items: center;
-  padding: 0 16px; 
-  height: 48px; 
-  color: var(--md-sys-color-on-surface);
+  justify-content: flex-start;
+  gap: 10px;
+  width: auto;
+  min-height: 0;
+  padding: 8px 10px;
+  height: auto;
+  border-radius: 10px;
+  color: #0f172a;
   text-decoration: none;
   font-family: 'Roboto', Arial, sans-serif;
-  font-size: 14px; /* Body Medium */
-  transition: background-color 0.2s;
+  font-size: 14px;
+  font-weight: 500;
+  letter-spacing: 0;
+  transition: background-color 0.15s ease;
 }
 
 .bottom-nav-material .dropdown-menu a:hover {
-  background-color: rgba(var(--brand-primary-rgb), 0.08); /* Consistent hover with main items */
+  background: #f1f5f9;
+  color: #0f172a;
 }
 
-/* Ensure icons within the dropdown menu also use the on-surface-variant color */
+.bottom-nav-material .dropdown-menu a.active {
+  background: rgba(var(--brand-primary-rgb), 0.08);
+  color: var(--brand-primary);
+}
+
 .bottom-nav-material .dropdown-menu a .material-symbols-outlined {
-  color: var(--md-sys-color-on-surface-variant);
-  margin-right: 8px; /* Add some space between icon and text in dropdown */
-  font-variation-settings: 'FILL' 0; /* Ensure dropdown icons are always outlined */
+  width: 32px;
+  height: 32px;
+  margin: 0;
+  border-radius: 8px;
+  background: #f1f5f9;
+  color: #334155;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-variation-settings: 'FILL' 0;
 }
 
-/* Adjust page container padding for new nav bar height */
-/* This might need dynamic calculation or a more generous fixed value if nav bar height is truly dynamic */
+.bottom-nav-material .dropdown-menu a.active .material-symbols-outlined {
+  background: rgba(var(--brand-primary-rgb), 0.12);
+  color: var(--brand-primary);
+}
+
+/* Clear the fixed bar. Mobile adds room for the Luma button that sits above it. */
 body:has(.bottom-nav-material) #page-container {
-  padding-bottom: 120px !important; /* Increased to accommodate a taller nav bar (approx 88px + safe area) */
+  padding-bottom: calc(var(--bottom-nav-offset) + 16px) !important;
 }
 
-/* Additional padding for mobile to account for floating Luma button */
 @media (max-width: 767px) {
   body:has(.bottom-nav-material) #page-container {
-    padding-bottom: 140px !important; /* Extra padding for floating button */
+    padding-bottom: calc(var(--bottom-nav-offset) + 36px) !important;
   }
 }
 
@@ -387,45 +454,65 @@ body:has(.bottom-nav-material) #page-container {
     padding-right: 8px;
   }
   
-  /* Style the dynamically added desktop nav items */
+  #bottomNav.bottom-nav-material {
+    left: 50% !important;
+    right: auto !important;
+    width: max-content !important;
+    max-width: calc(100vw - 32px);
+    transform: translateX(-50%) !important;
+    bottom: calc(14px + var(--app-vv-bottom, 0px)) !important;
+    border: 1px solid rgba(15, 23, 42, 0.08);
+    border-radius: 22px;
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.12);
+    padding: 6px 10px 8px;
+    min-height: 0;
+    gap: 2px;
+  }
+
   .bottom-nav-material .desktop-nav-item {
-    color: var(--md-sys-color-on-surface-variant);
+    color: #64748b;
     text-decoration: none;
-    font-size: 12px;
+    font-size: 11px;
+    font-weight: 500;
     font-family: 'Roboto', Arial, sans-serif;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: flex-start;
     flex: 1;
-    padding: 0px 5px;
-    padding-top: 2px; /* Reduced from 6px to 2px to match mobile navigation */
-    min-height: 56px;
-    border-radius: 16px;
-    transition: background-color 0.3s ease, color 0.3s ease;
+    padding: 2px 6px 0;
+    min-height: 52px;
+    min-width: 64px;
+    max-width: 96px;
+    border-radius: 14px;
+    transition: color 0.2s ease;
     cursor: pointer;
-    max-width: 120px; /* Prevent items from getting too wide on very large screens */
-    min-width: 60px; /* Ensure minimum tap target */
   }
-  
+
   .bottom-nav-material .desktop-nav-item:hover {
-    background-color: rgba(var(--brand-primary-rgb), 0.04);
+    color: #334155;
+    background: transparent;
   }
-  
+
   .bottom-nav-material .desktop-nav-item.active {
     color: var(--brand-primary);
   }
   
   .bottom-nav-material .desktop-nav-item .material-symbols-outlined {
-    width: 24px;
-    height: 24px;
-    margin-bottom: 4px;
-    font-size: 24px;
+    width: 52px;
+    height: 28px;
+    margin: 0 0 1px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 14px;
+    font-size: 22px;
     font-variation-settings: 'FILL' 0;
   }
-  
+
   .bottom-nav-material .desktop-nav-item.active .material-symbols-outlined {
     font-variation-settings: 'FILL' 1;
+    background: rgba(var(--brand-primary-rgb), 0.12);
   }
   
   .bottom-nav-material .desktop-nav-item span:not(.material-symbols-outlined) {
@@ -444,8 +531,8 @@ body:has(.bottom-nav-material) #page-container {
     min-width: 60px;
   }
   
-  /* Hide the dropdown container completely on desktop */
-  .bottom-nav-material .nav-dropdown[style*="display: none"] {
+  /* More menu is mobile-only; its destinations are .desktop-nav-item on wide screens */
+  .bottom-nav-material .nav-dropdown {
     display: none !important;
   }
   
@@ -476,12 +563,6 @@ body:has(.bottom-nav-material) #page-container {
     grid-template-columns: 1fr 0.8fr 0.8fr 0.8fr 1fr;
     gap: 0;
     align-items: center;
-    position: fixed !important; /* Maintain fixed positioning */
-    bottom: 0 !important;
-    left: 0 !important;
-    right: 0 !important;
-    width: 100% !important;
-    z-index: 1000 !important;
   }
   
   /* Order the navigation items for mobile */
@@ -501,59 +582,60 @@ body:has(.bottom-nav-material) #page-container {
     display: flex !important;
   }
   
-  /* Floating Luma chat button - positioned above center of navbar */
   .bottom-nav-material .chat-button-nav {
     position: fixed !important;
-    bottom: 45px !important; /* Position above the navbar - moved lower */
+    bottom: calc(var(--bottom-nav-offset) - 30px) !important;
     left: 50% !important;
     transform: translateX(-50%) !important;
-    width: 60px;
-    height: 60px;
-    background: #cc0007;
+    width: 56px;
+    height: 56px;
+    min-height: 56px;
+    padding: 0;
+    background: var(--brand-primary);
     color: white;
     border-radius: 50%;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
+    gap: 0;
     text-decoration: none;
     font-family: 'Roboto', Arial, sans-serif;
-    box-shadow: 0 4px 20px rgba(204, 0, 7, 0.3);
+    box-shadow: 0 8px 22px rgba(204, 0, 7, 0.32);
     z-index: 1001 !important;
-    transition: all 0.3s ease;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
     cursor: pointer;
-    border: 3px solid white; /* White border to separate from navbar */
+    border: none;
   }
-  
+
   .bottom-nav-material .chat-button-nav:hover {
     background: #b30006;
-    transform: translateX(-50%) scale(1.05);
-    box-shadow: 0 6px 25px rgba(204, 0, 7, 0.4);
-  }
-  
-  .bottom-nav-material .chat-button-nav.active {
-    background: #a30005;
-    box-shadow: 0 6px 25px rgba(204, 0, 7, 0.5);
-  }
-  
-  .bottom-nav-material .chat-button-nav .material-symbols-outlined {
-    font-size: 28px;
-    margin-bottom: 2px;
     color: white;
-    font-variation-settings: 'FILL' 0;
-    transition: font-variation-settings 0.3s ease-in-out;
+    transform: translateX(-50%) translateY(-1px);
+    box-shadow: 0 12px 26px rgba(204, 0, 7, 0.36);
   }
-  
-  .bottom-nav-material .chat-button-nav.active .material-symbols-outlined {
+
+  .bottom-nav-material .chat-button-nav .material-symbols-outlined {
+    width: auto;
+    height: auto;
+    margin: 0;
+    border-radius: 0;
+    background: none;
+    font-size: 26px;
+    color: white;
     font-variation-settings: 'FILL' 1;
   }
-  
+
   .bottom-nav-material .chat-button-nav span:not(.material-symbols-outlined) {
-    font-size: 10px;
-    line-height: 12px;
-    text-align: center;
-    font-weight: 500;
-    color: white;
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
   }
 }
 
@@ -782,16 +864,15 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
   /* ... existing styles ... */
 }
 
-.bottom-nav-material a .material-symbols-outlined {
-  font-size: 24px; /* Or your preferred size */
-  transition: font-variation-settings 0.3s ease-in-out; /* Smooth transition for fill */
-  font-variation-settings: 'FILL' 0; /* Default to not filled */
+.bottom-nav-material > a .material-symbols-outlined,
+.bottom-nav-material .dropdown-toggle .material-symbols-outlined {
+  transition: font-variation-settings 0.2s ease, background-color 0.2s ease;
+  font-variation-settings: 'FILL' 0;
 }
 
-.bottom-nav-material a.active .material-symbols-outlined {
-  font-variation-settings: 'FILL' 1; /* Active state is filled */
-  /* You might also want to adjust weight or other properties for active state */
-  /* font-variation-settings: 'FILL' 1, 'wght' 700; */
+.bottom-nav-material > a.active .material-symbols-outlined,
+.bottom-nav-material .dropdown-toggle.active .material-symbols-outlined {
+  font-variation-settings: 'FILL' 1;
 }
 
 .bottom-nav-material a span:not(.material-symbols-outlined) {

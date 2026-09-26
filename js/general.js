@@ -101,6 +101,30 @@ function getUserIdFromToken() {
   }
 }
 
+function mapsLinkForAddress(value) {
+  const query = encodeURIComponent(value);
+  const ua = navigator.userAgent || '';
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  if (isIOS) {
+    return { href: `maps://?q=${query}`, externalApp: true };
+  }
+  if (/Android/i.test(ua)) {
+    // geo: hands the address to the device maps app. An https Maps URL
+    // opened in a new tab is dropped by Android Chrome and installed PWAs.
+    return { href: `geo:0,0?q=${query}`, externalApp: true };
+  }
+  return { href: `https://www.google.com/maps/search/?api=1&query=${query}`, externalApp: false };
+}
+
+function openMapsForAddress(value) {
+  const maps = mapsLinkForAddress(value);
+  if (maps.externalApp) {
+    window.location.href = maps.href;
+  } else {
+    window.open(maps.href, '_blank', 'noopener');
+  }
+}
+
 function createLinkedTextarea(value, type) {
   const textarea = document.createElement('textarea');
   textarea.value = value || '';
@@ -117,16 +141,7 @@ function createLinkedTextarea(value, type) {
       window.location.href = `tel:${val}`;
     }
     else if (type === 'address') {
-      // Use a more iOS-friendly maps URL format
-      const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-      
-      if (isIOS) {
-        // Apple Maps format (iOS)
-        window.location.href = `maps://?q=${encodeURIComponent(val)}`;
-      } else {
-        // Google Maps format (Android, desktop)
-        window.open(`https://www.google.com/maps/search/?q=${encodeURIComponent(val)}`, '_blank');
-      }
+      openMapsForAddress(val);
     }
   });
   return textarea;
@@ -136,31 +151,27 @@ function createLinkHTML(value, type) {
   if (!value) return '<div>(empty)</div>';
   value = value.trim();
   let href = '#';
+  let externalApp = false;
   
   if (type === 'email') {
     href = `mailto:${value}`;
+    externalApp = true;
   } 
   else if (type === 'phone' || type === 'number') {
     href = `tel:${value}`;
+    externalApp = true;
   } 
   else if (type === 'address') {
-    // Use a more iOS-friendly maps URL format
-    // Apple Maps URL scheme for iOS, fallback to Google Maps
-    const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-    
-    if (isIOS) {
-      // Apple Maps format (iOS)
-      href = `maps://?q=${encodeURIComponent(value)}`;
-    } else {
-      // Google Maps format (Android, desktop)
-      href = `https://www.google.com/maps/search/?q=${encodeURIComponent(value)}`;
-    }
+    const maps = mapsLinkForAddress(value);
+    href = maps.href;
+    externalApp = maps.externalApp;
   }
   else {
     return `<div>${value}</div>`;
   }
   
-  return `<a href="${href}" target="_blank" style="color: #1976d2; text-decoration: underline;">${value}</a>`;
+  const target = externalApp ? '' : ' target="_blank" rel="noopener noreferrer"';
+  return `<a href="${href}"${target} style="color: #1976d2; text-decoration: underline;">${value}</a>`;
 }
 
 // Enhanced linkifyText function that preserves HTML formatting
@@ -783,11 +794,6 @@ function initPage(id) {
       });
       
       // View Only indicator removed - not needed
-      
-      // Set up navigation using the centralized function from app.js
-      if (window.setupBottomNavigation) {
-        window.setupBottomNavigation(null, tableId, 'general'); // Changed page to general
-      }
       
       // Initialize clock functionality after DOM is ready
       // Use multiple attempts to ensure DOM elements are available

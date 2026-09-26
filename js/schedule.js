@@ -1103,44 +1103,6 @@ window.initPage = async function(id) {
   // Load collaborative system first
   await loadCollaborativeSystem();
 
-  // Setup navigation - prevent duplicate setup
-  if (!document.getElementById('bottomNav').hasChildNodes()) {
-    try {
-      let navContainer = document.getElementById('bottomNav');
-      if (!navContainer) {
-        navContainer = document.createElement('nav');
-        navContainer.className = 'bottom-nav';
-        navContainer.id = 'bottomNav';
-        document.body.appendChild(navContainer);
-      }
-      
-      console.log(`[INIT] Loading navigation HTML...`);
-      const navRes = await fetch('../bottom-nav.html?v=' + Date.now());
-      const navHTML = await navRes.text();
-      
-      // Extract just the nav content (without the outer nav tag)
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = navHTML;
-      const navContent = tempDiv.querySelector('nav').innerHTML;
-      navContainer.innerHTML = navContent;
-      
-      // Set up navigation using the centralized function from app.js
-      if (window.setupBottomNavigation) {
-        console.log(`[INIT] Setting up navigation for event: ${tableId}`);
-        window.setupBottomNavigation(navContainer, tableId, 'schedule');
-        console.log(`[INIT] Navigation setup complete`);
-      }
-      
-      if (window.lucide) {
-        lucide.createIcons();
-      }
-    } catch (err) {
-      console.error('Failed to load bottom nav:', err);
-    }
-  } else {
-    console.log(`[INIT] Navigation already exists, skipping setup`);
-  }
-
   // Setup event listeners for schedule page controls
   console.log(`[INIT] Setting up event listeners...`);
   const newDateInput = document.getElementById('newDate');

@@ -815,265 +815,71 @@ if (window.PullToRefresh) {
   });
 }
 
-// Function to be called by pages after they load bottom navigation
+// Bind the shell nav once. CSS owns mobile vs desktop layout.
 function setupBottomNavigation(navContainer, tableId, currentPage) {
-  if (!navContainer) {
+  const nav = navContainer || document.getElementById('bottomNav');
+  if (!nav) {
     console.error('No navigation container provided');
     return;
   }
 
-  console.log(`Setting up bottom navigation with explicit tableId: ${tableId} for page: ${currentPage}`);
+  if (nav.dataset.navBound !== 'true') {
+    bindBottomNav(nav);
+    nav.dataset.navBound = 'true';
+  }
 
-  // Track current navigation mode (like gear page)
-  let currentIsDesktop = window.innerWidth >= 768;
-  console.log(`Screen width: ${window.innerWidth}px, using ${currentIsDesktop ? 'desktop' : 'mobile'} navigation`);
-  
-  if (currentIsDesktop) {
-    setupDesktopNavigation(navContainer, tableId, currentPage);
-  } else {
-    setupMobileNavigation(navContainer, tableId, currentPage);
-  }
-  
-  // Handle window resize to switch between desktop and mobile navigation
-  const resizeHandler = () => {
-    const newIsDesktop = window.innerWidth >= 768;
-    if (newIsDesktop !== currentIsDesktop) {
-      console.log(`Screen size changed from ${currentIsDesktop ? 'desktop' : 'mobile'} to ${newIsDesktop ? 'desktop' : 'mobile'} navigation`);
-      currentIsDesktop = newIsDesktop; // Update the tracked state
-      if (newIsDesktop) {
-        setupDesktopNavigation(navContainer, tableId, currentPage);
-      } else {
-        setupMobileNavigation(navContainer, tableId, currentPage);
-      }
-    }
-  };
-  
-  // Remove any existing resize listener to avoid duplicates
-  if (window.__navigationResizeHandler) {
-    window.removeEventListener('resize', window.__navigationResizeHandler);
-  }
-  window.__navigationResizeHandler = resizeHandler;
-  window.addEventListener('resize', resizeHandler);
-  
-  console.log('Bottom navigation setup complete');
-}
-
-// Desktop navigation: show all buttons directly
-function setupDesktopNavigation(navContainer, tableId, currentPage) {
-  console.log('Setting up desktop navigation with all buttons visible');
-  
-  // Reset any mobile-specific styles (simple approach like gear page)
-  navContainer.style.display = '';
-  navContainer.style.gridTemplateColumns = '';
-  navContainer.style.gap = '';
-  
-  // Reset grid positioning for all navigation items
-  const allNavItems = navContainer.querySelectorAll('a, .nav-dropdown');
-  allNavItems.forEach(item => {
-    item.style.gridColumn = '';
-    item.style.display = '';
-  });
-  
-  // Show all regular navigation items and reset their mobile styles
-  const regularNavItems = navContainer.querySelectorAll('a[data-page]:not(.desktop-nav-item), .chat-button-nav');
-  regularNavItems.forEach(item => {
-    if (!item.closest('.dropdown-menu')) {
-      item.style.display = 'flex';
-      // Reset any mobile grid positioning
-      item.style.gridColumn = '';
-    }
-  });
-  
-  // Hide the dropdown container
-  const navDropdown = navContainer.querySelector('.nav-dropdown');
-  if (navDropdown) {
-    navDropdown.style.display = 'none';
-    navDropdown.style.gridColumn = '';
-  }
-  
-  // Remove any existing desktop nav items we added previously
-  navContainer.querySelectorAll('.desktop-nav-item').forEach(item => item.remove());
-  
-  // Create and add the dropdown items as direct navigation buttons
-  const dropdownItems = [
-    { page: 'travel-accommodation', icon: 'flight_takeoff', label: 'Travel' },
-    { page: 'gear', icon: 'photo_camera', label: 'Gear' },
-    { page: 'card-log', icon: 'sd_card', label: 'Cards' },
-    { page: 'documents', icon: 'map', label: 'Map' },
-    { page: 'events', icon: 'exit_to_app', label: 'Exit' }
-  ];
-  
-  // Add the dropdown items as direct navigation links
-  dropdownItems.forEach(item => {
-    const navLink = document.createElement('a');
-    navLink.href = '#';
-    navLink.setAttribute('data-page', item.page);
-    navLink.className = 'desktop-nav-item';
-    navLink.innerHTML = `
-      <span class="material-symbols-outlined">${item.icon}</span>
-      <span>${item.label}</span>
-    `;
-    
-    // Add click handler
-    navLink.addEventListener('click', function(e) {
-      e.preventDefault();
-      const page = navLink.getAttribute('data-page');
-      const currentEventId = typeof getActiveEventId === 'function' ? getActiveEventId() : localStorage.getItem('eventId');
-      console.log(`Desktop nav link clicked: ${page}, using currentEventId: ${currentEventId}`);
-      
-      // Special handling for gear page - redirect to new gear system
-      if (page === 'gear') {
-        if (currentEventId) {
-          window.location.href = `pages/gear.html?eventId=${currentEventId}`;
-        } else {
-          alert('No event selected. Please select an event first.');
-        }
-      } else {
-        window.navigate(page, currentEventId);
-      }
-    });
-    
-    navContainer.appendChild(navLink);
-  });
-  
-  // Set up navigation for existing regular nav links
-  setupRegularNavLinks(navContainer);
-  
-  // Update active navigation state
   if (currentPage) {
     updateActiveNavigation(currentPage);
   }
 }
 
-// Mobile navigation: use dropdown menu
-function setupMobileNavigation(navContainer, tableId, currentPage) {
-  console.log('Setting up mobile navigation with dropdown menu');
-  
-  // Apply mobile grid layout (this will be handled by CSS media queries, but ensure it's not overridden)
-  navContainer.style.display = '';
-  navContainer.style.gridTemplateColumns = '';
-  navContainer.style.gap = '';
-  
-  // Reset grid positioning for all navigation items (let CSS handle positioning)
-  const allNavItems = navContainer.querySelectorAll('a, .nav-dropdown');
-  allNavItems.forEach(item => {
-    item.style.gridColumn = '';
-    item.style.display = '';
-  });
-  
-  // Show only specific navigation items for mobile
-  const regularNavItems = navContainer.querySelectorAll('a[data-page]:not(.desktop-nav-item)');
-  regularNavItems.forEach(item => {
-    if (!item.closest('.dropdown-menu')) {
-      // Show only core navigation items in mobile mode
-      const page = item.getAttribute('data-page');
-      if (['general', 'crew', 'schedule', 'shotlist'].includes(page) || item.classList.contains('chat-button-nav')) {
-        item.style.display = 'flex';
-      } else {
-        item.style.display = 'none';
-      }
-      // Reset any explicit grid column assignments (let CSS handle it)
-      item.style.gridColumn = '';
+function bindBottomNav(nav) {
+  nav.addEventListener('click', (e) => {
+    const chatButton = e.target.closest('.chat-button-nav');
+    if (chatButton && nav.contains(chatButton)) {
+      e.preventDefault();
+      document.getElementById('dropdownMenu')?.classList.remove('show');
+      if (window.chatWidget) window.chatWidget.toggleChat();
+      return;
     }
-  });
-  
-  // Show the dropdown container
-  const navDropdown = navContainer.querySelector('.nav-dropdown');
-  if (navDropdown) {
-    navDropdown.style.display = 'flex';
-    navDropdown.style.gridColumn = '';
-  }
-  
-  // Remove any desktop nav items we added
-  navContainer.querySelectorAll('.desktop-nav-item').forEach(item => item.remove());
-  
-  // Set up navigation for regular nav links
-  setupRegularNavLinks(navContainer);
-  
-  // Set up dropdown menu functionality
-  setupDropdownMenu(tableId);
-  
-  // Update active navigation state
-  if (currentPage) {
-    updateActiveNavigation(currentPage);
-  }
-}
 
-// Helper function to set up regular navigation links
-function setupRegularNavLinks(navContainer) {
-  const navLinks = navContainer.querySelectorAll('a[data-page]');
-  console.log('Found', navLinks.length, 'navigation links with data-page attribute');
-  
-  navLinks.forEach(link => {
-    // Skip if this is inside a dropdown menu (will be handled separately)
-    if (link.closest('.dropdown-menu')) {
-      console.log('Skipping dropdown menu link:', link.getAttribute('data-page'));
-      return;
-    }
-    
-    // Skip if this is a desktop nav item (already has handler)
-    if (link.classList.contains('desktop-nav-item')) {
-      return;
-    }
-    
-    console.log('Setting up navigation for:', link.getAttribute('data-page'));
-    
-    // Remove any existing click listeners to avoid duplicates
-    const newLink = link.cloneNode(true);
-    link.parentNode.replaceChild(newLink, link);
-    
-    newLink.addEventListener('click', function(e) {
+    const toggle = e.target.closest('.dropdown-toggle');
+    if (toggle && nav.contains(toggle)) {
       e.preventDefault();
-      const page = newLink.getAttribute('data-page');
-      const currentEventId = typeof getActiveEventId === 'function' ? getActiveEventId() : localStorage.getItem('eventId');
-      console.log(`Regular nav link clicked: ${page}, using currentEventId: ${currentEventId}`);
-      
-      // Close dropdown menu if it's open
-      const dropdownMenu = document.getElementById('dropdownMenu');
-      if (dropdownMenu && dropdownMenu.classList.contains('show')) {
-        console.log('Closing dropdown menu due to regular nav link click');
-        dropdownMenu.classList.remove('show');
-      }
-      
-      // Special handling for gear page - redirect to new gear system
-      if (page === 'gear') {
-        if (currentEventId) {
-          window.location.href = `pages/gear.html?eventId=${currentEventId}`;
-        } else {
-          alert('No event selected. Please select an event first.');
-        }
+      e.stopPropagation();
+      document.getElementById('dropdownMenu')?.classList.toggle('show');
+      return;
+    }
+
+    const link = e.target.closest('a[data-page]');
+    if (!link || !nav.contains(link)) return;
+
+    e.preventDefault();
+    document.getElementById('dropdownMenu')?.classList.remove('show');
+
+    const page = link.getAttribute('data-page');
+    const currentEventId = typeof getActiveEventId === 'function'
+      ? getActiveEventId()
+      : localStorage.getItem('eventId');
+
+    if (page === 'gear') {
+      if (currentEventId) {
+        window.location.href = `pages/gear.html?eventId=${currentEventId}`;
       } else {
-        window.navigate(page, currentEventId);
+        alert('No event selected. Please select an event first.');
       }
-    });
+      return;
+    }
+
+    window.navigate(page, currentEventId);
   });
-  
-  // Set up the chat button in navbar (mobile only)
-  const chatNavButton = navContainer.querySelector('.chat-button-nav');
-  if (chatNavButton) {
-    console.log('Setting up chat button in navbar');
-    
-    // Remove any existing click listeners to avoid duplicates
-    const newChatButton = chatNavButton.cloneNode(true);
-    chatNavButton.parentNode.replaceChild(newChatButton, chatNavButton);
-    
-    newChatButton.addEventListener('click', function(e) {
-      e.preventDefault();
-      console.log('Chat navbar button clicked');
-      
-      // Close dropdown menu if it's open
-      const dropdownMenu = document.getElementById('dropdownMenu');
-      if (dropdownMenu && dropdownMenu.classList.contains('show')) {
-        console.log('Closing dropdown menu due to chat button click');
-        dropdownMenu.classList.remove('show');
-      }
-      
-      // Trigger the chat functionality (same as floating button)
-      if (window.chatWidget) {
-        window.chatWidget.toggleChat();
-      }
-    });
-  }
+
+  document.addEventListener('click', (e) => {
+    const menu = document.getElementById('dropdownMenu');
+    if (!menu || !menu.classList.contains('show')) return;
+    if (nav.contains(e.target)) return;
+    menu.classList.remove('show');
+  });
 }
 
 // Function to update active navigation state
@@ -1146,12 +952,10 @@ function updateActiveNavigation(currentPage) {
   let finalActiveIconName = null; 
   let baseInactiveIconForActiveElement = null;
 
-  // First check for regular nav items (direct children of bottom-nav-material)
-  let navItem = document.querySelector(`.bottom-nav-material > a[data-page="${currentPage}"]`);
-  
-  // If not found, also check for desktop nav items
-  if (!navItem) {
-    navItem = document.querySelector(`.bottom-nav-material .desktop-nav-item[data-page="${currentPage}"]`);
+  // Primary items stay in the bar. Wide screens also show Travel/Gear/Cards/Map/Exit there.
+  let navItem = document.querySelector(`.bottom-nav-material > a[data-page="${currentPage}"]:not(.desktop-nav-item)`);
+  if (!navItem && window.innerWidth >= 768) {
+    navItem = document.querySelector(`.bottom-nav-material > a.desktop-nav-item[data-page="${currentPage}"]`);
   }
   
   if (navItem) {

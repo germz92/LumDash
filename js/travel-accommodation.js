@@ -81,19 +81,25 @@ window.initPage = undefined;
       const looksLikeLocation = isHotelChain || hasLocationWords || hasAddressWords || (hasNumbers && hasCommaOrAddress);
       
       if (looksLikeLocation) {
-        // Use iOS-friendly maps URL format
-        const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-        
+        const query = encodeURIComponent(value);
+        const ua = navigator.userAgent || '';
+        const isIOS = /iPad|iPhone|iPod/.test(ua) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+        const isAndroid = /Android/i.test(ua);
         let href;
+        let externalApp = false;
         if (isIOS) {
-          // Apple Maps format (iOS)
-          href = `maps://?q=${encodeURIComponent(value)}`;
+          href = `maps://?q=${query}`;
+          externalApp = true;
+        } else if (isAndroid) {
+          // geo: opens the device maps app. https + target=_blank does not on Android.
+          href = `geo:0,0?q=${query}`;
+          externalApp = true;
         } else {
-          // Google Maps format (Android, desktop)
-          href = `https://www.google.com/maps/search/?q=${encodeURIComponent(value)}`;
+          href = `https://www.google.com/maps/search/?api=1&query=${query}`;
         }
+        const target = externalApp ? '' : ' target="_blank" rel="noopener noreferrer"';
         
-        return `<span class="readonly-span"><a href="${href}" target="_blank" title="Open in Maps: ${value}"><span class="material-symbols-outlined" style="font-size: 14px; vertical-align: text-bottom; margin-right: 4px;">place</span>${value}</a></span>`;
+        return `<span class="readonly-span"><a href="${href}"${target} title="Open in Maps: ${value}"><span class="material-symbols-outlined" style="font-size: 14px; vertical-align: text-bottom; margin-right: 4px;">place</span>${value}</a></span>`;
       } else {
         // Not a location, just display as text
         return `<span class="readonly-span">${value}</span>`;
@@ -584,32 +590,6 @@ window.initPage = undefined;
       } catch (error) {
         console.error('Error initializing travel page:', error);
         alert('Failed to load travel information. Please try again.');
-      }
-
-      // Bottom Nav
-      try {
-        let navContainer = document.getElementById('bottomNav');
-        if (!navContainer) {
-          navContainer = document.createElement('nav');
-          navContainer.className = 'bottom-nav';
-          navContainer.id = 'bottomNav';
-          document.body.appendChild(navContainer);
-        }
-        const navRes = await fetch('../bottom-nav.html?v=' + Date.now());
-        const navHTML = await navRes.text();
-        
-        // Extract just the nav content (without the outer nav tag)
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = navHTML;
-        const navContent = tempDiv.querySelector('nav').innerHTML;
-        navContainer.innerHTML = navContent;
-
-        // Set up navigation using the centralized function from app.js
-        if (window.setupBottomNavigation) {
-          window.setupBottomNavigation(navContainer, tableIdToUse, 'travel-accommodation');
-        }
-      } catch (error) {
-        console.error('Error loading navigation:', error);
       }
 
       if (window.lucide) lucide.createIcons();

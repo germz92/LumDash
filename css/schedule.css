@@ -132,7 +132,7 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 /* Add spacing to scrollable content - RESTORED */
 .schedule-page .program-container {
     padding-top: calc(var(--header-height) + 16px);
-    padding-bottom: 100px; /* Space for bottom navigation */
+    padding-bottom: 24px;
     padding-left: 14px; /* Increased from 8px to 14px (added 6px) */
     padding-right: 14px; /* Increased from 8px to 14px (added 6px) */
     display: flex;
@@ -2186,7 +2186,7 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
 .schedule-table-view {
   display: none; /* Hidden by default, shown when table view active */
   padding-top: calc(var(--header-height) + 16px);
-  padding-bottom: 100px; /* Space for bottom navigation */
+  padding-bottom: 24px;
   padding-left: 14px;
   padding-right: 14px;
 }

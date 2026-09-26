@@ -1013,44 +1013,6 @@ window.initPage = async function(id) {
   // Set up Socket.IO event listeners after everything is loaded
   setupSocketListeners();
 
-    // Load bottom nav HTML
-  let navContainer = document.getElementById('bottomNav');
-  if (!navContainer) {
-    navContainer = document.createElement('nav');
-    navContainer.className = 'bottom-nav';
-    navContainer.id = 'bottomNav';
-    document.body.appendChild(navContainer);
-  }
-          const navRes = await fetch('../bottom-nav.html?v=' + Date.now());
-    const navHTML = await navRes.text();
-  
-  // Extract just the nav content (without the outer nav tag)
-  const tempDiv = document.createElement('div');
-  tempDiv.innerHTML = navHTML;
-  const navContent = tempDiv.querySelector('nav').innerHTML;
-  navContainer.innerHTML = navContent;
-
-  // Set up navigation using the centralized function from app.js
-  if (window.setupBottomNavigation && navContainer) {
-    window.setupBottomNavigation(navContainer, tableId, 'card-log');
-  } else if (!navContainer) {
-    console.error('[CARD-LOG] Navigation container not found');
-  }
-
-    // Inject hrefs with ?id=...
-    const links = [
-      { id: 'navGeneral', file: 'general.html' },
-      { id: 'navCrew', file: 'crew.html' },
-      { id: 'navTravel', file: 'travel-accommodation.html' },
-      { id: 'navGear', file: 'gear.html' },
-      { id: 'navCard', file: 'card-log.html' },
-    { id: 'navSchedule', file: 'schedule.html' }
-      ];
-    links.forEach(({ id, file }) => {
-      const el = document.getElementById(id);
-      if (el) el.href = `${file}?id=${tableId}`;
-    });
-
     if (window.lucide) lucide.createIcons();
   
   // Set up event listeners
