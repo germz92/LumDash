@@ -112,10 +112,12 @@
 
 /* "+ Add Item" button (uses same base button style) */
 .add-btn {
-  font-size: 16px;
-  border-radius: 8px;
-  box-shadow: 0 2px 8px rgba(204,0,7,0.08);
-  padding: 0 16px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 10px;
+  box-shadow: none;
+  padding: 0 14px;
+  height: 40px;
 }
 
 /* Mobile responsiveness */
@@ -1721,11 +1723,14 @@ body:not(.owner) .delete-btn {
 .action-btn {
   display: flex;
   align-items: center;
-  gap: 4px;
-  padding: 6px 10px;
-  font-size: 0.8em;
-  border-radius: 6px;
-  transition: all 0.2s ease;
+  gap: 6px;
+  padding: 0 12px;
+  height: 36px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 10px;
+  box-shadow: none;
+  transition: background-color 0.15s ease;
 }
 
 .btn-icon {

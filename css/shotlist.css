@@ -294,12 +294,12 @@
   background: var(--brand-primary);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background-color 0.2s ease;
+  transition: background-color 0.15s ease;
 }
 
 .add-shot-btn:hover {

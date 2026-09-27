@@ -1396,23 +1396,23 @@ button:disabled, .btn:disabled, input[type="button"]:disabled, input[type="submi
 .save-changes-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  padding: 10px 20px;
-  background: linear-gradient(135deg, #28a745 0%, #20873a 100%);
+  gap: 6px;
+  padding: 0 16px;
+  height: 40px;
+  background: #1f9d55;
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(40, 167, 69, 0.3);
+  transition: background-color 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
 .save-changes-btn:hover {
-  background: linear-gradient(135deg, #20873a 0%, #1e7e34 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(40, 167, 69, 0.4);
+  background: #188a49;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
 .save-changes-btn:active {
@@ -1481,22 +1481,21 @@ button:disabled, .btn:disabled, input[type="button"]:disabled, input[type="submi
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 18px;
-  background: linear-gradient(135deg, #CC0007 0%, #a30006 100%);
+  padding: 0 14px;
+  height: 40px;
+  background: var(--brand-primary);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(204, 0, 7, 0.2);
+  transition: background-color 0.15s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
 .add-date-btn:hover {
-  background: linear-gradient(135deg, #a30006 0%, #8a0005 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(204, 0, 7, 0.3);
+  background: #b30006;
 }
 
 .add-date-btn .material-symbols-outlined {
@@ -1521,19 +1520,24 @@ button:disabled, .btn:disabled, input[type="button"]:disabled, input[type="submi
   box-shadow: 0 0 0 4px rgba(204, 0, 7, 0.1);
 }
 
-.filter-sort-bar button {
-  padding: 10px 18px;
+.filter-sort-bar button:not(.add-date-btn) {
+  padding: 0 14px;
+  height: 40px;
   font-size: 13px;
-  background: #f8f9fa;
-  color: #495057;
-  border: 2px solid #dee2e6;
-  border-radius: 8px;
+  font-weight: 600;
+  background: #fff;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  box-shadow: none;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.filter-sort-bar button:hover {
-  background: #e9ecef;
+.filter-sort-bar button:not(.add-date-btn):hover {
+  background: #f8fafc;
+  border-color: #cbd5e1;
+  color: #0f172a;
 }
 
 .crew-main {
@@ -1839,20 +1843,21 @@ button:disabled, .btn:disabled, input[type="button"]:disabled, input[type="submi
 }
 
 .add-row-btn {
-  background: linear-gradient(135deg, #6c757d 0%, #5a6268 100%);
+  background: #64748b;
   color: white;
   border: none;
-  padding: 10px 24px;
-  border-radius: 8px;
+  padding: 0 16px;
+  height: 40px;
+  border-radius: 10px;
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  transition: background-color 0.15s ease;
 }
 
 .add-row-btn:hover {
-  background: linear-gradient(135deg, #5a6268 0%, #495057 100%);
-  transform: translateY(-2px);
+  background: #475569;
 }
 
 .date-section tr.saving td {
@@ -2138,15 +2143,13 @@ button:disabled, .btn:disabled, input[type="button"]:disabled, input[type="submi
 }
 
 .date-picker-confirm-btn {
-  background: linear-gradient(135deg, #CC0007 0%, #a30006 100%);
+  background: var(--brand-primary);
   color: white;
-  box-shadow: 0 4px 12px rgba(204, 0, 7, 0.3);
+  box-shadow: none;
 }
 
 .date-picker-confirm-btn:hover {
-  background: linear-gradient(135deg, #a30006 0%, #8a0005 100%);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 16px rgba(204, 0, 7, 0.4);
+  background: #b30006;
 }
 
 .date-picker-cancel-btn {

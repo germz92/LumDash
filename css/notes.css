@@ -126,17 +126,18 @@
   background: #CC0007;
   color: #fff;
   border: none;
-  border-radius: 8px;
-  padding: 0.4rem 1.1rem;
-  font-size: 1rem;
+  border-radius: 10px;
+  padding: 0 16px;
+  height: 40px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(204,0,7,0.08);
-  transition: background 0.2s, box-shadow 0.2s;
+  box-shadow: none;
+  transition: background-color 0.15s ease;
 }
 .add-note-btn:hover, .add-note-btn:focus {
-  background: #a80006;
-  box-shadow: 0 4px 12px rgba(204,0,7,0.13);
+  background: #b30006;
+  box-shadow: none;
 }
 #notesList {
   display: flex;
@@ -177,15 +178,17 @@
   margin-top: 0.2rem;
 }
 .edit-note-btn, .delete-note-btn {
-  background: #f3f4f6;
-  color: #6b7280;
-  border: none;
-  border-radius: 6px;
-  padding: 0.25rem 0.9rem;
-  font-size: 0.98rem;
-  font-weight: 500;
+  background: #fff;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0 12px;
+  height: 36px;
+  font-size: 13px;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  box-shadow: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 .edit-note-btn:hover, .edit-note-btn:focus {
   background: #e5e7eb;
@@ -269,32 +272,35 @@
   background: #CC0007;
   color: #fff;
   border: none;
-  border-radius: 8px;
-  padding: 0.4rem 1.1rem;
-  font-size: 1rem;
+  border-radius: 10px;
+  padding: 0 16px;
+  height: 40px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 8px rgba(204,0,7,0.08);
-  transition: background 0.2s, box-shadow 0.2s;
+  box-shadow: none;
+  transition: background-color 0.15s ease;
 }
 #saveNoteBtn:hover, #saveNoteBtn:focus {
-  background: #a80006;
-  box-shadow: 0 4px 12px rgba(204,0,7,0.13);
+  background: #b30006;
+  box-shadow: none;
 }
 .cancel-btn {
-  background: #f3f4f6;
-  color: #6b7280;
-  border: none;
-  border-radius: 6px;
-  padding: 0.25rem 0.9rem;
-  font-size: 0.98rem;
-  font-weight: 500;
+  background: #fff;
+  color: #334155;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 0 16px;
+  height: 40px;
+  font-size: 14px;
+  font-weight: 600;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  box-shadow: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 .cancel-btn:hover, .cancel-btn:focus {
-  background: #e5e7eb;
-  color: #222;
+  background: #f8fafc;
+  color: #0f172a;
 }
 .modal-error {
   color: #e11d48;

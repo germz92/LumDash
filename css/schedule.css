@@ -41,20 +41,21 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 
 /* Export button styling */
 .schedule-page .export-btn {
-    padding: 8px 16px;
-    font-size: 16px;
+    padding: 0 14px;
+    height: 40px;
+    font-size: 14px;
     border: none;
     color: white;
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
-    font-weight: bold;
-    box-shadow: 0 2px 8px rgba(40, 167, 69, 0.15);
-    transition: background 0.2s, box-shadow 0.2s;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+    transition: background-color 0.15s ease;
 }
 
 .schedule-page .export-btn:hover {
     background-color: #218838 !important;
-    box-shadow: 0 4px 16px rgba(40, 167, 69, 0.25);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
 /* Fixed Top Header Wrapper - RESTORED */
@@ -459,21 +460,32 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 }
 
 .schedule-page .top-controls button {
-    padding: 8px 16px; /* Restored to original */
-    font-size: 16px; /* Restored to original */
+    padding: 0 14px;
+    height: 40px;
+    font-size: 14px;
     border: none;
-    background-color: #CC0007;
-    color: white;
-    border-radius: 8px; /* Restored to original */
+    border-radius: 10px;
     cursor: pointer;
-    font-weight: bold;
-    box-shadow: 0 2px 8px rgba(204,0,7,0.08);
-    transition: background 0.2s, box-shadow 0.2s;
+    font-weight: 600;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+    transition: background-color 0.15s ease;
 }
 
 .schedule-page .top-controls button:hover {
-    background-color: #a30006;
-    box-shadow: 0 4px 16px rgba(204,0,7,0.10);
+    box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+}
+
+.schedule-page .top-controls .add-btn {
+    background: var(--brand-primary);
+    color: white;
+    width: auto;
+    max-width: none;
+    margin-top: 0;
+    font-size: 14px !important;
+}
+
+.schedule-page .top-controls .add-btn:hover {
+    background: #b30006;
 }
 
 .schedule-page .date-section {
@@ -782,23 +794,24 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
 
 .schedule-page .add-btn {
     margin-top: 8px;
-    padding: 6px 0;
-    background: #6c757d;
+    padding: 0 12px;
+    height: 36px;
+    background: #64748b;
     color: white;
     border: none;
-    border-radius: 6px;
+    border-radius: 10px;
     cursor: pointer;
-    font-weight: 500;
+    font-weight: 600;
     width: 100%;
     max-width: 120px;
-    font-size: 12px !important; /* Added !important to override mobile styles */
-    box-shadow: 0 1px 4px rgba(0,0,0,0.1);
-    transition: background 0.2s, box-shadow 0.2s;
+    font-size: 13px !important;
+    box-shadow: none;
+    transition: background-color 0.15s ease;
 }
 
 .schedule-page .add-btn:hover {
-    background: #5a6268;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+    background: #475569;
+    box-shadow: none;
 }
 
 .schedule-page .delete-btn {
@@ -974,8 +987,9 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
 
     .schedule-page .top-controls .add-btn {
         flex: 0 0 auto;
-        font-size: 12px !important;
-        padding: 10px 12px !important;
+        font-size: 13px !important;
+        height: 40px;
+        padding: 0 12px !important;
         white-space: nowrap;
         margin: 0 !important;
     }
@@ -1612,14 +1626,16 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px 14px;
-  background-color: #4a5568;
+  padding: 0 14px;
+  height: 40px;
+  background-color: #475569;
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 10px;
   cursor: pointer;
-  font-weight: 500;
-  transition: background-color 0.2s;
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  transition: background-color 0.15s ease;
 }
 
 .import-btn:hover {
@@ -2151,24 +2167,27 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
    ============================================ */
 
 /* View Toggle Button - Desktop Only */
-.view-toggle-btn {
+.schedule-page .top-controls .view-toggle-btn {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 8px 16px;
+  padding: 0 14px;
+  height: 40px;
   font-size: 14px;
-  border: 2px solid #4a5568;
+  border: 1px solid #e2e8f0;
   background: white;
-  color: #4a5568;
-  border-radius: 8px;
+  color: #334155;
+  border-radius: 10px;
   cursor: pointer;
-  font-weight: 500;
-  transition: all 0.2s ease;
+  font-weight: 600;
+  box-shadow: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
-.view-toggle-btn:hover {
-  background: #4a5568;
-  color: white;
+.schedule-page .top-controls .view-toggle-btn:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  border-color: #cbd5e1;
 }
 
 .view-toggle-btn .material-symbols-outlined {
@@ -2533,22 +2552,23 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
 .schedule-page .schedule-legend-btn {
   display: inline-flex;
   align-items: center;
-  padding: 8px 16px;
+  padding: 0 14px;
+  height: 40px;
   font-size: 14px;
   border: none;
   color: white;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   font-weight: 600;
   margin-left: 0;
   background: #6d4c41;
-  box-shadow: 0 2px 8px rgba(109, 76, 65, 0.2);
-  transition: background 0.2s, box-shadow 0.2s;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  transition: background-color 0.15s ease;
 }
 
 .schedule-page .schedule-legend-btn:hover {
   background: #5d4037;
-  box-shadow: 0 4px 16px rgba(93, 64, 55, 0.25);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
 /* Legend modal */
@@ -2659,13 +2679,15 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
 
 .schedule-legend-cancel-btn,
 .schedule-legend-save-btn {
-  padding: 10px 18px;
-  border-radius: 8px;
+  padding: 0 16px;
+  height: 40px;
+  border-radius: 10px;
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   font-family: inherit;
   border: none;
+  box-shadow: none;
 }
 
 .schedule-legend-cancel-btn {
@@ -2702,22 +2724,23 @@ body.schedule-legend-modal-open {
 .schedule-page .share-schedule-btn {
   display: inline-flex;
   align-items: center;
-  padding: 8px 16px;
+  padding: 0 14px;
+  height: 40px;
   font-size: 14px;
   border: none;
   color: white;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
   font-weight: 600;
   margin-left: 0;
   background-color: #1565c0;
-  box-shadow: 0 2px 8px rgba(21, 101, 192, 0.15);
-  transition: background 0.2s, box-shadow 0.2s;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  transition: background-color 0.15s ease;
 }
 
 .schedule-page .share-schedule-btn:hover {
   background-color: #0d47a1 !important;
-  box-shadow: 0 4px 16px rgba(21, 101, 192, 0.25);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
 /* Hide share button for non-owners/non-leads */
@@ -2864,22 +2887,23 @@ body.no-owner-controls .schedule-page .program-entry .entry-actions {
 .cr-review-btn {
   display: inline-flex;
   align-items: center;
-  padding: 8px 16px;
+  padding: 0 14px;
+  height: 40px;
   font-size: 14px;
   border: none;
   color: white;
-  border-radius: 8px;
+  border-radius: 10px;
   cursor: pointer;
-  font-weight: bold;
+  font-weight: 600;
   background: #5c6bc0;
   margin-left: 0;
-  box-shadow: 0 2px 8px rgba(92, 107, 192, 0.15);
-  transition: background 0.2s, box-shadow 0.2s;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  transition: background-color 0.15s ease;
   position: relative;
 }
 .cr-review-btn:hover {
   background: #3f51b5;
-  box-shadow: 0 4px 16px rgba(63, 81, 181, 0.25);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
 }
 
 /* Badge count */
@@ -3048,15 +3072,16 @@ body.no-owner-controls .schedule-page .program-entry .entry-actions {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 16px;
-  background: #28a745;
+  padding: 0 14px;
+  height: 36px;
+  background: #1f9d55;
   color: white;
   border: none;
-  border-radius: 6px;
+  border-radius: 10px;
   cursor: pointer;
   font-weight: 600;
   font-size: 13px;
-  transition: background 0.2s;
+  transition: background-color 0.15s ease;
 }
 .cr-accept-btn:hover { background: #218838; }
 
@@ -3064,15 +3089,16 @@ body.no-owner-controls .schedule-page .program-entry .entry-actions {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 16px;
+  padding: 0 14px;
+  height: 36px;
   background: white;
   color: #dc3545;
-  border: 1.5px solid #dc3545;
-  border-radius: 6px;
+  border: 1px solid #fecaca;
+  border-radius: 10px;
   cursor: pointer;
   font-weight: 600;
   font-size: 13px;
-  transition: all 0.2s;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 .cr-reject-btn:hover { background: #dc3545; color: white; }
 
@@ -3080,15 +3106,17 @@ body.no-owner-controls .schedule-page .program-entry .entry-actions {
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  padding: 6px 12px;
+  padding: 0 12px;
+  height: 36px;
   background: white;
-  color: #888;
-  border: 1px solid #ddd;
-  border-radius: 6px;
+  color: #64748b;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
   cursor: pointer;
   font-size: 13px;
+  font-weight: 600;
   margin-left: auto;
-  transition: all 0.2s;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 .cr-delete-btn:hover { background: #f5f5f5; color: #333; }
 

@@ -97,16 +97,16 @@ button {
   color: #fff;
   border: none;
   border-radius: 10px;
-  font-size: 1.08rem;
-  font-weight: bold;
+  font-size: 1rem;
+  font-weight: 600;
   cursor: pointer;
   margin-top: 8px;
-  transition: background 0.2s, box-shadow 0.2s;
-  box-shadow: 0 2px 8px rgba(204,0,7,0.08);
+  transition: background-color 0.15s ease;
+  box-shadow: none;
 }
 button:hover {
-  background: #a30006;
-  box-shadow: 0 4px 16px rgba(204,0,7,0.10);
+  background: #b30006;
+  box-shadow: none;
 }
 
 .toggle-link {

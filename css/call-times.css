@@ -528,22 +528,25 @@ td.col-hours {
 
 .btn-secondary,
 .btn-primary {
-  padding: 10px 20px;
+  padding: 0 16px;
+  height: 40px;
   border: none;
-  border-radius: 8px;
-  font-size: 15px;
+  border-radius: 10px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.15s ease;
 }
 
 .btn-secondary {
-  background: #e0e0e0;
-  color: #555;
+  background: #fff;
+  color: #334155;
+  border: 1px solid #e2e8f0;
 }
 
 .btn-secondary:hover {
-  background: #d0d0d0;
+  background: #f8fafc;
+  border-color: #cbd5e1;
 }
 
 .btn-primary {
@@ -552,7 +555,7 @@ td.col-hours {
 }
 
 .btn-primary:hover {
-  background: #a30006;
+  background: #b30006;
 }
 
 /* Responsive */
