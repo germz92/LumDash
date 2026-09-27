@@ -315,22 +315,22 @@ html, body {
 /* Styles for the dropdown menu, assuming it's a child of .nav-dropdown */
 .bottom-nav-material .dropdown-menu {
   position: absolute;
-  bottom: calc(100% + 10px);
-  right: 8px;
+  bottom: calc(100% + 18px);
+  right: 0;
   transform: translateY(6px);
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 16px;
   box-shadow: 0 16px 40px rgba(15, 23, 42, 0.14);
-  min-width: 196px;
+  min-width: 0;
   width: max-content;
-  max-width: calc(100vw - 24px);
+  max-width: calc(50vw - 42px);
   opacity: 0;
   visibility: hidden;
   transform-origin: bottom right;
   transition: opacity 0.16s ease, transform 0.16s ease;
-  z-index: 1001;
-  padding: 6px;
+  z-index: 1002;
+  padding: 4px;
 }
 
 .bottom-nav-material .dropdown-menu.show {
@@ -344,10 +344,11 @@ html, body {
   flex-direction: row;
   align-items: center;
   justify-content: flex-start;
-  gap: 10px;
+  gap: 8px;
   width: auto;
   min-height: 0;
-  padding: 8px 10px;
+  padding: 7px 8px;
+  white-space: nowrap;
   height: auto;
   border-radius: 10px;
   color: #0f172a;
@@ -370,9 +371,10 @@ html, body {
 }
 
 .bottom-nav-material .dropdown-menu a .material-symbols-outlined {
-  width: 32px;
-  height: 32px;
+  width: 28px;
+  height: 28px;
   margin: 0;
+  flex-shrink: 0;
   border-radius: 8px;
   background: #f1f5f9;
   color: #334155;
@@ -380,7 +382,7 @@ html, body {
   align-items: center;
   justify-content: center;
   font-size: 18px;
-  font-variation-settings: 'FILL' 0;
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
 }
 
 .bottom-nav-material .dropdown-menu a.active .material-symbols-outlined {
@@ -507,11 +509,11 @@ body:has(.bottom-nav-material) #page-container {
     justify-content: center;
     border-radius: 14px;
     font-size: 22px;
-    font-variation-settings: 'FILL' 0;
+    font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
   }
 
   .bottom-nav-material .desktop-nav-item.active .material-symbols-outlined {
-    font-variation-settings: 'FILL' 1;
+    font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
     background: rgba(var(--brand-primary-rgb), 0.12);
   }
   
@@ -623,7 +625,7 @@ body:has(.bottom-nav-material) #page-container {
     background: none;
     font-size: 26px;
     color: white;
-    font-variation-settings: 'FILL' 1;
+    font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
   }
 
   .bottom-nav-material .chat-button-nav span:not(.material-symbols-outlined) {
@@ -641,74 +643,96 @@ body:has(.bottom-nav-material) #page-container {
 
 /* ===== END RESPONSIVE NAVIGATION ===== */
 
-/* ===== BEGIN GLOBAL MATERIAL BUTTON STYLES ===== */
+/* ===== BEGIN GLOBAL BUTTON AND ICON STYLES ===== */
 
-/* General Button Styling - Material Contained Button */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  vertical-align: middle;
+  user-select: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+button .material-symbols-outlined,
+.btn .material-symbols-outlined {
+  font-size: 18px;
+  flex: 0 0 auto;
+}
+
 button, .btn, input[type="button"], input[type="submit"] {
   font-family: 'Roboto', Arial, sans-serif;
-  font-size: 14px; /* Label Large */
-  font-weight: 500;
-  letter-spacing: 0.1px;
-  text-transform: uppercase;
-  padding: 0 24px; /* Increased horizontal padding for Material spec */
-  height: 40px; /* Standard height */
-  border-radius: 20px; /* Fully rounded for Material 3 style pill shape (half of height) */
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  padding: 0 16px;
+  height: 40px;
+  border-radius: 10px;
   border: none;
   cursor: pointer;
   background-color: var(--brand-primary);
   color: var(--brand-on-primary);
-  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 1px 3px 1px rgba(0, 0, 0, 0.15); /* Elevation 1 */
-  transition: box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
-  display: inline-flex; 
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.08);
+  transition: background-color 0.15s ease, box-shadow 0.15s ease, border-color 0.15s ease;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  text-decoration: none; 
-  min-width: 64px; /* Minimum touch target / width */
-  line-height: normal; /* Ensure text is centered vertically */
+  gap: 6px;
+  text-decoration: none;
+  min-width: 64px;
+  line-height: 1;
 }
 
 button:hover, .btn:hover, input[type="button"]:hover, input[type="submit"]:hover {
-  /* background-color: darken(var(--brand-primary), 8%); */ /* darken() is not standard CSS, use a pre-calculated darker shade or an overlay */
-  background-color: #A30005; /* Slightly darker red for hover */
-  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15); /* Elevation 2 on hover */
+  background-color: #b30006;
+  box-shadow: 0 2px 8px rgba(204, 0, 7, 0.22);
 }
 
 button:active, .btn:active, input[type="button"]:active, input[type="submit"]:active {
-  box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.3), 0px 8px 12px 1px rgba(0, 0, 0, 0.15); /* Elevation 4 on press */
-  background-color: #A30005; /* Keep hover color or make slightly darker if desired for press */
+  background-color: #8f0005;
+  box-shadow: none;
 }
 
-/* Outlined Button */
+button:disabled, .btn:disabled, input[type="button"]:disabled, input[type="submit"]:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
 .btn-outlined {
-  background-color: transparent;
-  color: var(--brand-primary);
-  border: 1px solid var(--md-sys-color-outline); /* Use outline color from variables */
+  background-color: #fff;
+  color: #334155;
+  border: 1px solid #e2e8f0;
   box-shadow: none;
 }
 .btn-outlined:hover {
-  background-color: rgba(var(--brand-primary-rgb), 0.08); 
-  border-color: var(--brand-primary);
+  background-color: #f8fafc;
+  color: #0f172a;
+  border-color: #cbd5e1;
   box-shadow: none;
 }
 .btn-outlined:active {
-  background-color: rgba(var(--brand-primary-rgb), 0.12);
+  background-color: #f1f5f9;
   box-shadow: none;
 }
 
-/* Text Button */
 .btn-text {
   background-color: transparent;
-  color: var(--brand-primary);
+  color: #334155;
   box-shadow: none;
-  padding: 0 12px; /* Less padding for text buttons as per Material spec */
-  min-width: auto; /* Text buttons can be smaller */
+  padding: 0 12px;
+  min-width: auto;
 }
 .btn-text:hover {
-  background-color: rgba(var(--brand-primary-rgb), 0.08);
+  background-color: #f1f5f9;
+  color: #0f172a;
   box-shadow: none;
 }
 .btn-text:active {
-  background-color: rgba(var(--brand-primary-rgb), 0.12);
+  background-color: #e2e8f0;
   box-shadow: none;
 }
 
@@ -721,7 +745,7 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
   /* Inherit new global button styles for padding, height, border-radius, etc. */
 }
 
-/* ===== END GLOBAL MATERIAL BUTTON STYLES ===== */
+/* ===== END GLOBAL BUTTON AND ICON STYLES ===== */
 
 /* Specific style for less prominent archived events button */
 .btn-archived-toggle.btn-outlined,
@@ -756,36 +780,39 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
   background-color: rgba(0,0,0, 0.12); /* Subtle dark press */
 }
 
-/* Material Icon Button */
 .btn-icon {
-  background-color: var(--brand-primary);
-  color: var(--brand-on-primary);
-  width: 40px; /* Standard touch target size for icon-only buttons */
+  background-color: #fff;
+  color: #334155;
+  width: 40px;
   height: 40px;
-  padding: 8px; /* Center the icon */
-  border-radius: 50%; /* Circular */
-  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 1px 3px 1px rgba(0, 0, 0, 0.15); /* Elevation 1 */
+  min-width: 40px;
+  padding: 0;
+  border-radius: 12px;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.08);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border: none;
   cursor: pointer;
-  transition: box-shadow 0.28s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease;
 }
 
-.btn-icon .heroicon {
-  width: 24px; /* Icon size within the button */
-  height: 24px;
-  margin-bottom: 0; /* No extra margin for icon-only buttons */
+.btn-icon .heroicon,
+.btn-icon .material-symbols-outlined {
+  width: 20px;
+  height: 20px;
+  margin: 0;
+  font-size: 20px;
 }
 
 .btn-icon:hover {
-  background-color: #A30005; /* Slightly darker red for hover */
-  box-shadow: 0px 1px 2px rgba(0, 0, 0, 0.3), 0px 2px 6px 2px rgba(0, 0, 0, 0.15); /* Elevation 2 on hover */
+  background-color: #f8fafc;
+  color: var(--brand-primary);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.1);
 }
 
 .btn-icon:active {
-  box-shadow: 0px 4px 4px rgba(0, 0, 0, 0.3), 0px 8px 12px 1px rgba(0, 0, 0, 0.15); /* Elevation 4 on press */
+  background-color: #f1f5f9;
+  box-shadow: none;
 }
 
 /* Specific styling for back-to-top if needed, e.g., positioning */
@@ -867,12 +894,12 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
 .bottom-nav-material > a .material-symbols-outlined,
 .bottom-nav-material .dropdown-toggle .material-symbols-outlined {
   transition: font-variation-settings 0.2s ease, background-color 0.2s ease;
-  font-variation-settings: 'FILL' 0;
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 24;
 }
 
 .bottom-nav-material > a.active .material-symbols-outlined,
 .bottom-nav-material .dropdown-toggle.active .material-symbols-outlined {
-  font-variation-settings: 'FILL' 1;
+  font-variation-settings: 'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24;
 }
 
 .bottom-nav-material a span:not(.material-symbols-outlined) {
@@ -1426,6 +1453,18 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
   padding-top: 12px;
 }
 
+/* Desktop keeps one wrapping bar; the rows are only a layout hook for mobile. */
+.crew-actions-row,
+.crew-filter-row,
+.crew-icon-group,
+#crewListBtnContainer {
+  display: contents;
+}
+
+.crew-icon-btn .material-symbols-outlined {
+  display: none;
+}
+
 /* Non-owner compact layout */
 .filter-sort-bar.non-owner-layout {
   max-width: 800px;
@@ -1808,7 +1847,6 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
-  text-transform: uppercase;
   transition: all 0.3s ease;
 }
 
@@ -2121,69 +2159,170 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
 }
 
 @media (max-width: 768px) {
-  .crew-title h1 { font-size: 1.4rem; }
+  .crew-header {
+    background: #fff;
+    box-shadow: 0 1px 0 #e8eaed;
+    border-bottom: none;
+  }
+
+  .crew-header .header-inner {
+    padding: 8px 12px 6px;
+  }
+
+  .crew-title {
+    padding-bottom: 0;
+    border-bottom: none;
+    margin-bottom: 0;
+  }
+
+  .crew-title h1 {
+    font-size: 17px;
+    font-weight: 500;
+    margin: 0;
+    line-height: 1.2;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .crew-title h2 {
+    display: none;
+  }
+
+  .title-with-save {
+    flex-direction: row;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .title-text {
+    flex: 1 1 auto;
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-align: center;
+  }
+
+  .save-controls {
+    width: auto;
+    min-width: 0;
+    align-items: center;
+  }
+
+  #saveStatus,
+  #saveStatus.saved {
+    display: none !important;
+  }
+
+  #saveStatus.unsaved,
+  #saveStatus.saving {
+    display: block !important;
+    font-size: 11px;
+    white-space: nowrap;
+  }
+
+  .save-changes-btn {
+    width: auto;
+    max-width: none;
+  }
+
+  .filter-sort-bar {
+    flex-direction: column;
+    align-items: stretch;
+    flex-wrap: nowrap;
+    gap: 6px;
+    padding-top: 4px;
+  }
+
+  .crew-actions-row,
+  .crew-filter-row,
+  .crew-icon-group {
+    display: flex;
+  }
+
+  .crew-actions-row {
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .filter-sort-bar.non-owner-layout .crew-actions-row {
+    display: none;
+  }
+
+  .crew-filter-row {
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+
+  .crew-icon-group {
+    align-items: center;
+    gap: 8px;
+    flex: 0 0 auto;
+    margin-left: auto;
+  }
+
+  #crewListBtnContainer {
+    display: contents;
+  }
+
+  .add-date-btn {
+    flex: 0 0 auto;
+    padding: 10px 12px;
+    font-size: 12px;
+    white-space: nowrap;
+    box-shadow: none;
+  }
+
+  .add-date-btn .material-symbols-outlined {
+    display: none;
+  }
+
+  .crew-icon-group .crew-icon-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    min-width: 40px;
+    padding: 0;
+    font-size: 0;
+    line-height: 1;
+    border-radius: 10px;
+  }
+
+  .crew-icon-group .crew-icon-btn .material-symbols-outlined {
+    display: inline-flex;
+    font-size: 20px;
+    line-height: 1;
+  }
+
+  .crew-icon-group .btn-label {
+    display: none;
+  }
+
+  .filter-sort-bar .crew-filter-row select,
+  .filter-sort-bar .crew-filter-row input[type="text"] {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    font-size: 16px;
+    padding: 8px 10px;
+  }
+
+  .crew-main {
+    padding-top: 12px;
+  }
+
   .date-section { 
     padding: 16px;
     overflow: visible !important; /* Allow table to expand */
   }
   .date-section h2 { font-size: 1.2rem; }
   .hide-mobile { display: none !important; }
-  
-  /* Stack title and save button on mobile */
-  .title-with-save {
-    flex-direction: column;
-    gap: 12px;
-  }
-  
-  .title-text {
-    text-align: center;
-  }
-  
-  .save-controls {
-    align-items: center;
-    width: 100%;
-  }
-  
-  .save-changes-btn {
-    width: 100%;
-    max-width: 300px;
-    justify-content: center;
-  }
-  
-  /* Compact filter bar on mobile */
-  .filter-sort-bar {
-    gap: 8px;
-  }
-  
-  /* Non-owner layout on mobile - keep filter and search on same line */
-  .filter-sort-bar.non-owner-layout {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    width: 100%;
-  }
-  
-  .filter-sort-bar.non-owner-layout select {
-    grid-column: 1;
-  }
-  
-  .filter-sort-bar.non-owner-layout input[type="text"] {
-    grid-column: 2;
-  }
-  
-  .filter-sort-bar.non-owner-layout button {
-    grid-column: 1 / -1;
-    width: 100%;
-  }
-  
-  .add-date-btn {
-    padding: 8px 14px;
-    font-size: 13px;
-  }
-  
-  .add-date-btn .material-symbols-outlined {
-    font-size: 18px;
-  }
   
   /* Make table scroll horizontally on mobile */
   .table-wrapper {
@@ -2308,7 +2447,7 @@ button:active, .btn:active, input[type="button"]:active, input[type="submit"]:ac
 }
 
 @media (max-width: 480px) {
-  .crew-main { padding: 32px 12px 100px; }
+  .crew-main { padding: 12px 12px 100px; }
   .date-section { 
     padding: 12px;
     overflow: visible !important; /* Allow table to expand */

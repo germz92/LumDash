@@ -488,7 +488,8 @@ function renderTableSection() {
     if (!crewListBtn) {
       crewListBtn = document.createElement('button');
       crewListBtn.id = 'crewListBtn';
-      crewListBtn.textContent = 'Crew List';
+      crewListBtn.className = 'crew-icon-btn';
+      crewListBtn.innerHTML = '<span class="material-symbols-outlined">groups</span><span class="btn-label">Crew List</span>';
         crewListBtn.title = 'View all crew members';
       crewListBtn.onclick = showCrewListModal;
         btnContainer.innerHTML = '';

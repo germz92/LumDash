@@ -17,21 +17,29 @@
       
       <!-- Compact Filter & Controls Bar -->
       <div class="filter-sort-bar">
-        <button id="addDateBtn" class="add-date-btn" title="Add a new date">
-          <span class="material-symbols-outlined">add</span>
-          Add Date
-        </button>
-        <select id="filterDate" title="Filter by date">
-          <option value="">Show All Dates</option>
-        </select>
-        <input type="text" id="searchInput" placeholder="Search crew..." title="Search by name, role, or notes">
-        <div id="crewListBtnContainer"></div>
-        <button id="crewCostCalcBtn" title="Calculate crew costs">
-          Cost Calculator
-        </button>
-        <button id="exportCsvBtn" title="Export to CSV">
-          Export CSV
-        </button>
+        <div class="crew-actions-row">
+          <button id="addDateBtn" class="add-date-btn" title="Add a new date">
+            <span class="material-symbols-outlined">add</span>
+            <span class="btn-label">Add Date</span>
+          </button>
+          <div class="crew-icon-group" aria-label="Crew actions">
+            <div id="crewListBtnContainer"></div>
+            <button id="crewCostCalcBtn" class="crew-icon-btn" title="Calculate crew costs">
+              <span class="material-symbols-outlined">calculate</span>
+              <span class="btn-label">Cost Calculator</span>
+            </button>
+            <button id="exportCsvBtn" class="crew-icon-btn" title="Export to CSV">
+              <span class="material-symbols-outlined">download</span>
+              <span class="btn-label">Export CSV</span>
+            </button>
+          </div>
+        </div>
+        <div class="crew-filter-row">
+          <select id="filterDate" title="Filter by date">
+            <option value="">Show All Dates</option>
+          </select>
+          <input type="text" id="searchInput" placeholder="Search crew..." title="Search by name, role, or notes">
+        </div>
       </div>
     </div>
   </header>

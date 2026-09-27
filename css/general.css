@@ -113,8 +113,7 @@ body:has(#page-container > .general-page) #page-container {
   font-weight: 600;
   font-size: 13px;
   line-height: 1;
-  letter-spacing: 0.02em;
-  text-transform: uppercase;
+  letter-spacing: 0;
   box-shadow: var(--gp-shadow-sm);
   cursor: pointer;
   transition: background var(--gp-transition), color var(--gp-transition), border-color var(--gp-transition), transform var(--gp-transition);
