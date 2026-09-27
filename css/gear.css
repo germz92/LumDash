@@ -1,14 +1,14 @@
-.gear-page { font-family: 'Roboto', Arial, sans-serif; background: linear-gradient(135deg, #f5f7fa 0%, #e9ecf3 100%); color: #333; min-height: 100%; }
+.gear-page { font-family: 'Roboto', Arial, sans-serif; background: var(--app-canvas, #f5f7fa); color: #333; min-height: 100%; }
 .gear-page h1, .gear-page h2 { text-align: center; font-weight: bold; margin-bottom: 10px; font-size: 22px; letter-spacing: 0.01em; }
 .gear-page .gear-controls { display: flex; justify-content: center; align-items: flex-end; gap: 24px; margin-bottom: 20px; flex-wrap: wrap; }
 .gear-page .top-controls { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
 .gear-page .top-controls label { font-weight: 500; margin-right: 4px; font-size: 16px; }
-.gear-page .top-controls button { min-width: 90px; font-size: 16px; border-radius: 8px; box-shadow: 0 2px 8px rgba(204,0,7,0.08); }
-.gear-page .back-button { background-color: #cccccc; color: #333; font-size: 16px; padding: 8px 14px; border: none; border-radius: 8px; cursor: pointer; font-weight: 500; margin-bottom: 20px; margin-left: 10px; transition: background 0.2s, box-shadow 0.2s; box-shadow: 0 2px 8px rgba(0,0,0,0.06); }
-.gear-page .back-button:hover { background-color: #b3b3b3; box-shadow: 0 4px 16px rgba(204,0,7,0.10); }
-.gear-page select, .gear-page button { font-size: 16px; padding: 8px 12px; border-radius: 8px; border: 1.5px solid #ccc; outline: none; transition: all 0.2s; }
-.gear-page button { background-color: #cc0007; color: white; font-weight: 600; border: none; cursor: pointer; transition: background 0.2s, box-shadow 0.2s; }
-.gear-page button:hover { background-color: rgb(170, 3, 8); box-shadow: 0 4px 16px rgba(204,0,7,0.10); transform: translateY(-2px) scale(1.03); }
+.gear-page .top-controls button { min-width: 0; font-size: 14px; border-radius: 10px; box-shadow: none; }
+.gear-page .back-button { background-color: #fff; color: #334155; font-size: 14px; font-weight: 600; padding: 0 14px; height: 40px; border: 1px solid var(--app-border, #e8eaed); border-radius: 10px; cursor: pointer; margin-bottom: 16px; margin-left: 0; transition: background-color 0.15s ease; box-shadow: none; }
+.gear-page .back-button:hover { background-color: #f8fafc; box-shadow: none; }
+.gear-page select, .gear-page input[type="text"], .gear-page input[type="search"] { font-size: 16px; padding: 8px 12px; border-radius: 10px; border: 1px solid var(--app-border, #e8eaed); outline: none; background: #fff; }
+.gear-page button { background-color: #cc0007; color: white; font-weight: 600; border: none; border-radius: 10px; cursor: pointer; transition: background-color 0.15s ease; }
+.gear-page button:hover { background-color: #b30006; box-shadow: none; transform: none; }
 .gear-page #gearContainer.gear-container { 
   display: flex; 
   flex-wrap: wrap; 
@@ -1287,11 +1287,11 @@ body:not(.owner) .delete-btn {
 
 /* Style for delete icons specifically within item rows */
 .gear-page .item .delete-btn .material-symbols-outlined {
-  color: #888; /* A medium gray color */
+  color: inherit;
 }
 
 .gear-page .item .delete-btn:hover .material-symbols-outlined {
-  color: #555; /* Darker gray on hover for feedback */
+  color: inherit;
 }
 
 /* Style for Use Inventory button icon */
@@ -1315,10 +1315,15 @@ body:not(.owner) .delete-btn {
   background: transparent !important;
   border: none !important;
   padding: 0 !important;
-  margin: 0; /* Reset margin on the button, apply only to icon if needed */
-  line-height: 1; /* Match JS style */
-  outline: none !important; /* Remove focus outline */
-  box-shadow: none !important; /* Remove default shadow */
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 8px;
+  color: #94a3b8;
+  margin: 0;
+  line-height: 1;
+  outline: none !important;
+  box-shadow: none !important;
 }
 
 /* Enhanced Inventory Summary Styles */

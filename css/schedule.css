@@ -2,7 +2,7 @@
 .schedule-page {
     --header-height: 180px;
     font-family: 'Roboto', Arial, sans-serif;
-    background: linear-gradient(135deg, #f5f7fa 0%, #e9ecf3 100%);
+    background: var(--app-canvas, #f5f7fa);
     margin: 0;
     padding: 0;
     min-height: 100%;
@@ -816,25 +816,27 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
 
 .schedule-page .delete-btn {
     position: relative;
-    background: transparent;
-    border: none;
+    background: transparent !important;
+    border: none !important;
     outline: none !important;
     box-shadow: none !important;
-    font-size: 20px;
-    color: #6c757d; /* Subtle gray - matches crew page */
+    width: 32px;
+    height: 32px;
+    min-width: 32px;
+    padding: 0 !important;
+    border-radius: 8px;
+    color: #94a3b8;
     cursor: pointer;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    padding: 4px;
-    border-radius: 4px;
-    transition: all 0.2s ease;
+    transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .schedule-page .delete-btn:hover {
-    background: rgba(220, 53, 69, 0.1); /* Light red background on hover */
-    color: #dc3545; /* Red on hover */
-    transform: scale(1.1);
+    background: rgba(204, 0, 7, 0.08) !important;
+    color: var(--brand-primary);
+    transform: none;
 }
 
 .schedule-page .program-entry .right-actions {
@@ -987,9 +989,11 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
 
     .schedule-page .top-controls .add-btn {
         flex: 0 0 auto;
+        width: auto !important;
+        max-width: none;
         font-size: 13px !important;
-        height: 40px;
-        padding: 0 12px !important;
+        height: auto;
+        padding: 10px 12px !important;
         white-space: nowrap;
         margin: 0 !important;
     }
@@ -1098,7 +1102,11 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
     }
 
     .schedule-page .delete-btn {
-        font-size: 17px;
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px !important;
+        padding: 0 !important;
+        font-size: 18px !important;
     }
 
     .schedule-page #newDate {
@@ -1309,7 +1317,8 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
 
     .schedule-page .show-notes-btn,
     .schedule-page .delete-btn,
-    .schedule-page .delete-date-btn {
+    .schedule-page .delete-date-btn,
+    .schedule-page .top-controls button {
         width: auto !important;
         min-width: 0 !important;
     }
@@ -1427,12 +1436,21 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
     }
 
     .schedule-page .add-btn,
-    .schedule-page .show-notes-btn,
-    .schedule-page .delete-btn {
+    .schedule-page .show-notes-btn {
         font-size: 14px !important;
         padding: 3px 6px !important;
         min-width: 0 !important;
         margin: 0 !important;
+    }
+
+    .schedule-page .delete-btn,
+    .schedule-page .delete-date-btn {
+        width: 32px !important;
+        height: 32px !important;
+        min-width: 32px !important;
+        padding: 0 !important;
+        margin: 0 !important;
+        font-size: 18px !important;
     }
 
     .schedule-page .date-header {
@@ -1561,8 +1579,10 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
     padding-top: 5px;
     font-size: 18px;
     line-height: 18px;
+    color: #64748b;
     flex-shrink: 0;
     align-self: flex-start !important;
+    font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 20;
 }
 
 .schedule-page .program-entry textarea.compact-textarea,
@@ -1588,28 +1608,28 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
 }
 
 .schedule-page .delete-date-btn {
-    background: #fff0f0;
-    color: #d11a2a;
-    border: 1.5px solid #d11a2a;
-    border-radius: 50%;
+    background: transparent !important;
+    color: #94a3b8 !important;
+    border: none !important;
+    border-radius: 8px !important;
     width: 32px;
     height: 32px;
-    display: flex;
+    min-width: 32px;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
-    font-size: 18px;
     cursor: pointer;
-    transition: background 0.15s, color 0.15s, border 0.15s;
-    box-shadow: 0 2px 8px rgba(209,26,42,0.06);
+    box-shadow: none !important;
     margin-left: 4px;
     outline: none;
-    padding: 0;
+    padding: 0 !important;
     flex-shrink: 0;
 }
-.schedule-page .delete-date-btn:hover, .schedule-page .delete-date-btn:focus {
-    background: #d11a2a;
-    color: #fff;
-    border-color: #b0101e;
+.schedule-page .delete-date-btn:hover,
+.schedule-page .delete-date-btn:focus {
+    background: rgba(204, 0, 7, 0.08) !important;
+    color: var(--brand-primary) !important;
+    transform: none;
 }
 
 .schedule-page, html, body {
@@ -1649,14 +1669,13 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
 }
 
 /* Style for delete icons - subtle like crew page */
-.delete-date-btn .material-symbols-outlined {
-  color: #6c757d;
-  font-size: 24px;
-}
-
+.delete-date-btn .material-symbols-outlined,
 .delete-btn .material-symbols-outlined {
-  color: inherit; /* Inherit from parent for smooth transition */
-  font-size: 20px;
+  color: inherit;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
 }
   
 /* Atomic Save Visual Feedback */
@@ -2249,7 +2268,7 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
 .schedule-table-section .date-header .delete-date-btn {
   background: transparent !important;
   border: none !important;
-  color: #6c757d !important; /* Gray color matching crew page */
+  color: #94a3b8 !important; /* Gray color matching the other delete icons */
   padding: 4px !important;
   border-radius: 4px !important;
   cursor: pointer;
@@ -2260,13 +2279,14 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
 }
 
 .schedule-table-section .date-header .delete-date-btn:hover {
-  background: rgba(220, 53, 69, 0.1) !important;
-  color: #dc3545 !important;
-  transform: scale(1.1);
+  background: rgba(204, 0, 7, 0.08) !important;
+  color: var(--brand-primary) !important;
+  transform: none;
 }
 
 .schedule-table-section .date-header .delete-date-btn .material-symbols-outlined {
-  font-size: 24px;
+  font-size: 18px;
+  color: inherit;
 }
 
 .schedule-table-section table {
@@ -2458,24 +2478,29 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
 }
 
 .schedule-table-section .delete-row-btn {
-  background: none;
+  background: transparent;
   border: none;
-  color: #dc3545;
+  color: #94a3b8;
   cursor: pointer;
-  padding: 4px;
-  display: flex;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s ease;
+  border-radius: 8px;
+  box-shadow: none;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
 .schedule-table-section .delete-row-btn:hover {
-  background: #ffe0e0;
+  background: rgba(204, 0, 7, 0.08);
+  color: var(--brand-primary);
 }
 
 .schedule-table-section .delete-row-btn .material-symbols-outlined {
-  font-size: 20px;
+  font-size: 18px;
+  color: inherit;
 }
 
 /* Ensure table view doesn't show on mobile */

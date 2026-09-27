@@ -17,7 +17,7 @@ body:has(.timesheet-page) .bottom-nav-material {
 /* ===== TIMESHEET PAGE STYLES ===== */
 .timesheet-page {
   min-height: auto;
-  background: linear-gradient(145deg, #fafbfc 0%, #f0f2f5 100%);
+  background: var(--app-canvas, #f5f7fa);
   padding: 0;
   margin: 0;
   width: 100%;

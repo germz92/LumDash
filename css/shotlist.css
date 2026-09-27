@@ -2,7 +2,7 @@
 
 .shotlist-page {
   font-family: 'Roboto', Arial, sans-serif;
-  background: #f4f4f4;
+  background: var(--app-canvas, #f5f7fa);
   min-height: 100vh;
   padding-bottom: 0;
 }

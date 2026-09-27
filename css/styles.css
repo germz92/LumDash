@@ -20,6 +20,14 @@ html {
   --brand-on-primary: #FFFFFF;
   --brand-primary-rgb: 204,0,7; /* For use with alpha, e.g., rgba(var(--brand-primary-rgb), 0.08) */
 
+  --app-canvas: #f5f7fa;
+  --app-surface: #ffffff;
+  --app-border: #e8eaed;
+  --app-text: #0f172a;
+  --app-text-secondary: #64748b;
+  --app-radius: 10px;
+  --app-shadow: 0 1px 2px rgba(15, 23, 42, 0.06);
+
   /* Bottom nav: 80px bar + home-indicator inset + iOS visual-viewport shift */
   --app-vv-bottom: 0px;
   --bottom-nav-bar: 80px;
@@ -316,7 +324,7 @@ html, body {
 .bottom-nav-material .dropdown-menu {
   position: absolute;
   bottom: calc(100% + 18px);
-  right: 0;
+  right: 12px;
   transform: translateY(6px);
   background: rgba(255, 255, 255, 0.98);
   border: 1px solid rgba(15, 23, 42, 0.08);
@@ -1329,7 +1337,7 @@ button:disabled, .btn:disabled, input[type="button"]:disabled, input[type="submi
    
 .crew-page-content {
   min-height: calc(100vh - 80px);
-  background: linear-gradient(135deg, #f5f7fa 0%, #e8ecf1 100%);
+  background: var(--app-canvas, #f5f7fa);
   margin: -20px -20px 0;
   padding: 0;
 }
@@ -1583,27 +1591,45 @@ button:disabled, .btn:disabled, input[type="button"]:disabled, input[type="submi
   color: #2c3e50;
 }
 
-.delete-date-btn {
+.delete-date-btn,
+.delete-row-btn,
+.delete-day-btn,
+.delete-btn {
   background: transparent !important;
   border: none !important;
-  padding: 4px !important;
-  border-radius: 4px !important;
-  color: #6c757d !important;
+  padding: 0 !important;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 8px !important;
+  color: #94a3b8 !important;
   cursor: pointer;
-  transition: all 0.3s ease;
+  box-shadow: none !important;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  transition: background-color 0.15s ease, color 0.15s ease;
 }
 
-.delete-date-btn:hover {
-  background: rgba(220, 53, 69, 0.1) !important;
-  color: #dc3545 !important;
-  transform: scale(1.1);
+.delete-date-btn:hover,
+.delete-row-btn:hover,
+.delete-day-btn:hover,
+.delete-btn:hover {
+  background: rgba(204, 0, 7, 0.08) !important;
+  color: var(--brand-primary) !important;
+  transform: none;
 }
 
-.delete-date-btn .material-symbols-outlined {
-  font-size: 24px;
+.delete-date-btn .material-symbols-outlined,
+.delete-row-btn .material-symbols-outlined,
+.delete-day-btn .material-symbols-outlined,
+.delete-btn .material-symbols-outlined {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  color: inherit;
+  font-variation-settings: 'FILL' 0, 'wght' 500, 'GRAD' 0, 'opsz' 20;
 }
 
 .table-wrapper {
@@ -1811,29 +1837,6 @@ button:disabled, .btn:disabled, input[type="button"]:disabled, input[type="submi
   display: flex;
   justify-content: center;
   gap: 8px;
-}
-
-.delete-row-btn {
-  background: transparent !important;
-  border: none !important;
-  padding: 4px !important;
-  border-radius: 4px !important;
-  color: #6c757d !important;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.delete-row-btn:hover {
-  background: rgba(220, 53, 69, 0.1) !important;
-  color: #dc3545 !important;
-  transform: scale(1.1);
-}
-
-.delete-row-btn .material-symbols-outlined {
-  font-size: 20px;
 }
 
 .add-row-btn-container {

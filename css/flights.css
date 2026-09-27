@@ -10,32 +10,34 @@
 .page-header {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  margin-bottom: 24px;
-  padding-bottom: 16px;
-  border-bottom: 2px solid #e0e0e0;
+  gap: 12px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--app-border, #e8eaed);
 }
 
 .back-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
-  gap: 8px;
-  background: white;
-  border: 1.5px solid #ccc;
-  border-radius: 8px;
-  padding: 8px 16px;
-  font-size: 15px;
+  gap: 6px;
+  background: #fff;
+  border: 1px solid var(--app-border, #e8eaed);
+  border-radius: 10px;
+  padding: 0 14px;
+  height: 40px;
+  font-size: 14px;
   font-weight: 600;
-  color: #333;
+  color: #334155;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
   align-self: flex-start;
+  box-shadow: none;
 }
 
 .back-btn:hover {
-  border-color: #CC0007;
-  background: #fff5f5;
-  color: #CC0007;
+  border-color: #cbd5e1;
+  background: #f8fafc;
+  color: #0f172a;
 }
 
 .back-btn .material-symbols-outlined {
@@ -132,10 +134,12 @@
 .search-input {
   width: 100%;
   padding: 10px 12px 10px 42px;
-  border: 1.5px solid #ccc;
-  border-radius: 8px;
+  border: 1px solid var(--app-border, #e8eaed);
+  border-radius: 10px;
   font-size: 16px;
-  transition: border-color 0.2s;
+  background: #fff;
+  color: #0f172a;
+  transition: border-color 0.15s ease;
 }
 
 .search-input:focus {
@@ -154,23 +158,25 @@
 }
 
 .filter-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 10px 16px;
-  background: white;
-  border: 1.5px solid #ccc;
-  border-radius: 8px;
-  font-size: 15px;
-  font-weight: 500;
-  color: #333;
+  padding: 0 14px;
+  height: 40px;
+  background: #fff;
+  border: 1px solid var(--app-border, #e8eaed);
+  border-radius: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
   cursor: pointer;
-  transition: all 0.2s;
+  box-shadow: none;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
 }
 
 .filter-btn:hover {
-  border-color: #CC0007;
-  background: #fff5f5;
+  border-color: #cbd5e1;
+  background: #f8fafc;
 }
 
 .filter-btn .material-symbols-outlined {

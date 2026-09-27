@@ -1,5 +1,5 @@
-.card-log-page { font-family: Arial, sans-serif; background: #f4f4f4; min-height: 100%; }
-.card-log-page .back-btn { margin-bottom: 20px; padding: 10px 16px; background: #ccc; border: none; border-radius: 6px; cursor: pointer; align-self: flex-start; }
+.card-log-page { font-family: 'Roboto', Arial, sans-serif; background: var(--app-canvas, #f5f7fa); min-height: 100%; }
+.card-log-page .back-btn { margin-bottom: 16px; padding: 0 14px; height: 40px; background: #fff; color: #334155; border: 1px solid var(--app-border, #e8eaed); border-radius: 10px; font-weight: 600; cursor: pointer; align-self: flex-start; box-shadow: none; }
 .card-log-page h2 { margin-bottom: 5px; text-align: center; }
 .card-log-page .header { margin-bottom: 5px; }
 .card-log-page .header img { max-width: 100%; border-radius: 8px; }
@@ -238,8 +238,13 @@
   background: none !important;
   border: none !important;
   box-shadow: none !important;
-  padding: 6px !important;
+  padding: 0 !important;
   margin: 0 !important;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 8px;
+  color: #94a3b8;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
@@ -252,13 +257,13 @@
 }
 .card-log-page .delete-day-btn .material-symbols-outlined,
 .card-log-page .delete-row-btn .material-symbols-outlined {
-  font-size: 20px;
-  color: #888;
+  font-size: 18px;
+  color: inherit;
   pointer-events: none;
 }
 .card-log-page .delete-day-btn:hover .material-symbols-outlined,
 .card-log-page .delete-row-btn:hover .material-symbols-outlined {
-  color: #555;
+  color: inherit;
 }
 /* Modal styles - work both inside .card-log-page and when moved to body */
 /* Use specific class to avoid conflicts with other page modals */

@@ -113,10 +113,14 @@
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
-  font-size: 1.2rem;
-  color: #888 !important;
+  font-size: 18px;
+  color: #94a3b8 !important;
   cursor: pointer;
-  padding: 4px;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  border-radius: 8px;
   display: flex !important;
   align-items: center;
   justify-content: center;
@@ -135,7 +139,8 @@
   min-height: 32px;
 }
 .travel-page .delete-btn:hover {
-  color: #d32f2f !important;
+  color: var(--brand-primary) !important;
+  background: rgba(204, 0, 7, 0.08) !important;
 }
 .travel-page .delete-btn:focus, .travel-page .delete-btn:active, .travel-page .delete-btn:visited {
   color: #888 !important;
@@ -281,16 +286,17 @@
   padding: 0;
   margin: 0;
   cursor: pointer;
-  color: #888; /* Medium gray for the icon */
+  color: #64748b;
 }
 
 .travel-page .table-wrapper table .delete-btn .material-symbols-outlined {
-  font-size: 20px; /* Adjust size as needed */
+  font-size: 18px;
+  color: inherit;
   vertical-align: middle;
 }
 
 .travel-page .table-wrapper table .delete-btn:hover .material-symbols-outlined {
-  color: #555; /* Darker gray on hover */
+  color: inherit;
 }
 
 /* Styling for the Open Airline button */
