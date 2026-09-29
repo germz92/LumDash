@@ -235,6 +235,227 @@ body:has(#page-container > .general-page) #page-container {
   border-color: rgba(15, 23, 42, 0.12);
 }
 
+.general-page .info-card--weather .info-card-label {
+  justify-content: space-between;
+}
+
+.general-page .weather-condition {
+  margin-left: auto;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gp-text);
+}
+
+.general-page .weather-forecast {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.general-page .weather-day {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-width: 72px;
+  padding: 10px 8px;
+  background: var(--gp-input-bg);
+  border-radius: 10px;
+  text-align: center;
+}
+
+.general-page .weather-day-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gp-text-secondary);
+}
+
+.general-page .weather-icon {
+  font-size: 26px;
+  line-height: 1;
+}
+
+.general-page .weather-temp {
+  display: flex;
+  gap: 6px;
+  font-size: 13px;
+}
+
+.general-page .weather-temp .high {
+  color: var(--gp-text);
+  font-weight: 600;
+}
+
+.general-page .weather-temp .low {
+  color: var(--gp-text-muted);
+}
+
+.general-page .weather-loading,
+.general-page .weather-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 72px;
+  color: var(--gp-text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+.general-page .weather-loading .material-symbols-outlined,
+.general-page .weather-placeholder .material-symbols-outlined {
+  font-size: 22px;
+  color: var(--gp-text-muted);
+}
+
+.general-page .weather-loading .spinning {
+  animation: weather-spin 1s linear infinite;
+}
+
+@keyframes weather-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.general-page .weather-notes:empty {
+  display: none;
+}
+
+.general-page .weather-notes:not(:empty) {
+  margin-top: 12px;
+}
+
+.general-page .project-manager-select[hidden],
+.general-page .project-manager-view[hidden],
+.pm-modal[hidden] {
+  display: none !important;
+}
+
+.general-page .project-manager-select {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  font-size: 15px;
+  font-weight: 500;
+  font-family: inherit;
+  padding: 10px 12px;
+  border: 1px solid var(--gp-border);
+  border-radius: 8px;
+  background: var(--gp-input-bg);
+  color: var(--gp-text);
+  min-height: 42px;
+  box-sizing: border-box;
+}
+
+.general-page .project-manager-view {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  width: auto;
+  max-width: 100%;
+  min-width: 0;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  border: none !important;
+  border-radius: 0;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--gp-text) !important;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0;
+  text-align: left;
+  cursor: pointer;
+}
+
+.general-page .project-manager-view:hover {
+  background: transparent !important;
+  box-shadow: none !important;
+  color: var(--gp-accent) !important;
+}
+
+.general-page .project-manager-view:disabled {
+  opacity: 1;
+  color: var(--gp-text-muted) !important;
+  cursor: default;
+  background: transparent !important;
+}
+
+.pm-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(15, 23, 42, 0.45);
+}
+
+.pm-modal-card {
+  width: min(100%, 360px);
+  background: #fff;
+  border-radius: 12px;
+  padding: 20px;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.18);
+}
+
+.pm-modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.pm-modal-header h3 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.pm-modal-close {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  padding: 0;
+  border: none !important;
+  border-radius: 8px;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #64748b !important;
+  font-size: 22px;
+  line-height: 1;
+}
+
+.pm-contact-name {
+  margin: 0 0 12px;
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.pm-contact-line {
+  display: block;
+  margin-top: 8px;
+  color: #0f172a;
+  font-size: 15px;
+  font-weight: 500;
+  text-decoration: none;
+}
+
+a.pm-contact-line[href]:hover {
+  color: var(--brand-primary, #cc0007);
+}
+
 .general-page .info-card--summary {
   padding: 0;
   overflow: hidden;
@@ -1377,6 +1598,11 @@ body:has(#page-container > .general-page) #page-container {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
+  }
+
+  .general-stats-grid > .info-card--weather,
+  .general-stats-grid > .info-row:first-child .info-card {
+    grid-column: 1 / -1;
   }
 
   .general-stats-grid .info-row {

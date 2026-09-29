@@ -67,6 +67,7 @@ const tableSchema = new mongoose.Schema({
     client: String,
     attendees: Number,
     budget: String,
+    projectManager: { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null },
     summary: { type: String, default: "" },
     contacts: [
       {

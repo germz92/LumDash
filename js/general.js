@@ -57,6 +57,215 @@ function getWeatherIcon(weatherText) {
 }
 
 // Function to update the weather label icon based on current weather text
+async function fetchWeatherForEvent(city, startDate, endDate) {
+  const forecastEl = document.getElementById('weatherForecast');
+  const conditionEl = document.getElementById('weatherCondition');
+
+  if (!forecastEl || !city) {
+    renderWeatherPlaceholder('No city set');
+    return;
+  }
+
+  forecastEl.innerHTML = `
+    <div class="weather-loading">
+      <span class="material-symbols-outlined spinning">sync</span>
+      <span>Loading weather...</span>
+    </div>
+  `;
+  if (conditionEl) conditionEl.textContent = 'Loading...';
+
+  try {
+    const forecastRes = await fetch(`${API_BASE}/api/weather/forecast?q=${encodeURIComponent(city)}`, {
+      headers: { Authorization: window.token }
+    });
+    const forecastData = await forecastRes.json().catch(() => ({}));
+
+    if (forecastRes.status === 404) {
+      renderWeatherPlaceholder('City not found');
+      return;
+    }
+    if (!forecastRes.ok || !forecastData.list) {
+      renderWeatherPlaceholder('Weather unavailable');
+      return;
+    }
+
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+
+    let eventStartDate = null;
+    let eventEndDate = null;
+
+    try {
+      if (startDate && String(startDate).trim()) {
+        const startStr = String(startDate).includes('T') ? String(startDate).split('T')[0] : String(startDate);
+        eventStartDate = new Date(startStr + 'T00:00:00');
+        if (isNaN(eventStartDate.getTime())) eventStartDate = null;
+      }
+      if (endDate && String(endDate).trim()) {
+        const endStr = String(endDate).includes('T') ? String(endDate).split('T')[0] : String(endDate);
+        eventEndDate = new Date(endStr + 'T23:59:59');
+        if (isNaN(eventEndDate.getTime())) eventEndDate = null;
+      }
+      if (eventStartDate && !eventEndDate) {
+        eventEndDate = new Date(eventStartDate);
+        eventEndDate.setHours(23, 59, 59);
+      }
+    } catch (e) {
+      console.warn('Error parsing event dates for weather:', e);
+    }
+
+    if (eventEndDate && eventEndDate < today) {
+      renderWeatherPlaceholder('Event has passed');
+      return;
+    }
+
+    const forecastLimit = new Date(today);
+    forecastLimit.setDate(forecastLimit.getDate() + 5);
+
+    if (eventStartDate && eventStartDate > forecastLimit) {
+      const daysUntilEvent = Math.ceil((eventStartDate - today) / (1000 * 60 * 60 * 24));
+      const daysUntilAvailable = daysUntilEvent - 5;
+      if (daysUntilAvailable === 1) {
+        renderWeatherPlaceholder('Available tomorrow');
+        return;
+      }
+      if (daysUntilAvailable > 1) {
+        renderWeatherPlaceholder(`Available in ${daysUntilAvailable} days`);
+        return;
+      }
+    }
+
+    const dailyForecasts = processForecastData(forecastData.list, startDate, endDate);
+    if (dailyForecasts.length === 0) {
+      if (!eventStartDate) {
+        renderWeatherForecast(processForecastData(forecastData.list, null, null), conditionEl);
+        return;
+      }
+      renderWeatherPlaceholder('No forecast for event dates');
+      return;
+    }
+
+    renderWeatherForecast(dailyForecasts, conditionEl);
+  } catch (err) {
+    console.error('Weather fetch error:', err);
+    renderWeatherPlaceholder('Weather unavailable');
+  }
+}
+
+function processForecastData(forecastList, eventStart, eventEnd) {
+  const dailyData = {};
+  let eventStartKey = null;
+  let eventEndKey = null;
+
+  try {
+    if (eventStart && String(eventStart).trim()) {
+      const startStr = String(eventStart).includes('T') ? String(eventStart).split('T')[0] : String(eventStart);
+      const parsed = new Date(startStr + 'T00:00:00');
+      if (!isNaN(parsed.getTime())) eventStartKey = startStr;
+    }
+    if (eventEnd && String(eventEnd).trim()) {
+      const endStr = String(eventEnd).includes('T') ? String(eventEnd).split('T')[0] : String(eventEnd);
+      const parsed = new Date(endStr + 'T23:59:59');
+      if (!isNaN(parsed.getTime())) eventEndKey = endStr;
+    }
+    if (eventStartKey && !eventEndKey) eventEndKey = eventStartKey;
+  } catch (e) {
+    console.warn('Error parsing event dates:', e);
+  }
+
+  forecastList.forEach(item => {
+    const date = new Date(item.dt * 1000);
+    const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    if (!dailyData[dateKey]) {
+      dailyData[dateKey] = { date, dateKey, temps: [], icons: [], descriptions: [] };
+    }
+    dailyData[dateKey].temps.push(item.main.temp);
+    dailyData[dateKey].icons.push(item.weather[0].icon);
+    dailyData[dateKey].descriptions.push(item.weather[0].main);
+  });
+
+  let days = Object.keys(dailyData).sort().map(key => {
+    const day = dailyData[key];
+    return {
+      date: day.date,
+      dateKey: day.dateKey,
+      high: Math.round(Math.max(...day.temps)),
+      low: Math.round(Math.min(...day.temps)),
+      icon: getMostCommon(day.icons),
+      description: getMostCommon(day.descriptions)
+    };
+  });
+
+  if (eventStartKey && eventEndKey) {
+    days = days.filter(day => day.dateKey >= eventStartKey && day.dateKey <= eventEndKey);
+  }
+
+  return days.slice(0, 5);
+}
+
+function getMostCommon(arr) {
+  const counts = {};
+  arr.forEach(item => { counts[item] = (counts[item] || 0) + 1; });
+  return Object.entries(counts).sort((a, b) => b[1] - a[1])[0][0];
+}
+
+function getWeatherEmoji(iconCode) {
+  const iconMap = {
+    '01d': '☀️', '01n': '🌙',
+    '02d': '⛅', '02n': '☁️',
+    '03d': '☁️', '03n': '☁️',
+    '04d': '☁️', '04n': '☁️',
+    '09d': '🌧️', '09n': '🌧️',
+    '10d': '🌦️', '10n': '🌧️',
+    '11d': '⛈️', '11n': '⛈️',
+    '13d': '❄️', '13n': '❄️',
+    '50d': '🌫️', '50n': '🌫️'
+  };
+  return iconMap[iconCode] || '🌤️';
+}
+
+function formatDayName(date) {
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  if (date.toDateString() === today.toDateString()) return 'Today';
+  if (date.toDateString() === tomorrow.toDateString()) return 'Tomorrow';
+  return `${date.toLocaleDateString('en-US', { weekday: 'short' })} ${date.getDate()}`;
+}
+
+function renderWeatherForecast(days, conditionEl) {
+  const forecastEl = document.getElementById('weatherForecast');
+  if (!forecastEl) return;
+  if (!days.length) {
+    renderWeatherPlaceholder('No forecast available');
+    return;
+  }
+
+  forecastEl.innerHTML = days.map(day => `
+    <div class="weather-day">
+      <div class="weather-day-name">${formatDayName(day.date)}</div>
+      <div class="weather-icon">${getWeatherEmoji(day.icon)}</div>
+      <div class="weather-temp"><span class="high">${day.high}°</span><span class="low">${day.low}°</span></div>
+    </div>
+  `).join('');
+
+  if (conditionEl && days[0]) conditionEl.textContent = days[0].description;
+}
+
+function renderWeatherPlaceholder(message) {
+  const forecastEl = document.getElementById('weatherForecast');
+  const conditionEl = document.getElementById('weatherCondition');
+  if (forecastEl) {
+    forecastEl.innerHTML = `
+      <div class="weather-placeholder">
+        <span class="material-symbols-outlined">cloud_off</span>
+        <span>${message}</span>
+      </div>
+    `;
+  }
+  if (conditionEl) conditionEl.textContent = '';
+}
+
 function updateWeatherIcon() {
   const weatherLabel = document.querySelector('label[for="weather"]');
   if (!weatherLabel) return;
@@ -441,6 +650,125 @@ function collectLocations() {
   });
 }
 
+let projectManagerUsers = [];
+
+function escapeHtmlText(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+function projectManagerId(value) {
+  if (!value) return '';
+  if (typeof value === 'object') return String(value._id || '');
+  return String(value);
+}
+
+async function setupProjectManager(selected) {
+  const select = document.getElementById('projectManager');
+  const view = document.getElementById('projectManagerView');
+  if (!select || !view) return;
+
+  const selectedId = projectManagerId(selected);
+  const canEdit = isOwner || isAdmin();
+
+  try {
+    const res = await fetch(`${API_BASE}/api/users`, {
+      headers: { Authorization: window.token }
+    });
+    projectManagerUsers = res.ok ? await res.json() : [];
+  } catch (err) {
+    console.error('Could not load users for project manager:', err);
+    projectManagerUsers = [];
+  }
+
+  const current = projectManagerUsers.find(user => String(user._id) === selectedId);
+
+  if (canEdit) {
+    select.hidden = false;
+    view.hidden = true;
+    select.innerHTML = `<option value="">Not assigned</option>` + projectManagerUsers.map(user =>
+      `<option value="${escapeHtmlText(user._id)}">${escapeHtmlText(user.name)}</option>`
+    ).join('');
+    select.value = current ? selectedId : '';
+    select.dataset.saved = select.value;
+    select.onchange = () => saveProjectManager(select.value);
+  } else {
+    select.hidden = true;
+    view.hidden = false;
+    view.textContent = current ? current.name : 'Not assigned';
+    view.disabled = !current;
+    view.onclick = () => {
+      if (current) openProjectManagerContact(current);
+    };
+  }
+
+  const modal = document.getElementById('projectManagerModal');
+  const closeBtn = document.getElementById('closeProjectManagerModal');
+  if (closeBtn && !closeBtn.dataset.bound) {
+    closeBtn.dataset.bound = '1';
+    closeBtn.onclick = closeProjectManagerContact;
+    if (modal) {
+      modal.onclick = (event) => {
+        if (event.target === modal) closeProjectManagerContact();
+      };
+    }
+  }
+}
+
+async function saveProjectManager(userId) {
+  if (!(isOwner || isAdmin())) return;
+  const select = document.getElementById('projectManager');
+  const currentTableId = params.get('id') || localStorage.getItem('eventId');
+  if (!currentTableId) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/tables/${currentTableId}/general`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: window.token
+      },
+      body: JSON.stringify({ general: { projectManager: userId || null } })
+    });
+    if (!res.ok) throw new Error('Could not save the project manager');
+    if (select) select.dataset.saved = userId || '';
+  } catch (err) {
+    console.error(err);
+    if (select) select.value = select.dataset.saved || '';
+    alert('Could not save the project manager.');
+  }
+}
+
+function openProjectManagerContact(user) {
+  const modal = document.getElementById('projectManagerModal');
+  const nameEl = document.getElementById('pmContactName');
+  const phoneEl = document.getElementById('pmContactPhone');
+  const emailEl = document.getElementById('pmContactEmail');
+  if (!modal || !nameEl || !phoneEl || !emailEl) return;
+
+  nameEl.textContent = user.name || '';
+  if (user.phone) {
+    phoneEl.textContent = user.phone;
+    phoneEl.href = `tel:${String(user.phone).replace(/[^\d+]/g, '')}`;
+  } else {
+    phoneEl.textContent = 'No phone number';
+    phoneEl.removeAttribute('href');
+  }
+  emailEl.textContent = user.email || 'No email';
+  if (user.email) emailEl.href = `mailto:${user.email}`;
+  else emailEl.removeAttribute('href');
+
+  modal.hidden = false;
+}
+
+function closeProjectManagerContact() {
+  const modal = document.getElementById('projectManagerModal');
+  if (modal) modal.hidden = true;
+}
+
 function isAdmin() {
   try {
     const token = window.token;
@@ -693,13 +1021,13 @@ function initPage(id) {
       const eventTitleEl = document.getElementById('eventTitle');
       if (eventTitleEl) eventTitleEl.textContent = table.title;
 
-      ['eventSummary', 'location', 'weather', 'attendees', 'budget'].forEach(field => {
+      ['eventSummary', 'location', 'weather', 'attendees'].forEach(field => {
         const el = document.getElementById(field === 'eventSummary' ? 'summary' : field);
         if (el) {
           const div = document.createElement('div');
           div.id = field === 'eventSummary' ? 'summary' : field;
           div.dataset.value = general[field === 'eventSummary' ? 'summary' : field] || '';
-          div.className = 'read-only';
+          div.className = field === 'weather' ? 'read-only weather-notes info-card-value' : 'read-only';
           
           // Make location field clickable to open maps
           if (field === 'location') {
@@ -733,6 +1061,11 @@ function initPage(id) {
       // Set values for date fields
       document.getElementById('start').value = startDate;
       document.getElementById('end').value = endDate;
+
+      const cityQuery = [general.city, general.state].filter(Boolean).join(', ')
+        || String(general.location || '').replace(/<[^>]*>/g, '').trim();
+      fetchWeatherForEvent(cityQuery, startDate, endDate);
+      setupProjectManager(general.projectManager);
       
       // 🔒 Make date fields readonly for non-owners
       if (!isOwner) {
@@ -883,7 +1216,6 @@ async function saveGeneralInfo() {
     location: getText('location'),
     weather: getText('weather'),
     attendees: getText('attendees'),
-    budget: getText('budget'),
     start: document.getElementById('start')?.value || '',
     end: document.getElementById('end')?.value || '',
     contacts: collectContacts(),
@@ -970,7 +1302,7 @@ function switchToEdit() {
     eventTitleEl.replaceWith(titleInput);
   }
 
-  ['eventSummary', 'location', 'weather', 'attendees', 'budget'].forEach(id => {
+  ['eventSummary', 'location', 'weather', 'attendees'].forEach(id => {
     const element = document.getElementById(id === 'eventSummary' ? 'summary' : id);
     if (!element) return;
     

@@ -8,7 +8,7 @@ const token = window.token || localStorage.getItem('token');
 
 // Global variables
 let messageArea, userTableBody, userModal, closeModalBtn, cancelModalBtn, userForm, modalTitle;
-let userIdInput, userNameInput, userEmailInput, userRoleInput, passwordGroup, userPasswordInput, resetPasswordBtn;
+let userIdInput, userNameInput, userEmailInput, userPhoneInput, userRoleInput, passwordGroup, userPasswordInput, resetPasswordBtn;
 let users = [];
 let currentAction = null;
 let editingUserId = null;
@@ -28,6 +28,7 @@ document.addEventListener('DOMContentLoaded', function() {
   userIdInput = document.getElementById('userId');
   userNameInput = document.getElementById('userName');
   userEmailInput = document.getElementById('userEmail');
+  userPhoneInput = document.getElementById('userPhone');
   userRoleInput = document.getElementById('userRole');
   passwordGroup = document.getElementById('passwordGroup');
   userPasswordInput = document.getElementById('userPassword');
@@ -279,7 +280,7 @@ window.revokeInvite = function (id) {
 
 async function loadUsers() {
   if (userTableBody) {
-    userTableBody.innerHTML = '<tr><td colspan="4">Loading users...</td></tr>';
+    userTableBody.innerHTML = '<tr><td colspan="5">Loading users...</td></tr>';
   }
   try {
     console.log('Attempting to load users from:', `${window.API_BASE}/api/users`);
@@ -309,7 +310,7 @@ async function loadUsers() {
     console.error('Error in loadUsers():', err);
     showMessage(err.message, 'error');
     if (userTableBody) {
-      userTableBody.innerHTML = '<tr><td colspan="4">Error loading users</td></tr>';
+      userTableBody.innerHTML = '<tr><td colspan="5">Error loading users</td></tr>';
     }
   }
 }
@@ -318,13 +319,14 @@ function renderUsers() {
   if (!userTableBody) return;
   
   if (!users.length) {
-    userTableBody.innerHTML = '<tr><td colspan="4">No users found</td></tr>';
+    userTableBody.innerHTML = '<tr><td colspan="5">No users found</td></tr>';
     return;
   }
   userTableBody.innerHTML = users.map(user => `
     <tr>
       <td>${escapeHtml(user.name)}</td>
       <td>${escapeHtml(user.email)}</td>
+      <td>${escapeHtml(user.phone || '—')}</td>
       <td>${escapeHtml(user.role)}</td>
       <td class="action-buttons">
         <button class="action-btn btn-edit btn-text" onclick="editUser('${user._id}')">Edit</button>
@@ -372,6 +374,7 @@ window.editUser = function(id) {
   if (userIdInput) userIdInput.value = user._id;
   if (userNameInput) userNameInput.value = user.name;
   if (userEmailInput) userEmailInput.value = user.email;
+  if (userPhoneInput) userPhoneInput.value = user.phone || '';
   if (userRoleInput) userRoleInput.value = user.role;
   if (userPasswordInput) userPasswordInput.value = '';
   if (passwordGroup) passwordGroup.style.display = 'none';
@@ -409,6 +412,7 @@ window.resetPassword = function(id) {
   if (userIdInput) userIdInput.value = user._id;
   if (userNameInput) userNameInput.value = user.name;
   if (userEmailInput) userEmailInput.value = user.email;
+  if (userPhoneInput) userPhoneInput.value = user.phone || '';
   if (userRoleInput) userRoleInput.value = user.role;
   if (userPasswordInput) userPasswordInput.value = '';
   if (passwordGroup) passwordGroup.style.display = '';
@@ -424,6 +428,7 @@ async function handleFormSubmit(e) {
   const id = userIdInput.value;
   const name = userNameInput.value.trim();
   const email = userEmailInput.value.trim();
+  const phone = userPhoneInput ? userPhoneInput.value.trim() : '';
   const role = userRoleInput.value;
   const password = userPasswordInput ? userPasswordInput.value : '';
   const isReset = passwordGroup && passwordGroup.style.display !== 'none';
@@ -444,7 +449,7 @@ async function handleFormSubmit(e) {
       res = await fetch(`${window.API_BASE}/api/users/${id}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: token },
-        body: JSON.stringify({ name, email, role })
+        body: JSON.stringify({ name, email, phone, role })
       });
       if (!res.ok) throw new Error('Failed to update user');
       showMessage('User updated successfully!', 'success');

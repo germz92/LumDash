@@ -44,10 +44,23 @@
               </label>
               <div id="location" class="read-only info-card-value"></div>
             </div>
-            <div class="info-card">
-              <label for="weather" class="info-card-label">Weather</label>
-              <div id="weather" class="read-only info-card-value"></div>
+          </div>
+
+          <div class="info-card info-card--weather">
+            <div class="info-card-label">
+              <span class="info-card-label-text">
+                <span class="material-symbols-outlined">cloud</span>
+                Weather
+              </span>
+              <span class="weather-condition" id="weatherCondition"></span>
             </div>
+            <div class="weather-forecast" id="weatherForecast">
+              <div class="weather-placeholder">
+                <span class="material-symbols-outlined">cloud</span>
+                <span>Loading weather...</span>
+              </div>
+            </div>
+            <div id="weather" class="read-only weather-notes info-card-value"></div>
           </div>
 
           <div class="info-row info-row--dates">
@@ -76,11 +89,14 @@
               <div id="attendees" class="read-only info-card-value"></div>
             </div>
             <div class="info-card">
-              <label for="budget" class="info-card-label">
-                <span class="material-symbols-outlined">payments</span>
-                Budget
+              <label for="projectManager" class="info-card-label">
+                <span class="material-symbols-outlined">person</span>
+                Project Manager
               </label>
-              <div id="budget" class="read-only info-card-value"></div>
+              <select id="projectManager" class="project-manager-select" hidden>
+                <option value="">Not assigned</option>
+              </select>
+              <button type="button" id="projectManagerView" class="project-manager-view" hidden>Not assigned</button>
             </div>
           </div>
         </div>
@@ -149,4 +165,16 @@
       <button id="editBtn" type="button" class="add-row-btn general-btn-outline" onclick="switchToEdit()">Edit</button>
     </div>
   </form>
+</div>
+
+<div id="projectManagerModal" class="pm-modal" hidden>
+  <div class="pm-modal-card" role="dialog" aria-labelledby="pmContactTitle">
+    <div class="pm-modal-header">
+      <h3 id="pmContactTitle">Project Manager</h3>
+      <button type="button" class="pm-modal-close" id="closeProjectManagerModal" aria-label="Close">&times;</button>
+    </div>
+    <p class="pm-contact-name" id="pmContactName"></p>
+    <a class="pm-contact-line" id="pmContactPhone" href="#"></a>
+    <a class="pm-contact-line" id="pmContactEmail" href="#"></a>
+  </div>
 </div>

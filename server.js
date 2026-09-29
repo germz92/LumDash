@@ -673,6 +673,7 @@ function authenticate(req, res, next) {
 
 // AUTH — public signup is closed. Accounts are created from an admin invite.
 require('./lib/invite-auth')(app, { User, Invite, authenticate, sgMail, io, bcrypt });
+require('./lib/weather')(app, authenticate);
 
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;
@@ -1746,7 +1747,7 @@ app.get('/api/tables/:id/general', authenticate, async (req, res) => {
 app.put('/api/tables/:id/general', authenticate, async (req, res) => {
   const { title, general } = req.body;
   const table = await Table.findById(req.params.id);
-  if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
+  if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id) && req.user.role !== 'admin')) {
     return res.status(403).json({ error: 'Not authorized or not found' });
   }
   
@@ -1998,22 +1999,24 @@ app.delete('/api/tables/:id/rows/:index', authenticate, async (req, res) => {
 
 // USERS (all authenticated users can view)
 app.get('/api/users', authenticate, async (req, res) => {
-  const users = await User.find({}, 'fullName email role').sort({ fullName: 1 });
+  const users = await User.find({}, 'fullName email role phone').sort({ fullName: 1 });
   res.json(users.map(u => ({
     _id: u._id,
     name: u.fullName,
     email: u.email,
+    phone: u.phone || '',
     role: u.role || 'user'
   })));
 });
 
 app.put('/api/users/:id', authenticate, async (req, res) => {
   if (req.user.role !== 'admin') return res.status(403).json({ error: 'Not authorized' });
-  const { name, email, role } = req.body;
+  const { name, email, role, phone } = req.body;
   const user = await User.findById(req.params.id);
   if (!user) return res.status(404).json({ error: 'User not found' });
   user.fullName = name;
   user.email = email;
+  user.phone = String(phone || '').trim();
   if (role) user.role = role;
   await user.save();
   io.emit('usersChanged'); // Notify all clients
