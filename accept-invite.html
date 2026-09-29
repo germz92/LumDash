@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Accept invite</title>
+  <link rel="shortcut icon" type="image/x-icon" href="assets/favicon.png">
+  <link href="https://fonts.googleapis.com/css?family=Roboto:400,500,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/auth.css">
+</head>
+<body>
+  <div class="auth-wrapper">
+    <div class="auth-card">
+      <img src="assets/logo.png" alt="Logo" class="auth-logo">
+      <h1>Accept invite</h1>
+      <p id="inviteEmail" style="margin:0 0 16px;color:#4b5563;"></p>
+      <input id="fullName" type="text" placeholder="Full name" autocomplete="name">
+      <input id="password" type="password" placeholder="Password" autocomplete="new-password">
+      <input id="confirmPassword" type="password" placeholder="Confirm password" autocomplete="new-password">
+      <button id="acceptBtn" type="button">Create account</button>
+      <div id="inviteMsg" style="margin-top:16px;font-size:1rem;"></div>
+      <a href="index.html" class="toggle-link">Back to login</a>
+    </div>
+  </div>
+  <script src="js/config.js"></script>
+  <script>
+    function getToken() {
+      return new URLSearchParams(window.location.search).get('token') || '';
+    }
+
+    function showMsg(text, ok) {
+      const el = document.getElementById('inviteMsg');
+      el.textContent = text;
+      el.style.color = ok ? '#16a34a' : '#dc2626';
+    }
+
+    async function loadInvite() {
+      const token = getToken();
+      const btn = document.getElementById('acceptBtn');
+      if (!token) {
+        showMsg('This invite link is missing a token.', false);
+        btn.disabled = true;
+        return;
+      }
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/invite/${encodeURIComponent(token)}`);
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showMsg(data.error || 'This invite link is invalid or has expired.', false);
+          btn.disabled = true;
+          return;
+        }
+        document.getElementById('inviteEmail').textContent = data.email || '';
+        document.getElementById('fullName').value = data.fullName || '';
+      } catch (err) {
+        showMsg('Could not load this invite.', false);
+        btn.disabled = true;
+      }
+    }
+
+    document.getElementById('acceptBtn').onclick = async function () {
+      const token = getToken();
+      const fullName = document.getElementById('fullName').value.trim();
+      const password = document.getElementById('password').value;
+      const confirmPassword = document.getElementById('confirmPassword').value;
+      if (!fullName) return showMsg('Name is required.', false);
+      if (password.length < 6) return showMsg('Password must be at least 6 characters.', false);
+      if (password !== confirmPassword) return showMsg('Passwords do not match.', false);
+
+      const btn = document.getElementById('acceptBtn');
+      btn.disabled = true;
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/accept-invite`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ token, fullName, password })
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showMsg(data.error || 'Could not create the account.', false);
+          btn.disabled = false;
+          return;
+        }
+        showMsg('Account created. Taking you to login…', true);
+        setTimeout(() => { window.location.href = 'index.html'; }, 1200);
+      } catch (err) {
+        showMsg('Could not create the account.', false);
+        btn.disabled = false;
+      }
+    };
+
+    loadInvite();
+  </script>
+</body>
+</html>

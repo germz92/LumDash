@@ -37,13 +37,38 @@
 
 /* Page title */
 .users-page h1 {
-  text-align: center;
+  text-align: left;
   font-size: 28px;
   font-weight: 600;
-  margin: 0 0 24px 0;
+  margin: 0;
   color: #1f2937;
-  /* Prevent text overflow */
   word-wrap: break-word;
+}
+
+.users-page .users-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: 0 0 20px;
+  flex-wrap: wrap;
+}
+
+.users-page .users-toolbar #inviteBtn {
+  width: auto;
+  flex: 0 0 auto;
+}
+
+.users-page .invite-section h2,
+.users-page .users-subtitle {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 8px 0 12px;
+  color: #1f2937;
+}
+
+.users-page .users-subtitle {
+  margin-top: 28px;
 }
 
 /* Message area */

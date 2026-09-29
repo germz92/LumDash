@@ -71,8 +71,24 @@ document.addEventListener('DOMContentLoaded', function() {
     if (event.target === userModal) closeModal();
   };
   
+  const inviteBtn = document.getElementById('inviteBtn');
+  const closeInviteModalBtn = document.getElementById('closeInviteModalBtn');
+  const cancelInviteBtn = document.getElementById('cancelInviteBtn');
+  const inviteForm = document.getElementById('inviteForm');
+  const inviteModal = document.getElementById('inviteModal');
+  if (inviteBtn) inviteBtn.onclick = openInviteModal;
+  if (closeInviteModalBtn) closeInviteModalBtn.onclick = closeInviteModal;
+  if (cancelInviteBtn) cancelInviteBtn.onclick = closeInviteModal;
+  if (inviteForm) inviteForm.onsubmit = handleInviteSubmit;
+  if (inviteModal) {
+    inviteModal.onclick = function (event) {
+      if (event.target === inviteModal) closeInviteModal();
+    };
+  }
+
   if (checkAdminRole()) {
     loadUsers();
+    loadInvites();
     
     // Setup Socket.IO for real-time updates
     setupSocketIO();
@@ -92,6 +108,7 @@ function setupSocketIO() {
       window.socket.on('usersChanged', () => {
         console.log('Users data changed, reloading...');
         loadUsers();
+        loadInvites();
       });
     } catch (err) {
       console.error('Socket.IO initialization error:', err);
@@ -136,10 +153,129 @@ function checkAdminRole() {
 
 function showMessage(text, type = 'error') {
   if (messageArea) {
-    messageArea.innerHTML = `<div class="msg msg-${type}">${text}</div>`;
-    setTimeout(() => { messageArea.innerHTML = ''; }, 5000);
+    const safe = escapeHtml(String(text || ''));
+    messageArea.innerHTML = `<div class="msg msg-${type}">${safe}</div>`;
+    const holdMs = String(text || '').includes('http') ? 30000 : 5000;
+    setTimeout(() => { messageArea.innerHTML = ''; }, holdMs);
   }
 }
+
+function openInviteModal() {
+  const form = document.getElementById('inviteForm');
+  const modal = document.getElementById('inviteModal');
+  if (form) form.reset();
+  if (modal) modal.classList.add('show');
+}
+
+function closeInviteModal() {
+  const modal = document.getElementById('inviteModal');
+  if (modal) modal.classList.remove('show');
+}
+
+function formatInviteDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function loadInvites() {
+  const token = localStorage.getItem('token');
+  fetch(`${window.API_BASE}/api/invites`, {
+    headers: { Authorization: token }
+  })
+    .then(res => {
+      if (!res.ok) throw new Error('Failed to load invites');
+      return res.json();
+    })
+    .then(renderInvites)
+    .catch(() => {
+      document.getElementById('inviteTableBody').innerHTML =
+        '<tr><td colspan="5">Could not load invites.</td></tr>';
+    });
+}
+
+function renderInvites(invites) {
+  const tbody = document.getElementById('inviteTableBody');
+  if (!invites.length) {
+    tbody.innerHTML = '<tr><td colspan="5">No pending invites.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = invites.map(invite => `
+    <tr>
+      <td>${escapeHtml(invite.fullName)}</td>
+      <td>${escapeHtml(invite.email)}</td>
+      <td>${escapeHtml(invite.role || 'user')}</td>
+      <td>${escapeHtml(formatInviteDate(invite.expiresAt))}${new Date(invite.expiresAt) < new Date() ? ' · expired' : ''}</td>
+      <td class="action-buttons">
+        <button type="button" class="action-btn btn-edit btn-text" onclick="resendInvite('${invite._id}')">Resend</button>
+        <button type="button" class="action-btn btn-delete btn-text" onclick="revokeInvite('${invite._id}')">Revoke</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function handleInviteSubmit(e) {
+  e.preventDefault();
+  const token = localStorage.getItem('token');
+  const payload = {
+    fullName: document.getElementById('inviteName').value.trim(),
+    email: document.getElementById('inviteEmail').value.trim(),
+    role: document.getElementById('inviteRole').value
+  };
+  const btn = document.getElementById('sendInviteBtn');
+  btn.disabled = true;
+  fetch(`${window.API_BASE}/api/invites`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: token },
+    body: JSON.stringify(payload)
+  })
+    .then(async res => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not send invite');
+      return data;
+    })
+    .then(data => {
+      closeInviteModal();
+      const extra = data.acceptUrl ? ` Copy this link: ${data.acceptUrl}` : '';
+      showMessage((data.message || 'Invite sent') + extra, data.emailSent === false ? 'error' : 'success');
+      loadInvites();
+    })
+    .catch(err => showMessage(err.message, 'error'))
+    .finally(() => { btn.disabled = false; });
+}
+
+window.resendInvite = function (id) {
+  const token = localStorage.getItem('token');
+  fetch(`${window.API_BASE}/api/invites/${id}/resend`, {
+    method: 'POST',
+    headers: { Authorization: token }
+  })
+    .then(async res => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not resend invite');
+      const extra = data.acceptUrl ? ` Copy this link: ${data.acceptUrl}` : '';
+      showMessage((data.message || 'Invite resent') + extra, data.emailSent === false ? 'error' : 'success');
+      loadInvites();
+    })
+    .catch(err => showMessage(err.message, 'error'));
+};
+
+window.revokeInvite = function (id) {
+  if (!confirm('Revoke this invite? The link will stop working.')) return;
+  const token = localStorage.getItem('token');
+  fetch(`${window.API_BASE}/api/invites/${id}`, {
+    method: 'DELETE',
+    headers: { Authorization: token }
+  })
+    .then(async res => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Could not revoke invite');
+      showMessage('Invite revoked', 'success');
+      loadInvites();
+    })
+    .catch(err => showMessage(err.message, 'error'));
+};
 
 async function loadUsers() {
   if (userTableBody) {

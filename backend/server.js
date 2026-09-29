@@ -759,6 +759,7 @@ function notifyDataChange(eventType, additionalData = null, tableId = null) {
 }
 
 const User = require('./models/User');
+const Invite = require('./models/Invite');
 const Table = require('./models/Table');
 const GearInventory = require('./models/GearInventory');
 const GearPackage = require('./models/GearPackage');
@@ -807,17 +808,8 @@ function authenticate(req, res, next) {
   });
 }
 
-// AUTH
-app.post('/api/auth/register', async (req, res) => {
-  const { email, password, fullName, role } = req.body; // 🔥 updated
-
-  const hashed = await bcrypt.hash(password, 10);
-  const user = new User({ email, password: hashed, fullName, role: role || 'user' }); // 🔥 updated
-
-  await user.save();
-  io.emit('usersChanged'); // Notify all clients
-  res.json({ message: 'User created' });
-});
+// AUTH — public signup is closed. Accounts are created from an admin invite.
+require('../lib/invite-auth')(app, { User, Invite, authenticate, sgMail, io, bcrypt });
 
 app.post('/api/auth/login', async (req, res) => {
   const { email, password } = req.body;

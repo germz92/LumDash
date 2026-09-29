@@ -8,8 +8,31 @@
 <div class="users-page">
   <button onclick="window.location.href = '../dashboard.html#events'" class="back-button btn-outlined">← Back to Events</button>
   <div class="card">
-    <h1>User Management</h1>
+    <div class="users-toolbar">
+      <h1>User Management</h1>
+      <button type="button" id="inviteBtn" class="btn-primary">Invite</button>
+    </div>
     <div id="messageArea"></div>
+    <section class="invite-section" id="inviteSection">
+      <h2>Pending invites</h2>
+      <div class="table-responsive">
+        <table class="user-table">
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Role</th>
+              <th>Expires</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="inviteTableBody">
+            <tr><td colspan="5">Loading invites...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+    <h2 class="users-subtitle">Accounts</h2>
     <div class="table-responsive">
       <table class="user-table">
         <thead>
@@ -59,6 +82,33 @@
       </div>
     </form>
     <button id="resetPasswordBtn" class="btn-reset btn-outlined" style="margin-top: 10px;">Reset Password</button>
+  </div>
+</div>
+<div id="inviteModal" class="modal">
+  <div class="modal-content">
+    <span class="close-btn" id="closeInviteModalBtn">&times;</span>
+    <h3>Invite someone</h3>
+    <form id="inviteForm">
+      <div class="form-group">
+        <label for="inviteName">Name</label>
+        <input type="text" id="inviteName" required>
+      </div>
+      <div class="form-group">
+        <label for="inviteEmail">Email</label>
+        <input type="email" id="inviteEmail" required>
+      </div>
+      <div class="form-group">
+        <label for="inviteRole">Role</label>
+        <select id="inviteRole">
+          <option value="user">User</option>
+          <option value="admin">Admin</option>
+        </select>
+      </div>
+      <div class="form-buttons">
+        <button type="button" id="cancelInviteBtn" class="btn-outlined">Cancel</button>
+        <button type="submit" id="sendInviteBtn" class="btn-edit">Send invite</button>
+      </div>
+    </form>
   </div>
 </div>
 <!-- Add config.js first to ensure API_BASE is available -->
