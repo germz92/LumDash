@@ -33,7 +33,7 @@
 }
 
 .auth-logo {
-    width: 120px;
+    width: 168px;
     height: auto;
 }
 
@@ -1291,36 +1291,8 @@
 
 .events-page .events-header {
   align-items: stretch;
-  padding: 8px 0 12px;
-  gap: 10px;
-}
-
-.events-page .events-header-row1 {
-  justify-content: space-between;
-  width: 100%;
-  min-width: 0;
+  padding: 4px 0 8px;
   gap: 8px;
-}
-
-.events-page .events-header-row1 h2,
-.events-page .events-header h2 {
-  text-align: left !important;
-  font-size: 20px !important;
-  font-weight: 600 !important;
-  margin: 0 !important;
-  flex: 1 1 auto;
-  min-width: 0;
-}
-
-.events-page #calendarViewBtn {
-  margin-left: 0;
-}
-
-.events-page .events-header-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex: 0 0 auto;
 }
 
 .events-page .events-icon-btn {
@@ -1336,6 +1308,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  flex: 0 0 auto;
 }
 
 .events-page .events-icon-btn .material-symbols-outlined {
@@ -1349,11 +1322,22 @@
   box-shadow: none;
 }
 
-.events-page .btn-create {
+.events-page .btn-create.events-icon-btn {
+  width: 40px;
   height: 40px;
-  padding: 0 14px;
+  min-width: 40px;
+  padding: 0;
   border-radius: 10px;
-  width: auto;
+  background: var(--brand-primary, #cc0007);
+  color: #fff;
+  border: none;
+  flex: 0 0 auto;
+}
+
+.events-page .btn-create.events-icon-btn:hover {
+  background: #b30006;
+  color: #fff;
+  box-shadow: none;
 }
 
 .events-page .events-search-row {
@@ -1361,12 +1345,13 @@
   align-items: center;
   gap: 8px;
   width: 100%;
+  min-width: 0;
 }
 
 .events-page #searchEventsInput {
   flex: 1;
   min-width: 0;
-  height: 44px;
+  height: 40px;
   padding: 0 14px;
   border-radius: 12px;
   border: 1px solid #e2e8f0;
@@ -1434,7 +1419,7 @@
   flex-wrap: wrap;
   gap: 8px;
   width: 100%;
-  margin: 6px 0 4px;
+  margin: 0;
 }
 
 .events-page .event-chip {
@@ -1596,6 +1581,31 @@ body.admin-user.events-page .top-bar #adminButtonsContainer,
     box-shadow: none !important;
     border-radius: 0 !important;
   }
+}
+
+/* The dashboard shell scrolls #page-container and the page also scrolls.
+   On the events list, use one scroll so a swipe always moves the same list. */
+html:has(body.events-page),
+body.events-page {
+  height: auto !important;
+  min-height: 100%;
+  overflow-x: hidden;
+  overflow-y: visible !important;
+}
+
+body.events-page #page-container {
+  overflow: visible !important;
+  height: auto !important;
+  max-height: none !important;
+  flex: 1 0 auto !important;
+}
+
+.events-page .events-section,
+.events-page #tableList,
+.events-page .table-cards {
+  overflow: visible !important;
+  max-height: none !important;
+  height: auto !important;
 }
 
   
