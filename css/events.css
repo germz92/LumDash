@@ -1645,7 +1645,9 @@ body.events-page .events-scroll {
 }
 
 body.events-page .events-section + .events-section {
-  margin-top: 8px;
+  margin-top: 28px;
+  padding-top: 28px;
+  border-top: 2px solid #cc0007;
 }
 
 .events-page .events-section,
@@ -1655,6 +1657,54 @@ body.events-page .events-section + .events-section {
   overflow: visible !important;
   max-height: none !important;
   height: auto !important;
+}
+
+/* Wide screens keep the same page, laid out as a dashboard instead of one phone column. */
+@media (min-width: 900px) {
+  body.events-page #page-container {
+    padding-left: 32px !important;
+    padding-right: 32px !important;
+  }
+
+  body.events-page .card-container {
+    max-width: 1120px;
+    width: 100%;
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  body.admin-user.events-page .top-bar #adminButtonsContainer,
+  .events-page .top-bar #adminButtonsContainer {
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    max-width: 720px !important;
+    margin-left: auto !important;
+    margin-right: auto !important;
+  }
+
+  .events-page .top-bar #adminButtonsContainer:has(> :nth-child(2):last-child) {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    width: 320px !important;
+    max-width: 320px !important;
+  }
+
+  .events-page .events-section > .table-cards,
+  .events-page #tableList.table-cards {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    align-items: stretch;
+  }
+}
+
+@media (min-width: 1280px) {
+  body.events-page .card-container {
+    max-width: 1240px;
+  }
+
+  .events-page .events-section > .table-cards,
+  .events-page #tableList.table-cards {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
   

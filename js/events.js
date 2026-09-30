@@ -216,7 +216,7 @@ async function loadTables() {
       
       const activeHeader = document.createElement('h3');
       activeHeader.className = 'events-section-header';
-      activeHeader.textContent = 'Active Events';
+      activeHeader.textContent = 'Live Events';
       activeHeader.style.cssText = `
         margin: 0 0 16px 0;
         padding: 12px 0;
@@ -267,7 +267,7 @@ async function loadTables() {
       list.style.display = 'none';
       cal.style.display = 'block';
     } else {
-      list.style.display = 'flex';
+      list.style.display = list.classList.contains('table-cards') ? '' : 'flex';
       cal.style.display = 'none';
     }
   }
