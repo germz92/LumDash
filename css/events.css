@@ -1461,7 +1461,8 @@
 body.admin-user.events-page .top-bar #adminButtonsContainer,
 .events-page .top-bar #adminButtonsContainer {
   display: grid !important;
-  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)) !important;
+  grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+  grid-auto-flow: row;
   gap: 6px !important;
   width: 100% !important;
   max-width: 100% !important;
@@ -1475,8 +1476,8 @@ body.admin-user.events-page .top-bar #adminButtonsContainer,
   width: 100% !important;
   min-width: 0 !important;
   max-width: none !important;
-  height: auto !important;
-  min-height: 0 !important;
+  height: 100% !important;
+  min-height: 56px !important;
   padding: 6px 4px !important;
   gap: 2px !important;
   border-radius: 12px !important;
@@ -1583,26 +1584,65 @@ body.admin-user.events-page .top-bar #adminButtonsContainer,
   }
 }
 
-/* The dashboard shell scrolls #page-container and the page also scrolls.
-   On the events list, use one scroll so a swipe always moves the same list. */
+/* Keep the welcome header and filters fixed. Only the event list scrolls. */
 html:has(body.events-page),
 body.events-page {
-  height: auto !important;
+  height: 100% !important;
   min-height: 100%;
-  overflow-x: hidden;
-  overflow-y: visible !important;
+  overflow: hidden !important;
 }
 
 body.events-page #page-container {
-  overflow: visible !important;
+  display: flex !important;
+  flex-direction: column !important;
+  overflow: hidden !important;
+  min-height: 0 !important;
   height: auto !important;
   max-height: none !important;
-  flex: 1 0 auto !important;
+  flex: 1 1 auto !important;
+  padding-bottom: 0 !important;
+  padding-left: 20px !important;
+  padding-right: 20px !important;
+}
+
+body.events-page .logo-wrapper {
+  flex: 0 0 auto;
+}
+
+body.events-page .card-container {
+  flex: 1 1 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden !important;
+  margin-bottom: 0;
+  padding-bottom: 0 !important;
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+body.events-page .top-bar,
+body.events-page .events-header {
+  flex: 0 0 auto;
+}
+
+body.events-page .events-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding-bottom: max(12px, env(safe-area-inset-bottom, 0px));
+}
+
+body.events-page .events-section + .events-section {
+  margin-top: 8px;
 }
 
 .events-page .events-section,
 .events-page #tableList,
-.events-page .table-cards {
+.events-page .table-cards,
+.events-page #calendarViewContainer {
   overflow: visible !important;
   max-height: none !important;
   height: auto !important;

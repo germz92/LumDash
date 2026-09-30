@@ -246,24 +246,8 @@ async function loadTables() {
       const allEventsSection = document.createElement('div');
       allEventsSection.className = 'events-section';
       
-      const allHeader = document.createElement('h3');
-      allHeader.className = 'events-section-header';
-      allHeader.textContent = 'All Events';
-      allHeader.style.cssText = `
-        margin: ${activeEvents.length > 0 ? '32px' : '0'} 0 16px 0;
-        padding: 12px 0;
-        border-bottom: 2px solid #CC0007;
-        color: #CC0007;
-        font-size: 1.2em;
-        font-weight: 600;
-        text-align: center;
-      `;
-      
-      // Create the cards container with proper flex layout
       const allCardsContainer = document.createElement('div');
       allCardsContainer.className = 'table-cards';
-      
-      allEventsSection.appendChild(allHeader);
       allEventsSection.appendChild(allCardsContainer);
       
       nonActiveEvents.forEach(table => {
