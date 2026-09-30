@@ -56,8 +56,23 @@ function getWeatherIcon(weatherText) {
   return 'cloud'; // Default Material Symbol
 }
 
+// OpenWeather returns no match for "City, ST". It does match "City,ST,US".
+function toWeatherQuery(raw) {
+  const text = String(raw || '').replace(/\s+/g, ' ').trim();
+  if (!text) return '';
+  const parts = text.split(',').map(part => part.trim()).filter(Boolean);
+  for (let i = parts.length - 1; i >= 1; i--) {
+    const code = parts[i].replace(/\./g, '').toUpperCase();
+    if (!/^[A-Z]{2}$/.test(code) || code === 'US') continue;
+    return `${parts[i - 1]},${code},US`;
+  }
+  return text;
+}
+
 // Function to update the weather label icon based on current weather text
 async function fetchWeatherForEvent(city, startDate, endDate, fallbackQuery) {
+  city = toWeatherQuery(city);
+  fallbackQuery = toWeatherQuery(fallbackQuery);
   const forecastEl = document.getElementById('weatherForecast');
   const conditionEl = document.getElementById('weatherCondition');
 
