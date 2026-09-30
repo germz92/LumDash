@@ -54,8 +54,16 @@ class ChatWidget {
       </div>
       <div id="chatPanel" class="chat-panel">
         <div class="chat-header">
-          <strong>Event Assistant</strong>
-          <button id="closeChatBtn" class="close-chat-btn">
+          <div class="chat-header-identity">
+            <span class="chat-mark" aria-hidden="true">
+              <span class="material-symbols-outlined">lightbulb_2</span>
+            </span>
+            <div class="chat-header-text">
+              <strong>Luma</strong>
+              <span class="chat-subtitle">Event Assistant</span>
+            </div>
+          </div>
+          <button id="closeChatBtn" class="close-chat-btn" type="button" aria-label="Close">
             <span class="material-symbols-outlined">close</span>
           </button>
         </div>
@@ -110,6 +118,9 @@ class ChatWidget {
     const chatPanel = document.getElementById('chatPanel');
     if (chatPanel) {
       chatPanel.style.display = 'flex';
+      chatPanel.classList.remove('chat-panel-open');
+      void chatPanel.offsetWidth;
+      chatPanel.classList.add('chat-panel-open');
       this.isOpen = true;
       
       // Focus on input
@@ -123,6 +134,7 @@ class ChatWidget {
   closeChat() {
     const chatPanel = document.getElementById('chatPanel');
     if (chatPanel) {
+      chatPanel.classList.remove('chat-panel-open');
       chatPanel.style.display = 'none';
       this.isOpen = false;
     }

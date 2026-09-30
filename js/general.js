@@ -57,7 +57,7 @@ function getWeatherIcon(weatherText) {
 }
 
 // Function to update the weather label icon based on current weather text
-async function fetchWeatherForEvent(city, startDate, endDate) {
+async function fetchWeatherForEvent(city, startDate, endDate, fallbackQuery) {
   const forecastEl = document.getElementById('weatherForecast');
   const conditionEl = document.getElementById('weatherCondition');
 
@@ -81,6 +81,10 @@ async function fetchWeatherForEvent(city, startDate, endDate) {
     const forecastData = await forecastRes.json().catch(() => ({}));
 
     if (forecastRes.status === 404) {
+      const fallback = String(fallbackQuery || '').trim();
+      if (fallback && fallback.toLowerCase() !== String(city || '').trim().toLowerCase()) {
+        return fetchWeatherForEvent(fallback, startDate, endDate);
+      }
       renderWeatherPlaceholder('City not found');
       return;
     }
@@ -651,6 +655,7 @@ function collectLocations() {
 }
 
 let projectManagerUsers = [];
+let projectManagerEditing = false;
 
 function escapeHtmlText(value) {
   return String(value || '')
@@ -666,13 +671,38 @@ function projectManagerId(value) {
   return String(value);
 }
 
+function formatEventDate(value) {
+  if (!value) return '—';
+  const parts = String(value).split('T')[0].split('-');
+  if (parts.length !== 3) return value;
+  const date = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
+function setDateField(id, value) {
+  const input = document.getElementById(id);
+  const display = document.getElementById(id + 'Display');
+  const iso = value ? String(value).split('T')[0] : '';
+  if (input) input.value = iso;
+  if (display) display.textContent = formatEventDate(iso);
+}
+
+function showDateEditors() {
+  ['start', 'end'].forEach(id => {
+    const input = document.getElementById(id);
+    const display = document.getElementById(id + 'Display');
+    if (input) input.hidden = false;
+    if (display) display.hidden = true;
+  });
+}
+
 async function setupProjectManager(selected) {
   const select = document.getElementById('projectManager');
   const view = document.getElementById('projectManagerView');
   if (!select || !view) return;
 
   const selectedId = projectManagerId(selected);
-  const canEdit = isOwner || isAdmin();
 
   try {
     const res = await fetch(`${API_BASE}/api/users`, {
@@ -684,26 +714,21 @@ async function setupProjectManager(selected) {
     projectManagerUsers = [];
   }
 
+  select.innerHTML = `<option value="">Not assigned</option>` + projectManagerUsers.map(user =>
+    `<option value="${escapeHtmlText(user._id)}">${escapeHtmlText(user.name)}</option>`
+  ).join('');
   const current = projectManagerUsers.find(user => String(user._id) === selectedId);
+  select.value = current ? selectedId : '';
+  select.dataset.saved = select.value;
+  select.onchange = () => saveProjectManager(select.value);
 
-  if (canEdit) {
-    select.hidden = false;
-    view.hidden = true;
-    select.innerHTML = `<option value="">Not assigned</option>` + projectManagerUsers.map(user =>
-      `<option value="${escapeHtmlText(user._id)}">${escapeHtmlText(user.name)}</option>`
-    ).join('');
-    select.value = current ? selectedId : '';
-    select.dataset.saved = select.value;
-    select.onchange = () => saveProjectManager(select.value);
-  } else {
-    select.hidden = true;
-    view.hidden = false;
-    view.textContent = current ? current.name : 'Not assigned';
-    view.disabled = !current;
-    view.onclick = () => {
-      if (current) openProjectManagerContact(current);
-    };
-  }
+  view.textContent = current ? current.name : 'Not assigned';
+  view.disabled = !current;
+  view.onclick = () => {
+    if (current) openProjectManagerContact(current);
+  };
+
+  applyProjectManagerMode();
 
   const modal = document.getElementById('projectManagerModal');
   const closeBtn = document.getElementById('closeProjectManagerModal');
@@ -716,6 +741,15 @@ async function setupProjectManager(selected) {
       };
     }
   }
+}
+
+function applyProjectManagerMode() {
+  const select = document.getElementById('projectManager');
+  const view = document.getElementById('projectManagerView');
+  if (!select || !view) return;
+  const showDropdown = projectManagerEditing && (isOwner || isAdmin());
+  select.hidden = !showDropdown;
+  view.hidden = showDropdown;
 }
 
 async function saveProjectManager(userId) {
@@ -750,15 +784,13 @@ function openProjectManagerContact(user) {
   if (!modal || !nameEl || !phoneEl || !emailEl) return;
 
   nameEl.textContent = user.name || '';
-  if (user.phone) {
-    phoneEl.textContent = user.phone;
-    phoneEl.href = `tel:${String(user.phone).replace(/[^\d+]/g, '')}`;
-  } else {
-    phoneEl.textContent = 'No phone number';
-    phoneEl.removeAttribute('href');
-  }
-  emailEl.textContent = user.email || 'No email';
-  if (user.email) emailEl.href = `mailto:${user.email}`;
+  const phone = String(user.phone || '').trim();
+  const email = String(user.email || '').trim();
+  phoneEl.textContent = phone || 'No phone number';
+  if (phone) phoneEl.href = `tel:${phone.replace(/[^\d+]/g, '')}`;
+  else phoneEl.removeAttribute('href');
+  emailEl.textContent = email || 'No email';
+  if (email) emailEl.href = `mailto:${email}`;
   else emailEl.removeAttribute('href');
 
   modal.hidden = false;
@@ -1058,60 +1090,13 @@ function initPage(id) {
       const startDate = general.start?.split('T')[0] || '';
       const endDate = general.end?.split('T')[0] || '';
       
-      // Set values for date fields
-      document.getElementById('start').value = startDate;
-      document.getElementById('end').value = endDate;
+      setDateField('start', startDate);
+      setDateField('end', endDate);
 
-      const cityQuery = [general.city, general.state].filter(Boolean).join(', ')
-        || String(general.location || '').replace(/<[^>]*>/g, '').trim();
-      fetchWeatherForEvent(cityQuery, startDate, endDate);
+      const fromCity = [general.city, general.state].filter(Boolean).join(', ');
+      const fromLocation = String(general.location || '').replace(/<[^>]*>/g, '').trim();
+      fetchWeatherForEvent(fromCity || fromLocation, startDate, endDate, fromCity ? fromLocation : '');
       setupProjectManager(general.projectManager);
-      
-      // 🔒 Make date fields readonly for non-owners
-      if (!isOwner) {
-        const startInput = document.getElementById('start');
-        const endInput = document.getElementById('end');
-        
-        // Make inputs readonly
-        startInput.setAttribute('readonly', 'readonly');
-        endInput.setAttribute('readonly', 'readonly');
-        
-        // Add visual indicator
-        startInput.classList.add('read-only-input');
-        endInput.classList.add('read-only-input');
-        
-        // Prevent changes to the date inputs by adding event listeners
-        startInput.addEventListener('change', function(e) {
-          e.preventDefault();
-          this.value = startDate;
-          alert('Not authorized. Only owners can change event dates.');
-          return false;
-        });
-        
-        endInput.addEventListener('change', function(e) {
-          e.preventDefault();
-          this.value = endDate;
-          alert('Not authorized. Only owners can change event dates.');
-          return false;
-        });
-        
-        // Prevent click events on date inputs
-        startInput.addEventListener('mousedown', function(e) {
-          if (!isOwner) {
-            e.preventDefault();
-            alert('Not authorized. Only owners can change event dates.');
-            return false;
-          }
-        });
-        
-        endInput.addEventListener('mousedown', function(e) {
-          if (!isOwner) {
-            e.preventDefault();
-            alert('Not authorized. Only owners can change event dates.');
-            return false;
-          }
-        });
-      }
 
       const contactRows = document.getElementById('contactRows');
       contactRows.innerHTML = '';
@@ -1218,6 +1203,7 @@ async function saveGeneralInfo() {
     attendees: getText('attendees'),
     start: document.getElementById('start')?.value || '',
     end: document.getElementById('end')?.value || '',
+    projectManager: document.getElementById('projectManager')?.value || null,
     contacts: collectContacts(),
     locations: collectLocations()
   };
@@ -1373,6 +1359,10 @@ function switchToEdit() {
   document.querySelectorAll('.add-row-btn').forEach(btn => {
     btn.style.display = 'inline-block';
   });
+
+  projectManagerEditing = true;
+  applyProjectManagerMode();
+  showDateEditors();
 
   const editBtn = document.getElementById('editBtn');
   if (editBtn) editBtn.style.display = 'none';

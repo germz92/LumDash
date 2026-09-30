@@ -335,13 +335,20 @@ function renderEventCard(table, container, userId) {
 
   const details = document.createElement('div');
   details.className = 'event-details';
-  // Build details HTML with location if available
-  let detailsHTML = `Client: ${client}`;
+  const dateLine = document.createElement('div');
+  dateLine.className = 'event-dates';
+  dateLine.textContent = `${start} – ${end}`;
+  details.appendChild(dateLine);
   if (location) {
-    detailsHTML += ` <br> 📍 ${location}`;
+    const placeLine = document.createElement('div');
+    placeLine.className = 'event-meta';
+    placeLine.textContent = location;
+    details.appendChild(placeLine);
   }
-  detailsHTML += ` <br> ${start} - ${end}`;
-  details.innerHTML = detailsHTML;
+  const clientLine = document.createElement('div');
+  clientLine.className = 'event-meta';
+  clientLine.textContent = client;
+  details.appendChild(clientLine);
   
   titleContainer.appendChild(title);
   titleContainer.appendChild(details);
@@ -363,26 +370,6 @@ function renderEventCard(table, container, userId) {
 
   header.appendChild(titleContainer);
   header.appendChild(menuContainer);
-
-  const actions = document.createElement('div');
-  actions.className = 'action-buttons';
-
-  const openBtn = document.createElement('button');
-  openBtn.className = 'btn-open';
-  openBtn.textContent = 'OPEN';
-  openBtn.onclick = () => {
-    const page = 'general'; // Set this to the correct page identifier
-    const tableId = table._id;
-    window.navigate(page, tableId);
-  };
-
-  const addToCalendarBtn = document.createElement('button');
-  addToCalendarBtn.className = 'btn-add-calendar';
-  addToCalendarBtn.innerHTML = '<span class="material-symbols-outlined">event</span> Add to Calendar';
-  addToCalendarBtn.onclick = (e) => {
-    e.stopPropagation();
-    showAddToCalendarModal(table);
-  };
 
   const isOwner = Array.isArray(table.owners) && table.owners.includes(userId);
 
@@ -450,7 +437,17 @@ function renderEventCard(table, container, userId) {
     }
   };
 
+  const calendarMenuItem = document.createElement('button');
+  calendarMenuItem.className = 'menu-item';
+  calendarMenuItem.innerHTML = '<span class="material-symbols-outlined">event</span> Add to Calendar';
+  calendarMenuItem.onclick = (e) => {
+    e.stopPropagation();
+    menuDropdown.classList.remove('show');
+    showAddToCalendarModal(table);
+  };
+
   // Add menu items to dropdown
+  menuDropdown.appendChild(calendarMenuItem);
   menuDropdown.appendChild(archiveMenuItem);
   if (isOwner) {
     menuDropdown.appendChild(shareMenuItem);
@@ -474,11 +471,19 @@ function renderEventCard(table, container, userId) {
     menuDropdown.classList.remove('show');
   });
 
-  // Add buttons to actions (Open and Add to Calendar in same row)
-  actions.appendChild(openBtn);
-  actions.appendChild(addToCalendarBtn);
+  card.addEventListener('click', () => {
+    if (window.navigate) window.navigate('general', table._id);
+  });
+  card.setAttribute('role', 'link');
+  card.tabIndex = 0;
+  card.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      if (window.navigate) window.navigate('general', table._id);
+    }
+  });
 
-  card.append(header, actions);
+  card.append(header);
   if (container) container.appendChild(card);
 }
 
@@ -1314,7 +1319,6 @@ window.initPage = function(id) {
           // Create buttons row for all utility buttons (available to all users)
           buttonsRow = document.createElement('div');
           buttonsRow.className = 'top-bar-row admin-row';
-          buttonsRow.style.justifyContent = 'center';
           topBar.appendChild(buttonsRow);
         }
         
@@ -1323,11 +1327,6 @@ window.initPage = function(id) {
         if (!adminButtonsContainer) {
           adminButtonsContainer = document.createElement('div');
           adminButtonsContainer.id = 'adminButtonsContainer';
-          adminButtonsContainer.style.display = 'flex';
-          adminButtonsContainer.style.gap = '8px';
-          adminButtonsContainer.style.alignItems = 'center';
-          adminButtonsContainer.style.flexWrap = 'wrap';
-          adminButtonsContainer.style.justifyContent = 'center';
           buttonsRow.appendChild(adminButtonsContainer);
         }
         
@@ -1337,12 +1336,9 @@ window.initPage = function(id) {
           callTimesBtn = document.createElement('button');
           callTimesBtn.id = 'callTimesBtn';
           callTimesBtn.className = 'btn-call-times btn-outlined';
-          callTimesBtn.style.display = 'flex';
-          callTimesBtn.style.alignItems = 'center';
-          callTimesBtn.style.gap = '8px';
           callTimesBtn.innerHTML = `
             <span class="material-symbols-outlined">schedule</span>
-            Call Times
+            <span>Call Times</span>
           `;
           callTimesBtn.onclick = () => {
             if (window.navigate) {
@@ -1358,12 +1354,9 @@ window.initPage = function(id) {
           flightsBtn = document.createElement('button');
           flightsBtn.id = 'flightsBtn';
           flightsBtn.className = 'btn-flights btn-outlined';
-          flightsBtn.style.display = 'flex';
-          flightsBtn.style.alignItems = 'center';
-          flightsBtn.style.gap = '8px';
           flightsBtn.innerHTML = `
             <span class="material-symbols-outlined">flight_takeoff</span>
-            Flights
+            <span>Flights</span>
           `;
           flightsBtn.onclick = () => {
             if (window.navigate) {
@@ -1381,7 +1374,10 @@ window.initPage = function(id) {
             adminBtn = document.createElement('button');
             adminBtn.id = 'adminConsoleBtn';
             adminBtn.className = 'btn-admin btn-outlined';
-            adminBtn.textContent = 'Admin Console';
+            adminBtn.innerHTML = `
+              <span class="material-symbols-outlined">admin_panel_settings</span>
+              <span>Admin</span>
+            `;
             adminBtn.onclick = () => {
               window.location.href = '/pages/users.html';
             };
@@ -1394,12 +1390,9 @@ window.initPage = function(id) {
             inventoryBtn = document.createElement('button');
             inventoryBtn.id = 'inventoryManagementBtn';
             inventoryBtn.className = 'btn-inventory btn-outlined';
-            inventoryBtn.style.display = 'flex';
-            inventoryBtn.style.alignItems = 'center';
-            inventoryBtn.style.gap = '8px';
             inventoryBtn.innerHTML = `
               <span class="material-symbols-outlined">inventory</span>
-              Inventory
+              <span>Inventory</span>
             `;
             inventoryBtn.onclick = () => {
               window.location.href = '/pages/inventory-management.html';
@@ -1413,12 +1406,9 @@ window.initPage = function(id) {
             crewPlannerBtn = document.createElement('button');
             crewPlannerBtn.id = 'crewPlannerBtn';
             crewPlannerBtn.className = 'btn-crew-planner btn-outlined';
-            crewPlannerBtn.style.display = 'flex';
-            crewPlannerBtn.style.alignItems = 'center';
-            crewPlannerBtn.style.gap = '8px';
             crewPlannerBtn.innerHTML = `
               <span class="material-symbols-outlined">groups</span>
-              Crew Planner
+              <span>Planner</span>
             `;
             crewPlannerBtn.onclick = () => {
               window.location.href = '/pages/crew-planner.html';
@@ -1432,12 +1422,9 @@ window.initPage = function(id) {
             crewCalendarBtn = document.createElement('button');
             crewCalendarBtn.id = 'crewCalendarBtn';
             crewCalendarBtn.className = 'btn-crew-calendar btn-outlined';
-            crewCalendarBtn.style.display = 'flex';
-            crewCalendarBtn.style.alignItems = 'center';
-            crewCalendarBtn.style.gap = '8px';
             crewCalendarBtn.innerHTML = `
               <span class="material-symbols-outlined">calendar_month</span>
-              Crew Calendar
+              <span>Calendar</span>
             `;
             crewCalendarBtn.onclick = () => {
               window.location.href = '/pages/crew-calendar.html';
@@ -1452,18 +1439,65 @@ window.initPage = function(id) {
 
   // Set up event listeners
   const sortDropdown = document.getElementById('sortDropdown');
-  if (sortDropdown) sortDropdown.addEventListener('change', loadTables);
-
-  // Set up time filter dropdown
-  const timeFilterDropdown = document.getElementById('timeFilterDropdown');
-  if (timeFilterDropdown) {
-    // Set to current value (default is 'upcoming')
-    timeFilterDropdown.value = timeFilter;
-    timeFilterDropdown.addEventListener('change', () => {
-      timeFilter = timeFilterDropdown.value;
-      loadTables();
+  const sortMenu = document.getElementById('sortMenu');
+  const sortMenuBtn = document.getElementById('sortMenuBtn');
+  function syncSortMenu() {
+    const value = sortDropdown?.value || 'oldest';
+    sortMenu?.querySelectorAll('button').forEach(btn => {
+      btn.classList.toggle('active', btn.dataset.sort === value);
     });
   }
+  if (sortDropdown) sortDropdown.addEventListener('change', loadTables);
+  if (sortMenuBtn && sortMenu) {
+    sortMenuBtn.onclick = (e) => {
+      e.stopPropagation();
+      const open = sortMenu.hidden;
+      sortMenu.hidden = !open;
+      sortMenuBtn.setAttribute('aria-expanded', open ? 'true' : 'false');
+    };
+    sortMenu.querySelectorAll('button').forEach(btn => {
+      btn.onclick = (e) => {
+        e.stopPropagation();
+        if (sortDropdown) sortDropdown.value = btn.dataset.sort;
+        syncSortMenu();
+        sortMenu.hidden = true;
+        sortMenuBtn.setAttribute('aria-expanded', 'false');
+        loadTables();
+      };
+    });
+    document.addEventListener('click', () => {
+      sortMenu.hidden = true;
+      sortMenuBtn.setAttribute('aria-expanded', 'false');
+    });
+    syncSortMenu();
+  }
+
+  function syncEventChips() {
+    document.querySelectorAll('.event-chip[data-filter]').forEach(chip => {
+      chip.classList.toggle('active', !showArchived && chip.dataset.filter === timeFilter);
+    });
+    const archivedChip = document.getElementById('toggleArchivedBtn');
+    if (archivedChip) archivedChip.classList.toggle('active', showArchived);
+  }
+
+  document.querySelectorAll('.event-chip[data-filter]').forEach(chip => {
+    chip.addEventListener('click', () => {
+      showArchived = false;
+      timeFilter = chip.dataset.filter;
+      syncEventChips();
+      loadTables();
+    });
+  });
+
+  const toggleBtn = document.getElementById('toggleArchivedBtn');
+  if (toggleBtn) {
+    toggleBtn.onclick = () => {
+      showArchived = !showArchived;
+      syncEventChips();
+      loadTables();
+    };
+  }
+  syncEventChips();
 
   // Set up logout button
   const logoutBtn = document.getElementById('logoutBtn');
@@ -1483,17 +1517,6 @@ window.initPage = function(id) {
   const createBtn = document.querySelector('.btn-create');
   if (createBtn) createBtn.onclick = showCreateModal;
 
-  // Set up Archived Events toggle button
-  const toggleBtn = document.getElementById('toggleArchivedBtn');
-  if (toggleBtn) {
-    toggleBtn.onclick = () => {
-      showArchived = !showArchived;
-      toggleBtn.textContent = showArchived ? 'Show Active Events' : 'Archived Events';
-      loadTables();
-    };
-    toggleBtn.textContent = showArchived ? 'Show Active Events' : 'Archived Events';
-  }
-
   // Set up Calendar View button
   const calendarBtn = document.getElementById('calendarViewBtn');
   if (calendarBtn) {
@@ -1504,6 +1527,7 @@ window.initPage = function(id) {
       if (cal.style.display === 'none' || cal.style.display === '') {
         list.style.display = 'none';
         cal.style.display = 'block';
+        calendarBtn.classList.add('active');
         // Use the same filtered tables as in loadTables
         fetch(`${API_BASE}/api/tables`, { headers: { Authorization: token } })
           .then(r => r.json())
@@ -1515,6 +1539,7 @@ window.initPage = function(id) {
       } else {
         cal.style.display = 'none';
         list.style.display = 'flex';
+        calendarBtn.classList.remove('active');
       }
     };
   }

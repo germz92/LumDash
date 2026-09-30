@@ -235,47 +235,95 @@ body:has(#page-container > .general-page) #page-container {
   border-color: rgba(15, 23, 42, 0.12);
 }
 
-.general-page .info-card--weather .info-card-label {
-  justify-content: space-between;
+.general-page .info-card--place {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 10px;
+  flex: 1 1 100%;
+  width: 100%;
+  max-width: 100%;
 }
 
-.general-page .weather-condition {
+.general-page .place-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.general-page .place-header .info-card-label {
+  margin-bottom: 0;
+  flex: 0 0 auto;
+}
+
+.general-page .place-location {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
   margin-left: auto;
-  text-transform: none;
-  letter-spacing: 0;
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--gp-text);
+}
+
+.general-page .place-location > .material-symbols-outlined {
+  font-size: 18px;
+  color: var(--gp-accent);
+  flex: 0 0 auto;
+}
+
+.general-page .place-location .info-card-value,
+.general-page .place-location .read-only {
+  min-width: 0;
+  text-align: right;
+}
+
+.general-page .place-location .read-only a {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.general-page .place-location textarea {
+  width: min(220px, 52vw);
+  min-height: 40px;
+  text-align: left;
+}
+
+.general-page .place-weather {
+  min-width: 0;
+  width: 100%;
 }
 
 .general-page .weather-forecast {
   display: flex;
   gap: 8px;
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
 }
 
 .general-page .weather-day {
-  flex: 0 0 auto;
+  flex: 1 1 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
-  min-width: 72px;
-  padding: 10px 8px;
+  gap: 2px;
+  min-width: 0;
+  padding: 8px 4px;
   background: var(--gp-input-bg);
-  border-radius: 10px;
+  border-radius: 8px;
   text-align: center;
 }
 
 .general-page .weather-day-name {
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: var(--gp-text-secondary);
 }
 
 .general-page .weather-icon {
-  font-size: 26px;
+  font-size: 18px;
   line-height: 1;
 }
 
@@ -283,6 +331,7 @@ body:has(#page-container > .general-page) #page-container {
   display: flex;
   gap: 6px;
   font-size: 13px;
+  white-space: nowrap;
 }
 
 .general-page .weather-temp .high {
@@ -298,12 +347,13 @@ body:has(#page-container > .general-page) #page-container {
 .general-page .weather-placeholder {
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
+  justify-content: flex-start;
+  gap: 6px;
   width: 100%;
-  min-height: 72px;
+  min-height: 0;
+  padding: 2px 0;
   color: var(--gp-text-muted);
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 500;
   text-transform: none;
   letter-spacing: 0;
@@ -334,6 +384,8 @@ body:has(#page-container > .general-page) #page-container {
 
 .general-page .project-manager-select[hidden],
 .general-page .project-manager-view[hidden],
+.general-page input[type="date"][hidden],
+.general-page .date-display[hidden],
 .pm-modal[hidden] {
   display: none !important;
 }
@@ -444,16 +496,34 @@ body:has(#page-container > .general-page) #page-container {
 }
 
 .pm-contact-line {
-  display: block;
-  margin-top: 8px;
-  color: #0f172a;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 8px 0 0;
   font-size: 15px;
   font-weight: 500;
-  text-decoration: none;
 }
 
-a.pm-contact-line[href]:hover {
+.pm-contact-line .material-symbols-outlined {
+  font-size: 18px;
+  color: #64748b;
+}
+
+.pm-contact-line a {
+  color: #1976d2;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  word-break: break-word;
+}
+
+.pm-contact-line a:hover {
   color: var(--brand-primary, #cc0007);
+}
+
+.pm-contact-line a:not([href]) {
+  color: #64748b;
+  text-decoration: none;
+  pointer-events: none;
 }
 
 .general-page .info-card--summary {
@@ -1283,6 +1353,13 @@ a.pm-contact-line[href]:hover {
     overflow: hidden;
   }
 
+  .general-page .info-row--place .info-card--place {
+    flex: 1 1 100%;
+    max-width: 100%;
+    width: 100%;
+    overflow: visible;
+  }
+
   .general-page .info-row--dates {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
@@ -1600,13 +1677,13 @@ a.pm-contact-line[href]:hover {
     gap: 12px;
   }
 
-  .general-stats-grid > .info-card--weather,
-  .general-stats-grid > .info-row:first-child .info-card {
-    grid-column: 1 / -1;
-  }
-
   .general-stats-grid .info-row {
     display: contents;
+  }
+
+  .general-stats-grid .info-row--place {
+    display: block;
+    grid-column: 1 / -1;
   }
 
   .general-stats-grid .info-row .info-card {
@@ -1654,6 +1731,6 @@ a.pm-contact-line[href]:hover {
   }
 
   .general-stats-grid {
-    grid-template-columns: repeat(4, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }

@@ -36,31 +36,30 @@
         </div>
 
         <div class="general-stats-grid">
-          <div class="info-row">
-            <div class="info-card">
-              <label for="location" class="info-card-label">
-                <span class="material-symbols-outlined">place</span>
-                Location
-              </label>
-              <div id="location" class="read-only info-card-value"></div>
-            </div>
-          </div>
-
-          <div class="info-card info-card--weather">
-            <div class="info-card-label">
-              <span class="info-card-label-text">
-                <span class="material-symbols-outlined">cloud</span>
-                Weather
-              </span>
-              <span class="weather-condition" id="weatherCondition"></span>
-            </div>
-            <div class="weather-forecast" id="weatherForecast">
-              <div class="weather-placeholder">
-                <span class="material-symbols-outlined">cloud</span>
-                <span>Loading weather...</span>
+          <div class="info-row info-row--place">
+            <div class="info-card info-card--place">
+              <div class="place-header">
+                <div class="info-card-label">
+                  <span class="info-card-label-text">
+                    <span class="material-symbols-outlined">cloud</span>
+                    Weather
+                  </span>
+                </div>
+                <div class="place-location">
+                  <span class="material-symbols-outlined">place</span>
+                  <div id="location" class="read-only info-card-value"></div>
+                </div>
+              </div>
+              <div class="place-weather">
+                <div class="weather-forecast" id="weatherForecast">
+                  <div class="weather-placeholder">
+                    <span class="material-symbols-outlined">cloud</span>
+                    <span>Loading weather...</span>
+                  </div>
+                </div>
+                <div id="weather" class="read-only weather-notes info-card-value"></div>
               </div>
             </div>
-            <div id="weather" class="read-only weather-notes info-card-value"></div>
           </div>
 
           <div class="info-row info-row--dates">
@@ -69,14 +68,16 @@
                 <span class="material-symbols-outlined">calendar_month</span>
                 Start Date
               </label>
-              <input type="date" id="start" name="start" placeholder="Select Date">
+              <div id="startDisplay" class="read-only info-card-value date-display"></div>
+              <input type="date" id="start" name="start" hidden>
             </div>
             <div class="info-card">
               <label for="end" class="info-card-label">
                 <span class="material-symbols-outlined">calendar_month</span>
                 End Date
               </label>
-              <input type="date" id="end" name="end" placeholder="Select Date">
+              <div id="endDisplay" class="read-only info-card-value date-display"></div>
+              <input type="date" id="end" name="end" hidden>
             </div>
           </div>
 
@@ -174,7 +175,13 @@
       <button type="button" class="pm-modal-close" id="closeProjectManagerModal" aria-label="Close">&times;</button>
     </div>
     <p class="pm-contact-name" id="pmContactName"></p>
-    <a class="pm-contact-line" id="pmContactPhone" href="#"></a>
-    <a class="pm-contact-line" id="pmContactEmail" href="#"></a>
+    <p class="pm-contact-line" id="pmContactPhoneRow">
+      <span class="material-symbols-outlined" aria-hidden="true">call</span>
+      <a id="pmContactPhone" href="#"></a>
+    </p>
+    <p class="pm-contact-line" id="pmContactEmailRow">
+      <span class="material-symbols-outlined" aria-hidden="true">mail</span>
+      <a id="pmContactEmail" href="#"></a>
+    </p>
   </div>
 </div>

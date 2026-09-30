@@ -258,9 +258,21 @@ function navigate(page, id) {
     return;
   }
 
-  // Set the correct body class for the page
-  setBodyPageClass(page);
-  resetPageContainerForNavigation();
+  const previousPage = window.currentPage;
+  const listPages = ['events', 'call-times', 'flights', 'timesheet', 'reimbursements'];
+  const outsideEvent = !previousPage || ['events', 'dashboard', 'login', 'register', 'users', 'crew-planner', 'crew-calendar', 'call-times', 'flights', 'timesheet', 'reimbursements', 'reimbursement-detail'].includes(previousPage);
+  const animateEventOpen = page === 'general' && listPages.includes(previousPage);
+  const animateEventExit = !outsideEvent && listPages.includes(page);
+  const holdPage = animateEventOpen || animateEventExit;
+
+  // Keep the current screen up until the zoom transition can play.
+  if (!holdPage) {
+    setBodyPageClass(page);
+    resetPageContainerForNavigation();
+  } else {
+    const motionClass = animateEventExit ? 'event-exiting' : 'event-leaving';
+    document.getElementById('page-container')?.classList.add(motionClass);
+  }
 
   // Store the event ID ONLY if we have a valid one and it's needed
   if (finalId && needsId) {
@@ -310,16 +322,15 @@ function navigate(page, id) {
     document.querySelectorAll('script[id="page-script"]').forEach(script => {
       script.remove();
     });
- 
-    // Clear page container
-    pageContainer.innerHTML = '';
+
+    if (!holdPage) pageContainer.innerHTML = '';
   }
   
   // Update hash and scrub stale ?eventId=&page= query params left over from gear-page
   // deep links. If we only set location.hash, refresh re-reads the old McGriff id
   // from the query string and loads the wrong event.
   syncSpaUrl(page);
-  loadPageCSS(page);
+  if (!holdPage) loadPageCSS(page);
   
   // Track the current page to know when we're navigating
   window.currentPage = page;
@@ -329,37 +340,76 @@ function navigate(page, id) {
   
   // Pass the ID for pages that need it, or for detail pages that use their own ID scheme
   const passId = needsId ? finalId : (page === 'reimbursement-detail' ? id : null);
-  loadPage(page, passId, navGeneration);
-  
-  // Reset navigation flag after a short delay to allow the page to load
-  setTimeout(() => {
-    navigationInProgress = false;
-  }, 100);
+  loadPage(page, passId, navGeneration, animateEventOpen, animateEventExit);
+
+  if (!holdPage) {
+    setTimeout(() => {
+      navigationInProgress = false;
+    }, 100);
+  }
 }
 
-function loadPage(page, id, navGeneration) {
-  fetch(`pages/${page}.html`)
-    .then(res => res.text())
-    .then(html => {
+function releasePageMotion() {
+  document.getElementById('page-container')?.classList.remove('event-leaving', 'event-exiting', 'event-opening', 'event-returning');
+  navigationInProgress = false;
+}
+
+function loadPage(page, id, navGeneration, animateEventOpen, animateEventExit) {
+  const htmlPromise = fetch(`pages/${page}.html`).then(res => res.text());
+  const holdPage = animateEventOpen || animateEventExit;
+  const cssPromise = holdPage ? preloadPageCSS(page) : Promise.resolve(null);
+  const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const exitGate = animateEventExit && !reducedMotion
+    ? new Promise(resolve => setTimeout(resolve, 300))
+    : Promise.resolve();
+
+  Promise.all([htmlPromise, cssPromise, exitGate])
+    .then(([html, incomingCss]) => {
       if (navGeneration && window.__navGeneration !== navGeneration) {
         console.log(`[LOAD_PAGE] Stale navigation for ${page}, skipping inject`);
+        if (incomingCss) incomingCss.remove();
+        if (holdPage) releasePageMotion();
         return;
       }
-      // Wait for DOM to be ready if it isn't already
+      if (incomingCss) commitPreloadedPageCSS(incomingCss);
+      const inject = () => injectPageContent(html, page, id, navGeneration, animateEventOpen, animateEventExit);
       if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-          injectPageContent(html, page, id, navGeneration);
-        });
+        document.addEventListener('DOMContentLoaded', inject);
       } else {
-        injectPageContent(html, page, id, navGeneration);
+        inject();
       }
     })
     .catch(err => {
       console.error('Error loading page:', err);
+      if (holdPage) releasePageMotion();
     });
 }
 
-function injectPageContent(html, page, id, navGeneration) {
+function playEventMotion(container, className, animationName) {
+  if (!container) return;
+  container.classList.remove('event-leaving', 'event-exiting', 'event-opening', 'event-returning');
+  if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  window.scrollTo(0, 0);
+  container.scrollTop = 0;
+  void container.offsetWidth;
+  container.classList.add(className);
+  const onEnd = (event) => {
+    if (event.animationName !== animationName) return;
+    container.classList.remove(className);
+    container.removeEventListener('animationend', onEnd);
+  };
+  container.addEventListener('animationend', onEnd);
+}
+
+function playEventOpenAnimation(container) {
+  playEventMotion(container, 'event-opening', 'event-open');
+}
+
+function playEventReturnAnimation(container) {
+  playEventMotion(container, 'event-returning', 'event-return');
+}
+
+function injectPageContent(html, page, id, navGeneration, animateEventOpen, animateEventExit) {
   if (navGeneration && window.__navGeneration !== navGeneration) {
     console.log(`[INJECT] Stale navigation for ${page}, skipping inject`);
     return;
@@ -381,6 +431,9 @@ function injectPageContent(html, page, id, navGeneration) {
   // Re-apply page class and reset container styles after HTML injection
   setBodyPageClass(page);
   resetPageContainerForNavigation();
+  if (animateEventOpen) playEventOpenAnimation(targetElement);
+  else if (animateEventExit) playEventReturnAnimation(targetElement);
+  if (animateEventOpen || animateEventExit) navigationInProgress = false;
   
   // Show/hide bottom nav based on page and set it up
   const bottomNav = document.getElementById('bottomNav');
@@ -670,34 +723,56 @@ function setupDropdownMenu(tableId) {
   console.log('✅ Dropdown menu setup complete');
 }
 
+function pageStylesheet(page) {
+  switch (page) {
+    case 'events': return 'css/events.css';
+    case 'general': return 'css/general.css';
+    case 'crew': return 'css/crew.css';
+    case 'crew-planner': return 'css/crew-planner.css';
+    case 'crew-calendar': return 'css/crew-calendar.css';
+    case 'travel-accommodation': return 'css/travel-accommodation.css';
+    case 'card-log': return 'css/card-log.css';
+    case 'schedule': return 'css/schedule.css';
+    case 'shotlist': return 'css/shotlist.css';
+    case 'users': return 'css/users.css';
+    case 'timesheet': return 'css/timesheet.css';
+    case 'reimbursements': return 'css/reimbursements.css';
+    case 'reimbursement-detail': return 'css/reimbursements.css';
+    default: return '';
+  }
+}
+
 function loadPageCSS(page) {
-  // Remove any previously added page CSS
   document.querySelectorAll('link[data-page-css]').forEach(link => link.remove());
 
-  let cssFile = '';
-  switch (page) {
-    case 'events': cssFile = 'css/events.css'; break;
-    case 'general': cssFile = 'css/general.css'; break;
-    case 'crew': cssFile = 'css/crew.css'; break;
-    case 'crew-planner': cssFile = 'css/crew-planner.css'; break;
-    case 'crew-calendar': cssFile = 'css/crew-calendar.css'; break;
-    case 'travel-accommodation': cssFile = 'css/travel-accommodation.css'; break;
+  const cssFile = pageStylesheet(page);
+  if (!cssFile) return;
 
-    case 'card-log': cssFile = 'css/card-log.css'; break;
-    case 'schedule': cssFile = 'css/schedule.css'; break;
-    case 'shotlist': cssFile = 'css/shotlist.css'; break;
-    case 'users': cssFile = 'css/users.css'; break;
-    case 'timesheet': cssFile = 'css/timesheet.css'; break;
-    case 'reimbursements': cssFile = 'css/reimbursements.css'; break;
-    case 'reimbursement-detail': cssFile = 'css/reimbursements.css'; break;
-  }
-  if (cssFile) {
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = `${cssFile}?v=${Date.now()}`;
-    link.setAttribute('data-page-css', 'true'); // Mark for easy removal
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `${cssFile}?v=${Date.now()}`;
+  link.setAttribute('data-page-css', 'true');
+  document.head.appendChild(link);
+}
+
+function preloadPageCSS(page) {
+  const cssFile = pageStylesheet(page);
+  if (!cssFile) return Promise.resolve(null);
+  const link = document.createElement('link');
+  link.rel = 'stylesheet';
+  link.href = `${cssFile}?v=${Date.now()}`;
+  link.setAttribute('data-incoming-css', 'true');
+  return new Promise((resolve) => {
+    link.onload = () => resolve(link);
+    link.onerror = () => resolve(link);
     document.head.appendChild(link);
-  }
+  });
+}
+
+function commitPreloadedPageCSS(link) {
+  document.querySelectorAll('link[data-page-css]').forEach(existing => existing.remove());
+  link.removeAttribute('data-incoming-css');
+  link.setAttribute('data-page-css', 'true');
 }
 
 // Handle hash changes (back/forward navigation)

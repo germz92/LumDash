@@ -10,10 +10,10 @@
     <div class="top-bar">
       <h2 id="usernameDisplay">Welcome</h2>
       <div class="top-bar-icons">
-        <button class="icon-btn" id="timesheetBtn" title="Timesheet">
+        <button class="icon-btn" id="timesheetBtn" title="Timesheet" type="button">
           <span class="material-symbols-outlined">schedule</span>
         </button>
-        <button class="icon-btn logout-btn" id="logoutBtn" title="Logout">
+        <button class="icon-btn logout-btn" id="logoutBtn" title="Logout" type="button">
           <span class="material-symbols-outlined">logout</span>
         </button>
       </div>
@@ -22,33 +22,41 @@
     <div class="events-header">
       <div class="events-header-row1">
         <h2>Your Events</h2>
-        <button id="calendarViewBtn" class="btn-calendar-toggle" title="Calendar View" style="background: transparent; border: none; color: #CC0007; border-radius: 10px; padding: 10px; display: flex; align-items: center; gap: 0; font-weight: 600; font-size: 22px; box-shadow: none; cursor: pointer; transition: background 0.2s, box-shadow 0.2s;">
-          <span class="material-symbols-outlined">calendar_month</span>
-        </button>
-      </div>
-      <div class="events-header-row2">
-        <div class="create-filter-group">
-          <select id="timeFilterDropdown" style="padding: 8px; font-size: 16px;">
-            <option value="all">All Events</option>
-            <option value="upcoming" selected>Upcoming</option>
-            <option value="past">Past</option>
-          </select>
-        <button class="btn-create">Create Event</button>
+        <div class="events-header-actions">
+          <button class="btn-create" type="button">Create Event</button>
+          <button id="calendarViewBtn" class="events-icon-btn" type="button" title="Calendar view" aria-label="Calendar view">
+            <span class="material-symbols-outlined">calendar_month</span>
+          </button>
         </div>
-        <div class="sort-search-group">
-          <select id="sortDropdown" style="padding: 8px; font-size: 16px;">
+      </div>
+      <div class="events-search-row">
+        <input id="searchEventsInput" type="search" placeholder="Search events" autocomplete="off">
+        <div class="sort-menu-wrap">
+          <button id="sortMenuBtn" class="events-icon-btn" type="button" title="Sort" aria-label="Sort" aria-expanded="false">
+            <span class="material-symbols-outlined">sort</span>
+          </button>
+          <div id="sortMenu" class="sort-menu" hidden>
+            <button type="button" data-sort="oldest">Soonest first</button>
+            <button type="button" data-sort="newest">Latest first</button>
+            <button type="button" data-sort="title">Title A–Z</button>
+          </div>
+          <select id="sortDropdown" hidden>
             <option value="oldest" selected>Soonest First</option>
             <option value="newest">Latest First</option>
             <option value="title">Title A–Z</option>
           </select>
-          <input id="searchEventsInput" type="text" placeholder="Search events..." style="padding: 8px; font-size: 16px; border-radius: 8px; border: 1px solid #ccc; min-width: 180px;" />
         </div>
-        <button id="toggleArchivedBtn" class="btn-archived-toggle btn-outlined">Archived Events</button>
+      </div>
+      <div class="event-chips">
+        <button type="button" class="event-chip active" data-filter="upcoming">Upcoming</button>
+        <button type="button" class="event-chip" data-filter="past">Past</button>
+        <button type="button" class="event-chip" data-filter="all">All</button>
+        <button type="button" id="toggleArchivedBtn" class="event-chip">Archived</button>
       </div>
     </div>
 
     <div id="tableList" class="table-cards"></div>
-    <div id="calendarViewContainer" style="display: none; margin-top: 32px;"></div>
+    <div id="calendarViewContainer" style="display: none;"></div>
   </div>
 
 <!-- Share Modal -->

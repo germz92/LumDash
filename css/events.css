@@ -28,24 +28,22 @@
 .logo-wrapper {
     display: flex;
     justify-content: center;
-    margin-top: 16px;
-    margin-bottom: 12px;
+    margin-top: 8px;
+    margin-bottom: 8px;
 }
 
 .auth-logo {
-    width: 220px;
+    width: 120px;
     height: auto;
-    filter: drop-shadow(0 2px 8px rgba(204,0,7,0.08));
 }
 
 .card-container {
-    background: #fff;
-    padding: 36px 24px 32px 24px;
-    border-radius: 22px;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.10);
-    max-width: 700px;
-    margin: 0 auto 32px auto;
-    align-items: center;
+    background: transparent;
+    padding: 0 16px 24px;
+    border-radius: 0;
+    box-shadow: none;
+    max-width: 720px;
+    margin: 0 auto 24px auto;
     overflow: visible;
 }
 
@@ -70,22 +68,17 @@
 }
 
 .top-bar button.logout-btn {
-    background: #fff0f0;
+    background: transparent;
     color: #d11a2a;
-    border: 1.5px solid #d11a2a;
-    border-radius: 8px;
-    font-weight: bold;
-    font-size: 16px;
-    padding: 8px 18px;
+    border: 1px solid var(--md-sys-color-outline, #e2e8f0);
     opacity: 1;
-    box-shadow: 0 2px 8px rgba(209,26,42,0.06);
-    transition: background 0.15s, color 0.15s, border 0.15s;
+    box-shadow: none;
     cursor: pointer;
 }
 .top-bar button.logout-btn:hover {
-    background: #d11a2a;
-    color: #fff;
-    border-color: #b0101e;
+    background: rgba(209, 26, 42, 0.08);
+    color: #d11a2a;
+    border-color: #d11a2a;
 }
 
 /* Top bar icon buttons container */
@@ -95,45 +88,45 @@
     gap: 8px;
 }
 
-/* Icon buttons (timesheet, logout) */
+/* Icon buttons (timesheet, logout) — same outline as the shortcuts, kept circular */
 .top-bar .icon-btn {
     width: 40px !important;
     height: 40px !important;
     min-width: 40px !important;
     max-width: 40px !important;
     border-radius: 50% !important;
-    border: 1.5px solid #e0e0e0;
-    background: #fff;
-    color: #666;
+    border: 1px solid var(--md-sys-color-outline, #e2e8f0);
+    background: transparent;
+    color: var(--md-sys-color-on-surface-variant, #64748b);
+    box-shadow: none;
     display: flex;
     align-items: center;
     justify-content: center;
     cursor: pointer;
-    transition: all 0.2s ease;
+    transition: background-color 0.15s ease, border-color 0.15s ease, color 0.15s ease;
     padding: 0 !important;
     text-transform: none !important;
 }
 
 .top-bar .icon-btn:hover {
-    background: #f5f5f5;
-    border-color: #ccc;
-    color: #333;
+    background: rgba(0, 0, 0, 0.08);
+    border-color: var(--md-sys-color-on-surface-variant, #64748b);
+    color: var(--md-sys-color-on-surface, #0f172a);
 }
 
 .top-bar .icon-btn .material-symbols-outlined {
     font-size: 22px;
 }
 
-/* Logout icon button special styling */
 .top-bar .icon-btn.logout-btn {
-    background: #fff0f0;
+    background: transparent;
     color: #d11a2a;
-    border-color: #ffcdd2;
+    border-color: var(--md-sys-color-outline, #e2e8f0);
 }
 
 .top-bar .icon-btn.logout-btn:hover {
-    background: #d11a2a;
-    color: #fff;
+    background: rgba(209, 26, 42, 0.08);
+    color: #d11a2a;
     border-color: #d11a2a;
 }
 
@@ -1288,4 +1281,321 @@
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
 }
 /* ========= END ADD TO CALENDAR MODAL ========= */
+
+/* Events list: canvas, chips, cards you tap */
+.events-page .top-bar {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+
+.events-page .events-header {
+  align-items: stretch;
+  padding: 8px 0 12px;
+  gap: 10px;
+}
+
+.events-page .events-header-row1 {
+  justify-content: space-between;
+  width: 100%;
+  min-width: 0;
+  gap: 8px;
+}
+
+.events-page .events-header-row1 h2,
+.events-page .events-header h2 {
+  text-align: left !important;
+  font-size: 20px !important;
+  font-weight: 600 !important;
+  margin: 0 !important;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.events-page #calendarViewBtn {
+  margin-left: 0;
+}
+
+.events-page .events-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.events-page .events-icon-btn {
+  width: 40px;
+  height: 40px;
+  min-width: 40px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid var(--md-sys-color-outline, #e2e8f0);
+  background: transparent;
+  color: #64748b;
+  box-shadow: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.events-page .events-icon-btn .material-symbols-outlined {
+  font-size: 22px;
+}
+
+.events-page .events-icon-btn:hover,
+.events-page .events-icon-btn.active {
+  background: rgba(0, 0, 0, 0.06);
+  color: #0f172a;
+  box-shadow: none;
+}
+
+.events-page .btn-create {
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  width: auto;
+}
+
+.events-page .events-search-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.events-page #searchEventsInput {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  font-size: 16px;
+  color: #0f172a;
+  box-shadow: none;
+}
+
+.events-page #searchEventsInput:focus {
+  outline: none;
+  border-color: var(--brand-primary, #cc0007);
+  box-shadow: 0 0 0 3px rgba(204, 0, 7, 0.12);
+}
+
+.events-page .sort-menu-wrap {
+  position: relative;
+  flex: 0 0 auto;
+}
+
+.events-page .sort-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 0;
+  z-index: 20;
+  min-width: 160px;
+  padding: 6px;
+  background: #fff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.12);
+}
+
+.events-page .sort-menu button {
+  display: block;
+  width: 100%;
+  min-width: 0;
+  height: 40px;
+  padding: 0 12px;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: #0f172a;
+  box-shadow: none;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.events-page .sort-menu button.active,
+.events-page .sort-menu button:hover {
+  background: #f1f5f9;
+  color: #0f172a;
+  box-shadow: none;
+}
+
+.events-page .sort-menu[hidden],
+.events-page #sortDropdown[hidden] {
+  display: none !important;
+}
+
+.events-page .event-chips {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+  margin: 6px 0 4px;
+}
+
+.events-page .event-chip {
+  flex: 0 0 auto;
+  height: 36px;
+  min-width: 0;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: 1px solid #e2e8f0;
+  background: #fff;
+  color: #334155;
+  box-shadow: none;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.events-page .event-chip.active {
+  background: #fff;
+  border-color: var(--brand-primary, #cc0007);
+  color: var(--brand-primary, #cc0007);
+}
+
+.events-page .event-chip:hover {
+  background: #f8fafc;
+  color: #0f172a;
+  box-shadow: none;
+}
+
+.events-page .event-chip.active:hover {
+  background: rgba(204, 0, 7, 0.06);
+  border-color: var(--brand-primary, #cc0007);
+  color: var(--brand-primary, #cc0007);
+}
+
+.events-page .top-bar .admin-row {
+  justify-content: flex-start;
+}
+
+body.admin-user.events-page .top-bar #adminButtonsContainer,
+.events-page .top-bar #adminButtonsContainer {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)) !important;
+  gap: 6px !important;
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+}
+
+.events-page .top-bar #adminButtonsContainer .btn-outlined {
+  flex: none !important;
+  flex-direction: column !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  height: auto !important;
+  min-height: 0 !important;
+  padding: 6px 4px !important;
+  gap: 2px !important;
+  border-radius: 12px !important;
+  font-size: 11px !important;
+  line-height: 1.15 !important;
+  white-space: normal !important;
+  text-align: center;
+}
+
+.events-page .top-bar #adminButtonsContainer .btn-outlined .material-symbols-outlined {
+  font-size: 18px !important;
+}
+
+.events-page .top-bar #adminButtonsContainer .btn-outlined span:not(.material-symbols-outlined) {
+  display: block !important;
+  font-size: 11px !important;
+}
+
+.events-page .top-bar #adminButtonsContainer .btn-admin.btn-outlined::before {
+  content: none !important;
+}
+
+.events-page .table-cards {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  gap: 10px;
+  width: 100%;
+}
+
+.events-page .table-card {
+  width: 100% !important;
+  max-width: 100% !important;
+  min-width: 0 !important;
+  flex: 1 1 auto !important;
+  margin-bottom: 0 !important;
+  padding: 14px 14px 14px 16px !important;
+  border-radius: 16px !important;
+  border: 1px solid rgba(15, 23, 42, 0.08) !important;
+  background: #fff !important;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04) !important;
+  cursor: pointer;
+  transform: none !important;
+}
+
+.events-page .table-card:hover {
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08) !important;
+  transform: none !important;
+}
+
+.events-page .event-header {
+  margin-bottom: 0;
+  align-items: flex-start;
+}
+
+.events-page .event-header h3 {
+  font-size: 17px !important;
+  font-weight: 600;
+  color: #0f172a;
+  margin: 0 0 4px;
+}
+
+.events-page .event-dates {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.events-page .event-meta {
+  font-size: 13px;
+  color: #64748b;
+  margin-top: 2px;
+}
+
+.events-page .event-details {
+  margin-left: 0 !important;
+}
+
+.events-page .event-menu-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  padding: 0;
+  border-radius: 50% !important;
+  color: #64748b;
+}
+
+.events-page #calendarViewContainer {
+  background: #fff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 16px;
+  box-shadow: none;
+  padding: 12px;
+  max-width: 100%;
+  margin: 0;
+}
+
+@media (max-width: 768px) {
+  .events-page .card-container {
+    padding: 0 12px 16px !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+  }
+}
+
   

@@ -192,23 +192,23 @@ function loadInvites() {
     .then(renderInvites)
     .catch(() => {
       document.getElementById('inviteTableBody').innerHTML =
-        '<tr><td colspan="5">Could not load invites.</td></tr>';
+        '<tr class="user-table-status"><td colspan="5">Could not load invites.</td></tr>';
     });
 }
 
 function renderInvites(invites) {
   const tbody = document.getElementById('inviteTableBody');
   if (!invites.length) {
-    tbody.innerHTML = '<tr><td colspan="5">No pending invites.</td></tr>';
+    tbody.innerHTML = '<tr class="user-table-status"><td colspan="5">No pending invites.</td></tr>';
     return;
   }
   tbody.innerHTML = invites.map(invite => `
     <tr>
-      <td>${escapeHtml(invite.fullName)}</td>
-      <td>${escapeHtml(invite.email)}</td>
-      <td>${escapeHtml(invite.role || 'user')}</td>
-      <td>${escapeHtml(formatInviteDate(invite.expiresAt))}${new Date(invite.expiresAt) < new Date() ? ' · expired' : ''}</td>
-      <td class="action-buttons">
+      <td data-label="Name">${escapeHtml(invite.fullName)}</td>
+      <td data-label="Email">${mailLink(invite.email)}</td>
+      <td data-label="Role"><span class="role-pill">${escapeHtml(invite.role || 'user')}</span></td>
+      <td data-label="Expires">${escapeHtml(formatInviteDate(invite.expiresAt))}${new Date(invite.expiresAt) < new Date() ? ' · expired' : ''}</td>
+      <td class="action-buttons" data-label="Actions">
         <button type="button" class="action-btn btn-edit btn-text" onclick="resendInvite('${invite._id}')">Resend</button>
         <button type="button" class="action-btn btn-delete btn-text" onclick="revokeInvite('${invite._id}')">Revoke</button>
       </td>
@@ -280,7 +280,7 @@ window.revokeInvite = function (id) {
 
 async function loadUsers() {
   if (userTableBody) {
-    userTableBody.innerHTML = '<tr><td colspan="5">Loading users...</td></tr>';
+    userTableBody.innerHTML = '<tr class="user-table-status"><td colspan="5">Loading users...</td></tr>';
   }
   try {
     console.log('Attempting to load users from:', `${window.API_BASE}/api/users`);
@@ -310,7 +310,7 @@ async function loadUsers() {
     console.error('Error in loadUsers():', err);
     showMessage(err.message, 'error');
     if (userTableBody) {
-      userTableBody.innerHTML = '<tr><td colspan="5">Error loading users</td></tr>';
+      userTableBody.innerHTML = '<tr class="user-table-status"><td colspan="5">Error loading users</td></tr>';
     }
   }
 }
@@ -319,16 +319,16 @@ function renderUsers() {
   if (!userTableBody) return;
   
   if (!users.length) {
-    userTableBody.innerHTML = '<tr><td colspan="5">No users found</td></tr>';
+    userTableBody.innerHTML = '<tr class="user-table-status"><td colspan="5">No users found</td></tr>';
     return;
   }
   userTableBody.innerHTML = users.map(user => `
     <tr>
-      <td>${escapeHtml(user.name)}</td>
-      <td>${escapeHtml(user.email)}</td>
-      <td>${escapeHtml(user.phone || '—')}</td>
-      <td>${escapeHtml(user.role)}</td>
-      <td class="action-buttons">
+      <td data-label="Name">${escapeHtml(user.name)}</td>
+      <td data-label="Email">${mailLink(user.email)}</td>
+      <td data-label="Phone">${phoneLink(user.phone)}</td>
+      <td data-label="Role"><span class="role-pill">${escapeHtml(user.role)}</span></td>
+      <td class="action-buttons" data-label="Actions">
         <button class="action-btn btn-edit btn-text" onclick="editUser('${user._id}')">Edit</button>
         <button class="action-btn btn-delete btn-text" onclick="deleteUser('${user._id}')">Delete</button>
         <button class="action-btn btn-reset btn-text" onclick="resetPassword('${user._id}')">Reset Password</button>
@@ -459,6 +459,20 @@ async function handleFormSubmit(e) {
   } catch (err) {
     showMessage(err.message, 'error');
   }
+}
+
+function mailLink(email) {
+  const value = String(email || '').trim();
+  if (!value) return '—';
+  return `<a class="contact-link" href="mailto:${escapeHtml(value)}">${escapeHtml(value)}</a>`;
+}
+
+function phoneLink(phone) {
+  const value = String(phone || '').trim();
+  if (!value) return '—';
+  const tel = value.replace(/[^\d+]/g, '');
+  if (!tel) return escapeHtml(value);
+  return `<a class="contact-link" href="tel:${escapeHtml(tel)}">${escapeHtml(value)}</a>`;
 }
 
 function escapeHtml(unsafe) {

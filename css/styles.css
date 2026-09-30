@@ -403,6 +403,72 @@ body:has(.bottom-nav-material) #page-container {
   padding-bottom: calc(var(--bottom-nav-offset) + 16px) !important;
 }
 
+#page-container.event-leaving {
+  animation: event-leave 0.22s ease forwards;
+  transform-origin: center center;
+}
+
+#page-container.event-exiting {
+  animation: event-exit 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
+  transform-origin: center center;
+  pointer-events: none;
+}
+
+#page-container.event-opening {
+  animation: event-open 0.42s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: center center;
+}
+
+#page-container.event-returning {
+  animation: event-return 0.38s cubic-bezier(0.16, 1, 0.3, 1);
+  transform-origin: center center;
+}
+
+@keyframes event-leave {
+  to {
+    opacity: 0.45;
+    transform: scale(1.05);
+  }
+}
+
+@keyframes event-exit {
+  to {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+}
+
+@keyframes event-open {
+  from {
+    opacity: 0.4;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes event-return {
+  from {
+    opacity: 0.45;
+    transform: scale(1.06);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #page-container.event-opening,
+  #page-container.event-leaving,
+  #page-container.event-exiting,
+  #page-container.event-returning {
+    animation: none;
+  }
+}
+
 @media (max-width: 767px) {
   body:has(.bottom-nav-material) #page-container {
     padding-bottom: calc(var(--bottom-nav-offset) + 36px) !important;
@@ -761,6 +827,8 @@ button:disabled, .btn:disabled, input[type="button"]:disabled, input[type="submi
 .btn-inventory.btn-outlined,
 .btn-crew-planner.btn-outlined,
 .btn-crew-calendar.btn-outlined,
+.btn-call-times.btn-outlined,
+.btn-flights.btn-outlined,
 .btn-reset.btn-outlined /* Added for the modal's reset password button */ {
   color: var(--md-sys-color-on-surface-variant); /* Muted text color */
   border-color: var(--md-sys-color-outline); /* Lighter gray border */
@@ -773,6 +841,8 @@ button:disabled, .btn:disabled, input[type="button"]:disabled, input[type="submi
 .btn-inventory.btn-outlined:hover,
 .btn-crew-planner.btn-outlined:hover,
 .btn-crew-calendar.btn-outlined:hover,
+.btn-call-times.btn-outlined:hover,
+.btn-flights.btn-outlined:hover,
 .btn-reset.btn-outlined:hover {
   background-color: rgba(0,0,0, 0.08); /* Subtle dark hover */
   color: var(--md-sys-color-on-surface); /* Slightly darker text on hover */
@@ -784,6 +854,8 @@ button:disabled, .btn:disabled, input[type="button"]:disabled, input[type="submi
 .btn-inventory.btn-outlined:active,
 .btn-crew-planner.btn-outlined:active,
 .btn-crew-calendar.btn-outlined:active,
+.btn-call-times.btn-outlined:active,
+.btn-flights.btn-outlined:active,
 .btn-reset.btn-outlined:active {
   background-color: rgba(0,0,0, 0.12); /* Subtle dark press */
 }
