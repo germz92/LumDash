@@ -515,7 +515,7 @@ function injectPageContent(html, page, id, navGeneration, animateEventOpen, anim
   
   // Clear any page-specific global functions
   const pageGlobals = [
-    'addContactRow', 'addLocationRow', 'saveGeneralInfo', 'switchToEdit', // general.js
+    'addContactRow', 'addLocationRow', 'saveGeneralInfo', 'switchToEdit', 'populateCoverageFromCrew', // general.js
     'documentsPage', // documents.js
     // Add other page-specific globals as needed
   ];

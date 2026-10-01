@@ -30,7 +30,37 @@
           <div id="summaryContent" class="info-card-body">
             <div id="summary" class="read-only"></div>
             <div id="summaryEditorContainer" class="summary-editor-wrap">
+              <button type="button" id="populateCoverageBtn" class="add-row-btn general-btn-outline coverage-populate-btn" onclick="populateCoverageFromCrew()">Auto populate</button>
               <div id="summaryEditor" class="tinymce-editor"></div>
+            </div>
+            <div class="event-access" id="eventAccess" hidden>
+              <div class="event-access-view" id="eventAccessView" hidden>
+                <span class="material-symbols-outlined event-access-wifi-icon" id="wifiIcon" hidden>wifi</span>
+                <div id="wifiNetwork" class="event-access-value" hidden></div>
+                <div id="wifiPassword" class="event-access-value" hidden></div>
+                <a id="liveGallery" class="event-access-icon-link" hidden target="_blank" rel="noopener noreferrer" aria-label="Open live gallery">
+                  <span class="material-symbols-outlined">photo_library</span>
+                </a>
+                <div id="loveGalleryPasscode" class="event-access-value event-access-passcode" hidden></div>
+              </div>
+              <div class="event-access-edit" id="eventAccessEdit" hidden>
+                <label class="event-access-field">
+                  <span class="event-access-label">Network</span>
+                  <input id="wifiNetworkInput" type="text" placeholder="Network" autocomplete="off">
+                </label>
+                <label class="event-access-field">
+                  <span class="event-access-label">Password</span>
+                  <input id="wifiPasswordInput" type="text" placeholder="Password" autocomplete="off">
+                </label>
+                <label class="event-access-field">
+                  <span class="event-access-label">Live Gallery</span>
+                  <input id="liveGalleryInput" type="url" placeholder="https://" autocomplete="off">
+                </label>
+                <label class="event-access-field">
+                  <span class="event-access-label">Love Gallery Passcode</span>
+                  <input id="loveGalleryPasscodeInput" type="text" placeholder="Passcode" autocomplete="off">
+                </label>
+              </div>
             </div>
           </div>
         </div>

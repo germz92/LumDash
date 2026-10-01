@@ -420,23 +420,26 @@ body:has(#page-container > .general-page) #page-container {
   border-radius: 0;
   background: transparent !important;
   box-shadow: none !important;
-  color: var(--gp-text) !important;
+  color: #1976d2 !important;
   font-size: 15px;
   font-weight: 500;
   letter-spacing: 0;
   text-align: left;
+  text-decoration: underline !important;
+  text-underline-offset: 3px;
   cursor: pointer;
 }
 
 .general-page .project-manager-view:hover {
   background: transparent !important;
   box-shadow: none !important;
-  color: var(--gp-accent) !important;
+  color: var(--brand-primary, #cc0007) !important;
 }
 
 .general-page .project-manager-view:disabled {
   opacity: 1;
   color: var(--gp-text-muted) !important;
+  text-decoration: none !important;
   cursor: default;
   background: transparent !important;
 }
@@ -592,6 +595,151 @@ body:has(#page-container > .general-page) #page-container {
 #summaryEditorContainer,
 .summary-editor-wrap {
   display: none;
+}
+
+.general-page .coverage-populate-btn {
+  margin: 0 0 10px;
+}
+
+.general-page .event-access {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--gp-border, #e2e8f0);
+}
+
+.general-page .event-access[hidden],
+.general-page .event-access-view[hidden],
+.general-page .event-access-edit[hidden],
+.general-page .event-access input[hidden],
+.general-page .event-access-link[hidden],
+.general-page .event-access-icon-link[hidden],
+.general-page .event-access-value[hidden],
+.general-page .event-access-wifi-icon[hidden] {
+  display: none !important;
+}
+
+.general-page .event-access-view {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  column-gap: 10px;
+  row-gap: 2px;
+  align-items: center;
+}
+
+.general-page .event-access-wifi-icon {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  font-size: 18px;
+  color: var(--gp-accent);
+}
+
+.general-page #wifiNetwork {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.general-page #wifiPassword {
+  grid-column: 2;
+  grid-row: 2;
+}
+
+.general-page #liveGallery.event-access-icon-link {
+  grid-column: 3;
+  grid-row: 2;
+}
+
+.general-page #loveGalleryPasscode {
+  grid-column: 3;
+  grid-row: 3;
+  justify-self: center;
+  max-width: 96px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.general-page .event-access-edit {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.general-page .event-access-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.general-page .event-access-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.general-page .event-access-row > .material-symbols-outlined {
+  font-size: 18px;
+  color: var(--gp-accent);
+  margin-top: 1px;
+}
+
+.general-page .event-access-body {
+  min-width: 0;
+  flex: 1;
+}
+
+.general-page .event-access-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gp-text-secondary);
+}
+
+.general-page .event-access-value,
+.general-page .event-access-link {
+  margin-top: 2px;
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.general-page .event-access-link {
+  color: #1976d2;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.general-page .event-access-icon-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  border: 1px solid var(--gp-border, #e2e8f0);
+  color: var(--gp-accent);
+  text-decoration: none;
+  flex: 0 0 auto;
+}
+
+.general-page .event-access-icon-link .material-symbols-outlined {
+  font-size: 20px;
+  color: inherit;
+  margin: 0;
+}
+
+.general-page .event-access-icon-link:hover {
+  background: var(--gp-accent-soft, rgba(204, 0, 7, 0.08));
+  text-decoration: none;
+}
+
+.general-page .event-access-link:hover {
+  color: var(--brand-primary, #cc0007);
+}
+
+.general-page .event-access input {
+  margin-top: 6px;
 }
 
 .general-page .info-card-value,
@@ -1203,8 +1351,9 @@ body:has(#page-container > .general-page) #page-container {
 
 .general-page .rich-content ul,
 .general-page .rich-content ol {
-  margin: 1em 0;
-  padding-left: 24px;
+  margin: 0.25em 0 1em;
+  padding-left: 1.25em;
+  list-style: disc;
 }
 
 .general-page .rich-content br {

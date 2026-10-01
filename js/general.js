@@ -509,7 +509,7 @@ async function initializeTinyMCE(initialContent = '') {
           margin: 0;
         }
         p { margin: 0 0 10px 0; }
-        ul, ol { margin: 0 0 10px 20px; padding: 0; }
+        ul, ol { margin: 0 0 10px 0; padding-left: 1.25em; list-style: disc; }
         li { margin: 0 0 4px 0; }
       `,
       setup: function(editor) {
@@ -546,6 +546,99 @@ function getTinyMCEContent() {
 function setTinyMCEContent(content) {
   if (summaryEditor) {
     summaryEditor.setContent(content || '');
+  }
+}
+
+const COVERAGE_BY_ROLE = {
+  'Lead Photographer': 'Event Photography',
+  'Additional Photographer': 'Event Photography',
+  'Lead Videographer': 'Event Videography',
+  'Additional Videographer': 'Event Videography',
+  'Headshot Booth Photographer': 'Headshot Booth'
+};
+const COVERAGE_ORDER = ['Event Photography', 'Event Videography', 'Headshot Booth'];
+
+function formatCoverageDate(dateStr) {
+  const iso = String(dateStr || '').split('T')[0];
+  const parts = iso.split('-').map(Number);
+  if (parts.length < 3 || parts.some(part => !part)) return iso;
+  const date = new Date(parts[0], parts[1] - 1, parts[2]);
+  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+}
+
+function coverageMinutes(timeStr) {
+  if (!timeStr || !String(timeStr).includes(':')) return null;
+  const [hour, minute] = String(timeStr).split(':').map(Number);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return null;
+  return hour * 60 + minute;
+}
+
+function formatCoverageClock(minutes) {
+  const hour = Math.floor(minutes / 60);
+  const minute = minutes % 60;
+  const suffix = hour >= 12 ? 'pm' : 'am';
+  const adjusted = hour % 12 || 12;
+  if (minute === 0) return `${adjusted}${suffix}`;
+  return `${adjusted}:${String(minute).padStart(2, '0')}${suffix}`;
+}
+
+function coverageHtmlFromRows(rows) {
+  const byDate = new Map();
+  (rows || []).forEach(row => {
+    if (!row || !row.date || !row.role || row.role === '__placeholder__') return;
+    const label = COVERAGE_BY_ROLE[row.role];
+    if (!label) return;
+    const key = String(row.date).split('T')[0];
+    if (!byDate.has(key)) byDate.set(key, new Map());
+    const labels = byDate.get(key);
+    if (!labels.has(label)) labels.set(label, { start: null, end: null });
+    const span = labels.get(label);
+    const start = coverageMinutes(row.startTime);
+    const end = coverageMinutes(row.endTime);
+    if (start == null || end == null) return;
+    if (span.start == null || start < span.start) span.start = start;
+    if (span.end == null || end > span.end) span.end = end;
+  });
+
+  const days = [...byDate.keys()].sort();
+  return days.map(day => {
+    const labels = byDate.get(day);
+    const items = COVERAGE_ORDER.filter(label => labels.has(label)).map(label => {
+      const span = labels.get(label);
+      if (span.start == null || span.end == null) return label;
+      return `${label} (${formatCoverageClock(span.start)}-${formatCoverageClock(span.end)})`;
+    });
+    const list = `<ul>${items.map(label => `<li>${escapeHtmlText(label)}</li>`).join('')}</ul>`;
+    return `<p><strong>${escapeHtmlText(formatCoverageDate(day))}</strong></p>${list}`;
+  }).join('');
+}
+
+async function populateCoverageFromCrew() {
+  const currentTableId = params.get('id') || localStorage.getItem('eventId');
+  if (!currentTableId) return;
+
+  const fallback = document.getElementById('summaryFallback');
+  const existing = summaryEditor
+    ? summaryEditor.getContent({ format: 'text' }).trim()
+    : (fallback?.value || '').trim();
+  if (existing && !confirm('Replace the event summary with coverage from the crew list?')) return;
+
+  try {
+    const res = await fetch(`${API_BASE}/api/tables/${currentTableId}`, {
+      headers: { Authorization: window.token }
+    });
+    if (!res.ok) throw new Error('Could not load the crew list');
+    const table = await res.json();
+    const html = coverageHtmlFromRows(table.rows);
+    if (!html) {
+      alert('No photography, videography, or headshot booth days are on the crew list.');
+      return;
+    }
+    if (summaryEditor) setTinyMCEContent(html);
+    else if (fallback) fallback.value = htmlToPlainText(html);
+  } catch (err) {
+    console.error(err);
+    alert('Could not build coverage from the crew list.');
   }
 }
 
@@ -710,6 +803,75 @@ function showDateEditors() {
     if (input) input.hidden = false;
     if (display) display.hidden = true;
   });
+}
+
+function galleryHref(value) {
+  const text = String(value || '').trim();
+  if (!text) return '';
+  if (/^https?:\/\//i.test(text)) return text;
+  return `https://${text}`;
+}
+
+function renderEventAccess(general = {}) {
+  const values = {
+    wifiNetwork: String(general.wifiNetwork || general.wifi || '').trim(),
+    wifiPassword: String(general.wifiPassword || '').trim(),
+    liveGallery: String(general.liveGallery || '').trim(),
+    loveGalleryPasscode: String(general.loveGalleryPasscode || '').trim()
+  };
+
+  Object.entries(values).forEach(([id, value]) => {
+    const view = document.getElementById(id);
+    const input = document.getElementById(id + 'Input');
+    if (view) {
+      view.dataset.value = value;
+      if (id === 'liveGallery') {
+        if (value) view.href = galleryHref(value);
+        else view.removeAttribute('href');
+        view.hidden = !value;
+        const editor = document.getElementById('liveGalleryEditor');
+        if (editor) editor.hidden = true;
+      } else {
+        view.textContent = value;
+        view.hidden = !value;
+      }
+    }
+    if (input) input.value = value;
+  });
+
+  const wifiIcon = document.getElementById('wifiIcon');
+  const view = document.getElementById('eventAccessView');
+  const edit = document.getElementById('eventAccessEdit');
+  const block = document.getElementById('eventAccess');
+  const hasWifi = !!(values.wifiNetwork || values.wifiPassword);
+  const hasAny = hasWifi || !!values.liveGallery || !!values.loveGalleryPasscode;
+  if (wifiIcon) wifiIcon.hidden = !hasWifi;
+  if (edit) edit.hidden = true;
+  if (view) view.hidden = !hasAny;
+  if (block) block.hidden = !hasAny;
+}
+
+function showEventAccessEditors() {
+  ['wifiNetwork', 'wifiPassword', 'liveGallery', 'loveGalleryPasscode'].forEach(id => {
+    const view = document.getElementById(id);
+    const input = document.getElementById(id + 'Input');
+    if (input) input.value = view?.dataset.value || '';
+    if (view) view.hidden = true;
+  });
+  const wifiIcon = document.getElementById('wifiIcon');
+  const saved = document.getElementById('eventAccessView');
+  const edit = document.getElementById('eventAccessEdit');
+  const block = document.getElementById('eventAccess');
+  if (wifiIcon) wifiIcon.hidden = true;
+  if (saved) saved.hidden = true;
+  if (edit) edit.hidden = false;
+  if (block) block.hidden = false;
+}
+
+function eventAccessValue(id) {
+  const input = document.getElementById(id + 'Input');
+  if (input && !input.hidden) return input.value.trim();
+  return document.getElementById(id)?.dataset.value || '';
 }
 
 async function setupProjectManager(selected) {
@@ -1098,6 +1260,16 @@ function initPage(id) {
         }
       });
 
+      const summaryEl = document.getElementById('summary');
+      if (summaryEl && !htmlToPlainText(summaryEl.dataset.value || '').replace(/\u00a0/g, ' ').trim()) {
+        const coverage = coverageHtmlFromRows(table.rows);
+        if (coverage) {
+          summaryEl.dataset.value = coverage;
+          summaryEl.innerHTML = coverage;
+          summaryEl.classList.add('rich-content');
+        }
+      }
+
       // Update weather icon after loading data
       updateWeatherIcon();
       
@@ -1112,6 +1284,7 @@ function initPage(id) {
       const fromLocation = String(general.location || '').replace(/<[^>]*>/g, '').trim();
       fetchWeatherForEvent(fromCity || fromLocation, startDate, endDate, fromCity ? fromLocation : '');
       setupProjectManager(general.projectManager);
+      renderEventAccess(general);
 
       const contactRows = document.getElementById('contactRows');
       contactRows.innerHTML = '';
@@ -1219,6 +1392,10 @@ async function saveGeneralInfo() {
     start: document.getElementById('start')?.value || '',
     end: document.getElementById('end')?.value || '',
     projectManager: document.getElementById('projectManager')?.value || null,
+    wifiNetwork: eventAccessValue('wifiNetwork'),
+    wifiPassword: eventAccessValue('wifiPassword'),
+    liveGallery: eventAccessValue('liveGallery'),
+    loveGalleryPasscode: eventAccessValue('loveGalleryPasscode'),
     contacts: collectContacts(),
     locations: collectLocations()
   };
@@ -1378,6 +1555,7 @@ function switchToEdit() {
   projectManagerEditing = true;
   applyProjectManagerMode();
   showDateEditors();
+  showEventAccessEditors();
 
   const editBtn = document.getElementById('editBtn');
   if (editBtn) editBtn.style.display = 'none';
@@ -1430,6 +1608,7 @@ window.addContactRow = addContactRow;
 window.addLocationRow = addLocationRow;
 window.saveGeneralInfo = saveGeneralInfo;
 window.switchToEdit = switchToEdit;
+window.populateCoverageFromCrew = populateCoverageFromCrew;
 
 // CLOCK ICON LOGIC
 function showTimeModal() {
