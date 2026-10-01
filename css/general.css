@@ -613,51 +613,115 @@ body:has(#page-container > .general-page) #page-container {
 .general-page .event-access[hidden],
 .general-page .event-access-view[hidden],
 .general-page .event-access-edit[hidden],
+.general-page .event-access-wifi[hidden],
+.general-page .event-access-gallery[hidden],
+.general-page .event-access-pair[hidden],
 .general-page .event-access input[hidden],
 .general-page .event-access-link[hidden],
 .general-page .event-access-icon-link[hidden],
+.general-page .event-access-button[hidden],
 .general-page .event-access-value[hidden],
-.general-page .event-access-wifi-icon[hidden] {
+.general-page .event-access-k[hidden],
+.general-page .event-access-mark[hidden] {
   display: none !important;
 }
 
 .general-page .event-access-view {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  column-gap: 10px;
-  row-gap: 2px;
+  grid-template-columns: 24px max-content max-content;
+  column-gap: 16px;
+  row-gap: 10px;
+  justify-content: start;
   align-items: center;
 }
 
-.general-page .event-access-wifi-icon {
+.general-page .event-access-wifi,
+.general-page .event-access-gallery {
+  display: grid;
+  grid-template-columns: subgrid;
+  grid-column: 1 / -1;
+  align-items: center;
+  min-width: 0;
+}
+
+.general-page .event-access-mark {
   grid-column: 1;
-  grid-row: 1 / span 2;
-  font-size: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  font-size: 20px;
   color: var(--gp-accent);
 }
 
-.general-page #wifiNetwork {
+.general-page #wifiNetwork,
+.general-page #liveGallery {
   grid-column: 2;
-  grid-row: 1;
 }
 
-.general-page #wifiPassword {
-  grid-column: 2;
-  grid-row: 2;
-}
-
-.general-page #liveGallery.event-access-icon-link {
-  grid-column: 3;
-  grid-row: 2;
-}
-
+.general-page #wifiPassword,
 .general-page #loveGalleryPasscode {
   grid-column: 3;
-  grid-row: 3;
-  justify-self: center;
-  max-width: 96px;
-  text-align: center;
-  font-size: 12px;
+}
+
+.general-page .event-access-pair {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.general-page .event-access-k {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gp-text-secondary);
+  line-height: 1.4;
+}
+
+.general-page .event-access-v {
+  font-size: 15px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--gp-text);
+  word-break: break-word;
+}
+
+.general-page .event-access-v.is-placeholder {
+  color: var(--gp-text-muted);
+  font-weight: 500;
+}
+
+.general-page .event-access-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--gp-accent, #cc0007);
+  background: #fff;
+  color: var(--gp-accent, #cc0007);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 1;
+  text-decoration: none;
+}
+
+.general-page .event-access-button:hover {
+  background: var(--gp-accent-soft, rgba(204, 0, 7, 0.08));
+  color: var(--gp-accent, #cc0007);
+  text-decoration: none;
+}
+
+.general-page .event-access-button.is-placeholder,
+.general-page .event-access-button.is-placeholder:hover {
+  border-color: transparent;
+  background: transparent;
+  color: var(--gp-text-muted);
+  padding: 0;
+  min-height: 0;
+  font-weight: 500;
+  pointer-events: none;
+  justify-content: flex-start;
 }
 
 .general-page .event-access-edit {

@@ -812,12 +812,21 @@ function galleryHref(value) {
   return `https://${text}`;
 }
 
+let eventAccessEditing = false;
+const ACCESS_PLACEHOLDER = '—';
+
+function savedAccessText(value) {
+  return String(value == null ? '' : value).trim();
+}
+
 function renderEventAccess(general = {}) {
+  eventAccessEditing = false;
+  const network = savedAccessText(general.wifiNetwork);
   const values = {
-    wifiNetwork: String(general.wifiNetwork || general.wifi || '').trim(),
-    wifiPassword: String(general.wifiPassword || '').trim(),
-    liveGallery: String(general.liveGallery || '').trim(),
-    loveGalleryPasscode: String(general.loveGalleryPasscode || '').trim()
+    wifiNetwork: network || (general.wifiNetwork == null ? savedAccessText(general.wifi) : ''),
+    wifiPassword: savedAccessText(general.wifiPassword),
+    liveGallery: savedAccessText(general.liveGallery),
+    loveGalleryPasscode: savedAccessText(general.loveGalleryPasscode)
   };
 
   Object.entries(values).forEach(([id, value]) => {
@@ -825,33 +834,51 @@ function renderEventAccess(general = {}) {
     const input = document.getElementById(id + 'Input');
     if (view) {
       view.dataset.value = value;
+      view.hidden = false;
       if (id === 'liveGallery') {
-        if (value) view.href = galleryHref(value);
-        else view.removeAttribute('href');
-        view.hidden = !value;
+        view.classList.toggle('is-placeholder', !value);
+        if (value) {
+          view.href = galleryHref(value);
+          view.textContent = 'Live Gallery';
+          view.removeAttribute('aria-disabled');
+          view.tabIndex = 0;
+        } else {
+          view.removeAttribute('href');
+          view.textContent = 'No link';
+          view.setAttribute('aria-disabled', 'true');
+          view.tabIndex = -1;
+        }
         const editor = document.getElementById('liveGalleryEditor');
         if (editor) editor.hidden = true;
       } else {
-        view.textContent = value;
-        view.hidden = !value;
+        const valueEl = view.querySelector('.event-access-v');
+        if (valueEl) {
+          valueEl.textContent = value || ACCESS_PLACEHOLDER;
+          valueEl.classList.toggle('is-placeholder', !value);
+        } else {
+          view.textContent = value || ACCESS_PLACEHOLDER;
+        }
       }
     }
     if (input) input.value = value;
   });
 
   const wifiIcon = document.getElementById('wifiIcon');
+  const wifiGroup = document.getElementById('wifiGroup');
+  const galleryGroup = document.getElementById('galleryGroup');
   const view = document.getElementById('eventAccessView');
   const edit = document.getElementById('eventAccessEdit');
   const block = document.getElementById('eventAccess');
-  const hasWifi = !!(values.wifiNetwork || values.wifiPassword);
-  const hasAny = hasWifi || !!values.liveGallery || !!values.loveGalleryPasscode;
-  if (wifiIcon) wifiIcon.hidden = !hasWifi;
+  if (wifiIcon) wifiIcon.hidden = false;
+  if (wifiGroup) wifiGroup.hidden = false;
+  if (galleryGroup) galleryGroup.hidden = false;
   if (edit) edit.hidden = true;
-  if (view) view.hidden = !hasAny;
-  if (block) block.hidden = !hasAny;
+  if (view) view.hidden = false;
+  if (block) block.hidden = false;
 }
 
 function showEventAccessEditors() {
+  eventAccessEditing = true;
   ['wifiNetwork', 'wifiPassword', 'liveGallery', 'loveGalleryPasscode'].forEach(id => {
     const view = document.getElementById(id);
     const input = document.getElementById(id + 'Input');
@@ -870,7 +897,7 @@ function showEventAccessEditors() {
 
 function eventAccessValue(id) {
   const input = document.getElementById(id + 'Input');
-  if (input && !input.hidden) return input.value.trim();
+  if (eventAccessEditing && input) return input.value.trim();
   return document.getElementById(id)?.dataset.value || '';
 }
 
@@ -1392,6 +1419,7 @@ async function saveGeneralInfo() {
     start: document.getElementById('start')?.value || '',
     end: document.getElementById('end')?.value || '',
     projectManager: document.getElementById('projectManager')?.value || null,
+    wifi: eventAccessValue('wifiNetwork'),
     wifiNetwork: eventAccessValue('wifiNetwork'),
     wifiPassword: eventAccessValue('wifiPassword'),
     liveGallery: eventAccessValue('liveGallery'),
