@@ -1161,25 +1161,34 @@ function getCurrentPageState() {
 window.clearPageState = clearPageState;
 window.getCurrentPageState = getCurrentPageState;
 
-// Keep the fixed bottom nav glued to the visible viewport on mobile.
-// iOS overscroll and accidental zoom shift visualViewport so position:fixed
-// bottom:0 can sit in the middle of the screen until the next rotation.
+// Lift the fixed bottom nav above the keyboard or a pinch-zoom.
+// Rubber-band overscroll also changes visualViewport, but that gap is not a
+// keyboard. Applying it makes the bar spring up and sometimes stay mid-page.
 (function pinBottomNavToVisualViewport() {
   const root = document.documentElement;
+  let fullHeight = window.innerHeight;
 
   function sync() {
-    if (!window.visualViewport) {
+    const vv = window.visualViewport;
+    if (!vv) {
       root.style.setProperty('--app-vv-bottom', '0px');
       return;
     }
-    const vv = window.visualViewport;
-    const inset = Math.max(0, window.innerHeight - vv.offsetTop - vv.height);
+
+    if (vv.height > fullHeight - 40) {
+      fullHeight = Math.max(window.innerHeight, vv.height);
+    }
+
+    const shrink = fullHeight - vv.height;
+    const keyboardOrZoom = shrink > 120 || vv.scale > 1.01;
+    const inset = keyboardOrZoom
+      ? Math.max(0, window.innerHeight - Math.max(0, vv.offsetTop) - vv.height)
+      : 0;
     root.style.setProperty('--app-vv-bottom', `${Math.round(inset)}px`);
   }
 
   window.addEventListener('resize', sync);
   window.addEventListener('orientationchange', () => setTimeout(sync, 250));
-  window.addEventListener('touchend', () => setTimeout(sync, 50), { passive: true });
   if (window.visualViewport) {
     window.visualViewport.addEventListener('resize', sync);
     window.visualViewport.addEventListener('scroll', sync);
