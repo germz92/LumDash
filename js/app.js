@@ -1160,38 +1160,3 @@ function getCurrentPageState() {
 // Make PWA utilities globally available
 window.clearPageState = clearPageState;
 window.getCurrentPageState = getCurrentPageState;
-
-// Lift the fixed bottom nav above the keyboard or a pinch-zoom.
-// Rubber-band overscroll also changes visualViewport, but that gap is not a
-// keyboard. Applying it makes the bar spring up and sometimes stay mid-page.
-(function pinBottomNavToVisualViewport() {
-  const root = document.documentElement;
-  let fullHeight = window.innerHeight;
-
-  function sync() {
-    const vv = window.visualViewport;
-    if (!vv) {
-      root.style.setProperty('--app-vv-bottom', '0px');
-      return;
-    }
-
-    if (vv.height > fullHeight - 40) {
-      fullHeight = Math.max(window.innerHeight, vv.height);
-    }
-
-    const shrink = fullHeight - vv.height;
-    const keyboardOrZoom = shrink > 120 || vv.scale > 1.01;
-    const inset = keyboardOrZoom
-      ? Math.max(0, window.innerHeight - Math.max(0, vv.offsetTop) - vv.height)
-      : 0;
-    root.style.setProperty('--app-vv-bottom', `${Math.round(inset)}px`);
-  }
-
-  window.addEventListener('resize', sync);
-  window.addEventListener('orientationchange', () => setTimeout(sync, 250));
-  if (window.visualViewport) {
-    window.visualViewport.addEventListener('resize', sync);
-    window.visualViewport.addEventListener('scroll', sync);
-  }
-  sync();
-})();
