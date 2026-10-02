@@ -701,13 +701,13 @@ body:has(#page-container > .general-page) #page-container {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 32px;
-  padding: 0 12px;
+  min-height: 26px;
+  padding: 0 8px;
   border-radius: 8px;
   border: 1.5px solid var(--gp-accent, #cc0007);
   background: #fff;
   color: var(--gp-accent, #cc0007);
-  font-size: 13px;
+  font-size: 12px;
   font-weight: 600;
   line-height: 1;
   text-decoration: none;
