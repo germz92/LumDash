@@ -187,7 +187,7 @@ body.no-owner-controls .schedule-page .top-controls .add-btn {
 }
 
 .schedule-page .done-checkbox {
-    accent-color: #CC0007;
+    accent-color: #218838;
     cursor: pointer;
     transform-origin: center center;
 }
@@ -1272,7 +1272,7 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
         height: 18px !important;
         min-width: 18px !important;
         min-height: 18px !important;
-        accent-color: #CC0007;
+        accent-color: #218838;
         margin: 0 !important;
         flex-shrink: 0 !important;
     }
@@ -1491,7 +1491,7 @@ body.no-owner-controls .schedule-page .program-entry input[type="time"] {
         height: 28px !important;
         min-width: 28px !important;
         min-height: 28px !important;
-        accent-color: #CC0007;
+        accent-color: #218838;
         margin: 0 8px 0 0;
     }
 }

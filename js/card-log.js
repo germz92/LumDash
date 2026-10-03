@@ -26,6 +26,7 @@ let deferredUpdateTimeout = null; // Timeout for deferred updates
 let cardLogContextMenu = null; // Right-click menu for card backup marks
 let cardLogContextTarget = null; // { row, field } for context menu
 let cardLogModalScrollLockCount = 0;
+let cardEntrySaveInFlight = false;
 
 function setCardLogModalScrollLock(lock) {
   if (lock) {
@@ -136,9 +137,17 @@ function setupSocketListeners() {
   
   console.log('[CARD-LOG] Setting up Socket.IO event listeners...');
   console.log('[CARD-LOG] Socket connected:', window.socket.connected);
+
+  // The socket object lives for the whole SPA session, and this script reloads
+  // on every visit. A new generation makes listeners from earlier visits ignore
+  // events so one save cannot be applied once per visit.
+  window.__cardLogSocketGen = (window.__cardLogSocketGen || 0) + 1;
+  const socketGen = window.__cardLogSocketGen;
+  const isCurrentSocketGen = () => socketGen === window.__cardLogSocketGen;
   
   // --- Granular card log events ---
   window.socket.on('cardLogAdded', (data) => {
+    if (!isCurrentSocketGen()) return;
     if (processingSocketEvent) {
       console.log("Ignoring cardLogAdded event - already processing another event");
       return;
@@ -171,6 +180,7 @@ function setupSocketListeners() {
   });
   
   window.socket.on('cardLogUpdated', (data) => {
+    if (!isCurrentSocketGen()) return;
     if (processingSocketEvent) {
       console.log("Ignoring cardLogUpdated event - already processing another event");
       return;
@@ -267,6 +277,7 @@ function setupSocketListeners() {
   });
   
   window.socket.on('cardLogDeleted', (data) => {
+    if (!isCurrentSocketGen()) return;
     if (processingSocketEvent) return;
     processingSocketEvent = true;
     
@@ -292,6 +303,7 @@ function setupSocketListeners() {
   
   // Also listen for general table updates
   window.socket.on('tableUpdated', (data) => {
+    if (!isCurrentSocketGen()) return;
     if (processingSocketEvent) return;
     
     const currentEventId = localStorage.getItem('eventId');
@@ -1502,13 +1514,17 @@ function addRow(date, entry = {}) {
     return;
   }
   
+  const rowId = entry._id != null && String(entry._id) !== ''
+    ? String(entry._id)
+    : `row-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  if (entry._id != null && tbody.querySelector(`tr[data-id="${rowId}"]`)) {
+    return;
+  }
+
   console.log(`Adding row to date ${date}:`, entry);
   
   const row = document.createElement('tr');
   row.className = 'card-log-row';
-  
-  // Generate or use existing ID for this row
-  const rowId = entry._id || `row-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
   row.setAttribute('data-id', rowId);
   
   // Add row index for collaborative system
@@ -1705,6 +1721,12 @@ function closeCardEntryModal() {
 }
 
 async function saveCardEntry() {
+  if (cardEntrySaveInFlight) return;
+  cardEntrySaveInFlight = true;
+  const saveBtn = document.getElementById('save-card-entry');
+  if (saveBtn) saveBtn.disabled = true;
+
+  try {
   // Try to get date from currentEditingDate first, then fall back to modal data attribute
   const modal = document.getElementById('card-entry-modal');
   let dateToUse = currentEditingDate || modal?.getAttribute('data-editing-date');
@@ -1828,6 +1850,10 @@ async function saveCardEntry() {
   } catch (error) {
     console.error('[CARD-LOG] Error saving card entry:', error);
     alert('Error saving card entry. Please try again.');
+  }
+  } finally {
+    cardEntrySaveInFlight = false;
+    if (saveBtn) saveBtn.disabled = false;
   }
 }
 
@@ -2119,25 +2145,27 @@ function applySmartDayUpdate(date, entries) {
     const targetEntries = Array.isArray(entries) ? entries : [];
     
     console.log(`[CARD-LOG] Current rows: ${currentRows.length}, Target entries: ${targetEntries.length}`);
-    
-    // Handle row count differences with safety checks
-    if (targetEntries.length > currentRows.length) {
-      // Add missing rows
-      const rowsToAdd = targetEntries.length - currentRows.length;
-      console.log(`[CARD-LOG] Adding ${rowsToAdd} new rows`);
-      for (let i = 0; i < rowsToAdd; i++) {
-        const rowIndex = currentRows.length + i;
-        const entryData = targetEntries[rowIndex] || {};
-        try {
-          addRow(date, entryData);
-        } catch (error) {
-          console.error(`[CARD-LOG] Error adding row ${rowIndex}:`, error);
-          break; // Stop adding rows if there's an error
-        }
+
+    // Insert by entry id. A short row count used to append the last entries
+    // again after the save response had already painted that same row.
+    const presentIds = new Set(
+      currentRows.map(row => row.getAttribute('data-id')).filter(Boolean)
+    );
+    targetEntries.forEach(entry => {
+      const id = entry && entry._id != null ? String(entry._id) : '';
+      if (!id || presentIds.has(id)) return;
+      try {
+        addRow(date, entry);
+        presentIds.add(id);
+      } catch (error) {
+        console.error(`[CARD-LOG] Error adding row ${id}:`, error);
       }
-    } else if (targetEntries.length < currentRows.length) {
+    });
+
+    const rowsAfterAdd = Array.from(tbody.querySelectorAll('tr'));
+    if (targetEntries.length < rowsAfterAdd.length) {
       // Check if extra rows are empty (newly added by user) before removing
-      const rowsToRemove = currentRows.length - targetEntries.length;
+      const rowsToRemove = rowsAfterAdd.length - targetEntries.length;
       console.log(`[CARD-LOG] Found ${rowsToRemove} extra rows - checking if they're newly added empty rows`);
       
       // Only remove rows that are completely empty and likely placeholder rows

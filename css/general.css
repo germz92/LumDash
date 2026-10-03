@@ -628,7 +628,8 @@ body:has(#page-container > .general-page) #page-container {
 
 .general-page .event-access-view {
   display: grid;
-  grid-template-columns: 24px max-content max-content;
+  width: 100%;
+  grid-template-columns: 24px minmax(0, 1fr) minmax(0, 1fr);
   column-gap: 16px;
   row-gap: 12px;
   justify-content: start;
@@ -672,12 +673,16 @@ body:has(#page-container > .general-page) #page-container {
 .general-page #loveGalleryPasscode { grid-row: 2; }
 
 .general-page .event-access-pair {
-  display: inline-flex;
+  display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .general-page .event-access-k {
+  flex: 0 0 auto;
   font-size: 13px;
   font-weight: 600;
   color: var(--gp-text-secondary);
@@ -685,11 +690,12 @@ body:has(#page-container > .general-page) #page-container {
 }
 
 .general-page .event-access-v {
+  min-width: 0;
   font-size: 15px;
   font-weight: 500;
   line-height: 1.4;
   color: var(--gp-text);
-  word-break: break-word;
+  overflow-wrap: anywhere;
 }
 
 .general-page .event-access-v.is-placeholder {

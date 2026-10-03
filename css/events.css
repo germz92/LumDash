@@ -789,9 +789,12 @@
   border-radius: 22px;
   box-shadow: 0 8px 32px rgba(0,0,0,0.10);
   padding: 32px 18px 32px 18px;
-  max-width: 900px;
-  margin: 0 auto 32px auto;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 0 32px 0;
+  min-width: 0;
   min-height: 320px;
+  box-sizing: border-box;
   animation: modalPopIn 0.28s cubic-bezier(.4,1.4,.6,1) both;
 }
 
@@ -830,7 +833,9 @@
 
 #calendarViewContainer .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  width: 100%;
+  min-width: 0;
   gap: 8px;
   background: linear-gradient(135deg, #fff 60%, #f8fafd 100%);
   border-radius: 18px;
@@ -841,6 +846,7 @@
 
 #calendarViewContainer .calendar-day {
   position: relative;
+  min-width: 0;
   min-height: 60px;
   border-radius: 10px;
   background: #fff;
@@ -1620,11 +1626,15 @@ body.events-page .logo-wrapper {
 
 body.events-page .card-container {
   flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
+  align-self: stretch;
   min-height: 0;
   display: flex;
   flex-direction: column;
   overflow: hidden !important;
   margin-bottom: 0;
+  box-sizing: border-box;
   padding-bottom: 0 !important;
   padding-left: 0 !important;
   padding-right: 0 !important;
@@ -1637,6 +1647,8 @@ body.events-page .events-header {
 
 body.events-page .events-scroll {
   flex: 1 1 auto;
+  width: 100%;
+  min-width: 0;
   min-height: 0;
   overflow-x: hidden;
   overflow-y: auto;
@@ -1654,6 +1666,10 @@ body.events-page .events-section + .events-section {
 .events-page #tableList,
 .events-page .table-cards,
 .events-page #calendarViewContainer {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   overflow: visible !important;
   max-height: none !important;
   height: auto !important;
@@ -1690,6 +1706,9 @@ body.events-page .events-section + .events-section {
   .events-page .events-section > .table-cards,
   .events-page #tableList.table-cards {
     display: grid;
+    width: 100%;
+    min-width: 0;
+    justify-content: stretch;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 16px;
     align-items: stretch;
