@@ -707,8 +707,11 @@ body:has(#page-container > .general-page) #page-container {
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  justify-self: start;
+  width: fit-content;
+  max-width: 100%;
   min-height: 26px;
-  padding: 0 8px;
+  padding: 0 6px;
   border-radius: 8px;
   border: 1.5px solid var(--gp-accent, #cc0007);
   background: #fff;
