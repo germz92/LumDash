@@ -203,6 +203,9 @@ window.initPage = undefined;
 
     // Helper to get source badge HTML
     function getSourceBadge(item) {
+      if (item.stayStatus === 'cancelled') {
+        return '<span class="source-badge cancelled">Cancelled</span>';
+      }
       if (item.source === 'booked') {
         return '<span class="source-badge booked">Booked</span>';
       }
@@ -249,16 +252,17 @@ window.initPage = undefined;
               <td class="text"><span class="readonly-span">${item.ref || ''}${sourceBadge ? ' ' + sourceBadge : ''}</span></td>
             `;
           } else {
+            const sourceBadge = getSourceBadge(item);
             row.innerHTML = `
               <td class="date"><span class="readonly-span">${formatDateReadable(item.checkin)}</span></td>
               <td class="date"><span class="readonly-span">${formatDateReadable(item.checkout)}</span></td>
               <td class="text"><span class="readonly-span">${item.name || ''}</span></td>
               <td class="text">${createLocationLink(item.hotel)}</td>
-              <td class="text"><span class="readonly-span">${item.ref || ''}</span></td>
+              <td class="text"><span class="readonly-span">${item.ref || ''}${sourceBadge ? ' ' + sourceBadge : ''}</span></td>
             `;
           }
         } else {
-          // In edit mode: booked flights are read-only, manual flights are editable
+          // In edit mode: booked flights and hotels are read-only, manual rows are editable
           if (tableId === 'travelTable') {
             if (isBooked) {
               // Booked flights: read-only even in edit mode (can't edit booking system entries)
@@ -292,6 +296,16 @@ window.initPage = undefined;
                 <td class="action"><button type="button" class="delete-btn"><span class="material-symbols-outlined">delete</span></button></td>
               `;
             }
+          } else if (isBooked) {
+            row.classList.add('booked-row');
+            row.innerHTML = `
+              <td class="date"><span class="readonly-span">${formatDateReadable(item.checkin)}</span></td>
+              <td class="date"><span class="readonly-span">${formatDateReadable(item.checkout)}</span></td>
+              <td class="text"><span class="readonly-span">${item.name || ''}</span></td>
+              <td class="text">${createLocationLink(item.hotel)}</td>
+              <td class="text"><span class="readonly-span">${item.ref || ''} ${getSourceBadge(item)}</span></td>
+              <td class="action"></td>
+            `;
           } else {
             row.innerHTML = `
               <td class="date"><input type="date" value="${item.checkin || ''}"></td>

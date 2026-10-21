@@ -384,6 +384,12 @@
   border: 1px solid #a5d6a7;
 }
 
+.source-badge.cancelled {
+  background: #fdecea;
+  color: #c62828;
+  border: 1px solid #ef9a9a;
+}
+
 /* Flight type badges (OUT/RET) */
 .flight-type-badge {
   display: inline-block;

@@ -770,6 +770,7 @@ const ChangeRequest = require('./models/ChangeRequest');
 const FolderLog = require('./models/FolderLog');
 const ManualReservation = require('./models/ManualReservation');
 const FlightRequest = require('./models/FlightRequest');
+const HotelRequest = require('./models/HotelRequest');
 const Passenger = require('./models/Passenger');
 const ReimbursementRequest = require('./models/ReimbursementRequest');
 
@@ -1020,7 +1021,13 @@ app.post('/api/chat/:tableId', authenticate, async (req, res) => {
     
     if (isTravelQuery) {
       relevantData.travel = table.travel || [];
-      relevantData.accommodation = table.accommodation || [];
+      let bookedAccommodation = [];
+      try {
+        bookedAccommodation = await getBookedAccommodationRows(table);
+      } catch (hotelReqErr) {
+        console.error('Error fetching booked hotels for chat:', hotelReqErr);
+      }
+      relevantData.accommodation = [...(table.accommodation || []), ...bookedAccommodation];
     }
     
     if (isCardQuery) {
@@ -2466,6 +2473,51 @@ app.put('/api/tables/:id/gear', authenticate, async (req, res) => {
   }
 });
 
+function escapeHotelRegex(str) {
+  return String(str || '').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function hotelDateOnly(value) {
+  if (!value) return '';
+  const raw = value instanceof Date ? value.toISOString() : String(value);
+  const date = raw.split('T')[0];
+  return /^\d{4}-\d{2}-\d{2}$/.test(date) ? date : '';
+}
+
+// Booked and cancelled stays from LumDash 2.0, one row per guest.
+async function getBookedAccommodationRows(table) {
+  if (!table) return [];
+  const title = (table.title || '').trim();
+  const query = {
+    status: { $in: ['booked', 'cancelled'] },
+    $or: [{ eventId: table._id }]
+  };
+  if (title) {
+    query.$or.push({ eventName: new RegExp(`^${escapeHotelRegex(title)}$`, 'i') });
+  }
+
+  const hotels = await HotelRequest.find(query).lean();
+  const rows = [];
+  for (const hotel of hotels) {
+    const details = hotel.bookedDetails || {};
+    const hotelName = details.hotelName || hotel.preferredHotel || '';
+    const cancelled = hotel.status === 'cancelled';
+    const guests = hotel.guests && hotel.guests.length ? hotel.guests : [{ name: '' }];
+    for (const guest of guests) {
+      rows.push({
+        checkin: hotelDateOnly(hotel.checkInDate),
+        checkout: hotelDateOnly(hotel.checkOutDate),
+        name: guest && guest.name ? guest.name : '',
+        hotel: cancelled && hotelName ? `${hotelName} (Cancelled)` : hotelName,
+        ref: details.confirmationCode || '',
+        source: 'booked',
+        stayStatus: cancelled ? 'cancelled' : 'booked'
+      });
+    }
+  }
+  return rows;
+}
+
 // TRAVEL / ACCOMMODATION
 app.get('/api/tables/:id/travel', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === "null") {
@@ -2614,9 +2666,32 @@ app.get('/api/tables/:id/travel', authenticate, async (req, res) => {
       return a.date.localeCompare(b.date);
     });
     
+    const manualAccommodation = (table.accommodation || []).map(a => ({
+      checkin: a.checkin || '',
+      checkout: a.checkout || '',
+      name: a.name || '',
+      hotel: a.hotel || '',
+      ref: a.ref || '',
+      source: 'manual'
+    }));
+
+    let bookedAccommodation = [];
+    try {
+      bookedAccommodation = await getBookedAccommodationRows(table);
+    } catch (hotelReqErr) {
+      console.error('Error fetching booked hotels for event:', hotelReqErr);
+    }
+
+    const allAccommodation = [...manualAccommodation, ...bookedAccommodation].sort((a, b) => {
+      if (!a.checkin && !b.checkin) return 0;
+      if (!a.checkin) return 1;
+      if (!b.checkin) return -1;
+      return a.checkin.localeCompare(b.checkin);
+    });
+
     res.json({
       travel: allTravel,
-      accommodation: table.accommodation || []
+      accommodation: allAccommodation
     });
   } catch (err) {
     console.error('Error fetching travel data:', err);
@@ -2639,10 +2714,11 @@ app.put('/api/tables/:id/travel', authenticate, async (req, res) => {
   if (!isAdmin && !isOwner && !isLead) {
     return res.status(403).json({ error: 'Not authorized' });
   }
-  // Only save manual entries (filter out booked entries that came from FlightRequest)
+  // Only save manual entries (filter out booked entries that came from FlightRequest / HotelRequest)
   const manualTravel = (req.body.travel || []).filter(t => t.source !== 'booked');
+  const manualAccommodation = (req.body.accommodation || []).filter(a => a.source !== 'booked');
   table.travel = manualTravel;
-  table.accommodation = req.body.accommodation || [];
+  table.accommodation = manualAccommodation;
   await table.save();
   
   notifyDataChange('travelChanged', null, req.params.id); // Notify about travel/accommodation changes with tableId
