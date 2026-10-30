@@ -723,6 +723,19 @@ body.card-log-modal-open #page-container {
   background-color: #c5e1f7 !important;
 }
 
+.card-log-page .category-audio td,
+.card-log-page .category-audio td:last-child {
+  background-color: #fff4e0 !important;
+}
+.card-log-page .category-audio:nth-child(even) td,
+.card-log-page .category-audio:nth-child(even) td:last-child {
+  background-color: #fcefd0 !important;
+}
+.card-log-page .category-audio:hover td,
+.card-log-page .category-audio:hover td:last-child {
+  background-color: #f7e4c0 !important;
+}
+
 .card-log-page .category-headshot td,
 .card-log-page .category-headshot td:last-child {
   background-color: #e0f5e0 !important;
@@ -799,6 +812,9 @@ body.card-log-modal-open #page-container {
 /* Category select color preview in modal */
 #card-category-select option[value="Video"] {
   background-color: #e0f0ff;
+}
+#card-category-select option[value="Audio"] {
+  background-color: #fff4e0;
 }
 #card-category-select option[value="Headshot"] {
   background-color: #e0f5e0;

@@ -1554,6 +1554,8 @@ function addRow(date, entry = {}) {
   const category = entry.category || 'Photo';
   if (category === 'Video') {
     row.classList.add('category-video');
+  } else if (category === 'Audio') {
+    row.classList.add('category-audio');
   } else if (category === 'Headshot') {
     row.classList.add('category-headshot');
   } else if (category === 'Other') {
@@ -1987,10 +1989,12 @@ function updateExistingRowInDOM(date, entryData) {
   applyCardBackedUpUI(row, entryData);
   
   // Update category color coding
-  row.classList.remove('category-video', 'category-headshot', 'category-other');
+  row.classList.remove('category-video', 'category-audio', 'category-headshot', 'category-other');
   const category = entryData.category || 'Photo';
   if (category === 'Video') {
     row.classList.add('category-video');
+  } else if (category === 'Audio') {
+    row.classList.add('category-audio');
   } else if (category === 'Headshot') {
     row.classList.add('category-headshot');
   } else if (category === 'Other') {
