@@ -142,20 +142,38 @@ function writeRememberedScheduleId(eventId, scheduleId) {
   sessionStorage.setItem(scheduleStorageKey(eventId, 'active'), id);
 }
 
+function markSchedulePicked(eventId, scheduleId) {
+  if (!eventId || !scheduleId) return;
+  localStorage.setItem(scheduleStorageKey(eventId, 'picked'), String(scheduleId));
+}
+
+function hasPickedSchedule(eventId) {
+  return !!localStorage.getItem(scheduleStorageKey(eventId, 'picked'));
+}
+
 function bindSchedulesFromEvent(data, eventId) {
   eventSchedules = readSchedulesFromEvent(data);
   const stored = readRememberedScheduleId(eventId);
   let selected = eventSchedules.find((s) => s._id && String(s._id) === String(stored));
+  const storedMatches = !!(stored && selected);
   if (!selected) selected = eventSchedules.find((s) => s.isMain) || eventSchedules[0] || null;
   activeScheduleId = selected && selected._id ? String(selected._id) : null;
-  if (activeScheduleId) writeRememberedScheduleId(eventId, activeScheduleId);
+  if (stored && !storedMatches) {
+    localStorage.removeItem(scheduleStorageKey(eventId, 'active'));
+    sessionStorage.removeItem(scheduleStorageKey(eventId, 'active'));
+  }
+  if (eventSchedules.length < 2 && activeScheduleId) {
+    writeRememberedScheduleId(eventId, activeScheduleId);
+    markSchedulePicked(eventId, activeScheduleId);
+  }
   return { selected };
 }
 
 function shouldOpenScheduleList(eventId) {
   if (!isScheduleMobileViewport()) return false;
   if (eventSchedules.length < 1) return false;
-  return sessionStorage.getItem(scheduleStorageKey(eventId, 'show_list')) === '1';
+  if (sessionStorage.getItem(scheduleStorageKey(eventId, 'show_list')) === '1') return true;
+  return eventSchedules.length > 1 && !hasPickedSchedule(eventId);
 }
 
 function scheduleEventApplies(data) {
@@ -261,6 +279,7 @@ async function openSchedule(scheduleId) {
   if (!eventId || !scheduleId) return;
   sessionStorage.removeItem(scheduleStorageKey(eventId, 'show_list'));
   writeRememberedScheduleId(eventId, scheduleId);
+  markSchedulePicked(eventId, scheduleId);
   activeScheduleId = String(scheduleId);
   scheduleListVisible = false;
   closeScheduleMenu();

@@ -20,7 +20,7 @@ If LumDash 2.0 calls this API, leave the server alone and only update the 2.0 sc
 - Exactly one schedule is Main (`isMain: true`).
 - `programSchedule` stays a live copy of the Main schedule’s rows. Share links and Luma keep reading `programSchedule` only. Do not point them at whichever schedule is open.
 - The color legend (`scheduleColorLegend`) stays event-wide. It is not stored per schedule.
-- The open schedule is remembered per event. A short tap on Schedule opens that schedule. It does not open a list.
+- On mobile, the first open of an event with more than one schedule shows the schedule list. Choosing one stores `schedule_picked_${eventId}`. Later short taps open that schedule and do not show the list. One schedule opens directly.
 - Desktop and mobile both switch schedules from the header dropdown (the chip under the event title, labeled with the schedule name, default “Main”).
 - On mobile only, a long-press of about 450ms on the Schedule nav item opens the schedule list. Moving a finger more than about 12px cancels the long-press. The follow-up click is ignored. `contextmenu` on that nav item is prevented.
 - Admins, owners, and leads can create, rename, delete, and set Main. Shared users can edit rows on a schedule they can already edit. They do not see New, Rename, Set as main, or Delete schedule.
@@ -125,10 +125,11 @@ State:
 
 - `eventSchedules` — list from the event
 - `activeScheduleId` — open schedule
-- Remember it in both `localStorage` and `sessionStorage` as `schedule_active_${eventId}`
-- Mobile list flag is session-only: `schedule_show_list_${eventId}`. Set it only on long-press. Clear it when a schedule is opened and when a short mobile tap lands on Schedule.
+- Remember the open schedule in both `localStorage` and `sessionStorage` as `schedule_active_${eventId}`
+- Remember that the user actually chose a schedule in `localStorage` as `schedule_picked_${eventId}`. Set this only when they open a schedule, or when the event has a single schedule. Do not set it just because the page fell back to Main.
+- Mobile list flag is session-only: `schedule_show_list_${eventId}`. Long-press sets it. Clear it when a schedule is opened and when a short mobile tap lands on Schedule.
 
-On load, pick the remembered id if it still exists, otherwise Main. Then render that schedule’s `programs` as today’s `tableData.programs`.
+On load, pick the remembered id if it still exists, otherwise Main. On mobile, if `schedule_picked_${eventId}` is missing and there is more than one schedule, show the list. Then render the selected schedule’s `programs` as today’s `tableData.programs`.
 
 Header:
 
@@ -184,4 +185,4 @@ Run imported name, location, photographer, folder, and notes through the apostro
 - Do not make the public share link or Luma follow the open schedule.
 - Do not auto-migrate existing imported dates by adding a day.
 - Do not apply another schedule’s socket event to the rows on screen.
-- Do not show the schedule list on every mobile visit. The list is the long-press path only.
+- Do not show the schedule list on every mobile visit. Show it on the first open when there are several schedules, and after that only on long-press.
