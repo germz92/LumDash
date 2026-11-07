@@ -13,6 +13,23 @@
 
   // ---- Helpers ----
 
+  function normalizeScheduleText(value) {
+    return String(value ?? '')
+      .replace(/\u00e2\u20ac\u2122/g, "'")
+      .replace(/\u00e2\u0080\u0099/g, "'")
+      .replace(/\u00e2\u20ac\u02dc/g, "'")
+      .replace(/[\u2018\u2019\u201A\u201B\u2032\u0091\u0092]/g, "'");
+  }
+
+  function escapeScheduleText(value) {
+    return normalizeScheduleText(value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   function getShareToken() {
     const params = new URLSearchParams(window.location.search);
     return params.get('token');
@@ -331,24 +348,24 @@
           <div style="display: flex; align-items: center; gap: 12px;">
             <input class="program-name" type="text"
               style="flex: 1;"
-              value="${program.name || ''}"
+              value="${escapeScheduleText(program.name || '')}"
               readonly>
           </div>
           <div class="meta-fields" style="display:flex;align-items:flex-start;gap:6px;margin-top:4px;">
             <div class="meta-field" style="display:flex;align-items:flex-start;flex:1;min-width:0;">
               <span class="material-symbols-outlined" style="margin-right:4px;margin-top:0;font-size:18px;line-height:18px;flex-shrink:0;align-self:flex-start;">location_on</span>
-              <textarea class="compact-textarea" rows="1" data-field="location" placeholder="Location" readonly>${program.location || ''}</textarea>
+              <textarea class="compact-textarea" rows="1" data-field="location" placeholder="Location" readonly>${escapeScheduleText(program.location || '')}</textarea>
             </div>
             <div class="meta-field" style="display:flex;align-items:flex-start;flex:1;min-width:0;">
               <span class="material-symbols-outlined" style="margin-right:4px;margin-top:0;font-size:18px;line-height:18px;flex-shrink:0;align-self:flex-start;">photo_camera</span>
-              <textarea class="compact-textarea" rows="1" data-field="photographer" placeholder="Photographer" readonly>${program.photographer || ''}</textarea>
+              <textarea class="compact-textarea" rows="1" data-field="photographer" placeholder="Photographer" readonly>${escapeScheduleText(program.photographer || '')}</textarea>
             </div>
           </div>
           <div class="entry-actions">
             <button class="show-notes-btn" onclick="toggleSharedNotes(this)">Show Notes</button>
           </div>
           <div class="notes-field" style="display: ${allNotesVisible ? 'block' : 'none'};">
-            <textarea class="auto-expand" placeholder="Notes" readonly>${program.notes || ''}</textarea>
+            <textarea class="auto-expand" placeholder="Notes" readonly>${escapeScheduleText(program.notes || '')}</textarea>
           </div>
         `;
 
@@ -440,10 +457,10 @@
         row.innerHTML = `
           <td><span class="cell-display">${allDay ? 'All Day' : formatTo12Hour(program.startTime || '')}</span></td>
           <td><span class="cell-display">${allDay ? '' : formatTo12Hour(program.endTime || '')}</span></td>
-          <td><span class="cell-display">${program.name || ''}</span></td>
-          <td><span class="cell-display">${program.location || ''}</span></td>
-          <td><span class="cell-display">${program.photographer || ''}</span></td>
-          <td><span class="cell-display">${program.notes || ''}</span></td>
+          <td><span class="cell-display">${escapeScheduleText(program.name || '')}</span></td>
+          <td><span class="cell-display">${escapeScheduleText(program.location || '')}</span></td>
+          <td><span class="cell-display">${escapeScheduleText(program.photographer || '')}</span></td>
+          <td data-field="notes"><span class="cell-display">${escapeScheduleText(program.notes || '')}</span></td>
           <td class="done-checkbox-cell">
             ${program.done
               ? '<span class="material-symbols-outlined" style="color: #28a745; font-size: 20px;">check_circle</span>'
@@ -565,12 +582,12 @@
     document.getElementById('crEditProgramDate').value = program.date || '';
 
     // Pre-fill fields with current values
-    document.getElementById('crEditName').value = program.name || '';
+    document.getElementById('crEditName').value = normalizeScheduleText(program.name || '');
     document.getElementById('crEditStartTime').value = program.startTime || '';
     document.getElementById('crEditEndTime').value = program.endTime || '';
-    document.getElementById('crEditLocation').value = program.location || '';
-    document.getElementById('crEditPhotographer').value = program.photographer || '';
-    document.getElementById('crEditNotes').value = program.notes || '';
+    document.getElementById('crEditLocation').value = normalizeScheduleText(program.location || '');
+    document.getElementById('crEditPhotographer').value = normalizeScheduleText(program.photographer || '');
+    document.getElementById('crEditNotes').value = normalizeScheduleText(program.notes || '');
     document.getElementById('crEditMessage').value = '';
 
     // Persist client name across modals
@@ -578,12 +595,12 @@
     document.getElementById('crEditClientName').value = savedName;
 
     // Show original values below each field
-    document.getElementById('crEditNameOrig').textContent = program.name ? `Current: ${program.name}` : '';
+    document.getElementById('crEditNameOrig').textContent = program.name ? `Current: ${normalizeScheduleText(program.name)}` : '';
     document.getElementById('crEditStartTimeOrig').textContent = program.startTime ? `Current: ${formatTo12Hour(program.startTime)}` : '';
     document.getElementById('crEditEndTimeOrig').textContent = program.endTime ? `Current: ${formatTo12Hour(program.endTime)}` : '';
-    document.getElementById('crEditLocationOrig').textContent = program.location ? `Current: ${program.location}` : '';
-    document.getElementById('crEditPhotographerOrig').textContent = program.photographer ? `Current: ${program.photographer}` : '';
-    document.getElementById('crEditNotesOrig').textContent = program.notes ? `Current: ${program.notes}` : '';
+    document.getElementById('crEditLocationOrig').textContent = program.location ? `Current: ${normalizeScheduleText(program.location)}` : '';
+    document.getElementById('crEditPhotographerOrig').textContent = program.photographer ? `Current: ${normalizeScheduleText(program.photographer)}` : '';
+    document.getElementById('crEditNotesOrig').textContent = program.notes ? `Current: ${normalizeScheduleText(program.notes)}` : '';
 
     // Store original data on the modal for submission
     modal.dataset.originalData = JSON.stringify(program);

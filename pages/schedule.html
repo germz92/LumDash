@@ -4,7 +4,16 @@
 <div class="schedule-page">
   <!-- Fixed top section -->
   <div class="top-controls-fixed">
-    <h2 id="eventTitle">Program Schedule</h2>
+    <div class="schedule-heading">
+      <h2 id="eventTitle">Program Schedule</h2>
+      <div class="schedule-switcher" id="scheduleSwitcher">
+        <button type="button" id="scheduleSwitcherBtn" class="schedule-switcher-btn" aria-haspopup="menu" aria-expanded="false">
+          <span id="scheduleSwitcherLabel">Main</span>
+          <span class="material-symbols-outlined schedule-switcher-caret">expand_more</span>
+        </button>
+        <div id="scheduleSwitcherMenu" class="schedule-switcher-menu" hidden></div>
+      </div>
+    </div>
 
     <div class="top-controls">
       <input id="newDate" type="date" style="display:none;">
@@ -41,6 +50,7 @@
     </div>
   </div>
 
+  <div id="scheduleListView" class="schedule-list-view"></div>
   <div id="programSections" class="program-container"></div>
   <div id="scheduleTableView" class="schedule-table-view"></div>
   <div id="scheduleScrollDate" class="schedule-scroll-date" aria-hidden="true"></div>

@@ -1465,6 +1465,7 @@ app.get('/api/tables/:id', authenticate, async (req, res) => {
   if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
     return res.status(403).json({ error: 'Not authorized or not found' });
   }
+  await ensureSchedules(table);
   res.json(table);
 });
 
@@ -2854,6 +2855,62 @@ app.post('/api/users/:id/reset-password', authenticate, async (req, res) => {
   res.json({ message: 'Password reset' });
 });
 
+// Named schedules. programSchedule remains the Main schedule's rows.
+function clonePrograms(programs) {
+  return (programs || []).map((p) => (typeof p.toObject === 'function' ? p.toObject() : { ...p }));
+}
+
+function summarizeSchedule(schedule) {
+  return {
+    _id: schedule._id,
+    name: schedule.name,
+    isMain: !!schedule.isMain,
+    programCount: (schedule.programs || []).length
+  };
+}
+
+function summarizeSchedules(table) {
+  return (table.schedules || []).map(summarizeSchedule);
+}
+
+async function ensureSchedules(table) {
+  if (!table) return table;
+  if (Array.isArray(table.schedules) && table.schedules.length > 0) {
+    const mains = table.schedules.filter((s) => s.isMain);
+    if (mains.length === 1) return table;
+    table.schedules.forEach((s) => { s.isMain = false; });
+    const main = mains[0] || table.schedules[0];
+    main.isMain = true;
+    table.programSchedule = clonePrograms(main.programs);
+    table.markModified('schedules');
+    table.markModified('programSchedule');
+    await table.save();
+    return table;
+  }
+
+  table.schedules = [{
+    name: 'Main',
+    isMain: true,
+    programs: clonePrograms(table.programSchedule)
+  }];
+  table.markModified('schedules');
+  await table.save();
+  return table;
+}
+
+function findSchedule(table, scheduleId) {
+  if (!table.schedules || table.schedules.length === 0) return null;
+  if (scheduleId) return table.schedules.id(scheduleId) || null;
+  return table.schedules.find((s) => s.isMain) || table.schedules[0];
+}
+
+function emitSchedulesUpdated(table) {
+  io.to(`event-${table._id}`).emit('schedulesUpdated', {
+    eventId: String(table._id),
+    schedules: summarizeSchedules(table)
+  });
+}
+
 // PROGRAM SCHEDULE
 app.get('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === "null") {
@@ -2863,7 +2920,11 @@ app.get('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
   if (!table || (!table.owners.includes(req.user.id) && !table.sharedWith.includes(req.user.id))) {
     return res.status(403).json({ error: 'Not authorized or not found' });
   }
-  res.json({ programSchedule: table.programSchedule || [] });
+  await ensureSchedules(table);
+  res.json({
+    programSchedule: table.programSchedule || [],
+    schedules: summarizeSchedules(table)
+  });
 });
 
 app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
@@ -2891,13 +2952,29 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
     if (!oldTable) {
       return res.status(404).json({ error: 'Event not found' });
     }
+
+    const userId = String(req.user.id);
+    const canWrite = req.user.role === 'admin'
+      || (oldTable.owners && oldTable.owners.map(String).includes(userId))
+      || (oldTable.leads && oldTable.leads.map(String).includes(userId))
+      || (oldTable.sharedWith && oldTable.sharedWith.map(String).includes(userId));
+    if (!canWrite) {
+      return res.status(403).json({ error: 'Not authorized or not found' });
+    }
+
+    await ensureSchedules(oldTable);
+    const schedule = findSchedule(oldTable, req.body.scheduleId);
+    if (!schedule) {
+      return res.status(404).json({ error: 'Schedule not found' });
+    }
+
+    const oldSchedule = clonePrograms(schedule.programs);
+    const scheduleId = String(schedule._id);
     
-    const oldSchedule = oldTable.programSchedule || [];
-    
-    // CRITICAL: Prevent accidental data deletion
-    // If old schedule has data but new schedule is empty, require explicit confirmation
+    // CRITICAL: Prevent accidental data deletion of the schedule being saved.
+    // Other schedules on the event are left untouched.
     if (oldSchedule.length > 0 && newSchedule.length === 0) {
-      console.warn(`⚠️ [SCHEDULE UPDATE] WARNING: Attempting to delete all ${oldSchedule.length} programs for event ${req.params.id}`);
+      console.warn(`⚠️ [SCHEDULE UPDATE] WARNING: Attempting to delete all ${oldSchedule.length} programs for schedule ${scheduleId}`);
       
       // Only allow if explicitly marked as intentional deletion
       if (!req.body._intentionalDeletion) {
@@ -2912,27 +2989,34 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
       }
     }
     
-    console.log(`💾 [SCHEDULE UPDATE] Updating schedule for event ${req.params.id}: ${oldSchedule.length} → ${newSchedule.length} programs`);
+    console.log(`💾 [SCHEDULE UPDATE] Updating schedule ${scheduleId} for event ${req.params.id}: ${oldSchedule.length} → ${newSchedule.length} programs`);
+
+    const update = {
+      $set: {
+        'schedules.$[sched].programs': newSchedule,
+        'schedules.$[sched].updatedAt': new Date()
+      }
+    };
+    if (schedule.isMain) {
+      update.$set.programSchedule = newSchedule;
+    }
     
     // Use findOneAndUpdate instead of find + save to avoid version conflicts
     const result = await Table.findOneAndUpdate(
-      { 
-        _id: req.params.id,
-        $or: [
-          { owners: req.user.id },
-          { leads: req.user.id },
-          { sharedWith: req.user.id }
-        ]
-      },
-      { $set: { programSchedule: newSchedule } },
-      { new: true, runValidators: true }
+      { _id: req.params.id },
+      update,
+      {
+        arrayFilters: [{ 'sched._id': schedule._id }],
+        new: true,
+        runValidators: true
+      }
     );
     
     if (!result) {
       return res.status(403).json({ error: 'Not authorized or not found' });
     }
     
-    console.log(`✅ [SCHEDULE UPDATE] Successfully updated schedule for event ${req.params.id}`);
+    console.log(`✅ [SCHEDULE UPDATE] Successfully updated schedule ${scheduleId} for event ${req.params.id}`);
     
     // --- Partial update events ---
     // Build maps for fast lookup
@@ -2942,24 +3026,24 @@ app.put('/api/tables/:id/program-schedule', authenticate, async (req, res) => {
     // Added
     for (const p of newSchedule) {
       if (!oldMap.has(p._id?.toString?.())) {
-        notifyDataChange('programAdded', { program: p }, req.params.id);
+        notifyDataChange('programAdded', { program: p, scheduleId }, req.params.id);
       }
     }
     // Updated
     for (const p of newSchedule) {
       const old = oldMap.get(p._id?.toString?.());
       if (old && JSON.stringify(p) !== JSON.stringify(old)) {
-        notifyDataChange('programUpdated', { program: p }, req.params.id);
+        notifyDataChange('programUpdated', { program: p, scheduleId }, req.params.id);
       }
     }
     // Deleted
     for (const p of oldSchedule) {
       if (!newMap.has(p._id?.toString?.())) {
-        notifyDataChange('programDeleted', { program: p }, req.params.id);
+        notifyDataChange('programDeleted', { program: p, scheduleId }, req.params.id);
       }
     }
     
-    res.json({ message: 'Program schedule updated' });
+    res.json({ message: 'Program schedule updated', scheduleId });
   } catch (err) {
     console.error('❌ [SCHEDULE UPDATE] Error updating program schedule:', err);
     res.status(500).json({ error: 'Failed to update program schedule' });
@@ -2972,9 +3056,9 @@ app.patch('/api/tables/:id/program-field', authenticate, async (req, res) => {
     return res.status(400).json({ error: "Invalid table ID" });
   }
   
-  const { programId, field, value, userId, sessionId, baseValue } = req.body;
-  if (!programId || !field) {
-    return res.status(400).json({ error: "programId and field are required" });
+  const { programId, field, value, sessionId, baseValue, scheduleId: requestedScheduleId } = req.body;
+  if (!programId || !field || /[.$]/.test(field)) {
+    return res.status(400).json({ error: "programId and a valid field are required" });
   }
   
   try {
@@ -2998,11 +3082,18 @@ app.patch('/api/tables/:id/program-field', authenticate, async (req, res) => {
       return res.status(403).json({ error: 'Not authorized to edit this table' });
     }
     
-    // Find the current program
-    const currentProgram = currentTable.programSchedule.find(p => p._id.toString() === programId);
+    await ensureSchedules(currentTable);
+    const schedule = findSchedule(currentTable, requestedScheduleId);
+    if (!schedule) {
+      return res.status(404).json({ error: 'Schedule not found' });
+    }
+
+    // Find the current program on the schedule being edited
+    const currentProgram = schedule.programs.find(p => p._id.toString() === String(programId));
     if (!currentProgram) {
       return res.status(404).json({ error: 'Program not found' });
     }
+    const scheduleId = String(schedule._id);
     
     const oldValue = currentProgram[field];
 
@@ -3032,21 +3123,37 @@ app.patch('/api/tables/:id/program-field', authenticate, async (req, res) => {
       });
     }
     
-    // Use MongoDB's positional operator to update only the specific field atomically
+    const now = new Date();
+    const set = {
+      [`schedules.$[sched].programs.$[prog].${field}`]: value,
+      'schedules.$[sched].programs.$[prog].lastModified': now,
+      'schedules.$[sched].programs.$[prog].lastModifiedBy': req.user.id,
+      'schedules.$[sched].updatedAt': now
+    };
+    const inc = { 'schedules.$[sched].programs.$[prog].rev': 1 };
+    if (schedule.isMain) {
+      set[`programSchedule.$[prog].${field}`] = value;
+      set['programSchedule.$[prog].lastModified'] = now;
+      set['programSchedule.$[prog].lastModifiedBy'] = req.user.id;
+      inc['programSchedule.$[prog].rev'] = 1;
+    }
+
+    const programObjectId = mongoose.Types.ObjectId.isValid(programId)
+      ? new mongoose.Types.ObjectId(programId)
+      : programId;
+
+    // Update only this field on this schedule. Main also mirrors programSchedule.
     const result = await Table.findOneAndUpdate(
-      { 
-        _id: req.params.id,
-        'programSchedule._id': programId
-      },
-      { 
-        $set: { 
-          [`programSchedule.$.${field}`]: value,
-          [`programSchedule.$.lastModified`]: new Date(),
-          [`programSchedule.$.lastModifiedBy`]: req.user.id
-        },
-        $inc: { 'programSchedule.$.rev': 1 }
-      },
-      { new: true, runValidators: true }
+      { _id: req.params.id },
+      { $set: set, $inc: inc },
+      {
+        arrayFilters: [
+          { 'sched._id': schedule._id },
+          { 'prog._id': programObjectId }
+        ],
+        new: true,
+        runValidators: true
+      }
     );
     
     if (!result) {
@@ -3054,13 +3161,15 @@ app.patch('/api/tables/:id/program-field', authenticate, async (req, res) => {
     }
     
     // Find the updated program for notification
-    const updatedProgram = result.programSchedule.find(p => p._id.toString() === programId);
+    const updatedSchedule = result.schedules.id(schedule._id);
+    const updatedProgram = updatedSchedule && updatedSchedule.programs.id(programId);
     if (updatedProgram) {
       console.log(`✅ [ATOMIC] Updated field ${field}: "${oldValue}" → "${value}" for program ${programId}`);
       
       // Broadcast field-level update to everyone in the room (sender filters by sessionId)
       io.to(`event-${req.params.id}`).emit('programFieldUpdated', { 
         eventId: req.params.id,
+        scheduleId,
         programId, 
         field, 
         value, 
@@ -3147,7 +3256,7 @@ app.post('/api/tables/:id/program', authenticate, async (req, res) => {
   if (!req.params.id || req.params.id === 'null') {
     return res.status(400).json({ error: 'Invalid table ID' });
   }
-  const { date, sessionId } = req.body;
+  const { date, sessionId, scheduleId: requestedScheduleId } = req.body;
   if (!date) return res.status(400).json({ error: 'date is required' });
 
   try {
@@ -3156,6 +3265,10 @@ app.post('/api/tables/:id/program', authenticate, async (req, res) => {
     if (!canEditSchedule(table, req)) {
       return res.status(403).json({ error: 'Only owners and leads can add programs' });
     }
+
+    await ensureSchedules(table);
+    const schedule = findSchedule(table, requestedScheduleId);
+    if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
 
     const newProgram = {
       date,
@@ -3174,21 +3287,27 @@ app.post('/api/tables/:id/program', authenticate, async (req, res) => {
       rev: 0
     };
 
-    const result = await Table.findByIdAndUpdate(
-      req.params.id,
-      { $push: { programSchedule: newProgram } },
-      { new: true, runValidators: true }
-    );
-    const created = result.programSchedule[result.programSchedule.length - 1];
+    schedule.programs.push(newProgram);
+    schedule.updatedAt = new Date();
+    table.markModified('schedules');
+    await table.save();
+    const created = schedule.programs[schedule.programs.length - 1];
+    if (schedule.isMain) {
+      table.programSchedule = clonePrograms(schedule.programs);
+      table.markModified('programSchedule');
+      await table.save();
+    }
+    const scheduleId = String(schedule._id);
 
     io.to(`event-${req.params.id}`).emit('programInserted', {
       eventId: req.params.id,
+      scheduleId,
       program: created,
       sessionId: sessionId || null,
       userId: req.user.id
     });
 
-    res.json({ message: 'Program added', program: created });
+    res.json({ message: 'Program added', program: created, scheduleId });
   } catch (err) {
     console.error('❌ [PROGRAM ADD] Error:', err);
     res.status(500).json({ error: 'Failed to add program', details: err.message });
@@ -3202,6 +3321,7 @@ app.delete('/api/tables/:id/program/:programId', authenticate, async (req, res) 
   }
   const { programId } = req.params;
   const sessionId = req.body && req.body.sessionId;
+  const requestedScheduleId = (req.body && req.body.scheduleId) || req.query.scheduleId;
 
   try {
     const table = await Table.findById(req.params.id);
@@ -3210,20 +3330,29 @@ app.delete('/api/tables/:id/program/:programId', authenticate, async (req, res) 
       return res.status(403).json({ error: 'Only owners and leads can delete programs' });
     }
 
-    await Table.findByIdAndUpdate(
-      req.params.id,
-      { $pull: { programSchedule: { _id: programId } } },
-      { new: true }
-    );
+    await ensureSchedules(table);
+    const schedule = findSchedule(table, requestedScheduleId);
+    if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
+
+    schedule.programs.pull({ _id: programId });
+    schedule.updatedAt = new Date();
+    if (schedule.isMain) {
+      table.programSchedule.pull({ _id: programId });
+      table.markModified('programSchedule');
+    }
+    table.markModified('schedules');
+    await table.save();
+    const scheduleId = String(schedule._id);
 
     io.to(`event-${req.params.id}`).emit('programRemoved', {
       eventId: req.params.id,
+      scheduleId,
       programId,
       sessionId: sessionId || null,
       userId: req.user.id
     });
 
-    res.json({ message: 'Program deleted', programId });
+    res.json({ message: 'Program deleted', programId, scheduleId });
   } catch (err) {
     console.error('❌ [PROGRAM DELETE] Error:', err);
     res.status(500).json({ error: 'Failed to delete program', details: err.message });
@@ -3237,6 +3366,7 @@ app.delete('/api/tables/:id/program-date/:date', authenticate, async (req, res) 
   }
   const { date } = req.params;
   const sessionId = req.body && req.body.sessionId;
+  const requestedScheduleId = (req.body && req.body.scheduleId) || req.query.scheduleId;
 
   try {
     const table = await Table.findById(req.params.id);
@@ -3245,23 +3375,151 @@ app.delete('/api/tables/:id/program-date/:date', authenticate, async (req, res) 
       return res.status(403).json({ error: 'Only owners and leads can delete programs' });
     }
 
-    await Table.findByIdAndUpdate(
-      req.params.id,
-      { $pull: { programSchedule: { date } } },
-      { new: true }
-    );
+    await ensureSchedules(table);
+    const schedule = findSchedule(table, requestedScheduleId);
+    if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
+
+    const removedIds = schedule.programs.filter(p => p.date === date).map(p => p._id);
+    removedIds.forEach((id) => {
+      schedule.programs.pull(id);
+      if (schedule.isMain) table.programSchedule.pull(id);
+    });
+    schedule.updatedAt = new Date();
+    table.markModified('schedules');
+    if (schedule.isMain) table.markModified('programSchedule');
+    await table.save();
+    const scheduleId = String(schedule._id);
 
     io.to(`event-${req.params.id}`).emit('programsRemovedByDate', {
       eventId: req.params.id,
+      scheduleId,
       date,
       sessionId: sessionId || null,
       userId: req.user.id
     });
 
-    res.json({ message: 'Programs for date deleted', date });
+    res.json({ message: 'Programs for date deleted', date, scheduleId });
   } catch (err) {
     console.error('❌ [PROGRAM DATE DELETE] Error:', err);
     res.status(500).json({ error: 'Failed to delete programs for date', details: err.message });
+  }
+});
+
+function readScheduleName(body) {
+  const name = body && typeof body.name === 'string' ? body.name.trim() : '';
+  if (!name || name.length > 80) return null;
+  return name;
+}
+
+// CREATE A NAMED SCHEDULE
+app.post('/api/tables/:id/schedules', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === 'null') {
+    return res.status(400).json({ error: 'Invalid table ID' });
+  }
+  const name = readScheduleName(req.body);
+  if (!name) return res.status(400).json({ error: 'Schedule name is required' });
+
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) return res.status(404).json({ error: 'Table not found' });
+    if (!canEditSchedule(table, req)) {
+      return res.status(403).json({ error: 'Only owners and leads can create schedules' });
+    }
+    await ensureSchedules(table);
+    table.schedules.push({
+      name,
+      isMain: false,
+      programs: [],
+      createdBy: req.user.id
+    });
+    table.markModified('schedules');
+    await table.save();
+    const created = table.schedules[table.schedules.length - 1];
+    emitSchedulesUpdated(table);
+    res.json({ schedule: summarizeSchedule(created), schedules: summarizeSchedules(table) });
+  } catch (err) {
+    console.error('❌ [SCHEDULES] Create failed:', err);
+    res.status(500).json({ error: 'Failed to create schedule' });
+  }
+});
+
+// RENAME OR SET MAIN
+app.patch('/api/tables/:id/schedules/:scheduleId', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === 'null') {
+    return res.status(400).json({ error: 'Invalid table ID' });
+  }
+
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) return res.status(404).json({ error: 'Table not found' });
+    if (!canEditSchedule(table, req)) {
+      return res.status(403).json({ error: 'Only owners and leads can edit schedules' });
+    }
+    await ensureSchedules(table);
+    const schedule = findSchedule(table, req.params.scheduleId);
+    if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
+
+    if (typeof req.body.name === 'string') {
+      const name = readScheduleName(req.body);
+      if (!name) return res.status(400).json({ error: 'Schedule name is required' });
+      schedule.name = name;
+    }
+
+    if (req.body.isMain === true) {
+      table.schedules.forEach((s) => { s.isMain = String(s._id) === String(schedule._id); });
+      table.programSchedule = clonePrograms(schedule.programs);
+      table.markModified('programSchedule');
+    }
+
+    schedule.updatedAt = new Date();
+    table.markModified('schedules');
+    await table.save();
+    emitSchedulesUpdated(table);
+    res.json({ schedule: summarizeSchedule(schedule), schedules: summarizeSchedules(table) });
+  } catch (err) {
+    console.error('❌ [SCHEDULES] Update failed:', err);
+    res.status(500).json({ error: 'Failed to update schedule' });
+  }
+});
+
+// DELETE A NAMED SCHEDULE. The last schedule cannot be deleted.
+// Deleting Main promotes the next schedule and copies it into programSchedule.
+app.delete('/api/tables/:id/schedules/:scheduleId', authenticate, async (req, res) => {
+  if (!req.params.id || req.params.id === 'null') {
+    return res.status(400).json({ error: 'Invalid table ID' });
+  }
+
+  try {
+    const table = await Table.findById(req.params.id);
+    if (!table) return res.status(404).json({ error: 'Table not found' });
+    if (!canEditSchedule(table, req)) {
+      return res.status(403).json({ error: 'Only owners and leads can delete schedules' });
+    }
+    await ensureSchedules(table);
+    if (!table.schedules || table.schedules.length <= 1) {
+      return res.status(400).json({ error: 'The last schedule cannot be deleted' });
+    }
+    const schedule = findSchedule(table, req.params.scheduleId);
+    if (!schedule) return res.status(404).json({ error: 'Schedule not found' });
+
+    const removingMain = !!schedule.isMain;
+    table.schedules.pull(schedule._id);
+    if (removingMain) {
+      table.schedules.forEach((s) => { s.isMain = false; });
+      table.schedules[0].isMain = true;
+      table.programSchedule = clonePrograms(table.schedules[0].programs);
+      table.markModified('programSchedule');
+    }
+    table.markModified('schedules');
+    await table.save();
+    emitSchedulesUpdated(table);
+    res.json({
+      message: 'Schedule deleted',
+      schedules: summarizeSchedules(table)
+    });
+  } catch (err) {
+    console.error('❌ [SCHEDULES] Delete failed:', err);
+    res.status(500).json({ error: 'Failed to delete schedule' });
   }
 });
 

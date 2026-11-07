@@ -909,6 +909,77 @@ function setupBottomNavigation(navContainer, tableId, currentPage) {
 }
 
 function bindBottomNav(nav) {
+  let suppressScheduleClick = false;
+  let schedulePressTimer = null;
+
+  const clearSchedulePress = () => {
+    if (schedulePressTimer) {
+      clearTimeout(schedulePressTimer);
+      schedulePressTimer = null;
+    }
+  };
+
+  const openSchedulePicker = (eventId) => {
+    if (eventId) sessionStorage.setItem(`schedule_show_list_${eventId}`, '1');
+    if (window.currentPage === 'schedule' && typeof window.showScheduleList === 'function') {
+      if (window.showScheduleList()) {
+        updateActiveNavigation('schedule');
+        return;
+      }
+    }
+    if (window.currentPage !== 'schedule' && eventId) {
+      window.navigate('schedule', eventId);
+    }
+  };
+
+  const scheduleLink = nav.querySelector('#navSchedule');
+  if (scheduleLink) {
+    scheduleLink.style.webkitTouchCallout = 'none';
+    scheduleLink.style.userSelect = 'none';
+  }
+
+  nav.addEventListener('touchstart', (e) => {
+    if (!window.matchMedia('(max-width: 768px)').matches) return;
+    const link = e.target.closest('#navSchedule');
+    if (!link || !nav.contains(link)) return;
+    clearSchedulePress();
+    const touch = e.touches[0];
+    const startX = touch.clientX;
+    const startY = touch.clientY;
+    schedulePressTimer = setTimeout(() => {
+      schedulePressTimer = null;
+      suppressScheduleClick = true;
+      if (navigator.vibrate) navigator.vibrate(12);
+      const eventId = typeof getActiveEventId === 'function'
+        ? getActiveEventId()
+        : localStorage.getItem('eventId');
+      openSchedulePicker(eventId);
+    }, 450);
+    const cancelIfMoved = (moveEvent) => {
+      const moved = moveEvent.touches && moveEvent.touches[0];
+      if (!moved) return;
+      if (Math.abs(moved.clientX - startX) > 12 || Math.abs(moved.clientY - startY) > 12) {
+        clearSchedulePress();
+        nav.removeEventListener('touchmove', cancelIfMoved);
+      }
+    };
+    nav.addEventListener('touchmove', cancelIfMoved, { passive: true });
+    const endPress = () => {
+      clearSchedulePress();
+      nav.removeEventListener('touchmove', cancelIfMoved);
+      nav.removeEventListener('touchend', endPress);
+      nav.removeEventListener('touchcancel', endPress);
+    };
+    nav.addEventListener('touchend', endPress);
+    nav.addEventListener('touchcancel', endPress);
+  }, { passive: true });
+
+  nav.addEventListener('contextmenu', (e) => {
+    if (!window.matchMedia('(max-width: 768px)').matches) return;
+    if (!e.target.closest('#navSchedule')) return;
+    e.preventDefault();
+  });
+
   nav.addEventListener('click', (e) => {
     const chatButton = e.target.closest('.chat-button-nav');
     if (chatButton && nav.contains(chatButton)) {
@@ -936,6 +1007,22 @@ function bindBottomNav(nav) {
     const currentEventId = typeof getActiveEventId === 'function'
       ? getActiveEventId()
       : localStorage.getItem('eventId');
+
+    if (page === 'schedule' && suppressScheduleClick) {
+      suppressScheduleClick = false;
+      return;
+    }
+
+    if (page === 'schedule' && window.matchMedia('(max-width: 768px)').matches) {
+      if (currentEventId) {
+        sessionStorage.removeItem(`schedule_show_list_${currentEventId}`);
+      }
+      if (window.currentPage === 'schedule') {
+        if (typeof window.hideScheduleList === 'function') window.hideScheduleList();
+        updateActiveNavigation('schedule');
+        return;
+      }
+    }
 
     if (page === 'gear') {
       if (currentEventId) {
