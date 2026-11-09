@@ -2069,15 +2069,17 @@ function renderProgramSections(hasScheduleAccess) {
   const checkboxStates = new Map();
   container.querySelectorAll('.program-entry').forEach(entry => {
     const programIndex = entry.getAttribute('data-program-index');
+    const programId = entry.getAttribute('data-program-id');
     const checkbox = entry.querySelector('.done-checkbox');
-    if (checkbox && programIndex !== null) {
-      // Store the CURRENT DOM state, which is the source of truth for user interaction
-      checkboxStates.set(programIndex, checkbox.checked);
-      // Also sync to tableData to ensure data consistency
-      if (tableData.programs[programIndex]) {
-        tableData.programs[programIndex].done = checkbox.checked;
-      }
-    }
+    if (!checkbox || programIndex === null || !programId) return;
+    const program = tableData.programs[programIndex];
+    if (!program) return;
+    const currentId = program._id || program._tempId;
+    // The cards still on screen may belong to the schedule we just left.
+    // Matching by row number would copy those checks onto the other schedule.
+    if (!currentId || String(currentId) !== String(programId)) return;
+    checkboxStates.set(programIndex, checkbox.checked);
+    program.done = checkbox.checked;
   });
   console.log(`[RENDER] Preserved ${checkboxStates.size} checkbox states before re-render`);
 
