@@ -2306,8 +2306,11 @@ function renderProgramSections(hasScheduleAccess) {
     container.appendChild(section);
   });
 
+  applyRememberedNotes();
+
   // After rendering is complete, restore scroll position if needed
   setTimeout(() => {
+    applyRememberedNotes();
     document.querySelectorAll('textarea').forEach(setupTextareaResize);
     // --- Restore focus and cursor position ---
     if (focusInfo) {
@@ -4327,37 +4330,98 @@ function optimisticInputHandler(e) {
   }
 }
 
-function toggleNotes(button) {
-  const entry = button.closest('.program-entry');
-  const notesField = entry.querySelector('.notes-field');
-  const textarea = notesField.querySelector('textarea');
-  const isOpen = notesField.style.display === 'block';
-  notesField.style.display = isOpen ? 'none' : 'block';
-  entry.classList.toggle('notes-open', !isOpen);
-  button.textContent = isOpen ? 'Show Notes' : 'Hide Notes';
-  if (!isOpen && textarea) {
-    // Force a reflow to ensure the textarea is visible
-    textarea.offsetHeight;
-    setupTextareaResize(textarea);
+function notesStateStorageKey() {
+  const eventId = currentEventId || localStorage.getItem('eventId') || 'event';
+  return `schedule_notes_${eventId}_${activeScheduleId || 'main'}`;
+}
+
+function readNotesState() {
+  try {
+    const parsed = JSON.parse(localStorage.getItem(notesStateStorageKey()) || '');
+    if (!parsed || typeof parsed !== 'object') return { all: false, open: [] };
+    return {
+      all: !!parsed.all,
+      open: Array.isArray(parsed.open) ? parsed.open.map(String) : []
+    };
+  } catch (err) {
+    return { all: false, open: [] };
   }
 }
 
-function toggleAllNotes() {
-  const allNotes = document.querySelectorAll('.notes-field');
-  const allButtons = document.querySelectorAll('.show-notes-btn');
-  allNotes.forEach(note => {
-    note.style.display = allNotesVisible ? 'none' : 'block';
-    const entry = note.closest('.program-entry');
-    if (entry) entry.classList.toggle('notes-open', !allNotesVisible);
-    const textarea = note.querySelector('textarea');
-    if (!allNotesVisible && textarea) setupTextareaResize(textarea);
-  });
-  allButtons.forEach(btn => {
-    btn.textContent = allNotesVisible ? 'Show Notes' : 'Hide Notes';
-  });
-  allNotesVisible = !allNotesVisible;
+function writeNotesState(state) {
+  localStorage.setItem(notesStateStorageKey(), JSON.stringify({
+    all: !!state.all,
+    open: state.open || []
+  }));
+}
+
+function setEntryNotesOpen(entry, open) {
+  const notesField = entry.querySelector('.notes-field');
+  if (!notesField) return;
+  const button = entry.querySelector('.show-notes-btn');
+  const textarea = notesField.querySelector('textarea');
+  notesField.style.display = open ? 'block' : 'none';
+  entry.classList.toggle('notes-open', !!open);
+  if (button) button.textContent = open ? 'Hide Notes' : 'Show Notes';
+  if (open && textarea) setupTextareaResize(textarea);
+}
+
+function syncAllNotesButton() {
   const toggleBtn = document.getElementById('toggleAllNotesBtn');
   if (toggleBtn) toggleBtn.textContent = allNotesVisible ? 'Hide All Notes' : 'Show All Notes';
+}
+
+function applyRememberedNotes() {
+  const state = readNotesState();
+  allNotesVisible = state.all;
+  const openIds = new Set(state.open);
+  document.querySelectorAll('#programSections .program-entry').forEach((entry) => {
+    const id = entry.getAttribute('data-program-id');
+    setEntryNotesOpen(entry, state.all || !!(id && openIds.has(String(id))));
+  });
+  syncAllNotesButton();
+}
+
+function toggleNotes(button) {
+  const entry = button.closest('.program-entry');
+  const notesField = entry.querySelector('.notes-field');
+  const isOpen = notesField.style.display === 'block';
+  const willOpen = !isOpen;
+  setEntryNotesOpen(entry, willOpen);
+
+  const state = readNotesState();
+  const id = entry.getAttribute('data-program-id');
+  if (state.all && !willOpen) {
+    const open = [];
+    document.querySelectorAll('#programSections .program-entry').forEach((el) => {
+      const pid = el.getAttribute('data-program-id');
+      if (!pid || el === entry) return;
+      const field = el.querySelector('.notes-field');
+      if (field && field.style.display === 'block') open.push(String(pid));
+    });
+    allNotesVisible = false;
+    writeNotesState({ all: false, open });
+    syncAllNotesButton();
+    return;
+  }
+
+  if (!id) return;
+  const open = new Set(state.open.map(String));
+  if (willOpen) open.add(String(id));
+  else open.delete(String(id));
+  allNotesVisible = false;
+  writeNotesState({ all: false, open: [...open] });
+  syncAllNotesButton();
+}
+
+function toggleAllNotes() {
+  const next = !allNotesVisible;
+  document.querySelectorAll('#programSections .program-entry').forEach((entry) => {
+    setEntryNotesOpen(entry, next);
+  });
+  allNotesVisible = next;
+  writeNotesState({ all: next, open: [] });
+  syncAllNotesButton();
 }
 
 const COMPACT_FIELD_SINGLE_LINE = 28;
